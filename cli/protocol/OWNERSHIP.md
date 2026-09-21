@@ -508,3 +508,13 @@ Root additionally authorizes `repository_gate_diagnosis` repository URL substitu
 User authorized production-default account operations with a persistent user-only staging selection in PR #8. Root owns shared spec, schemas, corpus, help fixtures, integration and Git. `environment_bun` owns `cli/bun/src/` and `cli/bun/test/`; `environment_rust` owns `cli/rust/crates/prose-runner-core/src/` and `cli/rust/crates/prose-cli/src/` plus their tests. Both wait for shared contract/cases before implementation. `environment_review` is read-only architecture/security/UX review. No backend deployment, real credential mutation or production requests. Existing leases in these paths are superseded for this phase.
 
 Root integration also owns `docs/staging-account.md`, `cli/conformance/runner/service_environment.py`, `cli/conformance/cases/operations/auth-status-unavailable.json`, and `cli/ci/run_local.py` for environment qualification and hermetic no-flag auth admission.
+
+## IMP-034 registry CLI implementation
+
+Root owns Git, shared fixtures/spec/protocol/schemas/corpus, docs and integration on codex/imp-034-registry-cli (stacked on environment candidate). `environment_bun` owns `cli/bun/src/` and `cli/bun/test/`; `environment_rust` owns Rust runner-core/prose-cli source and tests, for package publish/fetch/list/withdraw per `protocol/decisions/imp034-registry-cli.md`. No dependency changes without root coordination. No live credentials, paid calls, publication or deployment. Existing environment implementation is the starting point and must remain intact.
+
+Root adds the fs feature to already pinned rustix in runner-core Cargo.toml for safe no-clobber materialization; no new dependency/version.
+
+Root additionally assigns `environment_bun` `cli/README.md`, `cli/conformance/runner/README.md`, `cli/conformance/cases/fixtures/runner-help.txt`, `cli/ci/check_architecture.py` (exact module builtin admissions only), `cli/ci/run_local.py` (registry oracle gates), and `cli/shared/schemas/README.md` for registry developer documentation and shared integration gates. Rust help/source changes remain coordinated with `environment_rust`; root retains Git and schema/taxonomy validation.
+
+Root extends the integration lease to `cli/ci/test_run_local.py` for the explicit service/environment/registry gate inventory assertion.

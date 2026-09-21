@@ -168,3 +168,38 @@ evidence. The matrix is candidate-reported, provider spend is unverified,
 reliability is not measured, and semantic status is `not-applicable`. It does
 not change this runner's nonsemantic, non-release claims, and no artifact from
 this implementation has been published.
+
+
+## Registry and service environment fixtures
+
+The account and registry lanes use compiled test seams with temporary user
+configuration, synthetic credentials, and exact ordered transport exchanges.
+They never contact an account service or start a harness. Ordinary binaries
+ignore the fixture environment variable. Build and run from the repository root:
+
+```sh
+(cd cli/rust && cargo build --locked --features test-seams --bin prose)
+(cd cli/bun && bun run build:test)
+python3 cli/conformance/runner/service_environment.py -- cli/rust/target/debug/prose
+python3 cli/conformance/runner/service_environment.py -- cli/bun/dist/prose-test
+python3 cli/conformance/runner/registry_service.py -- cli/rust/target/debug/prose
+python3 cli/conformance/runner/registry_service.py -- cli/bun/dist/prose-test
+```
+
+Use the repository-pinned Bun 1.3.5 on PATH, including for child build scripts.
+`run_local.py` includes `registry-service-rust` and `registry-service-bun` after
+its test-seam builds. The registry oracle checks both canonical byte fixtures in
+production and staging across publish, fetch, public listing, withdraw, and
+artifact tampering, HTTP error classification, duplicate manifest keys and human
+output. It asserts exact receipt results, exact posted bytes/hash,
+selected fixed origin and credential isolation without retaining credentials.
+The normative vectors live in `cli/shared/fixtures/registry/`; neither port
+imports the other's implementation.
+
+Local directory-manifest tests reject duplicate JSON keys; network artifacts
+retain the protocol's parsed-object behavior and must also match canonical bytes
+on fetch. Filesystem checks cover symlinks, unsafe paths, existing destinations,
+and receipt-last Bun materialization. A Bun fetch may expose an incomplete
+reserved directory during writes; no automatic resume or overwrite is promised.
+Fixture success is not deployment, publication, native platform admission, or
+live authorization evidence.

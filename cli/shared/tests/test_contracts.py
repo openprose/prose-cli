@@ -64,6 +64,20 @@ class ContractsTest(unittest.TestCase):
         errors = sorted(self.validator(schema_name).iter_errors(instance), key=lambda error: list(error.path))
         self.assertEqual([], [f"{list(error.path)}: {error.message}" for error in errors])
 
+    def test_registry_reports_bind_operation_and_failure(self):
+        receipt = load_json(FIXTURES / "registry/directory.receipt.json")
+        base = {"schema": "openprose.package-operation/1", "environment": "staging", "operation": "publish", "result": receipt, "problem": None}
+        self.assert_valid("package-operation.schema.json", base)
+        for operation, result in (("fetch", receipt), ("list", {"packages": [receipt], "nextCursor": None}), ("withdraw", {"receipt": receipt, "withdrawn": True})):
+            self.assert_valid("package-operation.schema.json", {**base, "operation": operation, "result": result})
+        taxonomy = load_json(SHARED / "errors/taxonomy.v1.json")
+        records = taxonomy["errors"]
+        failure = {"schema": "openprose.runner-error/1", **next(item for item in records if item["code"] == "SERVICE_UNAVAILABLE")}
+        self.assert_valid("package-operation.schema.json", {**base, "result": None, "problem": failure})
+        for changes in ({"result": None}, {"operation": "list"}, {"problem": failure}, {"token": "secret"}, {"environment": "custom"}):
+            self.assertTrue(list(self.validator("package-operation.schema.json").iter_errors({**base, **changes})))
+        self.assertEqual(receipt["reference"]["sha256"], sha256((FIXTURES / "registry/directory.canonical.json").read_bytes()))
+
     def test_kernel_startup_instruction_recipes_and_provider_routes(self):
         fixture = load_json(FIXTURES / "adapters/kernel-startup.json")
         recipes = SHARED / "capabilities/adapters/recipes"

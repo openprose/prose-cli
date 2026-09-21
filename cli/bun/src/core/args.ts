@@ -1,3 +1,4 @@
+import { parsePackageCommand } from "./package-args";
 import { invocationFailure } from "./errors";
 import type { GlobalFlags, OutputMode, ParsedEntrypoint } from "./types";
 
@@ -126,6 +127,7 @@ function parseOperation(global: GlobalFlags, args: readonly string[]): ParsedEnt
     withoutJson.pop();
     json = true;
   }
+  if (withoutJson[0] === "package") return { kind: "operation", global, operation: "package", json, packageCommand: parsePackageCommand(withoutJson.slice(1)) };
   const key = withoutJson.join(" ");
   if (withoutJson.length === 3 && withoutJson[0] === "cleanup" && withoutJson[1] === "prime") {
     if (json) invalid("Prime cleanup uses the global `--output json` option before `cli`.");
@@ -195,6 +197,11 @@ function knownRunnerHelpPath(args: readonly string[]): boolean {
     "environment reset --help",
     "environment use staging --help",
     "environment use production --help",
+    "package --help",
+    "package publish --help",
+    "package fetch --help",
+    "package list --help",
+    "package withdraw --help",
     "org --help",
     "org list --help",
     "auth --help",
@@ -205,6 +212,7 @@ function knownRunnerHelpPath(args: readonly string[]): boolean {
   return args.length === 4
     && (
       (args[0] === "harness" && args[1] === "use")
+      || (args[0] === "package" && ["publish", "fetch", "list", "withdraw"].includes(args[1]!))
       || (args[0] === "cleanup" && args[1] === "prime")
     )
     && args[2]!.length > 0

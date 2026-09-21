@@ -1,0 +1,18 @@
+{
+  "schema": "prose-publication-v1",
+  "organizationId": "00000000-0000-4000-8000-000000000001",
+  "reference": {
+    "organization": "example",
+    "package": "hello",
+    "version": "1.0.0",
+    "sha256": "fac5e538f24818de99c563a5d8c547a5fae1fbb7047e68dbe3cca9ef732ec61e"
+  },
+  "visibility": "private",
+  "inventory": [
+    {
+      "path": "hello.md",
+      "size": 8,
+      "sha256": "90f8ec5669cd34183b9b0fdf8b94f5efb4c3672876330f4aa76088c2b4ad17be"
+    }
+  ]
+}

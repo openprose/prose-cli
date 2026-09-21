@@ -1,0 +1,33 @@
+[
+  {
+    "fixture": "single-file.json",
+    "canonical": "single-file.canonical.json",
+    "artifactBytes": 253,
+    "sha256": "fac5e538f24818de99c563a5d8c547a5fae1fbb7047e68dbe3cca9ef732ec61e",
+    "inventory": [
+      {
+        "path": "hello.md",
+        "size": 8,
+        "sha256": "90f8ec5669cd34183b9b0fdf8b94f5efb4c3672876330f4aa76088c2b4ad17be"
+      }
+    ]
+  },
+  {
+    "fixture": "directory.json",
+    "canonical": "directory.canonical.json",
+    "artifactBytes": 503,
+    "sha256": "1293bc4e33eaafce6aa4402378eb8ae39e12724ba258d8132c512fc06c42caeb",
+    "inventory": [
+      {
+        "path": "README.md",
+        "size": 6,
+        "sha256": "4845d7f12918cd6dcf4447ffe305204ae7d76334c486ebe0e319f9cb95abe182"
+      },
+      {
+        "path": "docs/guide.md",
+        "size": 8,
+        "sha256": "da4026b007db2d686d91c23fedea520d5c4d343376e0a018351e60686d062247"
+      }
+    ]
+  }
+]

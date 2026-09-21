@@ -19,7 +19,7 @@ impl ServiceEnvironment {
             Self::Production
         }
     }
-    fn name(self) -> &'static str {
+    pub(crate) fn name(self) -> &'static str {
         match self {
             Self::Production => "production",
             Self::Staging => "staging",
@@ -52,7 +52,7 @@ fn valid_token(token: &str) -> bool {
     })
 }
 
-struct Session {
+pub(crate) struct Session {
     environment: ServiceEnvironment,
     fixture: Option<Value>,
     next: usize,
@@ -65,6 +65,22 @@ impl Session {
         cancellation: &CancellationToken,
         environment: ServiceEnvironment,
     ) -> Result<Self, RunnerError> {
+        Self::bounded(cancellation, environment, LIMIT)
+    }
+
+    pub(crate) fn registry(
+        cancellation: &CancellationToken,
+        environment: ServiceEnvironment,
+    ) -> Result<Self, RunnerError> {
+        Self::bounded(cancellation, environment, 16 * 1024 * 1024)
+    }
+
+    fn bounded(
+        cancellation: &CancellationToken,
+        environment: ServiceEnvironment,
+        fixture_limit: u64,
+    ) -> Result<Self, RunnerError> {
+        let _ = fixture_limit;
         #[allow(unused_mut)]
         let mut fixture: Option<Value> = None;
         #[cfg(feature = "test-seams")]
@@ -72,10 +88,10 @@ impl Session {
             let mut bytes = Vec::new();
             std::fs::File::open(path)
                 .map_err(|_| problem(ErrorCode::ServiceProtocolInvalid))?
-                .take(LIMIT + 1)
+                .take(fixture_limit + 1)
                 .read_to_end(&mut bytes)
                 .map_err(|_| problem(ErrorCode::ServiceProtocolInvalid))?;
-            if bytes.len() as u64 > LIMIT {
+            if bytes.len() as u64 > fixture_limit {
                 return Err(problem(ErrorCode::ServiceProtocolInvalid));
             }
             fixture = Some(
@@ -620,11 +636,11 @@ fn native_store(
         return Err(problem(ErrorCode::CredentialStoreUnavailable));
     }
     if operation == "get" {
-        let output = String::from_utf8(stdout)
-            .map_err(|_| problem(ErrorCode::CredentialStoreUnavailable))?;
+        let output =
+            String::from_utf8(stdout).map_err(|_| problem(ErrorCode::ServiceProtocolInvalid))?;
         let token = output.trim();
         if !valid_token(token) {
-            return Err(problem(ErrorCode::CredentialStoreUnavailable));
+            return Err(problem(ErrorCode::ServiceProtocolInvalid));
         }
         Ok(Some(token.to_owned()))
     } else {
@@ -642,6 +658,7 @@ pub fn is_service_command(command: &RunnerCommand) -> bool {
             | RunnerCommand::EnvironmentShow
             | RunnerCommand::EnvironmentUse(_)
             | RunnerCommand::EnvironmentReset
+            | RunnerCommand::Package(_)
     )
 }
 
@@ -697,6 +714,15 @@ pub fn execute_user_command(
             .as_deref()
             .unwrap_or(&selection.environment),
     );
+    if let RunnerCommand::Package(command) = command {
+        return Ok(crate::registry::execute(
+            command,
+            selected,
+            &system.current_dir,
+            mode,
+            cancellation,
+        ));
+    }
     Ok(execute(command, selected, mode, cancellation))
 }
 
@@ -911,4 +937,179 @@ mod tests {
         let parsed = parse(&["run", "--service-environment", "staging"]).unwrap();
         assert!(parsed.globals.service_environment.is_none());
     }
+}
+
+impl Session {
+    pub(crate) fn registry_credential(
+        &mut self,
+        required: bool,
+    ) -> Result<Option<String>, RunnerError> {
+        self.check()?;
+        let token = match std::env::var(self.environment.variable()) {
+            Ok(value) => {
+                if value.is_empty() {
+                    None
+                } else {
+                    Some(value)
+                }
+            }
+            Err(std::env::VarError::NotPresent) => None,
+            Err(std::env::VarError::NotUnicode(_)) => {
+                return Err(problem(ErrorCode::ServiceProtocolInvalid));
+            }
+        };
+        let token = match token {
+            Some(token) => Some(token),
+            None => match self.store("get", None) {
+                Ok(token) => token,
+                Err(error) if !required && error.code == ErrorCode::CredentialStoreUnavailable => {
+                    None
+                }
+                Err(error) => return Err(error),
+            },
+        };
+        if token.as_deref().is_some_and(|token| !valid_token(token)) {
+            return Err(problem(ErrorCode::ServiceProtocolInvalid));
+        }
+        if required && token.is_none() {
+            return Err(problem(ErrorCode::ServiceAuthRequired));
+        }
+        Ok(token)
+    }
+
+    pub(crate) fn registry_request(
+        &mut self,
+        method: &str,
+        path: &str,
+        token: Option<&str>,
+        body: Option<&[u8]>,
+        accepted: &[u16],
+    ) -> Result<Vec<u8>, RunnerError> {
+        use sha2::{Digest, Sha256};
+        self.check()?;
+        if !path.starts_with("/registry/v1/organizations/")
+            || body.is_some_and(|value| value.len() > crate::registry::LIMIT)
+        {
+            return Err(problem(ErrorCode::ServiceProtocolInvalid));
+        }
+        let (status, bytes) = if let Some(fixture) = &self.fixture {
+            let expected = std::env::var(self.environment.variable())
+                .ok()
+                .filter(|v| !v.is_empty())
+                .or_else(|| {
+                    if fixture["storeAvailable"] == false {
+                        return None;
+                    }
+                    let value = if fixture.get("credentials").is_some() {
+                        &fixture["credentials"][self.environment.name()]
+                    } else {
+                        &fixture["credential"]
+                    };
+                    value.as_str().map(str::to_owned)
+                });
+            if token != expected.as_deref() {
+                return Err(problem(ErrorCode::ServiceProtocolInvalid));
+            }
+            let exchange = fixture["exchanges"]
+                .get(self.next)
+                .ok_or_else(|| problem(ErrorCode::ServiceProtocolInvalid))?;
+            self.next += 1;
+            if exchange["method"] != method
+                || exchange["path"] != path
+                || exchange
+                    .get("origin")
+                    .is_some_and(|v| v != self.environment.origin())
+            {
+                return Err(problem(ErrorCode::ServiceProtocolInvalid));
+            }
+            let sent = body.unwrap_or_default();
+            for key in ["expectBody", "expectedBody"] {
+                if let Some(value) = exchange.get(key) {
+                    if value.as_str().map(str::as_bytes) != Some(sent) {
+                        return Err(problem(ErrorCode::ServiceProtocolInvalid));
+                    }
+                }
+            }
+            for key in ["expectBodySha256", "expectedSha256"] {
+                if exchange.get(key).is_some_and(|v| {
+                    v.as_str() != Some(format!("{:x}", Sha256::digest(sent)).as_str())
+                }) {
+                    return Err(problem(ErrorCode::ServiceProtocolInvalid));
+                }
+            }
+            let status = exchange["status"]
+                .as_u64()
+                .and_then(|v| u16::try_from(v).ok())
+                .unwrap_or(0);
+            if !accepted.contains(&status) {
+                return Err(registry_status(status));
+            }
+            let bytes = if path.ends_with("/artifact") {
+                exchange["body"]
+                    .as_str()
+                    .ok_or_else(|| problem(ErrorCode::ServiceProtocolInvalid))?
+                    .as_bytes()
+                    .to_vec()
+            } else {
+                serde_json::to_vec(&exchange["body"])
+                    .map_err(|_| problem(ErrorCode::ServiceProtocolInvalid))?
+            };
+            (
+                exchange["status"]
+                    .as_u64()
+                    .and_then(|v| u16::try_from(v).ok())
+                    .unwrap_or(0),
+                bytes,
+            )
+        } else {
+            let agent = ureq::AgentBuilder::new()
+                .timeout(Duration::from_secs(10))
+                .redirects(0)
+                .build();
+            let mut request = agent
+                .request(method, &format!("{}{path}", self.environment.origin()))
+                .set("Accept", "application/json");
+            if let Some(token) = token {
+                request = request.set("Authorization", &format!("Bearer {token}"));
+            }
+            let response = if let Some(body) = body {
+                request
+                    .set("Content-Type", "application/json")
+                    .send_bytes(body)
+            } else {
+                request.call()
+            };
+            let (Ok(response) | Err(ureq::Error::Status(_, response))) = response else {
+                return Err(self.transport_failure());
+            };
+            self.check()?;
+            let status = response.status();
+            // Do not retain or emit service error bodies.
+            if !accepted.contains(&status) {
+                return Err(registry_status(status));
+            }
+            let mut bytes = Vec::new();
+            response
+                .into_reader()
+                .take(crate::registry::LIMIT as u64 + 1)
+                .read_to_end(&mut bytes)
+                .map_err(|_| self.transport_failure())?;
+            (status, bytes)
+        };
+        self.check()?;
+        if !accepted.contains(&status) {
+            return Err(registry_status(status));
+        }
+        if bytes.len() > crate::registry::LIMIT {
+            return Err(problem(ErrorCode::ServiceProtocolInvalid));
+        }
+        Ok(bytes)
+    }
+}
+fn registry_status(status: u16) -> RunnerError {
+    problem(match status {
+        401 | 403 => ErrorCode::ServiceAuthRequired,
+        409 => ErrorCode::ServiceProtocolInvalid,
+        _ => ErrorCode::ServiceUnavailable,
+    })
 }

@@ -600,7 +600,7 @@ fn execute_runner_command(
         RunnerCommand::CleanupPrime(handle) => {
             execute_prime_cleanup(&handle, mode, clock, ids, &std::env::temp_dir())
         }
-        RunnerCommand::AuthStatus | RunnerCommand::AuthLogin | RunnerCommand::AuthLogout | RunnerCommand::OrgList | RunnerCommand::EnvironmentShow | RunnerCommand::EnvironmentUse(_) | RunnerCommand::EnvironmentReset => {
+        RunnerCommand::AuthStatus | RunnerCommand::AuthLogin | RunnerCommand::AuthLogout | RunnerCommand::OrgList | RunnerCommand::EnvironmentShow | RunnerCommand::EnvironmentUse(_) | RunnerCommand::EnvironmentReset | RunnerCommand::Package(_) => {
             unreachable!("service commands are dispatched before harness operations")
         }
     }
