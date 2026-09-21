@@ -1,19 +1,17 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://schemas.openprose.org/cli/v1/service-account.schema.json",
+  "$id": "https://schemas.openprose.org/cli/v1/service-environment.schema.json",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "schema",
     "environment",
-    "operation",
-    "authenticated",
-    "credentialSource",
+    "source",
     "problem"
   ],
   "properties": {
     "schema": {
-      "const": "openprose.service-account/1"
+      "const": "openprose.service-environment/1"
     },
     "environment": {
       "enum": [
@@ -21,21 +19,10 @@
         "staging"
       ]
     },
-    "operation": {
+    "source": {
       "enum": [
-        "login",
-        "status",
-        "logout"
-      ]
-    },
-    "authenticated": {
-      "type": "boolean"
-    },
-    "credentialSource": {
-      "enum": [
-        "os-credential-store",
-        "environment",
-        "none"
+        "default",
+        "user-config"
       ]
     },
     "problem": {

@@ -2,7 +2,6 @@ import { describe, expect, test } from "bun:test";
 import { chmod, lstat, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import accountStatusFixture from "../../shared/fixtures/operations/account-status-unavailable.json" with { type: "json" };
 import configurationFixture from "../../shared/fixtures/operations/configuration-explanation.json" with { type: "json" };
 import { humanHarnessList, runCli, type CliDependencies } from "../src/cli";
 import { harnesses } from "../src/core/harnesses";
@@ -1242,20 +1241,17 @@ describe("CLI behavior", () => {
     expect(io.invocations).toHaveLength(0);
   });
 
-  test("auth status emits the fail-closed account report without reading or printing credentials", async () => {
-    const io = operationFixture();
-    expect(await runCli(["--output", "json", "cli", "auth", "status"], io.deps)).toBe(10);
-    expect(JSON.parse(io.stdout())).toEqual(accountStatusFixture);
-    expect(io.stderr()).toBe("");
-    expect(io.invocations).toHaveLength(0);
-    expect(io.stdout()).not.toContain("must-not-appear");
-  });
-
-  test.each(["login", "logout"])("auth %s reaches the hosted boundary with the frozen taxonomy action", async (command) => {
-    const io = operationFixture();
-    expect(await runCli(["--output", "json", "cli", "auth", command], io.deps)).toBe(10);
-    expect(JSON.parse(io.stdout())).toEqual(accountStatusFixture.problem);
-    expect(io.stderr()).toBe("");
-    expect(io.invocations).toHaveLength(0);
+  test.each(["status", "login", "logout"])("auth %s defaults to production with hermetic credential store failure", async (command) => {
+    const root = await mkdtemp(join(tmpdir(), "prose-account-"));
+    try {
+      const path = join(root, "service.json");
+      await writeFile(path, JSON.stringify({ environment: "production", credential: null, storeAvailable: false, exchanges: [] }));
+      const io = operationFixture();
+      io.deps.env = { PROSE_TEST_SERVICE_FIXTURE: path };
+      expect(await runCli(["--output", "json", "cli", "auth", command], io.deps)).toBe(10);
+      expect(JSON.parse(io.stdout())).toMatchObject({ environment: "production", problem: { code: "CREDENTIAL_STORE_UNAVAILABLE" } });
+      expect(io.stderr()).toBe("");
+      expect(io.invocations).toHaveLength(0);
+    } finally { await rm(root, { recursive: true, force: true }); }
   });
 });

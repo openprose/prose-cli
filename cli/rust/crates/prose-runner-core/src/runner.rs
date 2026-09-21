@@ -193,6 +193,12 @@ fn execute_inner(
     human_stream: Option<&mut dyn IoWrite>,
 ) -> CommandOutcome {
     let mode = action_output_mode(parsed, config);
+    if let Action::Runner { command, .. } = &parsed.action {
+        if crate::service_account::is_service_command(command) {
+            return crate::SystemContext::capture().and_then(|system| crate::service_account::execute_user_command(command, &parsed.globals, &system, mode, cancellation))
+                .unwrap_or_else(|error| error_outcome(error, mode, clock, ids));
+        }
+    }
     let mut outcome = match &parsed.action {
         Action::Help => CommandOutcome::human(HELP, "", 0),
         Action::Version => CommandOutcome::human(format!("prose {RUNNER_VERSION} (rust)\n"), "", 0),
@@ -594,34 +600,8 @@ fn execute_runner_command(
         RunnerCommand::CleanupPrime(handle) => {
             execute_prime_cleanup(&handle, mode, clock, ids, &std::env::temp_dir())
         }
-        RunnerCommand::AuthStatus => {
-            let problem = hosted_unavailable();
-            let report = json!({
-                "schema": "openprose.account-status/1",
-                "availability": "unavailable",
-                "authenticated": null,
-                "authCategory": "openprose-account",
-                "billingOwner": "openprose",
-                "credentialStorage": "unavailable",
-                "problem": problem
-            });
-            if mode == OutputMode::Human {
-                CommandOutcome::human(
-                    format!(
-                        "OpenProse account: unavailable\nAuthentication: unknown\nCredential storage: unavailable\nProblem: {} — {}\nAction: {}\n",
-                        problem.code,
-                        problem.message,
-                        problem.human_action()
-                    ),
-                    "",
-                    problem.exit_code,
-                )
-            } else {
-                CommandOutcome::json(report, problem.exit_code)
-            }
-        }
-        RunnerCommand::AuthLogin | RunnerCommand::AuthLogout | RunnerCommand::OrgList => {
-            error_outcome(hosted_unavailable(), mode, clock, ids)
+        RunnerCommand::AuthStatus | RunnerCommand::AuthLogin | RunnerCommand::AuthLogout | RunnerCommand::OrgList | RunnerCommand::EnvironmentShow | RunnerCommand::EnvironmentUse(_) | RunnerCommand::EnvironmentReset => {
+            unreachable!("service commands are dispatched before harness operations")
         }
     }
 }
@@ -735,12 +715,6 @@ fn render_harness_status_human(
             human_safe_scalar(prerequisite.repair_command)
         );
     }
-}
-
-fn hosted_unavailable() -> RunnerError {
-    RunnerError::catalog(ErrorCode::HostedUnavailable)
-        .with_detail("billingOwner", "openprose")
-        .with_detail("fallbackSelected", false)
 }
 
 fn supported_transports(harness: &str) -> Option<&'static [&'static str]> {

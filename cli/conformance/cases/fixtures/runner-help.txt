@@ -46,9 +46,16 @@ The first language-command token ends runner-option parsing. `prose help` is
 forwarded to OpenProse; use `prose --help` for this runner help. Use
 `prose -- cli ...` to forward a language command named `cli`.
 
-Staging account commands (no hosted execution):
-  prose --service-environment staging cli auth login|status|logout [--json]
-  prose --service-environment staging cli org list [--json]
+OpenProse service commands (production by default; no hosted execution):
+  prose cli auth login|status|logout [--json]
+  prose cli org list [--json]
+  prose cli environment show [--json]
+  prose cli environment use production|staging [--json]
+  prose cli environment reset [--json]
 
-Login stores credentials in the OS credential store. For CI, set
-OPENPROSE_STAGING_API_KEY; logout removes only the local credential.
+Environment selection persists in user configuration. Reset returns to production.
+Account commands also accept an ephemeral --service-environment override before cli.
+Staging service output is labeled; JSON reports include the selected environment.
+Login stores credentials separately per environment in the OS credential store.
+For CI, use OPENPROSE_API_KEY or OPENPROSE_STAGING_API_KEY for the selected service.
+Logout removes only the selected local credential.

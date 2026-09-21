@@ -14,7 +14,10 @@
       "const": "openprose.organization-list/1"
     },
     "environment": {
-      "const": "staging"
+      "enum": [
+        "production",
+        "staging"
+      ]
     },
     "organizations": {
       "type": "array",

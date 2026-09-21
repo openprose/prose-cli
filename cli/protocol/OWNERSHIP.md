@@ -502,3 +502,9 @@ Root owns `cli/CONTRIBUTING.md` for clarifying the Python version required by th
 `repository_gate_diagnosis` additionally owns `.github/ISSUE_TEMPLATE/openprose-cli-{bug,harness-model,benchmark-profile}.yml`, `cli/SUPPORT.md`, `cli/CONTRIBUTING.md` (preserve Python clarification), and `cli/ci/test_check_alpha_public_docs.py` to restore documented contributor forms and replace a mutable historical snapshot with a controlled fixture. No release workflows or gate bypass.
 
 Root additionally authorizes `repository_gate_diagnosis` repository URL substitutions only in `cli/ci/check_alpha_public_docs.py` and `cli/ci/test_check_contributor_docs.py`; preserve substantive privacy and routing checks.
+
+## IMP-034 persistent service environments
+
+User authorized production-default account operations with a persistent user-only staging selection in PR #8. Root owns shared spec, schemas, corpus, help fixtures, integration and Git. `environment_bun` owns `cli/bun/src/` and `cli/bun/test/`; `environment_rust` owns `cli/rust/crates/prose-runner-core/src/` and `cli/rust/crates/prose-cli/src/` plus their tests. Both wait for shared contract/cases before implementation. `environment_review` is read-only architecture/security/UX review. No backend deployment, real credential mutation or production requests. Existing leases in these paths are superseded for this phase.
+
+Root integration also owns `docs/staging-account.md`, `cli/conformance/runner/service_environment.py`, `cli/conformance/cases/operations/auth-status-unavailable.json`, and `cli/ci/run_local.py` for environment qualification and hermetic no-flag auth admission.

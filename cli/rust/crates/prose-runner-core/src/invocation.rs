@@ -65,6 +65,9 @@ pub enum RunnerCommand {
     AuthLogin,
     AuthLogout,
     OrgList,
+    EnvironmentShow,
+    EnvironmentUse(String),
+    EnvironmentReset,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -107,10 +110,6 @@ pub fn parse_invocation(
             Action::Runner { command: RunnerCommand::AuthStatus | RunnerCommand::AuthLogin | RunnerCommand::AuthLogout | RunnerCommand::OrgList, .. }) {
             return Err(RunnerError::invocation("service environment requires an account or organization command"));
         }
-    }
-    if parsed.globals.service_environment.is_none()
-        && matches!(parsed.action, Action::Runner { command: RunnerCommand::OrgList, .. }) {
-        return Err(RunnerError::invocation("organization commands require the staging service environment"));
     }
     Ok(parsed)
 }
@@ -264,7 +263,7 @@ fn set_value_option(globals: &mut GlobalFlags, name: &str, value: &str) -> Resul
     }
     match name {
         "--service-environment" => {
-            if value != "staging" { return Err(RunnerError::invocation("service environment must be staging")); }
+            if !matches!(value, "staging" | "production") { return Err(RunnerError::invocation("service environment must be production or staging")); }
             set_once(&mut globals.service_environment, name, value)?;
         }
         "--harness" => globals.harness = Some(value.to_owned()),
@@ -336,6 +335,9 @@ fn parse_runner_command(args: &[String], globals: &mut GlobalFlags) -> Result<Ac
         [config, explain, tail @ ..] if config == "config" && explain == "explain" => {
             (RunnerCommand::ConfigExplain, tail)
         }
+        [environment, show, tail @ ..] if environment == "environment" && show == "show" => (RunnerCommand::EnvironmentShow, tail),
+        [environment, reset, tail @ ..] if environment == "environment" && reset == "reset" => (RunnerCommand::EnvironmentReset, tail),
+        [environment, use_command, value, tail @ ..] if environment == "environment" && use_command == "use" && matches!(value.as_str(), "production" | "staging") => (RunnerCommand::EnvironmentUse(value.clone()), tail),
         [org, list, tail @ ..] if org == "org" && list == "list" => (RunnerCommand::OrgList, tail),
         [auth, status, tail @ ..] if auth == "auth" && status == "status" => {
             (RunnerCommand::AuthStatus, tail)
@@ -422,7 +424,7 @@ fn known_runner_help_path(args: &[String]) -> bool {
         values.as_slice(),
         ["--help"]
             | [
-                "doctor" | "harness" | "cleanup" | "config" | "auth" | "org",
+                "doctor" | "harness" | "cleanup" | "config" | "auth" | "org" | "environment",
                 "--help"
             ]
             | ["harness", "list" | "use", "--help"]
@@ -432,6 +434,8 @@ fn known_runner_help_path(args: &[String]) -> bool {
             | ["config", "explain", "--help"]
             | ["auth", "status" | "login" | "logout", "--help"]
             | ["org", "list", "--help"]
+            | ["environment", "show" | "reset" | "use", "--help"]
+            | ["environment", "use", _, "--help"]
     )
 }
 

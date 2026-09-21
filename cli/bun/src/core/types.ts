@@ -9,7 +9,7 @@ export interface ValueSource {
 }
 
 export interface GlobalFlags {
-  serviceEnvironment?: "staging";
+  serviceEnvironment?: "production" | "staging";
   harness?: string;
   transport?: string;
   cwd?: string;
@@ -63,6 +63,9 @@ export interface EffectiveConfiguration {
 }
 
 export type RunnerOperation =
+  | "environment-show"
+  | "environment-use"
+  | "environment-reset"
   | "doctor"
   | "harness-list"
   | "harness-use"

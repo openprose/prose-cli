@@ -34,7 +34,7 @@ export function buildInstalledAdapterEnvironment(input: AdapterEnvironmentInput)
       authProfile: input.credentialGroup,
     });
   }
-  const alwaysStrip = new Set([...adapterAlwaysStrip, "OPENPROSE_STAGING_API_KEY"].map(normalize));
+  const alwaysStrip = new Set([...adapterAlwaysStrip, "OPENPROSE_STAGING_API_KEY", "OPENPROSE_API_KEY"].map(normalize));
   const selected = new Set([
     ...adapterBaseEnvironmentAllowlist,
     ...credentialNames,

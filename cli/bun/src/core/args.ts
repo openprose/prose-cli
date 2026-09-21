@@ -28,7 +28,7 @@ function invalid(message: string): never {
 
 function setValue(global: GlobalFlags, key: keyof GlobalFlags, value: string, option: string): void {
   if (key === "serviceEnvironment") {
-    if (value !== "staging") invalid("Service environment must be staging.");
+    if (value !== "staging" && value !== "production") invalid("Service environment must be production or staging.");
     if (global.serviceEnvironment !== undefined) invalid("Service environment was specified more than once.");
     global.serviceEnvironment = value;
     return;
@@ -131,6 +131,9 @@ function parseOperation(global: GlobalFlags, args: readonly string[]): ParsedEnt
     if (json) invalid("Prime cleanup uses the global `--output json` option before `cli`.");
     return { kind: "operation", global, operation: "prime-cleanup", json, value: withoutJson[2]! };
   }
+  if (key === "environment show") return { kind: "operation", global, operation: "environment-show", json };
+  if (key === "environment reset") return { kind: "operation", global, operation: "environment-reset", json };
+  if (withoutJson.length === 3 && withoutJson[0] === "environment" && withoutJson[1] === "use" && ["production", "staging"].includes(withoutJson[2]!)) return { kind: "operation", global, operation: "environment-use", json, value: withoutJson[2]! };
   if (key === "doctor") return { kind: "operation", global, operation: "doctor", json };
   if (key === "harness list") return { kind: "operation", global, operation: "harness-list", json };
   if (key === "config explain") return { kind: "operation", global, operation: "config-explain", json };
@@ -186,6 +189,12 @@ function knownRunnerHelpPath(args: readonly string[]): boolean {
     "cleanup prime --help",
     "config --help",
     "config explain --help",
+    "environment --help",
+    "environment show --help",
+    "environment use --help",
+    "environment reset --help",
+    "environment use staging --help",
+    "environment use production --help",
     "org --help",
     "org list --help",
     "auth --help",

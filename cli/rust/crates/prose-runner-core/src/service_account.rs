@@ -1,4 +1,4 @@
-//! Explicit staging account operations. Credentials never enter harness configuration.
+//! Environment-isolated account operations. Credentials never enter harness configuration.
 use crate::error::ErrorCode;
 use crate::output::CommandOutcome;
 use crate::{CancellationToken, OutputMode, RunnerCommand, RunnerError};
@@ -6,7 +6,38 @@ use serde_json::{Value, json};
 use std::io::{Read, Write};
 use std::time::{Duration, Instant};
 
-const BASE: &str = "https://run-prose-staging.openprose.workers.dev";
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ServiceEnvironment {
+    Production,
+    Staging,
+}
+impl ServiceEnvironment {
+    fn from_selection(value: &str) -> Self {
+        if value == "staging" {
+            Self::Staging
+        } else {
+            Self::Production
+        }
+    }
+    fn name(self) -> &'static str {
+        match self {
+            Self::Production => "production",
+            Self::Staging => "staging",
+        }
+    }
+    fn origin(self) -> &'static str {
+        match self {
+            Self::Production => "https://run-prose-production.openprose.workers.dev",
+            Self::Staging => "https://run-prose-staging.openprose.workers.dev",
+        }
+    }
+    fn variable(self) -> &'static str {
+        match self {
+            Self::Production => "OPENPROSE_API_KEY",
+            Self::Staging => "OPENPROSE_STAGING_API_KEY",
+        }
+    }
+}
 const LIMIT: u64 = 65_536;
 
 fn problem(code: ErrorCode) -> RunnerError {
@@ -22,6 +53,7 @@ fn valid_token(token: &str) -> bool {
 }
 
 struct Session {
+    environment: ServiceEnvironment,
     fixture: Option<Value>,
     next: usize,
     cancellation: CancellationToken,
@@ -29,7 +61,10 @@ struct Session {
 }
 
 impl Session {
-    fn new(cancellation: &CancellationToken) -> Result<Self, RunnerError> {
+    fn new(
+        cancellation: &CancellationToken,
+        environment: ServiceEnvironment,
+    ) -> Result<Self, RunnerError> {
         #[allow(unused_mut)]
         let mut fixture: Option<Value> = None;
         #[cfg(feature = "test-seams")]
@@ -54,14 +89,25 @@ impl Session {
                 || !value["exchanges"]
                     .as_array()
                     .is_some_and(|v| v.len() <= 182)
-                || !value
+                || !(value
                     .get("credential")
                     .is_some_and(|v| v.is_null() || v.is_string())
+                    || value.get("credentials").is_some_and(Value::is_object))
+                || value
+                    .get("environment")
+                    .is_some_and(|v| v != environment.name())
+                || value.get("credentials").is_some_and(|v| {
+                    !v.is_object()
+                        || ["production", "staging"]
+                            .iter()
+                            .any(|key| !v.get(*key).is_some_and(|v| v.is_null() || v.is_string()))
+                })
             {
                 return Err(problem(ErrorCode::ServiceProtocolInvalid));
             }
         }
         Ok(Self {
+            environment,
             fixture,
             next: 0,
             deadline: None,
@@ -98,16 +144,21 @@ impl Session {
             if fixture["storeAvailable"] == false {
                 return Err(problem(ErrorCode::CredentialStoreUnavailable));
             }
-            let previous = fixture["credential"].as_str().map(str::to_owned);
+            let slot = if fixture.get("credentials").is_some() {
+                &mut fixture["credentials"][self.environment.name()]
+            } else {
+                &mut fixture["credential"]
+            };
+            let previous = slot.as_str().map(str::to_owned);
             if operation == "set" {
-                fixture["credential"] = json!(token);
+                *slot = json!(token);
             }
             if operation == "delete" {
-                fixture["credential"] = Value::Null;
+                *slot = Value::Null;
             }
             return Ok(previous);
         }
-        native_store(operation, token, &self.cancellation)
+        native_store(operation, token, &self.cancellation, self.environment)
     }
 
     fn request(
@@ -125,9 +176,17 @@ impl Session {
                 return Err(problem(ErrorCode::ServiceProtocolInvalid));
             }
             if let Some(token) = token {
-                let expected = std::env::var("OPENPROSE_STAGING_API_KEY")
+                let expected = std::env::var(self.environment.variable())
                     .ok()
-                    .or_else(|| fixture["credential"].as_str().map(str::to_owned));
+                    .filter(|value| !value.is_empty())
+                    .or_else(|| {
+                        let value = if fixture.get("credentials").is_some() {
+                            &fixture["credentials"][self.environment.name()]
+                        } else {
+                            &fixture["credential"]
+                        };
+                        value.as_str().map(str::to_owned)
+                    });
                 if expected.as_deref() != Some(token) {
                     return Err(problem(ErrorCode::ServiceProtocolInvalid));
                 }
@@ -136,7 +195,12 @@ impl Session {
                 .get(self.next)
                 .ok_or_else(|| problem(ErrorCode::ServiceProtocolInvalid))?;
             self.next += 1;
-            if exchange["method"] != method || exchange["path"] != path {
+            if exchange["method"] != method
+                || exchange["path"] != path
+                || exchange
+                    .get("origin")
+                    .is_some_and(|v| v != self.environment.origin())
+            {
                 return Err(problem(ErrorCode::ServiceProtocolInvalid));
             }
             (
@@ -157,7 +221,7 @@ impl Session {
                 .redirects(0)
                 .build();
             let mut request = agent
-                .request(method, &format!("{BASE}{path}"))
+                .request(method, &format!("{}{path}", self.environment.origin()))
                 .set("Accept", "application/json");
             if let Some(token) = token {
                 request = request.set("Authorization", &format!("Bearer {token}"));
@@ -257,10 +321,11 @@ fn organizations(value: Value) -> Result<Value, RunnerError> {
     }
     Ok(json!(output))
 }
-/// Executes an account operation with a bounded staging transport.
+/// Executes an account operation with a bounded environment-isolated transport.
 #[must_use]
 pub fn execute(
     command: &RunnerCommand,
+    selected: ServiceEnvironment,
     mode: OutputMode,
     cancellation: &CancellationToken,
 ) -> CommandOutcome {
@@ -274,8 +339,8 @@ pub fn execute(
     let mut authenticated = false;
     let mut rows = json!([]);
     let result = (|| -> Result<(), RunnerError> {
-        let mut session = Session::new(cancellation)?;
-        let environment = std::env::var("OPENPROSE_STAGING_API_KEY")
+        let mut session = Session::new(cancellation, selected)?;
+        let environment = std::env::var(selected.variable())
             .ok()
             .filter(|s| !s.is_empty());
         if environment.is_some() && matches!(operation, "login" | "logout") {
@@ -410,22 +475,36 @@ pub fn execute(
     let exit = error.as_ref().map_or(0, |e| e.exit_code);
     let report = if operation == "list" {
         json!({
-            "schema":"openprose.organization-list/1","environment":"staging","organizations":rows,"problem":error
+            "schema":"openprose.organization-list/1","environment":selected.name(),"organizations":rows,"problem":error
         })
     } else {
         json!({
-            "schema":"openprose.service-account/1","environment":"staging","operation":operation,"authenticated":authenticated,"credentialSource":source,"problem":error
+            "schema":"openprose.service-account/1","environment":selected.name(),"operation":operation,"authenticated":authenticated,"credentialSource":source,"problem":error
         })
     };
     if mode == OutputMode::Human {
         if let Some(error) = error {
-            CommandOutcome::human("", format!("{}: {}\n", error.code, error.message), exit)
+            CommandOutcome::human(
+                "",
+                format!(
+                    "OpenProse {}: {}: {}\n",
+                    selected.name(),
+                    error.code,
+                    error.message
+                ),
+                exit,
+            )
         } else if operation == "list" {
-            CommandOutcome::human(format!("{}\n", rows), "", 0)
+            CommandOutcome::human(
+                format!("OpenProse {} organizations:\n{}\n", selected.name(), rows),
+                "",
+                0,
+            )
         } else {
             CommandOutcome::human(
                 format!(
-                    "Staging account {operation}: {}\n",
+                    "OpenProse {} account {operation}: {}\n",
+                    selected.name(),
                     if authenticated {
                         "authenticated"
                     } else {
@@ -446,6 +525,7 @@ fn native_store(
     _: &str,
     _: Option<&str>,
     _: &CancellationToken,
+    _: ServiceEnvironment,
 ) -> Result<Option<String>, RunnerError> {
     Err(problem(ErrorCode::CredentialStoreUnavailable))
 }
@@ -455,11 +535,12 @@ fn native_store(
     operation: &str,
     token: Option<&str>,
     cancellation: &CancellationToken,
+    environment: ServiceEnvironment,
 ) -> Result<Option<String>, RunnerError> {
     use std::process::{Command, Stdio};
     // No shell or token argv. Interactive security command parsing receives only
     // fixed commands and a closed ASCII token alphabet over an anonymous pipe.
-    let arguments = "-s org.openprose.cli.staging -a api-key";
+    let arguments = format!("-s org.openprose.cli.{} -a api-key", environment.name());
     let script = match operation {
         "get" => format!("find-generic-password {arguments} -w\n"),
         "delete" => format!("delete-generic-password {arguments}\n"),
@@ -550,12 +631,124 @@ fn native_store(
         Ok(None)
     }
 }
+#[must_use]
+pub fn is_service_command(command: &RunnerCommand) -> bool {
+    matches!(
+        command,
+        RunnerCommand::AuthLogin
+            | RunnerCommand::AuthStatus
+            | RunnerCommand::AuthLogout
+            | RunnerCommand::OrgList
+            | RunnerCommand::EnvironmentShow
+            | RunnerCommand::EnvironmentUse(_)
+            | RunnerCommand::EnvironmentReset
+    )
+}
+
+/// Resolves and executes service commands without reading workspace configuration.
+///
+/// # Errors
+/// Returns an invocation or configuration error before any credential access
+/// when the command or user configuration is invalid.
+pub fn execute_user_command(
+    command: &RunnerCommand,
+    flags: &crate::GlobalFlags,
+    system: &crate::SystemContext,
+    mode: OutputMode,
+    cancellation: &CancellationToken,
+) -> Result<CommandOutcome, RunnerError> {
+    if !is_service_command(command) {
+        return Err(RunnerError::invocation(
+            "Expected a service or environment command.",
+        ));
+    }
+    let selection = match command {
+        RunnerCommand::EnvironmentUse(value) => {
+            crate::config::write_service_selection(system, Some(value))?
+        }
+        RunnerCommand::EnvironmentReset => crate::config::write_service_selection(system, None)?,
+        _ => crate::config::resolve_service_selection(system)?,
+    };
+    if matches!(
+        command,
+        RunnerCommand::EnvironmentShow
+            | RunnerCommand::EnvironmentUse(_)
+            | RunnerCommand::EnvironmentReset
+    ) {
+        return Ok(if mode == OutputMode::Human {
+            CommandOutcome::human(
+                format!(
+                    "OpenProse {} environment ({})\n",
+                    selection.environment, selection.source
+                ),
+                "",
+                0,
+            )
+        } else {
+            CommandOutcome::json(
+                json!({"schema":"openprose.service-environment/1","environment":selection.environment,"source":selection.source,"problem":null}),
+                0,
+            )
+        });
+    }
+    let selected = ServiceEnvironment::from_selection(
+        flags
+            .service_environment
+            .as_deref()
+            .unwrap_or(&selection.environment),
+    );
+    Ok(execute(command, selected, mode, cancellation))
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn fixture_credentials_and_origins_are_environment_isolated() {
+        for environment in [ServiceEnvironment::Production, ServiceEnvironment::Staging] {
+            let mut session = Session {
+                environment,
+                fixture: Some(
+                    json!({"storeAvailable":true,"credentials":{"production":"production-only","staging":"staging-only"},"exchanges":[{"method":"POST","path":"/auth/device","origin":environment.origin(),"status":200,"body":{}}]}),
+                ),
+                next: 0,
+                deadline: None,
+                cancellation: CancellationToken::default(),
+            };
+            assert_eq!(
+                session.store("get", None).unwrap().unwrap(),
+                format!("{}-only", environment.name())
+            );
+            session.store("delete", None).unwrap();
+            let other = if environment == ServiceEnvironment::Production {
+                "staging"
+            } else {
+                "production"
+            };
+            assert_eq!(
+                session.fixture.as_ref().unwrap()["credentials"][other],
+                format!("{other}-only")
+            );
+            assert!(
+                session
+                    .request("POST", "/auth/device", None, json!({}))
+                    .is_ok()
+            );
+            session.next = 0;
+            session.fixture.as_mut().unwrap()["exchanges"][0]["origin"] =
+                json!("https://untrusted.invalid");
+            assert!(
+                session
+                    .request("POST", "/auth/device", None, json!({}))
+                    .is_err()
+            );
+        }
+    }
+
     #[test]
     fn transport_failures_prioritize_cancellation_then_expiry() {
         let cancel = CancellationToken::default();
         let mut session = Session {
+            environment: ServiceEnvironment::Staging,
             fixture: None,
             next: 0,
             deadline: None,
@@ -593,6 +786,7 @@ mod tests {
 
     fn fixture_transport_fails_closed_on_missing_or_wrong_requests() {
         let mut session = Session {
+            environment: ServiceEnvironment::Staging,
             fixture: Some(json!({
                 "credential":null,"storeAvailable":true,"exchanges":[]
             })),
@@ -657,6 +851,7 @@ mod tests {
         let cancel = CancellationToken::default();
         cancel.cancel();
         let mut session = Session {
+            environment: ServiceEnvironment::Staging,
             fixture: Some(json!({
                 "credential":null,"storeAvailable":true,"exchanges":[]
             })),
@@ -680,6 +875,7 @@ mod tests {
 
     fn fixture_store_is_in_memory_and_logout_is_idempotent() {
         let mut session = Session {
+            environment: ServiceEnvironment::Staging,
             fixture: Some(json!({
                 "credential":null,"storeAvailable":true,"exchanges":[]
             })),
@@ -710,7 +906,7 @@ mod tests {
                 "auth",
                 "status"
             ])
-            .is_err()
+            .is_ok()
         );
         let parsed = parse(&["run", "--service-environment", "staging"]).unwrap();
         assert!(parsed.globals.service_environment.is_none());

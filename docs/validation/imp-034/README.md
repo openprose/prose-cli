@@ -45,3 +45,7 @@ The broader historical architecture/release suite failed identically on the unch
 Rust formatting of the candidate's three newly affected files is corrected. Fifteen pre-existing files still fail the full formatting check, and five initial Clippy diagnostics in unchanged supervisor/framing code remain. These are separate baseline qualification debt; supported-platform CI and live credential-store qualification remain outstanding.
 
 No model-provider calls, paid runs, backend edits, deployment or publication were performed.
+
+## Persistent environment extension
+
+Production-default account routing and user-only persistent staging selection are implemented in both ports. Shared process checks pass three multi-invocation persistence sequences and all 26 staging cases against both test binaries. Pinned Bun 1.3.5 passes 40 focused environment/account/parser tests and typecheck. Rust focused service/config/process tests pass. Current restricted execution again prevents socket-based full-suite qualification; earlier full-suite results above apply to the preceding candidate, not this extension. A broad agent run used non-pinned Bun 1.4.2 and reported socket failures, a Python warning assertion and a build digest mismatch; it is not pinned-tool qualification evidence. Live login remains unverified.

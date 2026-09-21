@@ -4982,38 +4982,54 @@ fn doctor_reports_installed_adapter_configuration_blockers_without_fallback() {
     ));
 }
 
+#[cfg(feature = "test-seams")]
 #[test]
-fn account_status_and_mutations_fail_closed_at_the_hosted_boundary() {
+fn account_status_and_mutations_use_only_hermetic_service_store() {
     let temp = TempDir::new().unwrap();
-    let home = temp.path().join("home");
-    let xdg = home.join("xdg");
-    let observation = temp.path().join("must-not-exist.json");
-    fs::create_dir_all(&xdg).unwrap();
-    let status = Command::new(env!("CARGO_BIN_EXE_prose"))
-        .args(["--output", "json", "cli", "auth", "status"])
-        .current_dir(temp.path())
-        .env_clear()
-        .env("HOME", &home)
-        .env("XDG_CONFIG_HOME", &xdg)
-        .env("OPENAI_API_KEY", "must-not-appear-openai")
-        .env("ANTHROPIC_API_KEY", "must-not-appear-anthropic")
-        .env("OPENPROSE_TOKEN", "must-not-appear-openprose")
-        .env("OPENPROSE_CONFORMANCE_FAKE_HARNESS", fake_harness())
-        .env("OPENPROSE_CONFORMANCE_FAKE_SCENARIO", "success")
-        .env("OPENPROSE_CONFORMANCE_FAKE_OBSERVATION", &observation)
-        .output()
-        .unwrap();
-    assert_eq!(status.status.code(), Some(10));
-    let account = operation_fixture("account");
-    assert_eq!(json_stdout(&status), account);
-    assert!(!observation.exists());
-    assert!(!String::from_utf8_lossy(&status.stdout).contains("must-not-appear"));
-
-    for command in ["login", "logout"] {
-        let output = prose(temp.path(), &["--output", "json", "cli", "auth", command]);
-        assert_eq!(output.status.code(), Some(10), "{command}");
-        assert_eq!(json_stdout(&output), account["problem"], "{command}");
+    let fixture = temp.path().join("service.json");
+    fs::write(&fixture, json!({"environment":"production","credential":null,"storeAvailable":false,"exchanges":[]}).to_string()).unwrap();
+    for command in ["status", "login", "logout"] {
+        let output = Command::new(env!("CARGO_BIN_EXE_prose"))
+            .args(["cli", "auth", command, "--json"])
+            .current_dir(temp.path()).env_clear()
+            .env("HOME", temp.path().join("home"))
+            .env("XDG_CONFIG_HOME", temp.path().join("xdg"))
+            .env("PROSE_TEST_SERVICE_FIXTURE", &fixture)
+            .output().unwrap();
+        let result = json_stdout(&output);
+        assert_eq!(result["schema"], "openprose.service-account/1");
+        assert_eq!(result["environment"], "production");
+        assert_eq!(result["problem"]["code"], "CREDENTIAL_STORE_UNAVAILABLE");
     }
+}
+
+#[cfg(feature = "test-seams")]
+#[test]
+fn persistent_service_selection_and_credentials_are_isolated() {
+    let temp = TempDir::new().unwrap();
+    let xdg = temp.path().join("xdg");
+    fs::create_dir_all(xdg.join("openprose")).unwrap();
+    let config = xdg.join("openprose/cli.toml");
+    fs::write(&config, "# retain comment\nharness = \"codex\"\n").unwrap();
+    let fixture = temp.path().join("service.json");
+    fs::write(&fixture, json!({"environment":"staging","credentials":{"production":"rr_test_11111111111111111111111111111111","staging":null},"storeAvailable":true,"exchanges":[]}).to_string()).unwrap();
+    let run = |args: &[&str]| Command::new(env!("CARGO_BIN_EXE_prose"))
+        .args(args).current_dir(temp.path()).env_clear()
+        .env("HOME", temp.path().join("home")).env("XDG_CONFIG_HOME", &xdg)
+        .env("PROSE_TEST_SERVICE_FIXTURE", &fixture)
+        .env("OPENPROSE_API_KEY", "rr_test_11111111111111111111111111111111")
+        .output().unwrap();
+    assert_eq!(json_stdout(&run(&["cli", "environment", "show", "--json"]))["environment"], "production");
+    assert_eq!(json_stdout(&run(&["cli", "environment", "use", "staging", "--json"]))["source"], "user-config");
+    assert_eq!(json_stdout(&run(&["cli", "environment", "show", "--json"]))["environment"], "staging");
+    let status = json_stdout(&run(&["cli", "auth", "status", "--json"]));
+    assert_eq!(status["environment"], "staging");
+    assert_eq!(status["authenticated"], false);
+    assert_eq!(status["credentialSource"], "none");
+    let human = run(&["cli", "org", "list"]);
+    assert!(String::from_utf8_lossy(&human.stderr).contains("OpenProse staging"));
+    assert_eq!(json_stdout(&run(&["cli", "environment", "reset", "--json"]))["source"], "default");
+    assert_eq!(fs::read_to_string(config).unwrap(), "# retain comment\nharness = \"codex\"\n");
 }
 
 #[test]

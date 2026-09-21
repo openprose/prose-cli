@@ -413,6 +413,12 @@ def gates() -> tuple[Gate, ...]:
             (python, "cli/conformance/runner/staging_service.py", "--",
              str(CLI_ROOT / "bun" / "dist" / "prose-test")),
         ),
+        Gate("service-environment-rust", REPOSITORY_ROOT,
+             (python, "cli/conformance/runner/service_environment.py", "--",
+              str(CLI_ROOT / "rust" / "target" / "debug" / "prose"))),
+        Gate("service-environment-bun", REPOSITORY_ROOT,
+             (python, "cli/conformance/runner/service_environment.py", "--",
+              str(CLI_ROOT / "bun" / "dist" / "prose-test"))),
         Gate(
             "conformance-host",
             REPOSITORY_ROOT,

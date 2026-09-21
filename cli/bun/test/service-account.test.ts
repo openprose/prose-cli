@@ -15,7 +15,7 @@ async function invoke(fixture: unknown, operation = "status", env: Record<string
   let stdout = "", stderr = "";
   try {
     const code = await runCli(args ?? ["--service-environment", "staging", "cli", ...(operation === "org" ? ["org", "list"] : ["auth", operation]), "--json"], {
-      env: { PROSE_TEST_SERVICE_FIXTURE: path, ...env }, processCwd: root,
+      env: { PROSE_TEST_SERVICE_FIXTURE: path, ...env }, processCwd: root, userConfigPath: join(root, "cli.toml"),
       clock: { now: () => "2026-01-01T00:00:00Z", monotonicMs: () => 0 }, ids: { invocationId: () => "test-invocation" },
       writeStdout: (value) => { stdout += value; }, writeStderr: (value) => { stderr += value; },
     });
@@ -79,7 +79,7 @@ test("transport pins origin and bearer and strips extra remote fields", async ()
       expect(options?.signal).toBeInstanceOf(AbortSignal);
       return Response.json({ organizations: [{ id: "org", slug: "org", name: "Org", api_key: credential }] });
     }) as unknown as typeof fetch;
-    const code = await runServiceAccount("org-list", "json", { env: { OPENPROSE_STAGING_API_KEY: credential }, writeStdout: (value) => { stdout += value; }, writeStderr: () => {} });
+    const code = await runServiceAccount("org-list", "json", { env: { OPENPROSE_STAGING_API_KEY: credential }, writeStdout: (value) => { stdout += value; }, writeStderr: () => {} }, "staging");
     expect(code).toBe(0);
     expect(JSON.parse(stdout).organizations).toEqual([{ id: "org", slug: "org", name: "Org" }]);
     expect(stdout).not.toContain(credential);
@@ -95,7 +95,7 @@ test("HTTP failures remain typed with empty or HTML bodies; successful bodies re
     ] as const) {
       let stdout = "";
       globalThis.fetch = (async () => new Response(body, { status })) as unknown as typeof fetch;
-      await runServiceAccount("auth-status", "json", { env: { OPENPROSE_STAGING_API_KEY: credential }, writeStdout: (value) => { stdout += value; }, writeStderr: () => {} });
+      await runServiceAccount("auth-status", "json", { env: { OPENPROSE_STAGING_API_KEY: credential }, writeStdout: (value) => { stdout += value; }, writeStderr: () => {} }, "staging");
       expect(JSON.parse(stdout).problem.code).toBe(expected);
       expect(stdout).not.toContain(credential);
     }

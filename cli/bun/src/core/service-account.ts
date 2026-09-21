@@ -5,11 +5,10 @@ import { humanSafeScalar, jsonLine } from "./output";
 import { RunnerFailure, type OutputMode, type RunnerOperation } from "./types";
 
 // This target is deliberately independent of hosted language execution.
-const BASE = "https://run-prose-staging.openprose.workers.dev";
-const STORE = { service: "org.openprose.cli.staging", name: "api-key" };
+type ServiceEnvironment = "production" | "staging";
 const MAX_BYTES = 65_536;
 type RecordValue = Record<string, unknown>;
-interface Fixture { credential: string | null; storeAvailable: boolean; exchanges: Array<{method: string; path: string; status: number; body: unknown}>; cancelBeforePoll?: boolean }
+interface Fixture { environment?: ServiceEnvironment; credentials?: Partial<Record<ServiceEnvironment, string | null>>; credential: string | null; storeAvailable: boolean; exchanges: Array<{method: string; path: string; status: number; body: unknown; origin?: string}>; cancelBeforePoll?: boolean }
 interface Dependencies {
   env: Readonly<Record<string, string | undefined>>;
   cancellationSignal?: AbortSignal;
@@ -40,31 +39,40 @@ async function fixtureFor(deps: Dependencies): Promise<Fixture | undefined> {
     const bytes = await readFile(path);
     if (bytes.length > 1_048_576) throw new Error();
     const value = object(JSON.parse(bytes.toString("utf8")));
-    if (!(value.credential === null || typeof value.credential === "string") || typeof value.storeAvailable !== "boolean" || !Array.isArray(value.exchanges) || value.exchanges.length > 182) throw new Error();
+    if (!(value.credentials !== undefined || value.credential === null || typeof value.credential === "string") || typeof value.storeAvailable !== "boolean" || !Array.isArray(value.exchanges) || value.exchanges.length > 182) throw new Error();
     return value as unknown as Fixture;
   } catch { throw failure("SERVICE_PROTOCOL_INVALID"); }
 }
 class Service {
   elapsed = 0;
-  constructor(readonly deps: Dependencies, readonly fixture?: Fixture) {}
+  constructor(readonly deps: Dependencies, readonly environment: ServiceEnvironment, readonly fixture?: Fixture) {
+    if (fixture?.environment !== undefined && fixture.environment !== environment) throw failure("SERVICE_PROTOCOL_INVALID");
+  }
+  get origin(): string { return `https://run-prose-${this.environment}.openprose.workers.dev`; }
+  get storeIdentity(): { service: string; name: string } { return { service: `org.openprose.cli.${this.environment}`, name: "api-key" }; }
+  get environmentToken(): string | undefined { return this.deps.env[this.environment === "production" ? "OPENPROSE_API_KEY" : "OPENPROSE_STAGING_API_KEY"]; }
+  get fixtureCredential(): string | null { return this.fixture?.credentials === undefined ? this.fixture?.credential ?? null : this.fixture.credentials[this.environment] ?? null; }
   checkCancel(): void { if (this.deps.cancellationSignal?.aborted) throw failure("CANCELLED"); }
   async store(action: "get" | "set" | "delete", value?: string): Promise<string | null> {
     this.checkCancel();
     try {
       if (this.fixture !== undefined) {
         if (!this.fixture.storeAvailable) throw new Error();
-        if (action === "set") this.fixture.credential = value!;
-        if (action === "delete") this.fixture.credential = null;
-        return this.fixture.credential;
+        if (action !== "get") {
+          const next = action === "set" ? value! : null;
+          if (this.fixture.credentials !== undefined) this.fixture.credentials[this.environment] = next;
+          else this.fixture.credential = next;
+        }
+        return this.fixtureCredential;
       }
       if (typeof Bun.secrets?.get !== "function") throw new Error();
       // Native APIs cannot cancel an in-flight keychain mutation. Bound waiting,
       // but report store failure (not cancellation) when its outcome is unknown.
       let timer: ReturnType<typeof setTimeout> | undefined;
       try {
-        const operation = action === "get" ? Bun.secrets.get(STORE)
-          : action === "set" ? Bun.secrets.set({ ...STORE, value: value! }).then(() => null)
-          : Bun.secrets.delete(STORE).then(() => null);
+        const operation = action === "get" ? Bun.secrets.get(this.storeIdentity)
+          : action === "set" ? Bun.secrets.set({ ...this.storeIdentity, value: value! }).then(() => null)
+          : Bun.secrets.delete(this.storeIdentity).then(() => null);
         return await Promise.race([operation, new Promise<never>((_, reject) => {
           timer = setTimeout(() => reject(new Error("Credential store timeout")), 10_000);
         })]);
@@ -88,14 +96,14 @@ class Service {
     this.checkCancel();
     try {
       if (this.fixture !== undefined) {
-        const expectedCredential = this.deps.env.OPENPROSE_STAGING_API_KEY || this.fixture.credential;
+        const expectedCredential = this.environmentToken || this.fixtureCredential;
         if (path === "/organizations" ? credential === undefined || credential !== expectedCredential : credential !== undefined) throw failure("SERVICE_PROTOCOL_INVALID");
         const exchange = this.fixture.exchanges.shift();
-        if (exchange === undefined || exchange.method !== method || exchange.path !== path || JSON.stringify(exchange.body).length > MAX_BYTES) throw failure("SERVICE_PROTOCOL_INVALID");
+        if (exchange === undefined || exchange.method !== method || exchange.path !== path || (exchange.origin !== undefined && exchange.origin !== this.origin) || JSON.stringify(exchange.body).length > MAX_BYTES) throw failure("SERVICE_PROTOCOL_INVALID");
         return { status: integer(exchange.status, 100, 599), body: object(exchange.body) };
       }
       const signal = this.deps.cancellationSignal === undefined ? AbortSignal.timeout(timeoutMs) : AbortSignal.any([this.deps.cancellationSignal, AbortSignal.timeout(timeoutMs)]);
-      const response = await fetch(`${BASE}${path}`, {
+      const response = await fetch(`${this.origin}${path}`, {
         method, redirect: "error", signal,
         headers: { Accept: "application/json", ...(credential === undefined ? {} : { Authorization: `Bearer ${credential}` }), ...(body === undefined ? {} : { "Content-Type": "application/json" }) },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
@@ -176,15 +184,16 @@ async function login(service: Service): Promise<void> {
   }
   throw failure("DEVICE_AUTH_EXPIRED");
 }
-export async function runServiceAccount(operation: RunnerOperation, mode: OutputMode, deps: Dependencies): Promise<number> {
+export async function runServiceAccount(operation: RunnerOperation, mode: OutputMode, deps: Dependencies, environment: ServiceEnvironment = "production"): Promise<number> {
   const isOrg = operation === "org-list";
   const report: RecordValue = isOrg
-    ? { schema: "openprose.organization-list/1", environment: "staging", organizations: [], problem: null }
-    : { schema: "openprose.service-account/1", environment: "staging", operation: operation.slice(5), authenticated: false, credentialSource: "none", problem: null };
+    ? { schema: "openprose.organization-list/1", environment, organizations: [], problem: null }
+    : { schema: "openprose.service-account/1", environment, operation: operation.slice(5), authenticated: false, credentialSource: "none", problem: null };
+  if (mode === "human" && environment === "staging") deps.writeStderr("OpenProse staging environment\n");
   let exitCode = 0;
   try {
-    const service = new Service(deps, await fixtureFor(deps));
-    const environmentToken = deps.env.OPENPROSE_STAGING_API_KEY;
+    const service = new Service(deps, environment, await fixtureFor(deps));
+    const environmentToken = service.environmentToken;
     if ((operation === "auth-login" || operation === "auth-logout") && environmentToken !== undefined && environmentToken !== "") throw failure("INVOCATION_INVALID");
     if (operation === "auth-login") {
       await login(service);
@@ -213,7 +222,7 @@ export async function runServiceAccount(operation: RunnerOperation, mode: Output
   if (mode !== "human") deps.writeStdout(jsonLine(report));
   else {
     if (isOrg) for (const row of report.organizations as RecordValue[]) deps.writeStdout(`${humanSafeScalar(String(row.slug))}\t${humanSafeScalar(String(row.name))}\n`);
-    else deps.writeStdout(`OpenProse staging account: ${report.authenticated ? "authenticated" : "signed out"}\n`);
+    else deps.writeStdout(`OpenProse ${environment} account: ${report.authenticated ? "authenticated" : "signed out"}\n`);
     if (report.problem !== null) { const problem = report.problem as RecordValue; deps.writeStderr(`${problem.code}: ${problem.message}\n${problem.action}\n`); }
   }
   return exitCode;
