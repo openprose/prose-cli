@@ -2,6 +2,8 @@
 
 Status: unpublished local candidate, September 18, 2026. The local implementation is usable for bounded review. It is **not qualified for v1 promotion or public distribution**. Login, hosted transfer and backend work remain deferred.
 
+The conceptual model is assessment and action over contracts defining outcomes to achieve and conditions to maintain. Assessor and actor are provider-neutral roles, potentially supplied by the same agent, ordinary code or other authorized participants, subject to the selected agreement's independence requirements. The implemented adapters and their qualification limits remain narrower than that model. Required reviews, reports, constraints and other invocation obligations still apply when maintained artifacts are already correct. This framing does not qualify a new kernel or change the retained evidence below.
+
 ## Current implementation
 
 The [SDK](../experiments/weave-seed/SDK.md) provides independent Bun and Rust loop implementations. Native coordinators provide `check`, `status`, bounded `step` and `serve`, and explicit `settle`. Both observe selected files, preserve cumulative attempts and pending effects, and share checkpoint and binding formats. The Rust coordinator no longer delegates observation to Bun; the selected Jev and native action adapters still require Bun.

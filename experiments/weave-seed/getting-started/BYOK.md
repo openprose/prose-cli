@@ -2,6 +2,8 @@
 
 This is an explicit local configuration guide, not a live test or a promise that a classifier establishes fulfillment. No OpenProse account is required for the local sidecar. Provider credentials, authorization to send the selected data, spending limits and installed native tools remain your responsibility. The offline example uses none of these.
 
+Contracts define outcomes to achieve and conditions to maintain, together with the invocation's required reviews, reports and constraints. Assessor and actor are provider-neutral roles; the same agent, ordinary code or other authorized participants can supply them through the generic [SDK](../SDK.md), subject to the selected agreement's independence requirements. This configuration helper supports the narrower Jev assessor and Agents SDK/OpenAI-key actor profile described below. That profile does not establish support for other providers. Select evidence for the complete invocation: an already-correct artifact does not discharge a required new review or report.
+
 ## Generate the linked configuration files offline
 
 Copy [setup.example.json](setup.example.json) to a separate reviewed input file and replace every placeholder with your own explicit selection. Then run:

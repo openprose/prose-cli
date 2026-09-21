@@ -1,8 +1,8 @@
 # Weave development seed
 
-Weave is an unpublished experiment in deciding when a caller's evidence needs work. This directory contains independent Rust and JavaScript loop implementations for comparison. It is a locally consumable source SDK and sidecar, not a published package or a `prose weave` command. Start with the provider-free seed examples below; see [candidate readiness](../../docs/weave-v1-readiness.md) before making product or release claims.
+Weave is an unpublished experiment in coordinating assessment and action for outcomes to achieve and conditions to maintain. This directory contains independent Rust and JavaScript loop implementations for comparison. It is a locally consumable source SDK and sidecar, not a published package or a `prose weave` command. Start with the provider-free seed examples below; see [candidate readiness](../../docs/weave-v1-readiness.md) before making product or release claims.
 
-The selected OpenProse kernel and adopted contracts remain authoritative. They define the entire invocation's obligations, including required reports and steps. The loop receives an explicit binding and evidence through caller-supplied capabilities. It neither parses prose nor discovers an agreement. An assessor judges evidence against the resolved agreement; an actor attempts permitted work. The runtime controls their sequence and checks for changed or expired evidence.
+The selected OpenProse kernel and adopted contracts remain authoritative. They define the entire invocation's obligations, including required reports and steps. The loop receives an explicit binding and evidence through caller-supplied capabilities. It neither parses prose nor discovers an agreement. An assessor judges evidence against the resolved agreement; an actor attempts permitted work. These are provider-neutral roles: the same agent, ordinary code or other authorized participants may supply either role, subject to any independence required by the selected agreement. A classifier and a generator are possible implementations, not requirements. The runtime controls their sequence and checks for changed or expired evidence.
 
 ## Start here
 
@@ -47,7 +47,7 @@ rustc --edition=2021 --test experiments/weave-seed/rust/lib.rs -o "$WEAVE_TEST_D
 "$WEAVE_TEST_DIR/tests"
 ```
 
-The measured results are 25 shared lifecycle cases in each implementation, with additional save-failure and settlement checks. Rust reports four test functions containing those checks and a 10,000-step sequential stress run. Bun also runs 10,000 sequential transitions. Both check cumulative actions, reuse, changing bindings, expiry, and budget exhaustion. Bun also checks mutable observation snapshots and rejection of asynchronous callback results. See [the validation record](../../docs/weave-v1-readiness.md#checks-actually-performed) for scope and versions.
+The measured results are 25 shared lifecycle cases in each implementation, with additional save-failure and settlement checks. Rust reports four test functions containing those checks and a 10,000-step sequential stress run. Bun also runs 10,000 sequential transitions. Both check cumulative actions, reuse, changing bindings, expiry, and budget exhaustion. Bun also checks mutable observation snapshots and rejection of asynchronous callback results. See [the validation record](../../docs/weave-v1-readiness.md#retained-qualification-evidence) for scope and versions.
 
 Read the [walkthrough](examples/README.md) to understand the evidence and action boundary. Then read the [seed specification](SPEC.md) for the Rust and JavaScript capability interfaces and parity fixtures. The [Python reference](../weave/README.md) also includes a local checkpoint host and file/SQLite observers; their presence does not establish equivalent host services in the seeds.
 

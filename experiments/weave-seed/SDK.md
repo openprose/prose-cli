@@ -2,6 +2,8 @@
 
 The weave is a small execution library. A host supplies observation, assessment, action, durable checkpoint storage, a clock and attempt identifiers. The library decides whether to reuse a judgment, assess evidence, attempt work, or stop for recovery. The selected OpenProse kernel and contracts define the obligations; the library does not parse Markdown or discover dependencies.
 
+Contracts can define outcomes to achieve and conditions to maintain. Assessor and actor name roles, not provider types: ordinary code, the same agent or other authorized participants may supply either capability, subject to any independence required by the selected agreement. A classifier and a generator are possible implementations. Embedding this optional loop does not replace the selected agreement's required reviews, reports, constraints or other invocation obligations.
+
 Both implementations are unpublished source packages at version `0.0.0`. They are suitable for local experiments, not a released v1 compatibility commitment. No account, network connection or provider key is required to embed the core.
 
 ## Bun
