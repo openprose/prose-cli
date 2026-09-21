@@ -1,0 +1,154 @@
+{
+  "name": "OpenProse CLI benchmark profile or cell proposal",
+  "description": "Propose a frozen benchmark profile or one exact cell for separate review",
+  "title": "[CLI benchmark proposal]: ",
+  "body": [
+    {
+      "type": "markdown",
+      "attributes": {
+        "value": "Use this form only for a rigorous benchmark profile or cell proposal. A benchmark proposal does not authorize live collection. Do not include credentials, tokens, account identifiers, private paths, or raw provider transcripts. Do not report a suspected security vulnerability here; use the private vulnerability report at https://github.com/openprose/prose-cli/security/advisories/new."
+      }
+    },
+    {
+      "type": "dropdown",
+      "id": "proposal_type",
+      "attributes": {
+        "label": "Proposal type",
+        "options": [
+          "New benchmark profile",
+          "New cell in a frozen profile",
+          "Profile or cell amendment"
+        ]
+      },
+      "validations": {
+        "required": true
+      }
+    },
+    {
+      "type": "textarea",
+      "id": "research_question",
+      "attributes": {
+        "label": "Research question",
+        "description": "State what comparison the proposal would support and its limits."
+      },
+      "validations": {
+        "required": true
+      }
+    },
+    {
+      "type": "textarea",
+      "id": "profile_identity",
+      "attributes": {
+        "label": "Frozen profile",
+        "description": "Identify the frozen benchmark profile and its version or digest; describe proposed amendments explicitly."
+      },
+      "validations": {
+        "required": true
+      }
+    },
+    {
+      "type": "textarea",
+      "id": "cell_identity",
+      "attributes": {
+        "label": "Exact cell",
+        "description": "Specify the exact admitted adapter, harness version, model ID, authentication route, and exact target artifact digest."
+      },
+      "validations": {
+        "required": true
+      }
+    },
+    {
+      "type": "textarea",
+      "id": "semantic_contract",
+      "attributes": {
+        "label": "Semantic contract",
+        "description": "Identify the authoritative task corpus, acceptance criteria and scoring rules."
+      },
+      "validations": {
+        "required": true
+      }
+    },
+    {
+      "type": "textarea",
+      "id": "execution_controls",
+      "attributes": {
+        "label": "Execution controls",
+        "description": "Specify the fixed seed, environment, repetition count, ordering and isolation controls."
+      },
+      "validations": {
+        "required": true
+      }
+    },
+    {
+      "type": "textarea",
+      "id": "stops_retries_cost",
+      "attributes": {
+        "label": "Stops, retries and accounting",
+        "description": "Specify stop conditions, retry rules, accounting including failed attempts, and the cost observation channel."
+      },
+      "validations": {
+        "required": true
+      }
+    },
+    {
+      "type": "textarea",
+      "id": "evidence_authority",
+      "attributes": {
+        "label": "Evidence and authority",
+        "description": "Identify retained evidence, provenance and independent review; benchmark inclusion does not establish semantic conformance, portability, or public ranking."
+      },
+      "validations": {
+        "required": true
+      }
+    },
+    {
+      "type": "textarea",
+      "id": "reproduction",
+      "attributes": {
+        "label": "Reproduction",
+        "description": "Provide synthetic reproducible steps and public fixture references; use REDACTED for private values."
+      },
+      "validations": {
+        "required": true
+      }
+    },
+    {
+      "type": "textarea",
+      "id": "upstream_evidence",
+      "attributes": {
+        "label": "Upstream evidence",
+        "description": "Link public documentation that supports the proposed controls and measurements."
+      },
+      "validations": {
+        "required": true
+      }
+    },
+    {
+      "type": "textarea",
+      "id": "affiliation",
+      "attributes": {
+        "label": "Affiliation",
+        "description": "Disclose any relevant affiliation or financial interest, or write none."
+      },
+      "validations": {
+        "required": true
+      }
+    },
+    {
+      "type": "checkboxes",
+      "id": "disclosure",
+      "attributes": {
+        "label": "Disclosure",
+        "options": [
+          {
+            "label": "I removed credentials, account identifiers, private paths, and raw provider output.",
+            "required": true
+          }
+        ]
+      },
+      "validations": {
+        "required": true
+      }
+    }
+  ]
+}

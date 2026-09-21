@@ -774,6 +774,8 @@ class ContractsTest(unittest.TestCase):
             "PROTOCOL_TRUNCATED", "HARNESS_FAILED", "SEMANTIC_STATUS_UNKNOWN",
             "CANCELLED", "PROCESS_CLEANUP_FAILED", "HOSTED_UNAVAILABLE",
             "HOSTED_AUTH_REQUIRED", "HOSTED_QUOTA_EXCEEDED", "INTERNAL_ERROR",
+            "SERVICE_UNAVAILABLE", "SERVICE_AUTH_REQUIRED", "SERVICE_PROTOCOL_INVALID",
+            "CREDENTIAL_STORE_UNAVAILABLE", "DEVICE_AUTH_FAILED", "DEVICE_AUTH_EXPIRED",
         }
         records = taxonomy["errors"]
         self.assertEqual({record["code"] for record in records}, expected_codes)

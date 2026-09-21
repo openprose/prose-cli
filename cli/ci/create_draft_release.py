@@ -582,7 +582,7 @@ def _canonical_npm_meta_manifest(
         "type": "commonjs",
         "repository": {
             "type": "git",
-            "url": "git+https://github.com/openprose/prose.git",
+            "url": "git+https://github.com/openprose/prose-cli.git",
             "directory": "cli/bun/npm",
         },
         "bin": {"prose": "bin/prose.js"},
@@ -623,7 +623,7 @@ def _canonical_npm_platform_manifest(
         "bugs": NPM_BUGS,
         "repository": {
             "type": "git",
-            "url": "git+https://github.com/openprose/prose.git",
+            "url": "git+https://github.com/openprose/prose-cli.git",
             "directory": "cli/bun",
         },
         **selector,

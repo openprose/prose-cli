@@ -259,12 +259,42 @@ impl RunnerError {
     #[must_use]
     pub fn catalog(code: ErrorCode) -> Self {
         let (boundary, message, action, retryable) = match code {
-            ErrorCode::ServiceUnavailable => ("hosted-service","The staging account service is unavailable.","Retry the staging account command later.",true),
-            ErrorCode::ServiceAuthRequired => ("authentication","Staging account authentication is required.","Run prose --service-environment staging cli auth login, then retry.",false),
-            ErrorCode::ServiceProtocolInvalid => ("protocol","The staging account service returned an invalid response.","Retry later and report the sanitized error code if it persists.",false),
-            ErrorCode::CredentialStoreUnavailable => ("authentication","The operating system credential store is unavailable.","Unlock or configure the operating system credential store, then retry.",false),
-            ErrorCode::DeviceAuthFailed => ("authentication","Device authorization failed.","Run the staging login command again and authorize the displayed code.",false),
-            ErrorCode::DeviceAuthExpired => ("authentication","Device authorization expired.","Run the staging login command again to obtain a new code.",true),
+            ErrorCode::ServiceUnavailable => (
+                "hosted-service",
+                "The staging account service is unavailable.",
+                "Retry the staging account command later.",
+                true,
+            ),
+            ErrorCode::ServiceAuthRequired => (
+                "authentication",
+                "Staging account authentication is required.",
+                "Run prose --service-environment staging cli auth login, then retry.",
+                false,
+            ),
+            ErrorCode::ServiceProtocolInvalid => (
+                "protocol",
+                "The staging account service returned an invalid response.",
+                "Retry later and report the sanitized error code if it persists.",
+                false,
+            ),
+            ErrorCode::CredentialStoreUnavailable => (
+                "authentication",
+                "The operating system credential store is unavailable.",
+                "Unlock or configure the operating system credential store, then retry.",
+                false,
+            ),
+            ErrorCode::DeviceAuthFailed => (
+                "authentication",
+                "Device authorization failed.",
+                "Run the staging login command again and authorize the displayed code.",
+                false,
+            ),
+            ErrorCode::DeviceAuthExpired => (
+                "authentication",
+                "Device authorization expired.",
+                "Run the staging login command again to obtain a new code.",
+                true,
+            ),
 
             ErrorCode::ConfigInvalid => (
                 "configuration",
@@ -735,7 +765,13 @@ mod tests {
         assert!(!rendered.contains("$PROSE"));
         assert!(!rendered.contains("Recovery: prose cli cleanup"));
         assert!(!rendered.contains("`prose cli"));
-        assert!(!rendered.contains("/tmp/"));
+        // The executable can be installed under /tmp; private paths outside
+        // that exact, intentionally disclosed invocation must remain absent.
+        assert!(
+            !rendered
+                .replace(&human_runner_executable(), "<runner>")
+                .contains("/tmp/")
+        );
     }
 
     #[test]

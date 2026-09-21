@@ -12,10 +12,13 @@ adapter should remain thin.
 
 ## Start here
 
-Required development tools are Python 3.10 or newer, Rust 1.87.0 with Clippy
+Required development tools are Python 3.10, Rust 1.87.0 with Clippy
 and rustfmt, Bun 1.3.5, Node.js 22.22.3 or newer, and npm 10 or newer. CI uses
 Python 3.10.18 and Node.js 24.20.0. Use those exact versions when you need to
-reproduce CI or release behavior.
+reproduce CI or release behavior. The hash-locked test dependencies include
+Python 3.10 native wheels; use a Python 3.10 virtual environment for the install
+and test commands below. Newer Python versions may select wheels whose hashes
+are not in this lock file. Do not bypass hash verification.
 
 The local admission commands below currently require macOS or Linux. Native
 Windows admission fails before it starts a child process because the required
@@ -81,7 +84,7 @@ absent.
 
 Do not file a public issue or harness/model request, or a benchmark proposal,
 for a suspected security vulnerability. Use the repository's
-[private vulnerability report](https://github.com/openprose/prose/security/advisories/new)
+[private vulnerability report](https://github.com/openprose/prose-cli/security/advisories/new)
 and include only the information needed to reproduce and assess the issue. Do
 not include live credentials, account identifiers, or unrelated private data.
 
@@ -105,7 +108,7 @@ can establish and which facts remain unknown.
 
 ## Propose a harness, model, or admitted version
 
-Use the [OpenProse CLI harness or model request](https://github.com/openprose/prose/issues/new?template=openprose-cli-harness-model.yml)
+Use the [OpenProse CLI harness or model request](https://github.com/openprose/prose-cli/issues/new?template=openprose-cli-harness-model.yml)
 issue form for one of these requests:
 
 - a new external-process harness adapter;
@@ -127,7 +130,7 @@ in the request.
 
 ## Propose a benchmark profile or cell
 
-Use the [OpenProse CLI benchmark profile or cell proposal](https://github.com/openprose/prose/issues/new?template=openprose-cli-benchmark-profile.yml)
+Use the [OpenProse CLI benchmark profile or cell proposal](https://github.com/openprose/prose-cli/issues/new?template=openprose-cli-benchmark-profile.yml)
 issue form for a new frozen benchmark profile, one exact cell in a frozen
 profile, or a reviewed amendment. Do not use this form to request adapter
 admission or a new admitted version.

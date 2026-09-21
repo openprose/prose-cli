@@ -86,7 +86,9 @@ describe("human error output", () => {
     expect(rendered).not.toContain("$PROSE");
     expect(rendered).not.toContain("Recovery: prose cli cleanup");
     expect(rendered).not.toContain("`prose cli");
-    expect(rendered).not.toContain("/tmp/");
+    // The exact executable/entrypoint may legitimately be installed under /tmp.
+    // Only that known invocation is exempt; private paths elsewhere still fail.
+    expect(rendered.replaceAll(humanRunnerInvocation(), "<runner>")).not.toContain("/tmp/");
   });
 
   test.skipIf(process.platform === "win32")("renders shell-parseable harness-selection commands", () => {
@@ -125,7 +127,9 @@ describe("human error output", () => {
     expect(rendered).toContain("Detected runtime version: 1.3.13");
     expect(rendered).toContain("Required runtime version: >=1.3.14");
     expect(rendered).toContain("Repair: npm install --global bun@1.3.14 @oh-my-pi/pi-coding-agent@18.0.9");
-    expect(rendered).not.toContain("/tmp/");
+    // The exact executable/entrypoint may legitimately be installed under /tmp.
+    // Only that known invocation is exempt; private paths elsewhere still fail.
+    expect(rendered.replaceAll(humanRunnerInvocation(), "<runner>")).not.toContain("/tmp/");
     expect(rendered).not.toContain("rawOutput");
   });
 

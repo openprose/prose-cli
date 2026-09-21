@@ -490,3 +490,15 @@ Isolated checkout: branch `codex/imp-034-staging-cli`. Root owns Git, integratio
 - `staging_rust`: `cli/rust/crates/prose-runner-core/src/`, `cli/rust/crates/prose-runner-core/tests/`, `cli/rust/crates/prose-cli/src/` for equivalent Rust behavior; wait for shared contract before editing. No manifest edits without root coordination.
 
 Root integration lease also covers `cli/ci/run_local.py`, `cli/README.md`, and `cli/conformance/cases/fixtures/runner-help.txt` for test wiring and synchronized help.
+
+Root qualification lease: `cli/bun/test/output.test.ts` for baseline-reproduced temporary-installation privacy assertions. No production output changes.
+
+Root also owns `cli/rust/crates/prose-runner-core/src/error.rs` for the equivalent temporary-installation assertion repair. `qualification` owns `cli/shared/tests/test_contracts.py` to align the explicit taxonomy expectation with the six new staging errors.
+
+Root owns `cli/CONTRIBUTING.md` for clarifying the Python version required by the unchanged hash-locked native test wheels.
+
+`repository_gate_diagnosis` owns `cli/ci/create_draft_release.py` and `cli/ci/test_check_draft_release.py` for the stale repository identity correction only. Legacy release workflows must not be restored implicitly.
+
+`repository_gate_diagnosis` additionally owns `.github/ISSUE_TEMPLATE/openprose-cli-{bug,harness-model,benchmark-profile}.yml`, `cli/SUPPORT.md`, `cli/CONTRIBUTING.md` (preserve Python clarification), and `cli/ci/test_check_alpha_public_docs.py` to restore documented contributor forms and replace a mutable historical snapshot with a controlled fixture. No release workflows or gate bypass.
+
+Root additionally authorizes `repository_gate_diagnosis` repository URL substitutions only in `cli/ci/check_alpha_public_docs.py` and `cli/ci/test_check_contributor_docs.py`; preserve substantive privacy and routing checks.

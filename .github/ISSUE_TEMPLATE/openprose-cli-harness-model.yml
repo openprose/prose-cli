@@ -1,0 +1,132 @@
+{
+  "name": "OpenProse CLI harness or model request",
+  "description": "Request a new harness adapter, admitted harness version, or model or authentication route",
+  "title": "[CLI harness/model request]: ",
+  "body": [
+    {
+      "type": "markdown",
+      "attributes": {
+        "value": "Use this form for adapter admission, an exact admitted harness version, or a model or authentication route. Do not use this form for a benchmark profile or cell. Do not include credentials, tokens, account identifiers, private paths, or raw provider transcripts. Do not report a suspected security vulnerability here; use the private vulnerability report at https://github.com/openprose/prose-cli/security/advisories/new. Remember: adapter admission, benchmark inclusion, semantic conformance, portability, and public ranking are separate decisions."
+      }
+    },
+    {
+      "type": "dropdown",
+      "id": "request_type",
+      "attributes": {
+        "label": "Request type",
+        "options": [
+          "New harness adapter",
+          "New admitted harness version",
+          "Model or authentication route"
+        ]
+      },
+      "validations": {
+        "required": true
+      }
+    },
+    {
+      "type": "textarea",
+      "id": "requested_identity",
+      "attributes": {
+        "label": "Requested harness or model",
+        "description": "Provide the exact harness version, exact model ID, and version command and expected output. Use public identifiers only."
+      },
+      "validations": {
+        "required": true
+      }
+    },
+    {
+      "type": "textarea",
+      "id": "user_journey",
+      "attributes": {
+        "label": "User journey",
+        "description": "Describe the task and why existing admitted routes do not meet it."
+      },
+      "validations": {
+        "required": true
+      }
+    },
+    {
+      "type": "textarea",
+      "id": "distribution_platform",
+      "attributes": {
+        "label": "Distribution and platform",
+        "description": "Name the public installation source, operating system and architecture."
+      },
+      "validations": {
+        "required": true
+      }
+    },
+    {
+      "type": "textarea",
+      "id": "protocol_isolation",
+      "attributes": {
+        "label": "Protocol and isolation",
+        "description": "Describe structured output, noninteractive operation, cancellation and process isolation."
+      },
+      "validations": {
+        "required": true
+      }
+    },
+    {
+      "type": "textarea",
+      "id": "authentication_billing",
+      "attributes": {
+        "label": "Authentication and billing",
+        "description": "Describe the authentication route and who pays; never include credentials or account identifiers."
+      },
+      "validations": {
+        "required": true
+      }
+    },
+    {
+      "type": "textarea",
+      "id": "reproduction",
+      "attributes": {
+        "label": "Minimal reproduction",
+        "description": "Provide synthetic inputs, argument arrays and expected behavior. Use the literal word REDACTED for private values."
+      },
+      "validations": {
+        "required": true
+      }
+    },
+    {
+      "type": "textarea",
+      "id": "upstream_evidence",
+      "attributes": {
+        "label": "Upstream evidence",
+        "description": "Link public protocol, version and model documentation supporting the request."
+      },
+      "validations": {
+        "required": true
+      }
+    },
+    {
+      "type": "textarea",
+      "id": "affiliation",
+      "attributes": {
+        "label": "Affiliation",
+        "description": "Disclose any relevant affiliation or financial interest, or write none."
+      },
+      "validations": {
+        "required": true
+      }
+    },
+    {
+      "type": "checkboxes",
+      "id": "disclosure",
+      "attributes": {
+        "label": "Disclosure",
+        "options": [
+          {
+            "label": "I removed credentials, account identifiers, private paths, and raw provider output.",
+            "required": true
+          }
+        ]
+      },
+      "validations": {
+        "required": true
+      }
+    }
+  ]
+}

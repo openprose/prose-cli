@@ -31,8 +31,17 @@ No live account login, OS credential-store mutation, or authenticated staging re
 
 Rust local storage currently supports macOS; other platforms fail closed and may use the scoped staging environment credential. Bun delegates to its operating-system credential API. Native storage operations can request OS approval. A timed-out operation that cannot be cancelled may finish later; status should be checked before retrying.
 
-The full Bun suite reported 556 passes, two skips and 25 failures in this execution environment: socket permission failures, a FIFO-related subprocess warning, and temporary-path output assertions. An initial run with incomplete PATH had additional failures; the counts above are from the corrected PATH run. An exact baseline comparison remains outstanding. The broader Rust suite also had socket permission and temporary-path failures. These results are not a claim that the full suites passed or that every failure is unrelated.
+After unrestricted access was restored, the full Bun 1.3.5 suite passed: 582 passed, two skipped, zero failed. The full Rust 1.87.0 workspace/all-targets suite with test seams passed: 331 passed, two ignored, zero failed. Shared Python contract tests passed 27/27, architecture boundary unit tests passed 34/34, and the portable Windows host tests passed 17/17 on macOS (this is not native Windows qualification).
 
-The broad architecture unit gate also failed; the direct architecture checker passed. Python JSON Schema tests were unavailable because the required Python dependency could not be downloaded; the Ajv checks are recorded separately. Rustfmt and Clippy were not installed. Full normal admission and supported-platform CI remain required before merge/release.
+Diagnosis distinguished four causes:
+
+- Two Bun output assertions and the equivalent Rust assertion rejected any `/tmp/` path, including the deliberately displayed runner executable. The Bun failures reproduced on unchanged baseline `eb40bc4`; the Rust assertion was also unchanged. The correction exempts only the exact runner invocation and retains rejection of other temporary paths.
+- The new staging taxonomy was missing from a shared test's explicit expected-code set. This candidate regression was corrected; the test still checks the exact set.
+- The locked Python wheels target Python 3.10. Installation under Python 3.11 failed hash verification; Python 3.10.20 installed the unchanged lock successfully. Contributor instructions now specify that requirement.
+- The protected package manifest still named the old `prose.git` repository, unlike the current packager. Correcting it to `prose-cli.git` restored all 14 draft-release tests.
+
+The broader historical architecture/release suite failed identically on the unchanged baseline: 156 tests, two failures and 48 errors. Its missing legacy release workflows are explicitly documented in `docs/cli-distribution.md`; restoring their release authority is a separate migration, not an authentication fix. Three documented contributor issue forms are restored, and support links now target this repository. A historical blocker snapshot now uses a controlled fixture rather than asserting stale facts about the current checkout. The affected suites pass: 22 public-documentation tests, 19 contributor-documentation tests, and 14 draft-release tests. Full admission must not be described as passing while those historical release checks remain unresolved.
+
+Rust formatting of the candidate's three newly affected files is corrected. Fifteen pre-existing files still fail the full formatting check, and five initial Clippy diagnostics in unchanged supervisor/framing code remain. These are separate baseline qualification debt; supported-platform CI and live credential-store qualification remain outstanding.
 
 No model-provider calls, paid runs, backend edits, deployment or publication were performed.
