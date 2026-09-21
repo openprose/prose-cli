@@ -129,6 +129,12 @@ pub enum ErrorCode {
     SemanticStatusUnknown,
     Cancelled,
     ProcessCleanupFailed,
+    ServiceUnavailable,
+    ServiceAuthRequired,
+    ServiceProtocolInvalid,
+    CredentialStoreUnavailable,
+    DeviceAuthFailed,
+    DeviceAuthExpired,
     HostedUnavailable,
     HostedAuthRequired,
     HostedQuotaExceeded,
@@ -157,6 +163,12 @@ impl ErrorCode {
             Self::SemanticStatusUnknown => "SEMANTIC_STATUS_UNKNOWN",
             Self::Cancelled => "CANCELLED",
             Self::ProcessCleanupFailed => "PROCESS_CLEANUP_FAILED",
+            Self::ServiceUnavailable => "SERVICE_UNAVAILABLE",
+            Self::ServiceAuthRequired => "SERVICE_AUTH_REQUIRED",
+            Self::ServiceProtocolInvalid => "SERVICE_PROTOCOL_INVALID",
+            Self::CredentialStoreUnavailable => "CREDENTIAL_STORE_UNAVAILABLE",
+            Self::DeviceAuthFailed => "DEVICE_AUTH_FAILED",
+            Self::DeviceAuthExpired => "DEVICE_AUTH_EXPIRED",
             Self::HostedUnavailable => "HOSTED_UNAVAILABLE",
             Self::HostedAuthRequired => "HOSTED_AUTH_REQUIRED",
             Self::HostedQuotaExceeded => "HOSTED_QUOTA_EXCEEDED",
@@ -171,6 +183,12 @@ impl ErrorCode {
             Self::HarnessUnavailable
             | Self::HarnessIncompatible
             | Self::HarnessNeedsAuth
+            | Self::ServiceUnavailable
+            | Self::ServiceAuthRequired
+            | Self::ServiceProtocolInvalid
+            | Self::CredentialStoreUnavailable
+            | Self::DeviceAuthFailed
+            | Self::DeviceAuthExpired
             | Self::HostedUnavailable
             | Self::HostedAuthRequired
             | Self::HostedQuotaExceeded => 10,
@@ -241,6 +259,43 @@ impl RunnerError {
     #[must_use]
     pub fn catalog(code: ErrorCode) -> Self {
         let (boundary, message, action, retryable) = match code {
+            ErrorCode::ServiceUnavailable => (
+                "hosted-service",
+                "The OpenProse service is unavailable.",
+                "Check the selected service environment and retry later.",
+                true,
+            ),
+            ErrorCode::ServiceAuthRequired => (
+                "authentication",
+                "OpenProse service authentication is required.",
+                "Run cli auth login for the selected service environment, then retry.",
+                false,
+            ),
+            ErrorCode::ServiceProtocolInvalid => (
+                "protocol",
+                "The OpenProse service returned an invalid response.",
+                "Retry later and report the sanitized error code if it persists.",
+                false,
+            ),
+            ErrorCode::CredentialStoreUnavailable => (
+                "authentication",
+                "The operating system credential store is unavailable.",
+                "Unlock or configure the operating system credential store, then retry.",
+                false,
+            ),
+            ErrorCode::DeviceAuthFailed => (
+                "authentication",
+                "Device authorization failed.",
+                "Run login again for the selected service environment and authorize the displayed code.",
+                false,
+            ),
+            ErrorCode::DeviceAuthExpired => (
+                "authentication",
+                "Device authorization expired.",
+                "Run login again for the selected service environment to obtain a new code.",
+                true,
+            ),
+
             ErrorCode::ConfigInvalid => (
                 "configuration",
                 "Runner configuration is invalid.",
@@ -710,7 +765,13 @@ mod tests {
         assert!(!rendered.contains("$PROSE"));
         assert!(!rendered.contains("Recovery: prose cli cleanup"));
         assert!(!rendered.contains("`prose cli"));
-        assert!(!rendered.contains("/tmp/"));
+        // The executable can be installed under /tmp; private paths outside
+        // that exact, intentionally disclosed invocation must remain absent.
+        assert!(
+            !rendered
+                .replace(&human_runner_executable(), "<runner>")
+                .contains("/tmp/")
+        );
     }
 
     #[test]
@@ -739,6 +800,12 @@ mod tests {
             ErrorCode::HostedUnavailable,
             ErrorCode::HostedAuthRequired,
             ErrorCode::HostedQuotaExceeded,
+            ErrorCode::ServiceUnavailable,
+            ErrorCode::ServiceAuthRequired,
+            ErrorCode::ServiceProtocolInvalid,
+            ErrorCode::CredentialStoreUnavailable,
+            ErrorCode::DeviceAuthFailed,
+            ErrorCode::DeviceAuthExpired,
             ErrorCode::InternalRunnerFault,
         ];
         let expected = taxonomy["errors"].as_array().unwrap();

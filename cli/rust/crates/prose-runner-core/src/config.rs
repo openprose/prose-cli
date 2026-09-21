@@ -294,6 +294,12 @@ pub fn write_user_harness(
             RunnerError::config(format!("cannot serialize user configuration: {error}"))
         })?
         .into_bytes();
+    atomic_user_config_write(&path, &bytes)?;
+    Ok(UserHarnessSelection { path, changed: true })
+}
+
+fn atomic_user_config_write(path: &Path, bytes: &[u8]) -> Result<(), RunnerError> {
+    let parent = path.parent().ok_or_else(|| RunnerError::config("user configuration has no parent directory"))?;
     let temporary = parent.join(format!(".cli.toml.{}.tmp", uuid::Uuid::now_v7()));
     let write_result = (|| -> std::io::Result<()> {
         let mut options = OpenOptions::new();
@@ -304,15 +310,15 @@ pub fn write_user_harness(
             options.mode(0o600);
         }
         let mut file = options.open(&temporary)?;
-        file.write_all(&bytes)?;
+        file.write_all(bytes)?;
         file.sync_all()?;
         // Reauthenticate both names at the last practical boundary before the
         // atomic replacement. This preserves the same fail-closed behavior as
         // the Bun implementation if a local actor substitutes a direct parent
         // or destination symlink while the new bytes are being prepared.
         harden_config_parent_io(parent)?;
-        refuse_symlinked_config_destination_io(&path)?;
-        fs::rename(&temporary, &path)?;
+        refuse_symlinked_config_destination_io(path)?;
+        fs::rename(&temporary, path)?;
         Ok(())
     })();
     if let Err(error) = write_result {
@@ -322,10 +328,7 @@ pub fn write_user_harness(
             path.display()
         )));
     }
-    Ok(UserHarnessSelection {
-        path,
-        changed: true,
-    })
+    Ok(())
 }
 
 fn prepare_private_config_parent(parent: &Path) -> Result<(), RunnerError> {
@@ -476,6 +479,7 @@ impl EffectiveConfig {
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct FileConfig {
+    service_environment: Option<String>,
     harness: Option<String>,
     transport: Option<String>,
     model: Option<String>,
@@ -502,6 +506,7 @@ struct LoadedFileConfig {
 }
 
 const FILE_CONFIG_KEYS: &[&str] = &[
+    "service_environment",
     "harness",
     "transport",
     "model",
@@ -890,6 +895,11 @@ fn apply_file(
         values: source_values,
         lines,
     } = loaded;
+    if let Some(value) = source_values.service_environment {
+        if source.kind != ConfigSourceKind::UserFile || !matches!(value.as_str(), "production" | "staging") {
+            return Err(file_value_error(&source, &lines, "service_environment", "Service environment must be production or staging and may only be set in user configuration."));
+        }
+    }
     if let Some(value) = source_values.harness {
         target.harness.replace(
             validate_harness("harness", value).map_err(|_| {
@@ -1842,4 +1852,206 @@ pub(crate) fn native_output_bytes(config: &EffectiveConfig) -> usize {
 }
 pub(crate) fn native_output_limits(config: &EffectiveConfig) -> Option<serde_json::Value> {
  (config.output_contract.value == "native").then(|| serde_json::json!({"maxAggregateStdoutBytes":native_output_bytes(config),"maxNativeCaptureBytes":native_output_bytes(config),"captureEnabled":config.native_log.value.is_some()}))
+}
+
+/// User-only service selection, separate from harness configuration.
+#[derive(Debug, Clone)]
+pub struct ServiceSelection {
+    pub environment: String,
+    pub source: &'static str,
+}
+
+fn read_service_config(
+    system: &SystemContext,
+) -> Result<(PathBuf, String, FileConfig), RunnerError> {
+    let path = system.user_config_path()?;
+    let bytes = match fs::read(&path) {
+        Ok(bytes) => bytes,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Vec::new(),
+        Err(_) => return Err(RunnerError::config("Cannot read user configuration.")),
+    };
+    let text = decode_configuration(&bytes, &path)?.to_owned();
+    let lines = validate_flat_toml(&text, &path)?;
+    let values: FileConfig = toml::from_str(&text).map_err(|_| {
+        config_line_error(
+            &path,
+            1,
+            "Configuration does not match the supported flat TOML subset.",
+        )
+    })?;
+    let mut validated =
+        EffectiveConfig::defaults(system.current_dir.clone(), None, Some(path.clone()));
+    apply_file(
+        &mut validated,
+        LoadedFileConfig {
+            values: values.clone(),
+            lines,
+        },
+        ConfigSource::file(ConfigSourceKind::UserFile, &path),
+    )?;
+    Ok((path, text, values))
+}
+
+/// Reads only the user's service selection; workspace files cannot redirect it.
+///
+/// # Errors
+/// Returns `CONFIG_INVALID` if the user path or configuration is invalid.
+pub fn resolve_service_selection(system: &SystemContext) -> Result<ServiceSelection, RunnerError> {
+    let (_, _, values) = read_service_config(system)?;
+    Ok(ServiceSelection {
+        source: if values.service_environment.is_some() {
+            "user-config"
+        } else {
+            "default"
+        },
+        environment: values
+            .service_environment
+            .unwrap_or_else(|| "production".into()),
+    })
+}
+
+/// Saves or removes only the service selection, preserving unrelated text.
+///
+/// # Errors
+/// Returns `CONFIG_INVALID` for invalid values, unsafe paths, invalid existing
+/// configuration, or an atomic filesystem update failure.
+pub fn write_service_selection(
+    system: &SystemContext,
+    environment: Option<&str>,
+) -> Result<ServiceSelection, RunnerError> {
+    if environment.is_some_and(|value| !matches!(value, "production" | "staging")) {
+        return Err(RunnerError::config(
+            "Service environment must be production or staging.",
+        ));
+    }
+    let path = system.user_config_path()?;
+    let parent = path
+        .parent()
+        .ok_or_else(|| RunnerError::config("user configuration has no parent directory"))?;
+    prepare_private_config_parent(parent)?;
+    refuse_symlinked_config_destination(&path)?;
+    let (_, existing, values) = read_service_config(system)?;
+    if values.service_environment.as_deref() != environment {
+        let mut updated = String::new();
+        for line in existing.split_inclusive('\n') {
+            if line
+                .split_once('=')
+                .is_some_and(|(key, _)| key.trim() == "service_environment")
+            {
+                if let Some((_, comment)) = line.split_once('#') {
+                    updated.push('#');
+                    updated.push_str(comment);
+                }
+            } else {
+                updated.push_str(line);
+            }
+        }
+        if let Some(environment) = environment {
+            if !updated.is_empty() && !updated.ends_with('\n') {
+                updated.push('\n');
+            }
+            updated.push_str(&format!("service_environment = \"{environment}\"\n"));
+        }
+        atomic_user_config_write(&path, updated.as_bytes())?;
+    }
+    Ok(ServiceSelection {
+        environment: environment.unwrap_or("production").into(),
+        source: if environment.is_some() {
+            "user-config"
+        } else {
+            "default"
+        },
+    })
+}
+
+#[cfg(test)]
+mod service_selection_tests {
+    use super::*;
+    fn system(root: &Path) -> SystemContext {
+        SystemContext {
+            current_dir: root.to_owned(),
+            home_dir: Some(root.join("home")),
+            xdg_config_home: Some(root.join("xdg")),
+            appdata: None,
+            environment: BTreeMap::new(),
+            platform: Platform::Unix,
+        }
+    }
+    #[test]
+    fn service_selection_is_user_only_and_bad_config_never_defaults() {
+        let root = tempfile::tempdir().unwrap();
+        let system = system(root.path());
+        assert_eq!(
+            resolve_service_selection(&system).unwrap().environment,
+            "production"
+        );
+        fs::create_dir_all(root.path().join(".prose")).unwrap();
+        fs::write(
+            root.path().join(".prose/cli.toml"),
+            "service_environment = \"staging\"\n",
+        )
+        .unwrap();
+        assert_eq!(
+            resolve_service_selection(&system).unwrap().environment,
+            "production"
+        );
+        assert!(resolve_config(&GlobalFlags::default(), &system).is_err());
+        let path = system.user_config_path().unwrap();
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(&path, "service_environment = \"other\"\n").unwrap();
+        assert!(resolve_service_selection(&system).is_err());
+        assert!(write_service_selection(&system, Some("production")).is_err());
+        assert_eq!(
+            fs::read_to_string(path).unwrap(),
+            "service_environment = \"other\"\n"
+        );
+    }
+    #[test]
+    fn service_selection_preserves_comments_and_harness_writer_preserves_selection() {
+        let root = tempfile::tempdir().unwrap();
+        let system = system(root.path());
+        let path = system.user_config_path().unwrap();
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(
+            &path,
+            "# user note\nharness = \"codex\"\nservice_environment = \"staging\" # service note\n",
+        )
+        .unwrap();
+        write_service_selection(&system, None).unwrap();
+        assert_eq!(
+            fs::read_to_string(&path).unwrap(),
+            "# user note\nharness = \"codex\"\n# service note\n"
+        );
+        write_service_selection(&system, Some("staging")).unwrap();
+        let config = resolve_config(&GlobalFlags::default(), &system).unwrap();
+        write_user_harness(&config, "claude", None, None).unwrap();
+        assert_eq!(
+            resolve_service_selection(&system).unwrap().environment,
+            "staging"
+        );
+    }
+    #[cfg(unix)]
+    #[test]
+    fn service_selection_refuses_destination_and_parent_symlinks() {
+        use std::os::unix::fs::symlink;
+        let root = tempfile::tempdir().unwrap();
+        let system = system(root.path());
+        let path = system.user_config_path().unwrap();
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        let target = root.path().join("target");
+        fs::write(&target, "harness = \"codex\"\n").unwrap();
+        symlink(&target, &path).unwrap();
+        assert!(write_service_selection(&system, Some("staging")).is_err());
+        assert_eq!(
+            fs::read_to_string(&target).unwrap(),
+            "harness = \"codex\"\n"
+        );
+        fs::remove_file(&path).unwrap();
+        fs::remove_dir(path.parent().unwrap()).unwrap();
+        let redirected = root.path().join("redirected");
+        fs::create_dir(&redirected).unwrap();
+        symlink(&redirected, path.parent().unwrap()).unwrap();
+        assert!(write_service_selection(&system, Some("staging")).is_err());
+        assert!(!redirected.join("cli.toml").exists());
+    }
 }

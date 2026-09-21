@@ -1,0 +1,110 @@
+{
+  "name": "OpenProse CLI bug or install problem",
+  "description": "Report a reproducible CLI installation or execution problem using synthetic evidence.",
+  "title": "[CLI bug]: ",
+  "body": [
+    {
+      "type": "markdown",
+      "attributes": {
+        "value": "Do not include credentials, tokens, account identifiers, private paths, or raw provider output. Use the literal word REDACTED for removed values. Do not attach raw provider transcripts. For a suspected security vulnerability, use the private vulnerability report at https://github.com/openprose/prose-cli/security/advisories/new."
+      }
+    },
+    {
+      "type": "textarea",
+      "id": "problem_area",
+      "attributes": {
+        "label": "Problem area",
+        "description": "Describe whether this affects installation, startup, a harness adapter or output."
+      },
+      "validations": {
+        "required": true
+      }
+    },
+    {
+      "type": "textarea",
+      "id": "environment",
+      "attributes": {
+        "label": "Environment",
+        "description": "Provide operating system, architecture and installation method; omit private paths and account identifiers."
+      },
+      "validations": {
+        "required": true
+      }
+    },
+    {
+      "type": "textarea",
+      "id": "cli_version",
+      "attributes": {
+        "label": "Exact CLI version",
+        "description": "Provide the exact CLI version and Bun or Rust implementation; include public harness versions if relevant."
+      },
+      "validations": {
+        "required": true
+      }
+    },
+    {
+      "type": "textarea",
+      "id": "reproduction",
+      "attributes": {
+        "label": "Minimal reproduction",
+        "description": "Provide synthetic inputs and argument arrays that reproduce the problem."
+      },
+      "validations": {
+        "required": true
+      }
+    },
+    {
+      "type": "textarea",
+      "id": "expected",
+      "attributes": {
+        "label": "Expected behavior",
+        "description": "Describe what should happen."
+      },
+      "validations": {
+        "required": true
+      }
+    },
+    {
+      "type": "textarea",
+      "id": "actual",
+      "attributes": {
+        "label": "Actual behavior",
+        "description": "Describe observed behavior and exit status without raw provider output."
+      },
+      "validations": {
+        "required": true
+      }
+    },
+    {
+      "type": "textarea",
+      "id": "diagnostics",
+      "attributes": {
+        "label": "Sanitized diagnostics",
+        "description": "Provide only relevant sanitized error codes and messages, or write none. Use the literal word REDACTED for private values."
+      },
+      "validations": {
+        "required": true
+      }
+    },
+    {
+      "type": "checkboxes",
+      "id": "disclosure",
+      "attributes": {
+        "label": "Disclosure",
+        "options": [
+          {
+            "label": "I removed credentials, tokens, account identifiers, private paths, and raw provider output.",
+            "required": true
+          },
+          {
+            "label": "This is not a suspected security vulnerability.",
+            "required": true
+          }
+        ]
+      },
+      "validations": {
+        "required": true
+      }
+    }
+  ]
+}

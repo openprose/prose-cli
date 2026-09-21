@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.openprose.org/cli/v1/organization-list.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "environment",
+    "organizations",
+    "problem"
+  ],
+  "properties": {
+    "schema": {
+      "const": "openprose.organization-list/1"
+    },
+    "environment": {
+      "enum": [
+        "production",
+        "staging"
+      ]
+    },
+    "organizations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "slug",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "slug": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "role": {
+            "enum": [
+              "admin",
+              "developer",
+              "reader"
+            ]
+          }
+        }
+      }
+    },
+    "problem": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "runner-error.schema.json"
+        }
+      ]
+    }
+  }
+}

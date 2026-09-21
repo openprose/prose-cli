@@ -1778,3 +1778,73 @@ shared test and benchmark authorities; Rust/Bun shared-surface and baseline
 parity with explicitly implementation-specific research variants; one isolated
 repository subtree; local functionality before public automation; and
 evidence-backed portability claims only.
+
+## IMP-034: explicit staging account commands
+
+The opt-in global `--service-environment staging` admits only `cli auth login`,
+`cli auth status`, `cli auth logout`, and `cli org list`. Other values or uses
+are invocation errors. Without this option existing unavailable account behavior
+and all harness routing remain unchanged. This does not enable hosted execution.
+The only network origin is `https://run-prose-staging.openprose.workers.dev`;
+redirects and user-configurable token destinations are forbidden.
+
+The shared black-box corpus is `conformance/runner/staging-service-corpus.json`.
+Staging account and organization results use the closed `service-account` and
+`organization-list` schemas. Service errors are contained in `problem`, with
+exit code 10; cancellation uses existing `CANCELLED` and exit 24. No raw remote
+errors, device codes, API keys, or unknown response fields enter output.
+Organization projection contains only id, slug, name, and optional role.
+
+`OPENPROSE_STAGING_API_KEY` overrides only the staging local credential. It is
+never forwarded to a harness. Login/logout reject this variable when nonempty,
+because they cannot replace or clear the parent environment. Local credentials
+use OS credential storage, service `org.openprose.cli.staging`, account
+`api-key`; unavailable native storage fails closed with no plaintext fallback.
+Status without a token succeeds as signed out. Status with a token verifies it
+using GET `/organizations`; this endpoint can lazily create the account's default
+organization. Logout removes only the local credential; it does not revoke a
+server key. No provider credential is consulted or modified.
+
+Device login POSTs `/auth/device` without authorization, prints the returned
+user code and exact `https://github.com/login/device` verification URI on stderr,
+and POSTs `{device_code}` to `/auth/device/poll`. It does not open a browser.
+The start response requires expiry 1..900 seconds and polling interval 1..30
+seconds. Pending waits the current interval; slow_down adds five seconds capped
+at 30. The operation stops at expiry or 180 polls, on cancellation, on remote
+error, or on complete. Complete requires a nonempty API key, stored only in the
+native credential store. Expired remote tokens and local deadlines normalize to
+DEVICE_AUTH_EXPIRED; other device errors to DEVICE_AUTH_FAILED. HTTP 401/403
+normalize to SERVICE_AUTH_REQUIRED except device error responses; HTTP transport
+or 5xx failures to SERVICE_UNAVAILABLE; malformed successful responses to
+SERVICE_PROTOCOL_INVALID. Requests have bounded time and response sizes and
+never retry by changing origins or credentials.
+
+Only compiled test-seam builds may honor `PROSE_TEST_SERVICE_FIXTURE`. The file
+contains `credential`, `storeAvailable`, ordered `exchanges` with exact `method`,
+`path`, HTTP `status`, and JSON `body`, plus optional `cancelBeforePoll`. This
+transport consumes the transcript without network, uses a virtual monotonic
+clock, and replaces the credential store in memory. It is not an endpoint
+override. Requests must match transcript methods and paths and use a bearer
+credential only for organization requests. Release builds ignore this seam.
+
+The staging credential predicate is exactly `rr_test_[0-9a-f]{32}`; invalid
+credentials normalize to SERVICE_PROTOCOL_INVALID. Device user codes are
+1..32 characters from `[A-Z0-9-]`, and must not contain the private device code.
+Projected organization strings are nonempty, at most 4096 Unicode scalar values,
+contain no ASCII control characters or DEL, and cannot contain the bearer key.
+Extra organization fields, including nested private fields, are discarded.
+Malformed transcript roots fail SERVICE_PROTOCOL_INVALID: credential must be
+null or a string, storeAvailable a boolean, exchanges an array of at most 182.
+
+## IMP-034 persistent service environments (supersedes staging-only admission)
+
+Production-default service environment contract, supersedes staging-only paragraph:
+- Grammar: prose cli environment show [--json]; prose cli environment use staging|production [--json]; prose cli environment reset [--json]. Global --output json supported. Reset removes stored selection =>production. Use production stores explicit production. Commands require no auth/network/keychain.
+- Persistent flat service_environment="staging"|"production" in existing USER cli.toml only. Use existing safe atomic writer preserving other values/comments and validate same protections. No project setting may redirect service. Service resolver reads user only, ignores project; normal project config with service_environment rejects CONFIG_INVALID. Keep service setting out of harness EffectiveValues/config-explain schema, expose via environment show.
+- Unset=>production. All auth login/status/logout and org list work by default, no flag needed. Retain --service-environment production|staging as ephemeral account/org override only; reject with environment management or unrelated ops. No generic endpoint env override.
+- Production origin https://run-prose-production.openprose.workers.dev; staging https://run-prose-staging.openprose.workers.dev. All OpenProse account/service requests route through selected fixed origin. Model/provider/kernel artifact endpoints unchanged.
+- Credentials: OPENPROSE_API_KEY production; OPENPROSE_STAGING_API_KEY staging. Only selected variable consulted. Both filtered from ALL harness/probe env even explicit reallow. Both namespaces independent org.openprose.cli.production and org.openprose.cli.staging account api-key. Backend actually issues rr_test_32hex on BOTH deployments, do not use rr_live_. No fallback across env. Login/logout reject only selected envtoken. Switching never reads/writes/deletes creds.
+- Human account/service and environment command output for staging clearly includes 'OpenProse staging'. JSON stays single parseable object with environment production|staging (no banner); device verification stderr remains necessary but contains no credential. Other local/harness human outputs need not change because they make no OpenProse service request.
+- Environment command closed output: schema openprose.service-environment/1, environment production|staging, source default|user-config, problem null|runner-error. Success show/use/reset returns selected env+source. Failure invalid config normal existing runner-error envelope allowed; never default silently if malformed user config. service-account/organization-list schemas environment enum both.
+- Test seam may optionally contain environment:'production'|'staging', credentials:{production: token|null,staging:token|null}; old credential applies only expected environment when provided. Assert selected env equals fixture.environment if supplied and exchange optional origin equals selected origin. Never reach network when fixture present or credential real stores.
+- Shared sequences will test persisted use/show/status/reset, fresh process, precedence, wrong env tokens, fixed origins, malformed/project config, JSON/human indicator. Update existing no-flag account tests to hermetic fixture behavior BEFORE full tests to avoid actual network/keychain.

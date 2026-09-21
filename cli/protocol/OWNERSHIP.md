@@ -480,3 +480,31 @@ Root retains CLI integration and Git. weave_onboarding has a documentation-only 
 At19:20Eastern root assigns weave_parity the narrow public-core identity correction: `experiments/weave-seed/SPEC.md`, new `fixtures/core-identity.json`, `bun/index.mjs`, `bun/conformance.mjs`, `rust/lib.rs`, and a narrowly scoped Rust identity regression test if required (exact path reported before editing). Shared cases/spec precede implementation. Align with the existing persisted-host whitespace predicate; no API rename or broad refactor. Root owns Git and final qualification.
 
 The additional approved regression path is `experiments/weave-seed/rust/identity_tests.rs`; no other Rust test paths are assigned.
+
+## IMP-034 public CLI staging integration
+
+Isolated checkout: branch `codex/imp-034-staging-cli`. Root owns Git, integration, `cli/protocol/OWNERSHIP.md`, documentation and shared manifest changes. No release or deployment authorized by these leases.
+
+- `staging_contract`: `cli/SPEC.md`, `cli/shared/schemas/`, `cli/shared/errors/`, `cli/shared/tests/`, `cli/conformance/cases/operations/`, `cli/conformance/runner/` for shared staging authentication and organization behavior and hermetic service fixtures. Record concrete observable cases before implementation.
+- `staging_bun`: `cli/bun/src/`, `cli/bun/test/` for staged service account behavior only; wait for shared contract before editing. No manifest edits without root coordination.
+- `staging_rust`: `cli/rust/crates/prose-runner-core/src/`, `cli/rust/crates/prose-runner-core/tests/`, `cli/rust/crates/prose-cli/src/` for equivalent Rust behavior; wait for shared contract before editing. No manifest edits without root coordination.
+
+Root integration lease also covers `cli/ci/run_local.py`, `cli/README.md`, and `cli/conformance/cases/fixtures/runner-help.txt` for test wiring and synchronized help.
+
+Root qualification lease: `cli/bun/test/output.test.ts` for baseline-reproduced temporary-installation privacy assertions. No production output changes.
+
+Root also owns `cli/rust/crates/prose-runner-core/src/error.rs` for the equivalent temporary-installation assertion repair. `qualification` owns `cli/shared/tests/test_contracts.py` to align the explicit taxonomy expectation with the six new staging errors.
+
+Root owns `cli/CONTRIBUTING.md` for clarifying the Python version required by the unchanged hash-locked native test wheels.
+
+`repository_gate_diagnosis` owns `cli/ci/create_draft_release.py` and `cli/ci/test_check_draft_release.py` for the stale repository identity correction only. Legacy release workflows must not be restored implicitly.
+
+`repository_gate_diagnosis` additionally owns `.github/ISSUE_TEMPLATE/openprose-cli-{bug,harness-model,benchmark-profile}.yml`, `cli/SUPPORT.md`, `cli/CONTRIBUTING.md` (preserve Python clarification), and `cli/ci/test_check_alpha_public_docs.py` to restore documented contributor forms and replace a mutable historical snapshot with a controlled fixture. No release workflows or gate bypass.
+
+Root additionally authorizes `repository_gate_diagnosis` repository URL substitutions only in `cli/ci/check_alpha_public_docs.py` and `cli/ci/test_check_contributor_docs.py`; preserve substantive privacy and routing checks.
+
+## IMP-034 persistent service environments
+
+User authorized production-default account operations with a persistent user-only staging selection in PR #8. Root owns shared spec, schemas, corpus, help fixtures, integration and Git. `environment_bun` owns `cli/bun/src/` and `cli/bun/test/`; `environment_rust` owns `cli/rust/crates/prose-runner-core/src/` and `cli/rust/crates/prose-cli/src/` plus their tests. Both wait for shared contract/cases before implementation. `environment_review` is read-only architecture/security/UX review. No backend deployment, real credential mutation or production requests. Existing leases in these paths are superseded for this phase.
+
+Root integration also owns `docs/staging-account.md`, `cli/conformance/runner/service_environment.py`, `cli/conformance/cases/operations/auth-status-unavailable.json`, and `cli/ci/run_local.py` for environment qualification and hermetic no-flag auth admission.

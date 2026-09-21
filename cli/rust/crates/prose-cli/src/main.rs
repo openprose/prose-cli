@@ -290,6 +290,13 @@ fn prepare(
             );
         }
     };
+    if let Action::Runner { ref command, json } = parsed.action {
+        if prose_runner_core::service_account::is_service_command(command) {
+            let mode = if json { OutputMode::Json } else { parsed.globals.output.unwrap_or_default() };
+            return prose_runner_core::service_account::execute_user_command(command, &parsed.globals, &system, mode, cancellation)
+                .unwrap_or_else(|error| error_outcome(error, mode, &clock, &ids));
+        }
+    }
     let config = match resolve_config(&parsed.globals, &system) {
         Ok(config) => config,
         Err(error) => {

@@ -3,16 +3,16 @@
 Use the route that matches the request:
 
 - Report a reproducible installation, packaging, command, or existing-adapter
-  problem with the [OpenProse CLI bug or install problem](https://github.com/openprose/prose/issues/new?template=openprose-cli-bug.yml)
+  problem with the [OpenProse CLI bug or install problem](https://github.com/openprose/prose-cli/issues/new?template=openprose-cli-bug.yml)
   form.
 - Propose a new adapter, admitted harness version, or model route with the
-  [OpenProse CLI harness or model request](https://github.com/openprose/prose/issues/new?template=openprose-cli-harness-model.yml)
+  [OpenProse CLI harness or model request](https://github.com/openprose/prose-cli/issues/new?template=openprose-cli-harness-model.yml)
   form.
 - Propose a benchmark profile or cell with the [OpenProse CLI benchmark profile
-  or cell proposal](https://github.com/openprose/prose/issues/new?template=openprose-cli-benchmark-profile.yml)
+  or cell proposal](https://github.com/openprose/prose-cli/issues/new?template=openprose-cli-benchmark-profile.yml)
   form.
 - Report a suspected vulnerability only through [private vulnerability
-  reporting](https://github.com/openprose/prose/security/advisories/new).
+  reporting](https://github.com/openprose/prose-cli/security/advisories/new).
 
 Do not include credentials, tokens, account identifiers, private paths, or raw
 provider output in a public issue. Reduce diagnostics to the minimum sanitized

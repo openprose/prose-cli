@@ -15,6 +15,7 @@ import tempfile
 import threading
 import time
 import unittest
+from unittest.mock import patch
 
 
 MODULE_PATH = Path(__file__).with_name("run.py")
@@ -25,6 +26,40 @@ assert SPEC is not None and SPEC.loader is not None
 runner = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = runner
 SPEC.loader.exec_module(runner)
+
+
+class ContractRegistryTest(unittest.TestCase):
+    def test_all_corpus_output_contracts_are_registered(self):
+        contracts = runner.ContractRegistry()
+        for path in runner.CASES.rglob("*.json"):
+            case = json.loads(path.read_text("utf-8"))
+            for stream in ("stdout", "stderr"):
+                rule = case.get("expected", {}).get(stream, {})
+                if "schema" in rule:
+                    self.assertIn(rule["schema"], contracts.by_contract, str(path))
+        # The regression must validate the actual schema, not merely recognize it.
+        valid = {"schema": "openprose.service-account/1", "environment": "staging",
+                 "operation": "status", "authenticated": False,
+                 "credentialSource": "none", "problem": None}
+        self.assertEqual([], contracts.errors(valid["schema"], valid))
+        self.assertTrue(contracts.errors(valid["schema"], {**valid, "authenticated": "false"}))
+
+    def test_discovers_new_contracts_and_fails_closed_on_unknown_or_duplicate(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            schema = {"$schema": "https://json-schema.org/draft/2020-12/schema",
+                      "$id": "https://example.test/future.schema.json", "type": "object",
+                      "required": ["schema"],
+                      "properties": {"schema": {"const": "openprose.future-output/1"}}}
+            (root / "future.schema.json").write_text(json.dumps(schema))
+            with patch.object(runner, "SCHEMAS", root):
+                contracts = runner.ContractRegistry()
+                self.assertEqual([], contracts.errors("openprose.future-output/1", {"schema": "openprose.future-output/1"}))
+                self.assertTrue(contracts.errors("openprose.unknown/1", {}))
+                duplicate = {**schema, "$id": "https://example.test/duplicate.schema.json"}
+                (root / "duplicate.schema.json").write_text(json.dumps(duplicate))
+                with self.assertRaisesRegex(ValueError, "Duplicate contract discriminator"):
+                    runner.ContractRegistry()
 
 
 class RunnerUnitTest(unittest.TestCase):

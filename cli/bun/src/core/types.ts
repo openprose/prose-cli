@@ -9,6 +9,7 @@ export interface ValueSource {
 }
 
 export interface GlobalFlags {
+  serviceEnvironment?: "production" | "staging";
   harness?: string;
   transport?: string;
   cwd?: string;
@@ -62,6 +63,9 @@ export interface EffectiveConfiguration {
 }
 
 export type RunnerOperation =
+  | "environment-show"
+  | "environment-use"
+  | "environment-reset"
   | "doctor"
   | "harness-list"
   | "harness-use"
@@ -69,7 +73,8 @@ export type RunnerOperation =
   | "config-explain"
   | "auth-status"
   | "auth-login"
-  | "auth-logout";
+  | "auth-logout"
+  | "org-list";
 
 export type ParsedEntrypoint =
   | { kind: "weave"; global: GlobalFlags; argv: string[] }
@@ -125,6 +130,12 @@ export type RunnerErrorCode =
   | "HOSTED_UNAVAILABLE"
   | "HOSTED_AUTH_REQUIRED"
   | "HOSTED_QUOTA_EXCEEDED"
+  | "SERVICE_UNAVAILABLE"
+  | "SERVICE_AUTH_REQUIRED"
+  | "SERVICE_PROTOCOL_INVALID"
+  | "CREDENTIAL_STORE_UNAVAILABLE"
+  | "DEVICE_AUTH_FAILED"
+  | "DEVICE_AUTH_EXPIRED"
   | "INTERNAL_ERROR";
 
 export type RunnerBoundary =

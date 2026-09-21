@@ -4,36 +4,103 @@
   "title": "OpenProse normalized runner error v1",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema", "code", "boundary", "message", "action", "exitCode", "retryable"],
+  "required": [
+    "schema",
+    "code",
+    "boundary",
+    "message",
+    "action",
+    "exitCode",
+    "retryable"
+  ],
   "properties": {
-    "schema": { "const": "openprose.runner-error/1" },
+    "schema": {
+      "const": "openprose.runner-error/1"
+    },
     "code": {
       "type": "string",
       "enum": [
-        "CONFIG_INVALID", "INVOCATION_INVALID", "HARNESS_UNAVAILABLE", "HARNESS_INCOMPATIBLE",
-        "HARNESS_NEEDS_AUTH", "TRANSPORT_UNSUPPORTED",
-        "PROMPT_CHANNEL_UNSUPPORTED", "IMAGE_INVALID", "IMAGE_TOO_LARGE",
-        "RECURSIVE_INVOCATION", "STARTUP_TIMEOUT", "PROTOCOL_MALFORMED",
-        "PROTOCOL_TRUNCATED", "HARNESS_FAILED", "SEMANTIC_STATUS_UNKNOWN",
-        "CANCELLED", "PROCESS_CLEANUP_FAILED", "HOSTED_UNAVAILABLE",
-        "HOSTED_AUTH_REQUIRED", "HOSTED_QUOTA_EXCEEDED", "INTERNAL_ERROR"
+        "CONFIG_INVALID",
+        "INVOCATION_INVALID",
+        "HARNESS_UNAVAILABLE",
+        "HARNESS_INCOMPATIBLE",
+        "HARNESS_NEEDS_AUTH",
+        "TRANSPORT_UNSUPPORTED",
+        "PROMPT_CHANNEL_UNSUPPORTED",
+        "IMAGE_INVALID",
+        "IMAGE_TOO_LARGE",
+        "RECURSIVE_INVOCATION",
+        "STARTUP_TIMEOUT",
+        "PROTOCOL_MALFORMED",
+        "PROTOCOL_TRUNCATED",
+        "HARNESS_FAILED",
+        "SEMANTIC_STATUS_UNKNOWN",
+        "CANCELLED",
+        "PROCESS_CLEANUP_FAILED",
+        "HOSTED_UNAVAILABLE",
+        "HOSTED_AUTH_REQUIRED",
+        "HOSTED_QUOTA_EXCEEDED",
+        "INTERNAL_ERROR",
+        "SERVICE_UNAVAILABLE",
+        "SERVICE_AUTH_REQUIRED",
+        "SERVICE_PROTOCOL_INVALID",
+        "CREDENTIAL_STORE_UNAVAILABLE",
+        "DEVICE_AUTH_FAILED",
+        "DEVICE_AUTH_EXPIRED"
       ]
     },
     "boundary": {
       "type": "string",
-      "enum": ["invocation", "configuration", "image", "adapter", "authentication", "hosted-service", "process", "protocol", "semantic-terminal", "cleanup", "runner"]
+      "enum": [
+        "invocation",
+        "configuration",
+        "image",
+        "adapter",
+        "authentication",
+        "hosted-service",
+        "process",
+        "protocol",
+        "semantic-terminal",
+        "cleanup",
+        "runner"
+      ]
     },
-    "message": { "$ref": "common.schema.json#/$defs/nonEmptyString" },
-    "action": { "$ref": "common.schema.json#/$defs/nonEmptyString" },
-    "exitCode": { "type": "integer", "enum": [2, 10, 20, 21, 22, 23, 24, 25, 70] },
-    "retryable": { "type": "boolean" },
+    "message": {
+      "$ref": "common.schema.json#/$defs/nonEmptyString"
+    },
+    "action": {
+      "$ref": "common.schema.json#/$defs/nonEmptyString"
+    },
+    "exitCode": {
+      "type": "integer",
+      "enum": [
+        2,
+        10,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        70
+      ]
+    },
+    "retryable": {
+      "type": "boolean"
+    },
     "details": {
       "description": "Sanitized mechanical details only; secrets and raw image/task content are forbidden by policy.",
       "type": "object",
       "properties": {
-        "adapterDiagnostic": { "$ref": "adapter-diagnostic.schema.json" },
-        "nativeFailure": { "$ref": "native-failure.schema.json" },
-        "transportDiagnostic": { "$ref": "transport-diagnostic.schema.json" },
+        "adapterDiagnostic": {
+          "$ref": "adapter-diagnostic.schema.json"
+        },
+        "nativeFailure": {
+          "$ref": "native-failure.schema.json"
+        },
+        "transportDiagnostic": {
+          "$ref": "transport-diagnostic.schema.json"
+        },
         "cleanupHandle": {
           "type": "string",
           "minLength": 1,
@@ -43,9 +110,15 @@
         "cleanupArgv": {
           "type": "array",
           "prefixItems": [
-            { "const": "cli" },
-            { "const": "cleanup" },
-            { "const": "prime" },
+            {
+              "const": "cli"
+            },
+            {
+              "const": "cleanup"
+            },
+            {
+              "const": "prime"
+            },
             {
               "type": "string",
               "minLength": 1,
@@ -56,38 +129,258 @@
           "minItems": 4,
           "maxItems": 4
         },
-        "sensitiveFilesRemoved": { "const": true },
-        "runtimePrerequisite": { "$ref": "common.schema.json#/$defs/runtimePrerequisiteObservation" }
+        "sensitiveFilesRemoved": {
+          "const": true
+        },
+        "runtimePrerequisite": {
+          "$ref": "common.schema.json#/$defs/runtimePrerequisiteObservation"
+        }
       }
     }
   },
   "allOf": [
     {
       "if": {
-        "properties": { "code": { "const": "CONFIG_INVALID" } },
-        "required": ["code"]
+        "properties": {
+          "code": {
+            "const": "CONFIG_INVALID"
+          }
+        },
+        "required": [
+          "code"
+        ]
       },
       "then": {
         "properties": {
-          "boundary": { "const": "configuration" },
-          "message": { "const": "Runner configuration is invalid." },
-          "action": { "const": "Correct or remove the reported configuration source or setting, then invoke the `cli config explain` runner operation to verify the repair." },
-          "exitCode": { "const": 2 },
-          "retryable": { "const": false }
+          "boundary": {
+            "const": "configuration"
+          },
+          "message": {
+            "const": "Runner configuration is invalid."
+          },
+          "action": {
+            "const": "Correct or remove the reported configuration source or setting, then invoke the `cli config explain` runner operation to verify the repair."
+          },
+          "exitCode": {
+            "const": 2
+          },
+          "retryable": {
+            "const": false
+          }
         }
       }
     },
     {
       "if": {
-        "properties": { "code": { "const": "INVOCATION_INVALID" } },
-        "required": ["code"]
+        "properties": {
+          "code": {
+            "const": "INVOCATION_INVALID"
+          }
+        },
+        "required": [
+          "code"
+        ]
       },
       "then": {
         "properties": {
-          "boundary": { "const": "invocation" },
-          "message": { "const": "Runner invocation is invalid." },
-          "exitCode": { "const": 2 },
-          "retryable": { "const": false }
+          "boundary": {
+            "const": "invocation"
+          },
+          "message": {
+            "const": "Runner invocation is invalid."
+          },
+          "exitCode": {
+            "const": 2
+          },
+          "retryable": {
+            "const": false
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "code": {
+            "const": "SERVICE_UNAVAILABLE"
+          }
+        },
+        "required": [
+          "code"
+        ]
+      },
+      "then": {
+        "properties": {
+          "boundary": {
+            "const": "hosted-service"
+          },
+          "exitCode": {
+            "const": 10
+          },
+          "retryable": {
+            "const": true
+          },
+          "message": {
+            "const": "The OpenProse service is unavailable."
+          },
+          "action": {
+            "const": "Check the selected service environment and retry later."
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "code": {
+            "const": "SERVICE_AUTH_REQUIRED"
+          }
+        },
+        "required": [
+          "code"
+        ]
+      },
+      "then": {
+        "properties": {
+          "boundary": {
+            "const": "authentication"
+          },
+          "exitCode": {
+            "const": 10
+          },
+          "retryable": {
+            "const": false
+          },
+          "message": {
+            "const": "OpenProse service authentication is required."
+          },
+          "action": {
+            "const": "Run cli auth login for the selected service environment, then retry."
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "code": {
+            "const": "SERVICE_PROTOCOL_INVALID"
+          }
+        },
+        "required": [
+          "code"
+        ]
+      },
+      "then": {
+        "properties": {
+          "boundary": {
+            "const": "protocol"
+          },
+          "exitCode": {
+            "const": 10
+          },
+          "retryable": {
+            "const": false
+          },
+          "message": {
+            "const": "The OpenProse service returned an invalid response."
+          },
+          "action": {
+            "const": "Retry later and report the sanitized error code if it persists."
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "code": {
+            "const": "CREDENTIAL_STORE_UNAVAILABLE"
+          }
+        },
+        "required": [
+          "code"
+        ]
+      },
+      "then": {
+        "properties": {
+          "boundary": {
+            "const": "authentication"
+          },
+          "exitCode": {
+            "const": 10
+          },
+          "retryable": {
+            "const": false
+          },
+          "message": {
+            "const": "The operating system credential store is unavailable."
+          },
+          "action": {
+            "const": "Unlock or configure the operating system credential store, then retry."
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "code": {
+            "const": "DEVICE_AUTH_FAILED"
+          }
+        },
+        "required": [
+          "code"
+        ]
+      },
+      "then": {
+        "properties": {
+          "boundary": {
+            "const": "authentication"
+          },
+          "exitCode": {
+            "const": 10
+          },
+          "retryable": {
+            "const": false
+          },
+          "message": {
+            "const": "Device authorization failed."
+          },
+          "action": {
+            "const": "Run login again for the selected service environment and authorize the displayed code."
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "code": {
+            "const": "DEVICE_AUTH_EXPIRED"
+          }
+        },
+        "required": [
+          "code"
+        ]
+      },
+      "then": {
+        "properties": {
+          "boundary": {
+            "const": "authentication"
+          },
+          "exitCode": {
+            "const": 10
+          },
+          "retryable": {
+            "const": true
+          },
+          "message": {
+            "const": "Device authorization expired."
+          },
+          "action": {
+            "const": "Run login again for the selected service environment to obtain a new code."
+          }
         }
       }
     }

@@ -1,9 +1,15 @@
 {
   "schema": "openprose.runner-case/1",
   "id": "operations.auth-status-unavailable",
-  "summary": "The advertised OpenProse account status route fails at the hosted boundary rather than as unknown syntax.",
+  "summary": "Production account status rejects an invalid explicit credential without network or native store access.",
   "phase": 6,
-  "tags": ["cli", "auth", "agent-dx", "differential", "no-secret"],
+  "tags": [
+    "cli",
+    "auth",
+    "agent-dx",
+    "differential",
+    "no-secret"
+  ],
   "controls": {
     "fixedInvocationId": "fixture-invocation-0001",
     "fixedTimestamp": "2025-01-01T00:00:00Z",
@@ -11,25 +17,39 @@
     "network": "denied"
   },
   "invocation": {
-    "argv": ["--output", "json", "cli", "auth", "status"],
+    "argv": [
+      "--output",
+      "json",
+      "cli",
+      "auth",
+      "status"
+    ],
     "cwd": "{{WORKSPACE}}",
     "environment": {
       "HOME": "{{WORKSPACE}}/home",
-      "XDG_CONFIG_HOME": "{{WORKSPACE}}/config"
+      "XDG_CONFIG_HOME": "{{WORKSPACE}}/config",
+      "OPENPROSE_API_KEY": "invalid-fixture-credential"
     }
   },
   "expected": {
     "exitCode": 10,
-    "stdout": { "kind": "json", "schema": "openprose.account-status/1" },
-    "stderr": { "kind": "empty" },
+    "stdout": {
+      "kind": "json",
+      "schema": "openprose.service-account/1"
+    },
+    "stderr": {
+      "kind": "empty"
+    },
     "startedHarness": false,
     "resultMatches": {
-      "schema": "openprose.account-status/1",
-      "availability": "unavailable",
-      "authenticated": null,
-      "authCategory": "openprose-account",
-      "billingOwner": "openprose",
-      "credentialStorage": "unavailable"
+      "schema": "openprose.service-account/1",
+      "environment": "production",
+      "operation": "status",
+      "authenticated": false,
+      "credentialSource": "none",
+      "problem": {
+        "code": "SERVICE_PROTOCOL_INVALID"
+      }
     }
   }
 }

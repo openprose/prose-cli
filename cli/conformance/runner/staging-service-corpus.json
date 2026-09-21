@@ -1,0 +1,1113 @@
+{
+  "schema": "openprose.staging-service-corpus/1",
+  "cases": [
+    {
+      "id": "signed-out-status",
+      "argv": [
+        "--service-environment",
+        "staging",
+        "--output",
+        "json",
+        "cli",
+        "auth",
+        "status"
+      ],
+      "fixture": {
+        "credential": null,
+        "storeAvailable": true,
+        "exchanges": []
+      },
+      "exitCode": 0,
+      "resultMatches": {
+        "schema": "openprose.service-account/1",
+        "environment": "staging",
+        "operation": "status",
+        "authenticated": false,
+        "credentialSource": "none",
+        "problem": null
+      }
+    },
+    {
+      "id": "stored-status",
+      "argv": [
+        "--service-environment",
+        "staging",
+        "--output",
+        "json",
+        "cli",
+        "auth",
+        "status"
+      ],
+      "fixture": {
+        "credential": "rr_test_11111111111111111111111111111111",
+        "storeAvailable": true,
+        "exchanges": [
+          {
+            "method": "GET",
+            "path": "/organizations",
+            "status": 200,
+            "body": {
+              "organizations": [
+                {
+                  "id": "org-fixture",
+                  "slug": "fixture",
+                  "name": "Fixture",
+                  "role": "admin"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "exitCode": 0,
+      "resultMatches": {
+        "schema": "openprose.service-account/1",
+        "environment": "staging",
+        "operation": "status",
+        "authenticated": true,
+        "credentialSource": "os-credential-store",
+        "problem": null
+      }
+    },
+    {
+      "id": "org-list",
+      "argv": [
+        "--service-environment",
+        "staging",
+        "--output",
+        "json",
+        "cli",
+        "org",
+        "list"
+      ],
+      "fixture": {
+        "credential": "rr_test_11111111111111111111111111111111",
+        "storeAvailable": true,
+        "exchanges": [
+          {
+            "method": "GET",
+            "path": "/organizations",
+            "status": 200,
+            "body": {
+              "organizations": [
+                {
+                  "id": "org-fixture",
+                  "slug": "fixture",
+                  "name": "Fixture",
+                  "role": "admin"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "exitCode": 0,
+      "resultMatches": {
+        "schema": "openprose.organization-list/1",
+        "environment": "staging",
+        "organizations": [
+          {
+            "id": "org-fixture",
+            "slug": "fixture",
+            "name": "Fixture",
+            "role": "admin"
+          }
+        ],
+        "problem": null
+      }
+    },
+    {
+      "id": "org-auth-required",
+      "argv": [
+        "--service-environment",
+        "staging",
+        "--output",
+        "json",
+        "cli",
+        "org",
+        "list"
+      ],
+      "fixture": {
+        "credential": null,
+        "storeAvailable": true,
+        "exchanges": []
+      },
+      "exitCode": 10,
+      "resultMatches": {
+        "schema": "openprose.organization-list/1",
+        "environment": "staging",
+        "organizations": [],
+        "problem": {
+          "code": "SERVICE_AUTH_REQUIRED"
+        }
+      }
+    },
+    {
+      "id": "invalid-token",
+      "argv": [
+        "--service-environment",
+        "staging",
+        "--output",
+        "json",
+        "cli",
+        "auth",
+        "status"
+      ],
+      "fixture": {
+        "credential": "rr_test_11111111111111111111111111111111",
+        "storeAvailable": true,
+        "exchanges": [
+          {
+            "method": "GET",
+            "path": "/organizations",
+            "status": 401,
+            "body": {
+              "error": "fixture-secret-must-not-escape"
+            }
+          }
+        ]
+      },
+      "exitCode": 10,
+      "resultMatches": {
+        "schema": "openprose.service-account/1",
+        "environment": "staging",
+        "operation": "status",
+        "authenticated": false,
+        "credentialSource": "none",
+        "problem": {
+          "code": "SERVICE_AUTH_REQUIRED"
+        }
+      }
+    },
+    {
+      "id": "service-unavailable",
+      "argv": [
+        "--service-environment",
+        "staging",
+        "--output",
+        "json",
+        "cli",
+        "auth",
+        "status"
+      ],
+      "fixture": {
+        "credential": "rr_test_11111111111111111111111111111111",
+        "storeAvailable": true,
+        "exchanges": [
+          {
+            "method": "GET",
+            "path": "/organizations",
+            "status": 503,
+            "body": {
+              "error": "fixture-secret-must-not-escape"
+            }
+          }
+        ]
+      },
+      "exitCode": 10,
+      "resultMatches": {
+        "schema": "openprose.service-account/1",
+        "environment": "staging",
+        "operation": "status",
+        "authenticated": false,
+        "credentialSource": "none",
+        "problem": {
+          "code": "SERVICE_UNAVAILABLE"
+        }
+      }
+    },
+    {
+      "id": "malformed-organizations",
+      "argv": [
+        "--service-environment",
+        "staging",
+        "--output",
+        "json",
+        "cli",
+        "org",
+        "list"
+      ],
+      "fixture": {
+        "credential": "rr_test_11111111111111111111111111111111",
+        "storeAvailable": true,
+        "exchanges": [
+          {
+            "method": "GET",
+            "path": "/organizations",
+            "status": 200,
+            "body": {
+              "organizations": "wrong"
+            }
+          }
+        ]
+      },
+      "exitCode": 10,
+      "resultMatches": {
+        "schema": "openprose.organization-list/1",
+        "environment": "staging",
+        "organizations": [],
+        "problem": {
+          "code": "SERVICE_PROTOCOL_INVALID"
+        }
+      }
+    },
+    {
+      "id": "login-pending-slowdown",
+      "argv": [
+        "--service-environment",
+        "staging",
+        "--output",
+        "json",
+        "cli",
+        "auth",
+        "login"
+      ],
+      "fixture": {
+        "credential": null,
+        "storeAvailable": true,
+        "exchanges": [
+          {
+            "method": "POST",
+            "path": "/auth/device",
+            "status": 200,
+            "body": {
+              "device_code": "fixture-device-secret",
+              "user_code": "ABCD-EFGH",
+              "verification_uri": "https://github.com/login/device",
+              "expires_in": 60,
+              "interval": 1
+            }
+          },
+          {
+            "method": "POST",
+            "path": "/auth/device/poll",
+            "status": 200,
+            "body": {
+              "status": "pending"
+            }
+          },
+          {
+            "method": "POST",
+            "path": "/auth/device/poll",
+            "status": 200,
+            "body": {
+              "status": "slow_down"
+            }
+          },
+          {
+            "method": "POST",
+            "path": "/auth/device/poll",
+            "status": 200,
+            "body": {
+              "status": "complete",
+              "api_key": "rr_test_22222222222222222222222222222222",
+              "customer_id": "customer-fixture",
+              "github_login": "fixture"
+            }
+          }
+        ]
+      },
+      "exitCode": 0,
+      "resultMatches": {
+        "schema": "openprose.service-account/1",
+        "environment": "staging",
+        "operation": "login",
+        "authenticated": true,
+        "credentialSource": "os-credential-store",
+        "problem": null
+      }
+    },
+    {
+      "id": "login-denied",
+      "argv": [
+        "--service-environment",
+        "staging",
+        "--output",
+        "json",
+        "cli",
+        "auth",
+        "login"
+      ],
+      "fixture": {
+        "credential": null,
+        "storeAvailable": true,
+        "exchanges": [
+          {
+            "method": "POST",
+            "path": "/auth/device",
+            "status": 200,
+            "body": {
+              "device_code": "fixture-device-secret",
+              "user_code": "ABCD-EFGH",
+              "verification_uri": "https://github.com/login/device",
+              "expires_in": 60,
+              "interval": 1
+            }
+          },
+          {
+            "method": "POST",
+            "path": "/auth/device/poll",
+            "status": 400,
+            "body": {
+              "status": "error",
+              "error": "access_denied"
+            }
+          }
+        ]
+      },
+      "exitCode": 10,
+      "resultMatches": {
+        "schema": "openprose.service-account/1",
+        "environment": "staging",
+        "operation": "login",
+        "authenticated": false,
+        "credentialSource": "none",
+        "problem": {
+          "code": "DEVICE_AUTH_FAILED"
+        }
+      }
+    },
+    {
+      "id": "login-expired",
+      "argv": [
+        "--service-environment",
+        "staging",
+        "--output",
+        "json",
+        "cli",
+        "auth",
+        "login"
+      ],
+      "fixture": {
+        "credential": null,
+        "storeAvailable": true,
+        "exchanges": [
+          {
+            "method": "POST",
+            "path": "/auth/device",
+            "status": 200,
+            "body": {
+              "device_code": "fixture-device-secret",
+              "user_code": "ABCD-EFGH",
+              "verification_uri": "https://github.com/login/device",
+              "expires_in": 60,
+              "interval": 1
+            }
+          },
+          {
+            "method": "POST",
+            "path": "/auth/device/poll",
+            "status": 400,
+            "body": {
+              "status": "error",
+              "error": "expired_token"
+            }
+          }
+        ]
+      },
+      "exitCode": 10,
+      "resultMatches": {
+        "schema": "openprose.service-account/1",
+        "environment": "staging",
+        "operation": "login",
+        "authenticated": false,
+        "credentialSource": "none",
+        "problem": {
+          "code": "DEVICE_AUTH_EXPIRED"
+        }
+      }
+    },
+    {
+      "id": "login-cancelled",
+      "argv": [
+        "--service-environment",
+        "staging",
+        "--output",
+        "json",
+        "cli",
+        "auth",
+        "login"
+      ],
+      "fixture": {
+        "credential": null,
+        "storeAvailable": true,
+        "exchanges": [
+          {
+            "method": "POST",
+            "path": "/auth/device",
+            "status": 200,
+            "body": {
+              "device_code": "fixture-device-secret",
+              "user_code": "ABCD-EFGH",
+              "verification_uri": "https://github.com/login/device",
+              "expires_in": 60,
+              "interval": 1
+            }
+          }
+        ],
+        "cancelBeforePoll": true
+      },
+      "exitCode": 24,
+      "resultMatches": {
+        "schema": "openprose.service-account/1",
+        "environment": "staging",
+        "operation": "login",
+        "authenticated": false,
+        "credentialSource": "none",
+        "problem": {
+          "code": "CANCELLED"
+        }
+      }
+    },
+    {
+      "id": "login-store-unavailable",
+      "argv": [
+        "--service-environment",
+        "staging",
+        "--output",
+        "json",
+        "cli",
+        "auth",
+        "login"
+      ],
+      "fixture": {
+        "credential": null,
+        "storeAvailable": false,
+        "exchanges": []
+      },
+      "exitCode": 10,
+      "resultMatches": {
+        "schema": "openprose.service-account/1",
+        "environment": "staging",
+        "operation": "login",
+        "authenticated": false,
+        "credentialSource": "none",
+        "problem": {
+          "code": "CREDENTIAL_STORE_UNAVAILABLE"
+        }
+      }
+    },
+    {
+      "id": "logout",
+      "argv": [
+        "--service-environment",
+        "staging",
+        "--output",
+        "json",
+        "cli",
+        "auth",
+        "logout"
+      ],
+      "fixture": {
+        "credential": "rr_test_11111111111111111111111111111111",
+        "storeAvailable": true,
+        "exchanges": []
+      },
+      "exitCode": 0,
+      "resultMatches": {
+        "schema": "openprose.service-account/1",
+        "environment": "staging",
+        "operation": "logout",
+        "authenticated": false,
+        "credentialSource": "none",
+        "problem": null
+      }
+    },
+    {
+      "id": "logout-idempotent",
+      "argv": [
+        "--service-environment",
+        "staging",
+        "--output",
+        "json",
+        "cli",
+        "auth",
+        "logout"
+      ],
+      "fixture": {
+        "credential": null,
+        "storeAvailable": true,
+        "exchanges": []
+      },
+      "exitCode": 0,
+      "resultMatches": {
+        "schema": "openprose.service-account/1",
+        "environment": "staging",
+        "operation": "logout",
+        "authenticated": false,
+        "credentialSource": "none",
+        "problem": null
+      }
+    },
+    {
+      "id": "environment-status",
+      "argv": [
+        "--service-environment",
+        "staging",
+        "--output",
+        "json",
+        "cli",
+        "auth",
+        "status"
+      ],
+      "fixture": {
+        "credential": null,
+        "storeAvailable": true,
+        "exchanges": [
+          {
+            "method": "GET",
+            "path": "/organizations",
+            "status": 200,
+            "body": {
+              "organizations": [
+                {
+                  "id": "org-fixture",
+                  "slug": "fixture",
+                  "name": "Fixture",
+                  "role": "admin"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "exitCode": 0,
+      "resultMatches": {
+        "schema": "openprose.service-account/1",
+        "environment": "staging",
+        "operation": "status",
+        "authenticated": true,
+        "credentialSource": "environment",
+        "problem": null
+      },
+      "environment": {
+        "OPENPROSE_STAGING_API_KEY": "rr_test_33333333333333333333333333333333"
+      }
+    },
+    {
+      "id": "login-invalid-verification-uri",
+      "argv": [
+        "--service-environment",
+        "staging",
+        "--output",
+        "json",
+        "cli",
+        "auth",
+        "login"
+      ],
+      "fixture": {
+        "credential": null,
+        "storeAvailable": true,
+        "exchanges": [
+          {
+            "method": "POST",
+            "path": "/auth/device",
+            "status": 200,
+            "body": {
+              "device_code": "fixture-device-secret",
+              "user_code": "ABCD-EFGH",
+              "verification_uri": "https://attacker.invalid/device",
+              "expires_in": 60,
+              "interval": 1
+            }
+          }
+        ]
+      },
+      "exitCode": 10,
+      "resultMatches": {
+        "schema": "openprose.service-account/1",
+        "environment": "staging",
+        "operation": "login",
+        "authenticated": false,
+        "credentialSource": "none",
+        "problem": {
+          "code": "SERVICE_PROTOCOL_INVALID"
+        }
+      }
+    },
+    {
+      "id": "exhausted-transcript",
+      "argv": [
+        "--service-environment",
+        "staging",
+        "--output",
+        "json",
+        "cli",
+        "auth",
+        "status"
+      ],
+      "fixture": {
+        "credential": "rr_test_11111111111111111111111111111111",
+        "storeAvailable": true,
+        "exchanges": []
+      },
+      "exitCode": 10,
+      "resultMatches": {
+        "schema": "openprose.service-account/1",
+        "environment": "staging",
+        "operation": "status",
+        "authenticated": false,
+        "credentialSource": "none",
+        "problem": {
+          "code": "SERVICE_PROTOCOL_INVALID"
+        }
+      }
+    },
+    {
+      "id": "organization-echoed-secret",
+      "argv": [
+        "--service-environment",
+        "staging",
+        "--output",
+        "json",
+        "cli",
+        "org",
+        "list"
+      ],
+      "fixture": {
+        "credential": "rr_test_11111111111111111111111111111111",
+        "storeAvailable": true,
+        "exchanges": [
+          {
+            "method": "GET",
+            "path": "/organizations",
+            "status": 200,
+            "body": {
+              "organizations": [
+                {
+                  "id": "org-fixture",
+                  "slug": "fixture",
+                  "name": "rr_test_11111111111111111111111111111111",
+                  "role": "admin"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "exitCode": 10,
+      "resultMatches": {
+        "schema": "openprose.organization-list/1",
+        "environment": "staging",
+        "organizations": [],
+        "problem": {
+          "code": "SERVICE_PROTOCOL_INVALID"
+        }
+      }
+    },
+    {
+      "id": "organization-extra-secret-fields-stripped",
+      "argv": [
+        "--service-environment",
+        "staging",
+        "--output",
+        "json",
+        "cli",
+        "org",
+        "list"
+      ],
+      "fixture": {
+        "credential": "rr_test_11111111111111111111111111111111",
+        "storeAvailable": true,
+        "exchanges": [
+          {
+            "method": "GET",
+            "path": "/organizations",
+            "status": 200,
+            "body": {
+              "organizations": [
+                {
+                  "id": "org-fixture",
+                  "slug": "fixture",
+                  "name": "Fixture",
+                  "role": "admin",
+                  "private": {
+                    "api_key": "rr_test_11111111111111111111111111111111"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "exitCode": 0,
+      "resultMatches": {
+        "schema": "openprose.organization-list/1",
+        "environment": "staging",
+        "organizations": [
+          {
+            "id": "org-fixture",
+            "slug": "fixture",
+            "name": "Fixture",
+            "role": "admin"
+          }
+        ],
+        "problem": null
+      }
+    },
+    {
+      "id": "login-user-code-equals-device-code",
+      "argv": [
+        "--service-environment",
+        "staging",
+        "--output",
+        "json",
+        "cli",
+        "auth",
+        "login"
+      ],
+      "fixture": {
+        "credential": null,
+        "storeAvailable": true,
+        "exchanges": [
+          {
+            "method": "POST",
+            "path": "/auth/device",
+            "status": 200,
+            "body": {
+              "device_code": "ABCD-EFGH",
+              "user_code": "ABCD-EFGH",
+              "verification_uri": "https://github.com/login/device",
+              "expires_in": 60,
+              "interval": 1
+            }
+          },
+          {
+            "method": "POST",
+            "path": "/auth/device/poll",
+            "status": 200,
+            "body": {
+              "status": "pending"
+            }
+          },
+          {
+            "method": "POST",
+            "path": "/auth/device/poll",
+            "status": 200,
+            "body": {
+              "status": "slow_down"
+            }
+          },
+          {
+            "method": "POST",
+            "path": "/auth/device/poll",
+            "status": 200,
+            "body": {
+              "status": "complete",
+              "api_key": "rr_test_22222222222222222222222222222222",
+              "customer_id": "customer-fixture",
+              "github_login": "fixture"
+            }
+          }
+        ]
+      },
+      "exitCode": 10,
+      "resultMatches": {
+        "schema": "openprose.service-account/1",
+        "environment": "staging",
+        "operation": "login",
+        "authenticated": false,
+        "credentialSource": "none",
+        "problem": {
+          "code": "SERVICE_PROTOCOL_INVALID"
+        }
+      }
+    },
+    {
+      "id": "login-lowercase-user-code",
+      "argv": [
+        "--service-environment",
+        "staging",
+        "--output",
+        "json",
+        "cli",
+        "auth",
+        "login"
+      ],
+      "fixture": {
+        "credential": null,
+        "storeAvailable": true,
+        "exchanges": [
+          {
+            "method": "POST",
+            "path": "/auth/device",
+            "status": 200,
+            "body": {
+              "device_code": "fixture-device-secret",
+              "user_code": "abcd-efgh",
+              "verification_uri": "https://github.com/login/device",
+              "expires_in": 60,
+              "interval": 1
+            }
+          },
+          {
+            "method": "POST",
+            "path": "/auth/device/poll",
+            "status": 200,
+            "body": {
+              "status": "pending"
+            }
+          },
+          {
+            "method": "POST",
+            "path": "/auth/device/poll",
+            "status": 200,
+            "body": {
+              "status": "slow_down"
+            }
+          },
+          {
+            "method": "POST",
+            "path": "/auth/device/poll",
+            "status": 200,
+            "body": {
+              "status": "complete",
+              "api_key": "rr_test_22222222222222222222222222222222",
+              "customer_id": "customer-fixture",
+              "github_login": "fixture"
+            }
+          }
+        ]
+      },
+      "exitCode": 10,
+      "resultMatches": {
+        "schema": "openprose.service-account/1",
+        "environment": "staging",
+        "operation": "login",
+        "authenticated": false,
+        "credentialSource": "none",
+        "problem": {
+          "code": "SERVICE_PROTOCOL_INVALID"
+        }
+      }
+    },
+    {
+      "id": "login-long-user-code",
+      "argv": [
+        "--service-environment",
+        "staging",
+        "--output",
+        "json",
+        "cli",
+        "auth",
+        "login"
+      ],
+      "fixture": {
+        "credential": null,
+        "storeAvailable": true,
+        "exchanges": [
+          {
+            "method": "POST",
+            "path": "/auth/device",
+            "status": 200,
+            "body": {
+              "device_code": "fixture-device-secret",
+              "user_code": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+              "verification_uri": "https://github.com/login/device",
+              "expires_in": 60,
+              "interval": 1
+            }
+          },
+          {
+            "method": "POST",
+            "path": "/auth/device/poll",
+            "status": 200,
+            "body": {
+              "status": "pending"
+            }
+          },
+          {
+            "method": "POST",
+            "path": "/auth/device/poll",
+            "status": 200,
+            "body": {
+              "status": "slow_down"
+            }
+          },
+          {
+            "method": "POST",
+            "path": "/auth/device/poll",
+            "status": 200,
+            "body": {
+              "status": "complete",
+              "api_key": "rr_test_22222222222222222222222222222222",
+              "customer_id": "customer-fixture",
+              "github_login": "fixture"
+            }
+          }
+        ]
+      },
+      "exitCode": 10,
+      "resultMatches": {
+        "schema": "openprose.service-account/1",
+        "environment": "staging",
+        "operation": "login",
+        "authenticated": false,
+        "credentialSource": "none",
+        "problem": {
+          "code": "SERVICE_PROTOCOL_INVALID"
+        }
+      }
+    },
+    {
+      "id": "malformed-fixture",
+      "argv": [
+        "--service-environment",
+        "staging",
+        "--output",
+        "json",
+        "cli",
+        "auth",
+        "status"
+      ],
+      "fixture": {},
+      "exitCode": 10,
+      "resultMatches": {
+        "schema": "openprose.service-account/1",
+        "environment": "staging",
+        "operation": "status",
+        "authenticated": false,
+        "credentialSource": "none",
+        "problem": {
+          "code": "SERVICE_PROTOCOL_INVALID"
+        }
+      }
+    },
+    {
+      "id": "uppercase-token-rejected",
+      "argv": [
+        "--service-environment",
+        "staging",
+        "--output",
+        "json",
+        "cli",
+        "auth",
+        "status"
+      ],
+      "fixture": {
+        "credential": null,
+        "storeAvailable": true,
+        "exchanges": [
+          {
+            "method": "GET",
+            "path": "/organizations",
+            "status": 200,
+            "body": {
+              "organizations": [
+                {
+                  "id": "org-fixture",
+                  "slug": "fixture",
+                  "name": "Fixture",
+                  "role": "admin"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "exitCode": 10,
+      "resultMatches": {
+        "schema": "openprose.service-account/1",
+        "environment": "staging",
+        "operation": "status",
+        "authenticated": false,
+        "credentialSource": "none",
+        "problem": {
+          "code": "SERVICE_PROTOCOL_INVALID"
+        }
+      },
+      "environment": {
+        "OPENPROSE_STAGING_API_KEY": "rr_test_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      }
+    },
+    {
+      "id": "invalid-token-rejected",
+      "argv": [
+        "--service-environment",
+        "staging",
+        "--output",
+        "json",
+        "cli",
+        "auth",
+        "status"
+      ],
+      "fixture": {
+        "credential": null,
+        "storeAvailable": true,
+        "exchanges": [
+          {
+            "method": "GET",
+            "path": "/organizations",
+            "status": 200,
+            "body": {
+              "organizations": [
+                {
+                  "id": "org-fixture",
+                  "slug": "fixture",
+                  "name": "Fixture",
+                  "role": "admin"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "exitCode": 10,
+      "resultMatches": {
+        "schema": "openprose.service-account/1",
+        "environment": "staging",
+        "operation": "status",
+        "authenticated": false,
+        "credentialSource": "none",
+        "problem": {
+          "code": "SERVICE_PROTOCOL_INVALID"
+        }
+      },
+      "environment": {
+        "OPENPROSE_STAGING_API_KEY": "wrong-token"
+      }
+    },
+    {
+      "id": "organization-field-over-limit",
+      "argv": [
+        "--service-environment",
+        "staging",
+        "--output",
+        "json",
+        "cli",
+        "org",
+        "list"
+      ],
+      "fixture": {
+        "credential": "rr_test_11111111111111111111111111111111",
+        "storeAvailable": true,
+        "exchanges": [
+          {
+            "method": "GET",
+            "path": "/organizations",
+            "status": 200,
+            "body": {
+              "organizations": [
+                {
+                  "id": "org-fixture",
+                  "slug": "fixture",
+                  "name": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                  "role": "admin"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "exitCode": 10,
+      "resultMatches": {
+        "schema": "openprose.organization-list/1",
+        "environment": "staging",
+        "organizations": [],
+        "problem": {
+          "code": "SERVICE_PROTOCOL_INVALID"
+        }
+      }
+    }
+  ]
+}

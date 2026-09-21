@@ -404,7 +404,7 @@ class CliContributorDocumentationTests(unittest.TestCase):
             "If you work in your own\n   fork or branch, do not edit `OWNERSHIP.md`",
             "Provider-free tests make no network or model calls.",
             "No secret, private path, or raw provider response",
-            "https://github.com/openprose/prose/security/advisories/new",
+            "https://github.com/openprose/prose-cli/security/advisories/new",
             "Do not file a public issue or harness/model request",
             "Acceptance into the adapter inventory is not acceptance into a benchmark.",
             "## Implement a harness adapter",
@@ -459,7 +459,7 @@ class CliContributorDocumentationTests(unittest.TestCase):
             "exact model ID",
             "version command and expected output",
             "suspected security vulnerability",
-            "https://github.com/openprose/prose/security/advisories/new",
+            "https://github.com/openprose/prose-cli/security/advisories/new",
             "Do not use this form for a benchmark profile or cell",
             "adapter admission, benchmark inclusion, semantic conformance, "
             "portability, and public ranking are separate decisions",
@@ -528,7 +528,7 @@ class CliContributorDocumentationTests(unittest.TestCase):
             "cost observation channel",
             "does not authorize live collection",
             "suspected security vulnerability",
-            "https://github.com/openprose/prose/security/advisories/new",
+            "https://github.com/openprose/prose-cli/security/advisories/new",
             "benchmark inclusion does not establish semantic conformance, "
             "portability, or public ranking",
         ):
@@ -609,7 +609,7 @@ class CliContributorDocumentationTests(unittest.TestCase):
             "Do not include credentials, tokens, account identifiers, private paths, "
             "or raw provider output.",
             "Use the literal word REDACTED",
-            "https://github.com/openprose/prose/security/advisories/new",
+            "https://github.com/openprose/prose-cli/security/advisories/new",
             "not a suspected security vulnerability",
         ):
             with self.subTest(marker=marker):
@@ -631,7 +631,7 @@ class CliContributorDocumentationTests(unittest.TestCase):
             "openprose-cli-harness-model.yml",
             "OpenProse CLI benchmark profile or cell proposal",
             "openprose-cli-benchmark-profile.yml",
-            "https://github.com/openprose/prose/security/advisories/new",
+            "https://github.com/openprose/prose-cli/security/advisories/new",
             "Do not include credentials, tokens, account identifiers, private paths, "
             "or raw provider output",
             "No response or resolution service-level agreement is promised",

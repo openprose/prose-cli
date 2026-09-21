@@ -11,7 +11,6 @@ import check_alpha_public_docs as docs
 
 
 VERSION = "0.15.0-alpha.1"
-REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 
 
 def write(path: Path, value: str | bytes) -> None:
@@ -87,13 +86,13 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.
         root / "cli" / "SUPPORT.md",
         """# OpenProse CLI support
 
-- Use the [OpenProse CLI harness or model request](https://github.com/openprose/prose/issues/new?template=openprose-cli-harness-model.yml)
+- Use the [OpenProse CLI harness or model request](https://github.com/openprose/prose-cli/issues/new?template=openprose-cli-harness-model.yml)
   form for a new adapter, admitted harness version, model route, or authentication
   route.
-- Use the [OpenProse CLI benchmark profile or cell proposal](https://github.com/openprose/prose/issues/new?template=openprose-cli-benchmark-profile.yml)
+- Use the [OpenProse CLI benchmark profile or cell proposal](https://github.com/openprose/prose-cli/issues/new?template=openprose-cli-benchmark-profile.yml)
   form for a benchmark profile or cell.
 - Report a suspected vulnerability only through [private vulnerability
-  reporting](https://github.com/openprose/prose/security/advisories/new).
+  reporting](https://github.com/openprose/prose-cli/security/advisories/new).
 
 Do not include credentials, tokens, account identifiers, private paths, or raw
 provider output in a public issue.
@@ -123,7 +122,7 @@ provider output in a public issue.
                                 "paths, or raw provider transcripts. Do not report a "
                                 "suspected security vulnerability here; use the "
                                 "private "
-                                "vulnerability report at https://github.com/openprose/prose/"
+                                "vulnerability report at https://github.com/openprose/prose-cli/"
                                 "security/advisories/new."
                             )
                         },
@@ -187,7 +186,7 @@ provider output in a public issue.
                                 "transcripts. Do not report a suspected security "
                                 "vulnerability here; use the private vulnerability "
                                 "report "
-                                "at https://github.com/openprose/prose/security/advisories/"
+                                "at https://github.com/openprose/prose-cli/security/advisories/"
                                 "new."
                             )
                         },
@@ -504,11 +503,11 @@ class AlphaPublicDocsTest(unittest.TestCase):
     def test_support_requires_distinct_intake_and_private_security_routes(self) -> None:
         support = """# Support
 
-- Use the [harness request](https://github.com/openprose/prose/issues/new?template=openprose-cli-harness-model.yml)
+- Use the [harness request](https://github.com/openprose/prose-cli/issues/new?template=openprose-cli-harness-model.yml)
   for a harness, model, or authentication route.
-- Use the [benchmark proposal](https://github.com/openprose/prose/issues/new?template=openprose-cli-benchmark-profile.yml)
+- Use the [benchmark proposal](https://github.com/openprose/prose-cli/issues/new?template=openprose-cli-benchmark-profile.yml)
   for a benchmark profile or cell.
-- Report a suspected vulnerability through [private reporting](https://github.com/openprose/prose/security/advisories/new).
+- Report a suspected vulnerability through [private reporting](https://github.com/openprose/prose-cli/security/advisories/new).
 
 Do not include credentials, tokens, account identifiers, private paths, or raw
 provider output in a public issue.
@@ -525,16 +524,16 @@ provider output in a public issue.
 
         mutations = {
             "missing-benchmark-route": support.replace(
-                "https://github.com/openprose/prose/issues/new?template=openprose-cli-benchmark-profile.yml",
-                "https://github.com/openprose/prose/issues/new",
+                "https://github.com/openprose/prose-cli/issues/new?template=openprose-cli-benchmark-profile.yml",
+                "https://github.com/openprose/prose-cli/issues/new",
             ),
             "benchmark-routed-to-harness": support.replace(
-                "https://github.com/openprose/prose/issues/new?template=openprose-cli-benchmark-profile.yml",
-                "https://github.com/openprose/prose/issues/new?template=openprose-cli-harness-model.yml",
+                "https://github.com/openprose/prose-cli/issues/new?template=openprose-cli-benchmark-profile.yml",
+                "https://github.com/openprose/prose-cli/issues/new?template=openprose-cli-harness-model.yml",
             ),
             "missing-private-security": support.replace(
-                "https://github.com/openprose/prose/security/advisories/new",
-                "https://github.com/openprose/prose/issues/new",
+                "https://github.com/openprose/prose-cli/security/advisories/new",
+                "https://github.com/openprose/prose-cli/issues/new",
             ),
             "missing-public-redaction": support.replace(
                 "credentials, tokens, account identifiers, private paths, or raw\n"
@@ -577,8 +576,8 @@ provider output in a public issue.
             ),
             "harness-security-public": (
                 "openprose-cli-harness-model.yml",
-                "https://github.com/openprose/prose/security/advisories/new",
-                "https://github.com/openprose/prose/issues/new",
+                "https://github.com/openprose/prose-cli/security/advisories/new",
+                "https://github.com/openprose/prose-cli/issues/new",
                 (
                     "ISSUE_FORM_PRIVACY_INVALID",
                     "cli-harness-model-issue-form",
@@ -814,8 +813,21 @@ provider output in a public issue.
         self.assertIsNone(report["version"])
         self.assertNotIn("private", output[0])
 
-    def test_current_repository_fails_for_the_recorded_owner_blockers(self) -> None:
-        report = docs.assess(version=VERSION, repository_root=REPOSITORY_ROOT)
+    def test_incomplete_release_documents_report_all_owner_blockers(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            valid_documents(root)
+            incomplete = {
+                "README.md": "# OpenProse\n\nThere is no separate binary.\n",
+                "RELEASE.md": "# Release process\n",
+                "CONTRIBUTING.md": "# Contributing\n",
+                "PRIVACY.md": "# Privacy\n",
+                "TERMS.md": "# Terms\n",
+                "cli/CHANGELOG.md": "# Changelog\n\n## [Unreleased]\n",
+            }
+            for relative, value in incomplete.items():
+                write(root / relative, value)
+            report = docs.assess(version=VERSION, repository_root=root)
         observed_checks = {item[2] for item in failures(report)}
         self.assertEqual(report["status"], "fail")
         self.assertEqual(

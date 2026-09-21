@@ -2921,7 +2921,11 @@ pub fn environment_policy(
                 "auth profile does not select exactly one adapter credential group",
             )
     })?;
-    let ambient = ambient.into_iter().collect::<Vec<_>>();
+    // Remove service-only credentials from ambient storage as well as the
+    // closed allowlist, so later allow_inherited calls cannot recover them.
+    let ambient = ambient.into_iter()
+        .filter(|(name, _)| !name.to_string_lossy().eq_ignore_ascii_case("OPENPROSE_STAGING_API_KEY") && !name.to_string_lossy().eq_ignore_ascii_case("OPENPROSE_API_KEY"))
+        .collect::<Vec<_>>();
     auth_readiness(adapter, auth_group, &ambient)?;
     let mut policy = EnvironmentPolicy::from_pairs(ambient);
     for name in BASE_ENVIRONMENT {
@@ -2941,6 +2945,8 @@ pub(crate) fn version_probe_environment(
     _adapter: InstalledAdapter,
     ambient: impl IntoIterator<Item = (OsString, OsString)>,
 ) -> EnvironmentPolicy {
+    let ambient = ambient.into_iter()
+        .filter(|(name, _)| !name.to_string_lossy().eq_ignore_ascii_case("OPENPROSE_STAGING_API_KEY") && !name.to_string_lossy().eq_ignore_ascii_case("OPENPROSE_API_KEY"));
     let mut policy = EnvironmentPolicy::from_pairs(ambient);
     for name in VERSION_PROBE_ENVIRONMENT {
         policy = policy.allow_inherited(*name, Sensitivity::Public);
@@ -3571,6 +3577,20 @@ mod tests {
             &PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../shared/image/sentinel-v1"),
         )
         .unwrap()
+    }
+
+    #[test]
+    fn staging_service_token_cannot_be_reallowed_into_harness_or_probe() {
+        let secret = "rr_test_11111111111111111111111111111111";
+        let ambient = || vec![(OsString::from("OPENPROSE_STAGING_API_KEY"), OsString::from(secret)), (OsString::from("OPENPROSE_API_KEY"), OsString::from(secret))];
+        let adapter = InstalledAdapter::CodexExecJson;
+        let harness = environment_policy(adapter, adapter.default_probe_auth_group(), ambient()).unwrap();
+        let probe = version_probe_environment(adapter, ambient());
+        for policy in [harness, probe] {
+            let policy = policy.allow_inherited("OPENPROSE_STAGING_API_KEY", Sensitivity::Secret).allow_inherited("OPENPROSE_API_KEY", Sensitivity::Secret);
+            assert!(!policy.secret_strings().iter().any(|value| value == secret));
+            assert!(!policy.output_protected_strings().iter().any(|value| value == secret));
+        }
     }
 
     fn empty_environment(adapter: InstalledAdapter) -> EnvironmentPolicy {

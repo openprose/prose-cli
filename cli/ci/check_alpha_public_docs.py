@@ -98,14 +98,14 @@ _README_LINK = re.compile(r"(?<!!)\[[^\]\r\n]+\]\(cli/README\.md\)")
 _RELEASE_LINK = re.compile(r"(?<!!)\[[^\]\r\n]+\]\(cli/release/README\.md\)")
 _CONTRIBUTING_LINK = re.compile(r"(?<!!)\[[^\]\r\n]+\]\(cli/CONTRIBUTING\.md\)")
 HARNESS_MODEL_FORM_URL = (
-    "https://github.com/openprose/prose/issues/new?"
+    "https://github.com/openprose/prose-cli/issues/new?"
     "template=openprose-cli-harness-model.yml"
 )
 BENCHMARK_FORM_URL = (
-    "https://github.com/openprose/prose/issues/new?"
+    "https://github.com/openprose/prose-cli/issues/new?"
     "template=openprose-cli-benchmark-profile.yml"
 )
-PRIVATE_VULNERABILITY_URL = "https://github.com/openprose/prose/security/advisories/new"
+PRIVATE_VULNERABILITY_URL = "https://github.com/openprose/prose-cli/security/advisories/new"
 _CLI_ALPHA_TAG = re.compile(
     r"\bcli-v(?:x\.y\.z|[0-9]+\.[0-9]+\.[0-9]+)-alpha\." r"(?:n|[0-9]+)\b",
     re.IGNORECASE,

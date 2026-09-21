@@ -1,3 +1,4 @@
+import { runServiceAccount } from "./core/service-account";
 import { runWeaveHost, writeHostBytes, stopHostOutput } from "./core/weave-host";
 import { PUBLISHED_KERNEL_STARTUP } from "./core/build";
 import { publishedKernel } from "./core/kernel-startup";
@@ -9,7 +10,7 @@ import { embeddedRuntimeImage } from "./assets/sentinel";
 import runnerHelp from "../../conformance/cases/fixtures/runner-help.txt" with { type: "text" };
 import deterministicMockDescriptor from "../../shared/fixtures/transport/deterministic-mock-adapter.json" with { type: "json" };
 import fakeProcessDescriptor from "../../shared/fixtures/transport/mock-adapter.json" with { type: "json" };
-import { resolveConfiguration, writeUserHarnessSelection } from "./core/config";
+import { resolveConfiguration, resolveServiceEnvironment, writeUserServiceEnvironment, writeUserHarnessSelection } from "./core/config";
 import { failure } from "./core/errors";
 import { harnessById, harnesses, type HarnessDescriptor } from "./core/harnesses";
 import { canonicalJson, sha256, verifyRuntimeImage } from "./core/image";
@@ -88,6 +89,25 @@ export async function runCli(args: readonly string[], dependencies: CliDependenc
   const invocationId = dependencies.ids.invocationId();
   try {
     const parsed = parseEntrypoint(args);
+    if (parsed.global.serviceEnvironment !== undefined) {
+      mode = parsed.kind === "operation" && parsed.json ? "json" : parsed.global.output ?? "human";
+      if (parsed.kind !== "operation" || !["auth-status", "auth-login", "auth-logout", "org-list"].includes(parsed.operation) || Object.keys(parsed.global).some((key) => !["serviceEnvironment", "output", "color", "verbose"].includes(key))) throw failure("INVOCATION_INVALID");
+    }
+    if (parsed.kind === "operation" && (["auth-status", "auth-login", "auth-logout", "org-list"].includes(parsed.operation) || parsed.operation.startsWith("environment-"))) {
+      mode = parsed.json ? "json" : parsed.global.output ?? "human";
+      if (Object.keys(parsed.global).some((key) => !["serviceEnvironment", "output", "color", "verbose"].includes(key))) throw failure("INVOCATION_INVALID");
+      let selected = await resolveServiceEnvironment(dependencies);
+      if (parsed.operation.startsWith("environment-")) {
+        if (parsed.operation !== "environment-show") {
+          await writeUserServiceEnvironment(selected.path, parsed.operation === "environment-reset" ? null : parsed.value as "production" | "staging");
+          selected = await resolveServiceEnvironment(dependencies);
+        }
+        const report = { schema: "openprose.service-environment/1", environment: selected.environment, source: selected.source, problem: null };
+        dependencies.writeStdout(mode === "human" ? `OpenProse ${selected.environment} environment (${selected.source})\n` : jsonLine(report));
+        return 0;
+      }
+      return await runServiceAccount(parsed.operation, mode, dependencies, parsed.global.serviceEnvironment ?? selected.environment);
+    }
     if (parsed.kind === "weave") return await runWeaveHost(parsed.argv, parsed.global, dependencies);
     if (parsed.kind === "help") {
       dependencies.writeStdout(runnerHelp);
@@ -194,32 +214,6 @@ async function runOperation(
       ].join("\n"));
     } else dependencies.writeStdout(jsonLine(report));
     return 0;
-  }
-  if (operation === "auth-status") {
-    const problem = failure("HOSTED_UNAVAILABLE", { billingOwner: "openprose", fallbackSelected: false });
-    const report = {
-      schema: "openprose.account-status/1",
-      availability: "unavailable",
-      authenticated: null,
-      authCategory: "openprose-account",
-      billingOwner: "openprose",
-      credentialStorage: "unavailable",
-      problem: problem.toJSON(),
-    };
-    if (mode === "human") {
-      dependencies.writeStdout([
-        "OpenProse account: unavailable",
-        "Authentication: unknown",
-        "Credential storage: unavailable",
-        `Problem: ${problem.code} — ${problem.message}`,
-        `Action: ${humanAction(problem)}`,
-        "",
-      ].join("\n"));
-    } else dependencies.writeStdout(jsonLine(report));
-    return problem.exitCode;
-  }
-  if (operation === "auth-login" || operation === "auth-logout") {
-    throw failure("HOSTED_UNAVAILABLE", { billingOwner: "openprose", fallbackSelected: false });
   }
   if (operation === "config-explain") {
     if (mode === "human") dependencies.writeStdout(humanConfiguration(config));

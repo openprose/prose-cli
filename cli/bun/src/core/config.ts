@@ -108,7 +108,7 @@ export async function resolveConfiguration(
     (Object.keys(defaults) as ConfigKey[]).map((key) => [key, { kind: "default", location: "built-in" }]),
   ) as { [K in ConfigKey]: ValueSource };
 
-  const user = await readConfigIfPresent(userConfigPath);
+  const user = await readConfigIfPresent(userConfigPath, true);
   apply(values, sources, user.values, "user-config", user.locations);
   if (projectConfigPath !== null) {
     const project = await readConfigIfPresent(projectConfigPath);
@@ -177,7 +177,10 @@ async function exists(path: string): Promise<boolean> {
   }
 }
 
+export type ServiceEnvironment = "production" | "staging";
+
 interface ParsedValues {
+  serviceEnvironment?: ServiceEnvironment;
   values: PartialValues;
   locations: Partial<Record<ConfigKey, string>>;
 }
@@ -350,7 +353,8 @@ function assignFileValue(
   assignValidated(values, key, value, location);
 }
 
-function parseFlatToml(source: string, path: string): ParsedValues {
+function parseFlatToml(source: string, path: string, allowService = true): ParsedValues {
+  let serviceEnvironment: ServiceEnvironment | undefined;
   const values: PartialValues = {};
   const locations: Partial<Record<ConfigKey, string>> = {};
   const seen = new Set<string>();
@@ -368,7 +372,7 @@ function parseFlatToml(source: string, path: string): ParsedValues {
     }
     const rawKey = match[1]!;
     const key = Object.hasOwn(fileKeyMap, rawKey) ? fileKeyMap[rawKey] : undefined;
-    if (key === undefined) configLineFailure(path, lineNumber, "Configuration contains an unknown key.");
+    if (key === undefined && rawKey !== "service_environment") configLineFailure(path, lineNumber, "Configuration contains an unknown key.");
     if (seen.has(rawKey)) configLineFailure(path, lineNumber, `Duplicate configuration key: ${rawKey}.`);
     seen.add(rawKey);
     const rawValue = line.slice(match[0].length);
@@ -396,13 +400,19 @@ function parseFlatToml(source: string, path: string): ParsedValues {
       configLineFailure(path, lineNumber, "Unexpected content after configuration value.");
     }
     const location = `${path}:${lineNumber}`;
-    assignFileValue(values, key, rawKey, parsed, location);
-    locations[key] = location;
+    if (rawKey === "service_environment") {
+      if (!allowService) configLineFailure(path, lineNumber, "Service environment is only allowed in user configuration.");
+      if (parsed !== "production" && parsed !== "staging") configLineFailure(path, lineNumber, "Service environment must be production or staging.");
+      serviceEnvironment = parsed;
+    } else {
+      assignFileValue(values, key!, rawKey, parsed, location);
+      locations[key!] = location;
+    }
   }
-  return { values, locations };
+  return { values, locations, ...(serviceEnvironment === undefined ? {} : { serviceEnvironment }) };
 }
 
-async function readConfigIfPresent(path: string): Promise<ParsedValues> {
+async function readConfigIfPresent(path: string, allowService = false): Promise<ParsedValues> {
   if (!(await exists(path))) return { values: {}, locations: {} };
   let text: string;
   try {
@@ -411,7 +421,7 @@ async function readConfigIfPresent(path: string): Promise<ParsedValues> {
     if (caught instanceof RunnerFailure) throw caught;
     fail(`Cannot read configuration file: ${path}.`, path);
   }
-  return parseFlatToml(text, path);
+  return parseFlatToml(text, path, allowService);
 }
 
 function parseEnvironment(env: Readonly<Record<string, string | undefined>>): ParsedValues {
@@ -555,6 +565,26 @@ export async function writeUserHarnessSelection(
   }
   if (selection.model !== null && selection.model.length === 0) fail("Saved model must not be empty.", path);
   if (selection.authProfile !== null && selection.authProfile.length === 0) fail("Saved auth profile must not be empty.", path);
+  return writeUserSelection(path, new Set(["harness", "model", "auth_profile"]), [
+    ...(selection.authProfile === null ? [] : [`auth_profile = ${JSON.stringify(selection.authProfile)}`]),
+    `harness = ${JSON.stringify(harness)}`,
+    ...(selection.model === null ? [] : [`model = ${JSON.stringify(selection.model)}`]),
+  ]);
+}
+
+export async function resolveServiceEnvironment(dependencies: ConfigDependencies): Promise<{ environment: ServiceEnvironment; source: "default" | "user-config"; path: string }> {
+  const path = dependencies.userConfigPath ?? defaultUserConfigPath(dependencies);
+  const pathApi = (dependencies.platform ?? process.platform) === "win32" ? win32 : posix;
+  if (!pathApi.isAbsolute(path)) fail("OpenProse user configuration path must be absolute.");
+  const parsed = await readConfigIfPresent(path, true);
+  return { environment: parsed.serviceEnvironment ?? "production", source: parsed.serviceEnvironment === undefined ? "default" : "user-config", path };
+}
+
+export async function writeUserServiceEnvironment(path: string, environment: ServiceEnvironment | null): Promise<boolean> {
+  return writeUserSelection(path, new Set(["service_environment"]), environment === null ? [] : [`service_environment = ${JSON.stringify(environment)}`]);
+}
+
+async function writeUserSelection(path: string, targetKeys: Set<string>, bundle: string[]): Promise<boolean> {
   const parent = dirname(path);
   await secureUserConfigParent(parent);
 
@@ -574,7 +604,6 @@ export async function writeUserHarnessSelection(
 
   const lines = original.length === 0 ? [] : original.replace(/\n$/u, "").split("\n");
   if (original.length > 0) parseFlatToml(original, path);
-  const targetKeys = new Set(["harness", "model", "auth_profile"]);
   const seen = new Set<string>();
   let insertionIndex: number | null = null;
   const updated: string[] = [];
@@ -589,13 +618,8 @@ export async function writeUserHarnessSelection(
     seen.add(key);
     if (insertionIndex === null) insertionIndex = updated.length;
   }
-  const bundle = [
-    ...(selection.authProfile === null ? [] : [`auth_profile = ${JSON.stringify(selection.authProfile)}`]),
-    `harness = ${JSON.stringify(harness)}`,
-    ...(selection.model === null ? [] : [`model = ${JSON.stringify(selection.model)}`]),
-  ];
   updated.splice(insertionIndex ?? updated.length, 0, ...bundle);
-  const next = `${updated.join("\n")}\n`;
+  const next = updated.length === 0 ? "" : `${updated.join("\n")}\n`;
   if (next === original) return false;
 
   const temporary = join(parent, `.cli.toml.openprose-${process.pid}-${randomUUID()}.tmp`);
