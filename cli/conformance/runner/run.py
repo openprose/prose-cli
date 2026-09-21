@@ -1269,17 +1269,17 @@ class ContractRegistry:
             path.name: json.loads(path.read_text("utf-8"))
             for path in sorted(SCHEMAS.glob("*.schema.json"))
         }
-        self.by_contract = {
-            "openprose.runner-error/1": "runner-error.schema.json",
-            "openprose.runner-result/1": "runner-result.schema.json",
-            "openprose.normalized-event/1": "normalized-event.schema.json",
-            "openprose.runner-dry-run-report/1": "runner-dry-run-report.schema.json",
-            "openprose.doctor-report/1": "doctor-report.schema.json",
-            "openprose.harness-list/1": "harness-list.schema.json",
-            "openprose.configuration-explanation/1": "configuration-explanation.schema.json",
-            "openprose.account-status/1": "account-status.schema.json",
-            "openprose.harness-selection/1": "harness-selection.schema.json",
-        }
+        self.by_contract: dict[str, str] = {}
+        for name, schema in self.schemas.items():
+            contract = schema.get("properties", {}).get("schema", {}).get("const")
+            # Helper schemas have no output-envelope discriminator.
+            if contract is None:
+                continue
+            if not isinstance(contract, str) or not contract:
+                raise ValueError(f"Invalid contract discriminator in {name}")
+            if contract in self.by_contract:
+                raise ValueError(f"Duplicate contract discriminator: {contract}")
+            self.by_contract[contract] = name
         registry = Registry()
         for schema in self.schemas.values():
             registry = registry.with_resource(
@@ -1288,7 +1288,9 @@ class ContractRegistry:
         self.registry = registry
 
     def errors(self, contract: str, instance: Any) -> list[str]:
-        schema_name = self.by_contract[contract]
+        schema_name = self.by_contract.get(contract)
+        if schema_name is None:
+            return [f"Unknown output contract: {contract}"]
         validator = jsonschema.Draft202012Validator(
             self.schemas[schema_name],
             registry=self.registry,
