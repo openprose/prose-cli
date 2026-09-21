@@ -261,19 +261,19 @@ impl RunnerError {
         let (boundary, message, action, retryable) = match code {
             ErrorCode::ServiceUnavailable => (
                 "hosted-service",
-                "The staging account service is unavailable.",
-                "Retry the staging account command later.",
+                "The OpenProse service is unavailable.",
+                "Check the selected service environment and retry later.",
                 true,
             ),
             ErrorCode::ServiceAuthRequired => (
                 "authentication",
-                "Staging account authentication is required.",
-                "Run prose --service-environment staging cli auth login, then retry.",
+                "OpenProse service authentication is required.",
+                "Run cli auth login for the selected service environment, then retry.",
                 false,
             ),
             ErrorCode::ServiceProtocolInvalid => (
                 "protocol",
-                "The staging account service returned an invalid response.",
+                "The OpenProse service returned an invalid response.",
                 "Retry later and report the sanitized error code if it persists.",
                 false,
             ),
@@ -286,13 +286,13 @@ impl RunnerError {
             ErrorCode::DeviceAuthFailed => (
                 "authentication",
                 "Device authorization failed.",
-                "Run the staging login command again and authorize the displayed code.",
+                "Run login again for the selected service environment and authorize the displayed code.",
                 false,
             ),
             ErrorCode::DeviceAuthExpired => (
                 "authentication",
                 "Device authorization expired.",
-                "Run the staging login command again to obtain a new code.",
+                "Run login again for the selected service environment to obtain a new code.",
                 true,
             ),
 

@@ -174,23 +174,23 @@
       "boundary": "hosted-service",
       "exitCode": 10,
       "retryable": true,
-      "message": "The staging account service is unavailable.",
-      "action": "Retry the staging account command later."
+      "message": "The OpenProse service is unavailable.",
+      "action": "Check the selected service environment and retry later."
     },
     {
       "code": "SERVICE_AUTH_REQUIRED",
       "boundary": "authentication",
       "exitCode": 10,
       "retryable": false,
-      "message": "Staging account authentication is required.",
-      "action": "Run prose --service-environment staging cli auth login, then retry."
+      "message": "OpenProse service authentication is required.",
+      "action": "Run cli auth login for the selected service environment, then retry."
     },
     {
       "code": "SERVICE_PROTOCOL_INVALID",
       "boundary": "protocol",
       "exitCode": 10,
       "retryable": false,
-      "message": "The staging account service returned an invalid response.",
+      "message": "The OpenProse service returned an invalid response.",
       "action": "Retry later and report the sanitized error code if it persists."
     },
     {
@@ -207,7 +207,7 @@
       "exitCode": 10,
       "retryable": false,
       "message": "Device authorization failed.",
-      "action": "Run the staging login command again and authorize the displayed code."
+      "action": "Run login again for the selected service environment and authorize the displayed code."
     },
     {
       "code": "DEVICE_AUTH_EXPIRED",
@@ -215,7 +215,7 @@
       "exitCode": 10,
       "retryable": true,
       "message": "Device authorization expired.",
-      "action": "Run the staging login command again to obtain a new code."
+      "action": "Run login again for the selected service environment to obtain a new code."
     }
   ]
 }

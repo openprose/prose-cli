@@ -221,10 +221,10 @@
             "const": true
           },
           "message": {
-            "const": "The staging account service is unavailable."
+            "const": "The OpenProse service is unavailable."
           },
           "action": {
-            "const": "Retry the staging account command later."
+            "const": "Check the selected service environment and retry later."
           }
         }
       }
@@ -252,10 +252,10 @@
             "const": false
           },
           "message": {
-            "const": "Staging account authentication is required."
+            "const": "OpenProse service authentication is required."
           },
           "action": {
-            "const": "Run prose --service-environment staging cli auth login, then retry."
+            "const": "Run cli auth login for the selected service environment, then retry."
           }
         }
       }
@@ -283,7 +283,7 @@
             "const": false
           },
           "message": {
-            "const": "The staging account service returned an invalid response."
+            "const": "The OpenProse service returned an invalid response."
           },
           "action": {
             "const": "Retry later and report the sanitized error code if it persists."
@@ -348,7 +348,7 @@
             "const": "Device authorization failed."
           },
           "action": {
-            "const": "Run the staging login command again and authorize the displayed code."
+            "const": "Run login again for the selected service environment and authorize the displayed code."
           }
         }
       }
@@ -379,7 +379,7 @@
             "const": "Device authorization expired."
           },
           "action": {
-            "const": "Run the staging login command again to obtain a new code."
+            "const": "Run login again for the selected service environment to obtain a new code."
           }
         }
       }
