@@ -1,3 +1,4 @@
+import { runServiceAccount } from "./core/service-account";
 import { runWeaveHost, writeHostBytes, stopHostOutput } from "./core/weave-host";
 import { PUBLISHED_KERNEL_STARTUP } from "./core/build";
 import { publishedKernel } from "./core/kernel-startup";
@@ -88,6 +89,12 @@ export async function runCli(args: readonly string[], dependencies: CliDependenc
   const invocationId = dependencies.ids.invocationId();
   try {
     const parsed = parseEntrypoint(args);
+    if (parsed.global.serviceEnvironment !== undefined) {
+      mode = parsed.kind === "operation" && parsed.json ? "json" : parsed.global.output ?? "human";
+      if (parsed.kind !== "operation" || !["auth-status", "auth-login", "auth-logout", "org-list"].includes(parsed.operation) || Object.keys(parsed.global).some((key) => !["serviceEnvironment", "output", "color", "verbose"].includes(key))) throw failure("INVOCATION_INVALID");
+      return await runServiceAccount(parsed.operation, mode, dependencies);
+    }
+    if (parsed.kind === "operation" && parsed.operation === "org-list") throw failure("INVOCATION_INVALID");
     if (parsed.kind === "weave") return await runWeaveHost(parsed.argv, parsed.global, dependencies);
     if (parsed.kind === "help") {
       dependencies.writeStdout(runnerHelp);

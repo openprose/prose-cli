@@ -29,6 +29,8 @@ Release operators use the
 [functional-alpha readiness contract](release/ALPHA_READINESS.md) to distinguish
 candidate, promotion, and post-publication authority.
 
+For the candidate service-account connection, see [Connect the CLI to staging](../docs/staging-account.md). This does not enable registry publishing or hosted execution.
+
 ## First five minutes
 
 1. Read [Install the functional alpha](#install-the-functional-alpha) and verify

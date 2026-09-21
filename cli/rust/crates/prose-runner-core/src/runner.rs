@@ -620,7 +620,7 @@ fn execute_runner_command(
                 CommandOutcome::json(report, problem.exit_code)
             }
         }
-        RunnerCommand::AuthLogin | RunnerCommand::AuthLogout => {
+        RunnerCommand::AuthLogin | RunnerCommand::AuthLogout | RunnerCommand::OrgList => {
             error_outcome(hosted_unavailable(), mode, clock, ids)
         }
     }

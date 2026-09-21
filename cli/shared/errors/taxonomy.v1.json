@@ -168,6 +168,54 @@
       "retryable": false,
       "message": "The runner encountered an internal fault.",
       "action": "Retry with `--verbose` and report the sanitized diagnostic identifier."
+    },
+    {
+      "code": "SERVICE_UNAVAILABLE",
+      "boundary": "hosted-service",
+      "exitCode": 10,
+      "retryable": true,
+      "message": "The staging account service is unavailable.",
+      "action": "Retry the staging account command later."
+    },
+    {
+      "code": "SERVICE_AUTH_REQUIRED",
+      "boundary": "authentication",
+      "exitCode": 10,
+      "retryable": false,
+      "message": "Staging account authentication is required.",
+      "action": "Run prose --service-environment staging cli auth login, then retry."
+    },
+    {
+      "code": "SERVICE_PROTOCOL_INVALID",
+      "boundary": "protocol",
+      "exitCode": 10,
+      "retryable": false,
+      "message": "The staging account service returned an invalid response.",
+      "action": "Retry later and report the sanitized error code if it persists."
+    },
+    {
+      "code": "CREDENTIAL_STORE_UNAVAILABLE",
+      "boundary": "authentication",
+      "exitCode": 10,
+      "retryable": false,
+      "message": "The operating system credential store is unavailable.",
+      "action": "Unlock or configure the operating system credential store, then retry."
+    },
+    {
+      "code": "DEVICE_AUTH_FAILED",
+      "boundary": "authentication",
+      "exitCode": 10,
+      "retryable": false,
+      "message": "Device authorization failed.",
+      "action": "Run the staging login command again and authorize the displayed code."
+    },
+    {
+      "code": "DEVICE_AUTH_EXPIRED",
+      "boundary": "authentication",
+      "exitCode": 10,
+      "retryable": true,
+      "message": "Device authorization expired.",
+      "action": "Run the staging login command again to obtain a new code."
     }
   ]
 }

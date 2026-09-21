@@ -27,3 +27,5 @@ pub use prose_process_supervisor::{CancellationToken, SignalCancellationGuard};
 pub use runtime::{Clock, IdSource, SystemClock, SystemIdSource};
 
 pub mod kernel_startup;
+
+pub mod service_account;

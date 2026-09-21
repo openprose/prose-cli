@@ -28,6 +28,7 @@ export function buildChildEnvironment(
   const permitted = new Set([...operatingSystemNames, ...additionalNames]);
   const result: Record<string, string> = {};
   for (const name of permitted) {
+    if (name.toUpperCase() === "OPENPROSE_STAGING_API_KEY") continue;
     const value = ambient[name];
     if (value !== undefined) result[name] = value;
   }

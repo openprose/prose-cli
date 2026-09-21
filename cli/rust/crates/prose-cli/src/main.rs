@@ -279,6 +279,16 @@ fn prepare(
         _ => {}
     }
 
+    if parsed.globals.service_environment.is_some() {
+        if let Action::Runner { ref command, json } = parsed.action {
+            if matches!(command, RunnerCommand::AuthLogin | RunnerCommand::AuthStatus | RunnerCommand::AuthLogout | RunnerCommand::OrgList) {
+                let mode = if json { OutputMode::Json } else { parsed.globals.output.unwrap_or_default() };
+                return prose_runner_core::service_account::execute(command, mode, cancellation);
+            }
+        }
+        return error_outcome(RunnerError::invocation("service environment requires an account or organization command"), error_mode, &clock, &ids);
+    }
+
     let system = match SystemContext::capture() {
         Ok(system) => system,
         Err(error) => {

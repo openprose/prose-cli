@@ -480,3 +480,13 @@ Root retains CLI integration and Git. weave_onboarding has a documentation-only 
 At19:20Eastern root assigns weave_parity the narrow public-core identity correction: `experiments/weave-seed/SPEC.md`, new `fixtures/core-identity.json`, `bun/index.mjs`, `bun/conformance.mjs`, `rust/lib.rs`, and a narrowly scoped Rust identity regression test if required (exact path reported before editing). Shared cases/spec precede implementation. Align with the existing persisted-host whitespace predicate; no API rename or broad refactor. Root owns Git and final qualification.
 
 The additional approved regression path is `experiments/weave-seed/rust/identity_tests.rs`; no other Rust test paths are assigned.
+
+## IMP-034 public CLI staging integration
+
+Isolated checkout: branch `codex/imp-034-staging-cli`. Root owns Git, integration, `cli/protocol/OWNERSHIP.md`, documentation and shared manifest changes. No release or deployment authorized by these leases.
+
+- `staging_contract`: `cli/SPEC.md`, `cli/shared/schemas/`, `cli/shared/errors/`, `cli/shared/tests/`, `cli/conformance/cases/operations/`, `cli/conformance/runner/` for shared staging authentication and organization behavior and hermetic service fixtures. Record concrete observable cases before implementation.
+- `staging_bun`: `cli/bun/src/`, `cli/bun/test/` for staged service account behavior only; wait for shared contract before editing. No manifest edits without root coordination.
+- `staging_rust`: `cli/rust/crates/prose-runner-core/src/`, `cli/rust/crates/prose-runner-core/tests/`, `cli/rust/crates/prose-cli/src/` for equivalent Rust behavior; wait for shared contract before editing. No manifest edits without root coordination.
+
+Root integration lease also covers `cli/ci/run_local.py`, `cli/README.md`, and `cli/conformance/cases/fixtures/runner-help.txt` for test wiring and synchronized help.

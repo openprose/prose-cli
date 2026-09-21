@@ -45,3 +45,10 @@ login defaults when those selection options are omitted.
 The first language-command token ends runner-option parsing. `prose help` is
 forwarded to OpenProse; use `prose --help` for this runner help. Use
 `prose -- cli ...` to forward a language command named `cli`.
+
+Staging account commands (no hosted execution):
+  prose --service-environment staging cli auth login|status|logout [--json]
+  prose --service-environment staging cli org list [--json]
+
+Login stores credentials in the OS credential store. For CI, set
+OPENPROSE_STAGING_API_KEY; logout removes only the local credential.
