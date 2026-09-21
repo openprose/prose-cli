@@ -1,3 +1,4 @@
+import { runPackageCommand } from "./core/package-registry";
 import { runServiceAccount } from "./core/service-account";
 import { runWeaveHost, writeHostBytes, stopHostOutput } from "./core/weave-host";
 import { PUBLISHED_KERNEL_STARTUP } from "./core/build";
@@ -91,9 +92,9 @@ export async function runCli(args: readonly string[], dependencies: CliDependenc
     const parsed = parseEntrypoint(args);
     if (parsed.global.serviceEnvironment !== undefined) {
       mode = parsed.kind === "operation" && parsed.json ? "json" : parsed.global.output ?? "human";
-      if (parsed.kind !== "operation" || !["auth-status", "auth-login", "auth-logout", "org-list"].includes(parsed.operation) || Object.keys(parsed.global).some((key) => !["serviceEnvironment", "output", "color", "verbose"].includes(key))) throw failure("INVOCATION_INVALID");
+      if (parsed.kind !== "operation" || !["auth-status", "auth-login", "auth-logout", "org-list", "package"].includes(parsed.operation) || Object.keys(parsed.global).some((key) => !["serviceEnvironment", "output", "color", "verbose"].includes(key))) throw failure("INVOCATION_INVALID");
     }
-    if (parsed.kind === "operation" && (["auth-status", "auth-login", "auth-logout", "org-list"].includes(parsed.operation) || parsed.operation.startsWith("environment-"))) {
+    if (parsed.kind === "operation" && (["auth-status", "auth-login", "auth-logout", "org-list", "package"].includes(parsed.operation) || parsed.operation.startsWith("environment-"))) {
       mode = parsed.json ? "json" : parsed.global.output ?? "human";
       if (Object.keys(parsed.global).some((key) => !["serviceEnvironment", "output", "color", "verbose"].includes(key))) throw failure("INVOCATION_INVALID");
       let selected = await resolveServiceEnvironment(dependencies);
@@ -106,6 +107,7 @@ export async function runCli(args: readonly string[], dependencies: CliDependenc
         dependencies.writeStdout(mode === "human" ? `OpenProse ${selected.environment} environment (${selected.source})\n` : jsonLine(report));
         return 0;
       }
+      if (parsed.operation === "package") return await runPackageCommand(parsed.packageCommand!, mode, dependencies, parsed.global.serviceEnvironment ?? selected.environment);
       return await runServiceAccount(parsed.operation, mode, dependencies, parsed.global.serviceEnvironment ?? selected.environment);
     }
     if (parsed.kind === "weave") return await runWeaveHost(parsed.argv, parsed.global, dependencies);

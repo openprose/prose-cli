@@ -63,6 +63,7 @@ export interface EffectiveConfiguration {
 }
 
 export type RunnerOperation =
+  | "package"
   | "environment-show"
   | "environment-use"
   | "environment-reset"
@@ -80,7 +81,7 @@ export type ParsedEntrypoint =
   | { kind: "weave"; global: GlobalFlags; argv: string[] }
   | { kind: "help"; global: GlobalFlags }
   | { kind: "version"; global: GlobalFlags }
-  | { kind: "operation"; global: GlobalFlags; operation: RunnerOperation; json: boolean; value?: string }
+  | { kind: "operation"; global: GlobalFlags; operation: RunnerOperation; json: boolean; value?: string; packageCommand?: import("./package-args").PackageCommand }
   | { kind: "language"; global: GlobalFlags; argv: string[] };
 
 export interface TaskEnvelope {

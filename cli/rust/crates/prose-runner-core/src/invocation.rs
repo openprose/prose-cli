@@ -68,6 +68,7 @@ pub enum RunnerCommand {
     EnvironmentShow,
     EnvironmentUse(String),
     EnvironmentReset,
+    Package(crate::registry::PackageCommand),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -107,7 +108,7 @@ pub fn parse_invocation(
         let mut other = parsed.globals.clone();
         other.service_environment = None; other.output = None; other.no_color = false; other.verbose = false;
         if other != GlobalFlags::default() || !matches!(parsed.action,
-            Action::Runner { command: RunnerCommand::AuthStatus | RunnerCommand::AuthLogin | RunnerCommand::AuthLogout | RunnerCommand::OrgList, .. }) {
+            Action::Runner { command: RunnerCommand::AuthStatus | RunnerCommand::AuthLogin | RunnerCommand::AuthLogout | RunnerCommand::OrgList | RunnerCommand::Package(_), .. }) {
             return Err(RunnerError::invocation("service environment requires an account or organization command"));
         }
     }
@@ -311,6 +312,12 @@ fn parse_runner_command(args: &[String], globals: &mut GlobalFlags) -> Result<Ac
     if known_runner_help_path(args) {
         return Ok(Action::Help);
     }
+    if let [package, rest @ ..] = args {
+        if package == "package" {
+            let (command, json) = crate::registry::parse(rest)?;
+            return Ok(Action::Runner { command: RunnerCommand::Package(command), json });
+        }
+    }
     let (command, tail) = match args {
         [doctor, tail @ ..] if doctor == "doctor" => (RunnerCommand::Doctor, tail),
         [harness, list, tail @ ..] if harness == "harness" && list == "list" => {
@@ -424,7 +431,7 @@ fn known_runner_help_path(args: &[String]) -> bool {
         values.as_slice(),
         ["--help"]
             | [
-                "doctor" | "harness" | "cleanup" | "config" | "auth" | "org" | "environment",
+                "doctor" | "harness" | "cleanup" | "config" | "auth" | "org" | "environment" | "package",
                 "--help"
             ]
             | ["harness", "list" | "use", "--help"]
@@ -434,6 +441,8 @@ fn known_runner_help_path(args: &[String]) -> bool {
             | ["config", "explain", "--help"]
             | ["auth", "status" | "login" | "logout", "--help"]
             | ["org", "list", "--help"]
+            | ["package", "publish" | "fetch" | "list" | "withdraw", "--help"]
+            | ["package", "publish" | "fetch" | "list" | "withdraw", _, "--help"]
             | ["environment", "show" | "reset" | "use", "--help"]
             | ["environment", "use", _, "--help"]
     )

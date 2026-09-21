@@ -21,7 +21,7 @@ toml.workspace = true
 uuid.workspace = true
 
 [target.'cfg(unix)'.dependencies]
-rustix = { workspace = true, features = ["event", "net"] }
+rustix = { workspace = true, features = ["event", "net", "fs"] }
 
 [dev-dependencies]
 tempfile.workspace = true

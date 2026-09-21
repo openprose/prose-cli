@@ -1,0 +1,1 @@
+{"schema":"prose-package-v1","manifest":{"organization":"example","package":"hello","version":"1.0.0","exports":{"default":"hello.md"},"dependencies":{}},"files":[{"path":"hello.md","encoding":"utf8","content":"# Hello\n"}]}

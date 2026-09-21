@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { TEST_SEAMS_ENABLED } from "./build";
 import { failure } from "./errors";
@@ -8,8 +9,8 @@ import { RunnerFailure, type OutputMode, type RunnerOperation } from "./types";
 type ServiceEnvironment = "production" | "staging";
 const MAX_BYTES = 65_536;
 type RecordValue = Record<string, unknown>;
-interface Fixture { environment?: ServiceEnvironment; credentials?: Partial<Record<ServiceEnvironment, string | null>>; credential: string | null; storeAvailable: boolean; exchanges: Array<{method: string; path: string; status: number; body: unknown; origin?: string}>; cancelBeforePoll?: boolean }
-interface Dependencies {
+interface Fixture { environment?: ServiceEnvironment; credentials?: Partial<Record<ServiceEnvironment, string | null>>; credential: string | null; storeAvailable: boolean; exchanges: Array<{method: string; path: string; status: number; body: unknown; origin?: string; expectedBody?: unknown; expectedSha256?: string}>; cancelBeforePoll?: boolean }
+export interface Dependencies {
   env: Readonly<Record<string, string | undefined>>;
   cancellationSignal?: AbortSignal;
   writeStdout(text: string): void;
@@ -23,7 +24,7 @@ function text(value: unknown, max = 4096): string {
   if (typeof value !== "string" || value.length === 0 || Array.from(value).length > max || /[\u0000-\u001f\u007f\ud800-\udfff]/u.test(value)) throw failure("SERVICE_PROTOCOL_INVALID");
   return value;
 }
-function token(value: unknown): string {
+export function token(value: unknown): string {
   const result = text(value);
   if (!/^rr_test_[0-9a-f]{32}$/u.test(result)) throw failure("SERVICE_PROTOCOL_INVALID");
   return result;
@@ -32,18 +33,18 @@ function integer(value: unknown, low: number, high: number): number {
   if (typeof value !== "number" || !Number.isInteger(value) || value < low || value > high) throw failure("SERVICE_PROTOCOL_INVALID");
   return value;
 }
-async function fixtureFor(deps: Dependencies): Promise<Fixture | undefined> {
+export async function fixtureFor(deps: Dependencies): Promise<Fixture | undefined> {
   const path = TEST_SEAMS_ENABLED ? deps.env.PROSE_TEST_SERVICE_FIXTURE : undefined;
   if (path === undefined) return undefined;
   try {
     const bytes = await readFile(path);
-    if (bytes.length > 1_048_576) throw new Error();
+    if (bytes.length > 16_777_216) throw new Error();
     const value = object(JSON.parse(bytes.toString("utf8")));
     if (!(value.credentials !== undefined || value.credential === null || typeof value.credential === "string") || typeof value.storeAvailable !== "boolean" || !Array.isArray(value.exchanges) || value.exchanges.length > 182) throw new Error();
     return value as unknown as Fixture;
   } catch { throw failure("SERVICE_PROTOCOL_INVALID"); }
 }
-class Service {
+export class Service {
   elapsed = 0;
   constructor(readonly deps: Dependencies, readonly environment: ServiceEnvironment, readonly fixture?: Fixture) {
     if (fixture?.environment !== undefined && fixture.environment !== environment) throw failure("SERVICE_PROTOCOL_INVALID");
@@ -78,6 +79,59 @@ class Service {
         })]);
       } finally { if (timer !== undefined) clearTimeout(timer); }
     } catch { throw failure("CREDENTIAL_STORE_UNAVAILABLE"); }
+  }
+  async registryCredential(required: boolean): Promise<string | undefined> {
+    const fromEnvironment = this.environmentToken;
+    if (fromEnvironment !== undefined && fromEnvironment !== "") return token(fromEnvironment);
+    let stored: string | null;
+    try { stored = await this.store("get"); }
+    catch (error) {
+      if (!required && error instanceof RunnerFailure && error.code === "CREDENTIAL_STORE_UNAVAILABLE") return undefined;
+      throw error;
+    }
+    if (stored !== null) return token(stored);
+    if (required) throw failure("SERVICE_AUTH_REQUIRED");
+    return undefined;
+  }
+  async registryRequest(method: string, path: string, credential: string | undefined, body?: Uint8Array): Promise<{ status: number; bytes: Uint8Array }> {
+    this.checkCancel();
+    const maximum = 2 * 1024 * 1024;
+    if (!path.startsWith("/registry/v1/organizations/") || (body !== undefined && body.length > maximum)) throw failure("SERVICE_PROTOCOL_INVALID");
+    try {
+      if (this.fixture !== undefined) {
+        const expected = this.environmentToken || (this.fixture.storeAvailable ? this.fixtureCredential : null) || undefined;
+        if (credential !== expected) throw failure("SERVICE_PROTOCOL_INVALID");
+        const exchange = this.fixture.exchanges.shift();
+        if (exchange === undefined || exchange.method !== method || exchange.path !== path || (exchange.origin !== undefined && exchange.origin !== this.origin)) throw failure("SERVICE_PROTOCOL_INVALID");
+        if (exchange.expectedBody !== undefined && (body === undefined || new TextDecoder().decode(body) !== (typeof exchange.expectedBody === "string" ? exchange.expectedBody : JSON.stringify(exchange.expectedBody)))) throw failure("SERVICE_PROTOCOL_INVALID");
+        if (exchange.expectedSha256 !== undefined && (body === undefined || createHash("sha256").update(body).digest("hex") !== exchange.expectedSha256)) throw failure("SERVICE_PROTOCOL_INVALID");
+        const bytes = new TextEncoder().encode(typeof exchange.body === "string" ? exchange.body : JSON.stringify(exchange.body));
+        if (bytes.length > maximum) throw failure("SERVICE_PROTOCOL_INVALID");
+        return { status: integer(exchange.status, 100, 599), bytes };
+      }
+      const signal = this.deps.cancellationSignal === undefined ? AbortSignal.timeout(10_000) : AbortSignal.any([this.deps.cancellationSignal, AbortSignal.timeout(10_000)]);
+      const response = await fetch(`${this.origin}${path}`, { method, redirect: "error", signal, headers: { Accept: "application/json", ...(credential === undefined ? {} : { Authorization: `Bearer ${credential}` }), ...(body === undefined ? {} : { "Content-Type": "application/json" }) }, ...(body === undefined ? {} : { body: Buffer.from(body) }) });
+      if (response.status === 401 || response.status === 403) { await response.body?.cancel(); throw failure("SERVICE_AUTH_REQUIRED"); }
+      if (response.status >= 500 || response.status === 429) { await response.body?.cancel(); throw failure("SERVICE_UNAVAILABLE"); }
+      if (response.body === null) throw failure("SERVICE_PROTOCOL_INVALID");
+      const chunks: Uint8Array[] = [];
+      let length = 0;
+      const reader = response.body.getReader();
+      try {
+        for (;;) {
+          const chunk = await reader.read();
+          if (chunk.done) break;
+          length += chunk.value.length;
+          if (length > maximum) throw failure("SERVICE_PROTOCOL_INVALID");
+          chunks.push(chunk.value);
+        }
+      } finally { await reader.cancel().catch(() => {}); }
+      return { status: response.status, bytes: Buffer.concat(chunks) };
+    } catch (error) {
+      this.checkCancel();
+      if (error instanceof RunnerFailure) throw error;
+      throw failure("SERVICE_UNAVAILABLE");
+    }
   }
   async sleep(seconds: number): Promise<void> {
     this.checkCancel();

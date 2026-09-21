@@ -1,0 +1,23 @@
+{
+  "schema": "prose-publication-v1",
+  "organizationId": "00000000-0000-4000-8000-000000000001",
+  "reference": {
+    "organization": "example",
+    "package": "kit",
+    "version": "2.0.0-beta.1+build.4",
+    "sha256": "1293bc4e33eaafce6aa4402378eb8ae39e12724ba258d8132c512fc06c42caeb"
+  },
+  "visibility": "public",
+  "inventory": [
+    {
+      "path": "README.md",
+      "size": 6,
+      "sha256": "4845d7f12918cd6dcf4447ffe305204ae7d76334c486ebe0e319f9cb95abe182"
+    },
+    {
+      "path": "docs/guide.md",
+      "size": 8,
+      "sha256": "da4026b007db2d686d91c23fedea520d5c4d343376e0a018351e60686d062247"
+    }
+  ]
+}

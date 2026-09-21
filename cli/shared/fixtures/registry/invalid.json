@@ -1,0 +1,1 @@
+[{"name":"traversal","filePath":"../secret.md"},{"name":"absolute","filePath":"/secret.md"},{"name":"backslash","filePath":"a\\secret.md"},{"name":"sensitive","filePath":".env"},{"name":"unpinned","dependencyVersion":"^1.0.0"},{"name":"missing-export","exportPath":"missing.md"}]

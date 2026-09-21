@@ -1,0 +1,1 @@
+{"files":[{"content":"IyBIZWxsbwo=","encoding":"base64","path":"hello.md"}],"manifest":{"dependencies":{},"exports":{"default":"hello.md"},"organization":"example","package":"hello","version":"1.0.0","visibility":"private"},"schema":"prose-package-v1"}

@@ -12,6 +12,9 @@ Runner commands:
   cli cleanup prime <HANDLE> Settle one failed owned Prime service
   cli config explain         Explain effective runner configuration
   cli auth <COMMAND>         Manage only the OpenProse account
+  cli org list               List organizations for the selected account
+  cli environment <COMMAND>  Show, select, or reset the user service environment
+  cli package <COMMAND>      Publish, fetch, list, or withdraw registry files
 
 Runner options:
   --harness <ID>             Select a harness (default: openprose)
@@ -54,8 +57,21 @@ OpenProse service commands (production by default; no hosted execution):
   prose cli environment reset [--json]
 
 Environment selection persists in user configuration. Reset returns to production.
-Account commands also accept an ephemeral --service-environment override before cli.
+Account and package commands accept --service-environment production|staging before cli.
 Staging service output is labeled; JSON reports include the selected environment.
 Login stores credentials separately per environment in the OS credential store.
 For CI, use OPENPROSE_API_KEY or OPENPROSE_STAGING_API_KEY for the selected service.
 Logout removes only the selected local credential.
+
+Registry package commands (candidate; no source execution):
+  prose cli package publish <FILE|DIR> --organization <ORG> --name <NAME> --version <VERSION> [--public] [--json]
+  prose cli package fetch <ORG>/<NAME>@<VERSION> --output-dir <FRESH_DIR> [--sha256 <DIGEST>] [--json]
+  prose cli package list <ORG> [--cursor <CURSOR>] [--json]
+  prose cli package withdraw <ORG>/<NAME>@<VERSION> [--json]
+
+A directory requires prose-package.json with explicitly listed files, exports,
+and pinned dependencies. Private is the publish default; list shows public
+packages one page at a time. Withdraw removes discovery, not pinned retrieval.
+Fetch verifies canonical bytes and receipt hashes before creating a fresh target;
+it never overwrites an existing directory. Bun writes the receipt last: a target
+without that receipt after interruption is incomplete; there is no automatic resume.

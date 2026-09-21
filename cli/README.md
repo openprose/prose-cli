@@ -29,7 +29,79 @@ Release operators use the
 [functional-alpha readiness contract](release/ALPHA_READINESS.md) to distinguish
 candidate, promotion, and post-publication authority.
 
-For the candidate service-account connection, see [Connect the CLI to staging](../docs/staging-account.md). This does not enable registry publishing or hosted execution.
+For the candidate service-account connection, see [Connect the CLI to staging](../docs/staging-account.md). The candidate registry commands below reuse that account connection; they do not enable hosted execution. Source implementation and hermetic fixtures do not establish deployment, release availability, or live qualification.
+
+## Registry package commands (candidate)
+
+Package commands move bounded, data-only files through the selected OpenProse
+account service. Production is the default. Select staging persistently when
+working with its separate credentials, then inspect the selection:
+
+```sh
+prose cli environment use staging
+prose cli environment show
+prose cli auth login
+prose cli package publish ./hello.md --organization example --name hello --version 1.0.0
+prose cli package list example --json
+prose cli package fetch example/hello@1.0.0 --output-dir ./hello-copy
+prose cli package withdraw example/hello@1.0.0
+prose cli environment reset
+```
+
+A single file uses its basename as the default export and has no dependencies.
+Publishing is private unless `--public` is explicit. `list` returns one page of
+public receipts, so the private `hello` version above will not appear there.
+It returns an optional `nextCursor`; pass that exact value back with
+`--cursor`. The cursor is opaque, ASCII, and at most 210 characters. `withdraw`
+removes discovery only; an authorized pinned fetch remains available. Versions
+are exact SemVer strings, including build metadata. Existing versions cannot be
+overwritten, and the client never retries a publication automatically.
+
+For a directory, create `prose-package.json` with precisely the files to include:
+
+```json
+{
+  "schema": "prose-package-directory-v1",
+  "files": ["README.md", "docs/guide.md"],
+  "exports": {"default": "README.md", "guide": "docs/guide.md"},
+  "dependencies": {}
+}
+```
+
+Then publish that directory with the same identity flags. The CLI reads only the
+manifest and listed regular files; it never scans or uploads unlisted files.
+Duplicate manifest keys, symlinks and symlink ancestors, unsafe or sensitive
+included paths, and invalid metadata are rejected. Limits are 128 files,
+256 KiB per file, 1 MiB total decoded content, 64 exports, 64 dependencies, and
+2 MiB per service payload. Dependencies are exact hash-pinned metadata and are
+neither downloaded nor executed. File contents are not scanned for secrets.
+See the [package byte format](shared/fixtures/registry/FORMAT.md) for exact path,
+encoding, hash, and receipt rules.
+
+Fetch obtains a receipt and canonical artifact from the same selected service,
+then verifies artifact and file hashes, manifest, inventory, and canonical bytes
+before writing. Supply `--sha256 <64-lowercase-hex-digest>` to require a known
+artifact identity. The output directory must be fresh, its parent must exist,
+and its ancestors must not be symlinks. Existing destinations are never replaced.
+The receipt is written as `.prose-package-receipt.json`.
+
+Rust installs with a no-replace directory operation on supported platforms. Bun
+reserves the destination exclusively and writes verified files, then the receipt;
+that directory is visible while being populated. A crash can leave an incomplete
+directory without a receipt. There is no implicit resume or overwrite: choose a
+fresh destination, or inspect and remove the incomplete directory yourself.
+Cleanup preserves content whose ownership no longer matches the operation.
+These checks do not sandbox another process running with the same filesystem
+privileges. Native platform qualification remains separate from fixture results.
+
+All four commands accept trailing `--json` or global `--output json`. Reports
+include the selected environment; staging human output is labeled. Use global
+`--service-environment production|staging` before `cli` for a one-command override.
+Only user configuration can persist the selection. Production and staging use
+separate OS credentials and `OPENPROSE_API_KEY` / `OPENPROSE_STAGING_API_KEY`
+respectively; switching never copies credentials. Public reads can be anonymous
+when no credential is available, but malformed selected credentials fail closed.
+Publish and withdraw require a credential. No command starts a model or harness.
 
 ## First five minutes
 
