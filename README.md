@@ -2,6 +2,8 @@
 
 Two independent outer runners, Rust and Bun (packaged through npm), connect an opaque Markdown-owned image and task to an existing agent harness. They do not interpret Contracts or implement the OpenProse language. Keep the kernel, standard library, and component definitions in the separate Markdown library.
 
+OpenProse composes contracts that define outcomes to achieve and conditions to maintain. Execution weaves assessment and action: assess fulfillment, act when needed, and reassess. Assessor and actor are roles that may be supplied by the same agent, ordinary code or other authorized participants, subject to any independence required by the selected agreement; classifiers and generators are possible implementations. The selected kernel and program define the complete invocation, including required reviews, reports and constraints. The runners carry those instructions without deciding their meaning. The optional [weave experiment](experiments/weave-seed/README.md) explores explicit coordination of these roles.
+
 ## Choose the image and output contract
 
 Ordinary compiled Bun and Rust builds resolve and verify the published kernel before launching an installed harness, append it to native instructions, and keep the task separate. See [kernel startup](docs/kernel-startup.md) for integrity checks, limits and provider-readiness qualifications. Explicit verified-image builds remain available for frozen selections and hermetic fixtures; see [image bundle configuration](cli/shared/image/bundle/README.md).

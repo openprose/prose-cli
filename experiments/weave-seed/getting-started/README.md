@@ -2,6 +2,8 @@
 
 Start here to check the local loop without a login, credentials or network. This example uses deterministic subprocess fixtures and a synthetic agreement. It demonstrates observation, bounded repair, persistent state and reuse; it does not test OpenProse interpretation or model quality.
 
+The synthetic agreement illustrates an outcome to achieve (a report matching the source) and a condition to maintain as the source changes. Ordinary code supplies both assessment and action here; these roles do not require a classifier or generator. Reuse in this example does not justify skipping a real program's required reviews, reports or other work for each invocation.
+
 Use Bun 1.3.5 and a checkout containing this directory. From the repository root, create an example in a **new absolute directory whose parent already exists**:
 
 ```sh
