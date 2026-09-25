@@ -1,0 +1,61 @@
+{
+  "id": "option-alias-env-name-to-environment",
+  "feature": "framework",
+  "operation": "run.submit",
+  "description": "`--env linux` (no `=`) suggests `--environment linux`.",
+  "argv": [
+    "cli",
+    "run",
+    "submit",
+    "hello.prose.md",
+    "--env",
+    "linux",
+    "--preview",
+    "--json"
+  ],
+  "files": [
+    {
+      "path": "hello.prose.md",
+      "content": "# Hello\n\nSay hello.\n"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "run.submit",
+      "operation": "run.submit",
+      "problem": {
+        "action": "Replace --env with --environment: `prose cli run submit hello.prose.md --environment linux --preview --json`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "unknown option --env for `cli run submit`; did you mean --environment?",
+          "suggestedArgv": [
+            "cli",
+            "run",
+            "submit",
+            "hello.prose.md",
+            "--environment",
+            "linux",
+            "--preview",
+            "--json"
+          ]
+        },
+        "exitCode": 2,
+        "message": "Unknown option.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

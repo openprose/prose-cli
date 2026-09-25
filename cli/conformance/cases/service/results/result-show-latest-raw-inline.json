@@ -1,0 +1,119 @@
+{
+  "id": "result-show-latest-raw-inline",
+  "feature": "results",
+  "operation": "result.show",
+  "description": "--latest --raw resolves the newest publication, then fetches the raw bytes of exactly that id (never the moving latest/raw alias); text bytes are returned inline with their digest.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "result",
+    "show",
+    "Owner/demo",
+    "--latest",
+    "--raw"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/p/Owner/demo/results/latest",
+        "status": 200,
+        "body": {
+          "publication": {
+            "id": "AbCdEf012_-x",
+            "published_at": "2026-09-23T20:30:00.000Z",
+            "run_id": "run_abc123abc123abc123abc123abc123abc123abc123abc123abc123abc123abc1",
+            "program_ref": "Owner/demo@0123456789abcdef",
+            "created_at": "2026-09-23T20:26:28.686Z",
+            "model": "model-sol",
+            "status": "completed",
+            "owner_customer_id": "cus_private",
+            "price_cents": 4
+          },
+          "manifest": {
+            "run_id": "run_abc123abc123abc123abc123abc123abc123abc123abc123abc123abc123abc1",
+            "status": "completed",
+            "model": "model-sol",
+            "spec_commit": "9d1a31777d0d69ff",
+            "program_ref": "Owner/demo@0123456789abcdef",
+            "created_at": "2026-09-23T20:26:28.686Z",
+            "usage": {
+              "input_tokens": 89370,
+              "output_tokens": 271
+            },
+            "price_cents": 4,
+            "files": [
+              "outputs/result.json"
+            ],
+            "has_patch": false,
+            "file_urls": {
+              "outputs/result.json": "https://run-prose-production.openprose.workers.dev/p/Owner/demo/results/AbCdEf012_-x/raw?tok=signed"
+            }
+          },
+          "raw_url": "https://run-prose-production.openprose.workers.dev/p/Owner/demo/results/AbCdEf012_-x/raw"
+        },
+        "requestHeaders": {
+          "Authorization": {
+            "present": false
+          },
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          }
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/p/Owner/demo/results/AbCdEf012_-x/raw",
+        "status": 200,
+        "bodyText": "{\"haiku\":\"old pond\\na frog jumps in\\nthe sound of water\"}\n",
+        "responseHeaders": {
+          "Content-Type": "application/json; charset=utf-8"
+        },
+        "requestHeaders": {
+          "Authorization": {
+            "present": false
+          },
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          }
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "schema": "openprose.service-operation/1",
+      "operation": "result.show",
+      "interaction": "results.read_public",
+      "result": {
+        "publication": {
+          "id": "AbCdEf012_-x",
+          "published_at": "2026-09-23T20:30:00.000Z",
+          "run_id": "run_abc123abc123abc123abc123abc123abc123abc123abc123abc123abc123abc1",
+          "program_ref": "Owner/demo@0123456789abcdef",
+          "created_at": "2026-09-23T20:26:28.686Z",
+          "model": "model-sol",
+          "status": "completed"
+        },
+        "raw": {
+          "written": false,
+          "bytes": 58,
+          "sha256": "c1091824bd14dbe5d28a43f0a034636ebdf7dbde9c72f34a5ec88bc63b6e1e3f",
+          "contentType": "application/json; charset=utf-8",
+          "content": "{\"haiku\":\"old pond\\na frog jumps in\\nthe sound of water\"}\n"
+        }
+      },
+      "problem": null
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

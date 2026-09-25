@@ -1,0 +1,82 @@
+{
+  "id": "repo-list-human",
+  "feature": "discovery",
+  "operation": "repo.list",
+  "description": "Human mode prints one line per repository with visibility and default branch.",
+  "argv": [
+    "cli",
+    "repo",
+    "list"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/repos",
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef",
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          },
+          "Accept": "application/json"
+        },
+        "status": 200,
+        "body": {
+          "installations": [
+            {
+              "owner": "zeta-org",
+              "owner_type": "Organization",
+              "repos": [
+                {
+                  "id": 30,
+                  "name": "tools",
+                  "full_name": "zeta-org/tools",
+                  "private": true,
+                  "default_branch": "trunk"
+                },
+                {
+                  "id": 10,
+                  "name": "site",
+                  "full_name": "alpha/site",
+                  "private": false,
+                  "default_branch": "main"
+                }
+              ]
+            },
+            {
+              "owner": "alpha",
+              "owner_type": "User",
+              "repos": [
+                {
+                  "id": 10,
+                  "name": "site",
+                  "full_name": "alpha/site",
+                  "private": false,
+                  "default_branch": "main"
+                },
+                {
+                  "id": 20,
+                  "name": "notes",
+                  "full_name": "alpha/notes",
+                  "private": true
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "alpha/notes (private)\nalpha/site (public, default branch main)\nzeta-org/tools (private, default branch trunk)\n"
+  },
+  "stderr": {
+    "text": ""
+  }
+}

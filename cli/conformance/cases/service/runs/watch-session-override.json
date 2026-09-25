@@ -1,0 +1,128 @@
+{
+  "id": "watch-session-override",
+  "feature": "runs",
+  "operation": "run.watch",
+  "description": "--session overrides the journal (runs started elsewhere).",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "watch",
+    "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+    "--session",
+    "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "clock": {
+      "start": "2026-09-24T01:00:00.000Z",
+      "stepMs": 0
+    },
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/run/run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c/events",
+        "query": {
+          "after": "0",
+          "session": "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d"
+        },
+        "requestHeaders": {
+          "Accept": "text/event-stream",
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "status": 200,
+        "sse": {
+          "frames": [
+            {
+              "id": "1",
+              "event": "status",
+              "data": {
+                "type": "status",
+                "run_id": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+                "sequence": 1,
+                "at": "2026-09-24T01:00:01.000Z",
+                "status": "running",
+                "message": "reactor model-luna",
+                "session": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f",
+                "controls": {
+                  "steer": true,
+                  "stop": true
+                }
+              }
+            },
+            {
+              "id": "2",
+              "event": "run_complete",
+              "data": {
+                "type": "run_complete",
+                "run_id": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+                "sequence": 2,
+                "at": "2026-09-24T01:00:01.000Z",
+                "status": "completed",
+                "runtime": "reactor",
+                "environment": {
+                  "id": "builtin",
+                  "version": "1.0.0",
+                  "runtime_contract": 1
+                },
+                "response": "ok",
+                "files": [
+                  "outputs/result.json"
+                ],
+                "price_cents": 2,
+                "environment_price_cents": 1,
+                "billing_status": "settled",
+                "usage": {
+                  "input_tokens": 100,
+                  "output_tokens": 5
+                },
+                "file_urls": {
+                  "outputs/result.json": "https://example.invalid/x?tok=SECRET_SIGNED_TOKEN"
+                }
+              }
+            }
+          ],
+          "end": "close"
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "run.observe",
+      "operation": "run.watch",
+      "problem": null,
+      "result": {
+        "afterSequence": 2,
+        "detached": false,
+        "run": {
+          "billing_status": "settled",
+          "cancelled": false,
+          "environment": "builtin",
+          "environment_price_cents": 1,
+          "files": [
+            "outputs/result.json"
+          ],
+          "price_cents": 2,
+          "response": "ok",
+          "run_id": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+          "status": "completed",
+          "usage": {
+            "input_tokens": 100,
+            "output_tokens": 5
+          }
+        },
+        "runId": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+        "run_id": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+        "session": "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d"
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

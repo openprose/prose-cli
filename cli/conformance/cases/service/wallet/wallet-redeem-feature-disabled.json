@@ -1,0 +1,76 @@
+{
+  "id": "wallet-redeem-feature-disabled",
+  "feature": "wallet",
+  "operation": "wallet.redeem",
+  "description": "A 503 feature_disabled answer to a redeem is SERVICE_FEATURE_DISABLED; the feature name and the server message are never echoed.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "wallet",
+    "redeem",
+    "--code-file",
+    "code.txt",
+    "--yes"
+  ],
+  "files": [
+    {
+      "path": "code.txt",
+      "content": "Q7RC9-V5K2M\n"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/wallet/redeem",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          }
+        },
+        "expectedBody": {
+          "code": "Q7RC9-V5K2M"
+        },
+        "status": 503,
+        "body": {
+          "error": "Feature disabled",
+          "code": "feature_disabled",
+          "feature": "example_feature"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "wallet.redeem",
+      "operation": "wallet.redeem",
+      "problem": {
+        "action": "Check your plan or organization, or contact OpenProse support.",
+        "boundary": "hosted-service",
+        "code": "SERVICE_FEATURE_DISABLED",
+        "details": {
+          "serviceCode": "feature_disabled",
+          "serviceStatus": 503
+        },
+        "exitCode": 10,
+        "message": "This capability is not available for this account.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "Q7RC9-V5K2M",
+    "example_feature",
+    "Feature disabled"
+  ]
+}

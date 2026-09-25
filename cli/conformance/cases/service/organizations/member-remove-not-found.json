@@ -1,0 +1,76 @@
+{
+  "id": "member-remove-not-found",
+  "feature": "organizations",
+  "operation": "org.member.remove",
+  "description": "member_not_found (404) is SERVICE_RESOURCE_NOT_FOUND (code not allowlisted).",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "org",
+    "member",
+    "remove",
+    "acme-research",
+    "cus_Nobody",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "DELETE",
+        "path": "/organizations/acme-research/members/cus_Nobody",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          },
+          "Accept": "application/json"
+        },
+        "status": 404,
+        "body": {
+          "error": "Member not found",
+          "code": "member_not_found"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "organizations.manage",
+      "operation": "org.member.remove",
+      "problem": {
+        "action": "Run `prose --output json cli org member list acme-research` to find the right member, then retry with it.",
+        "boundary": "hosted-service",
+        "code": "SERVICE_RESOURCE_NOT_FOUND",
+        "details": {
+          "reason": "ORG exists but has no such member; run `prose --output json cli org member list ORG` and pass a member number it prints",
+          "resource": {
+            "id": "cus_Nobody",
+            "kind": "member"
+          },
+          "serviceStatus": 404,
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "org",
+            "member",
+            "list",
+            "acme-research"
+          ]
+        },
+        "exitCode": 10,
+        "message": "The requested OpenProse service resource was not found.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

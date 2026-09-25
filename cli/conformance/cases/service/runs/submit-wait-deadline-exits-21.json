@@ -1,0 +1,215 @@
+{
+  "id": "submit-wait-deadline-exits-21",
+  "feature": "runs",
+  "operation": "run.submit",
+  "description": "Reaching --wait detaches with SERVICE_WATCH_DEADLINE (21), runId and afterSequence; no cancel request is sent.",
+  "argv": [
+    "--output",
+    "jsonl",
+    "cli",
+    "run",
+    "submit",
+    "p.prose.md",
+    "--yes",
+    "--wait",
+    "20m"
+  ],
+  "files": [
+    {
+      "path": "p.prose.md",
+      "content": "---\nname: hello\nkind: function\n---\n\nReply with the word ok.\n"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "ids": [
+      "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f"
+    ],
+    "clock": {
+      "start": "2026-09-24T01:00:00.000Z",
+      "stepMs": 600000
+    },
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/run",
+        "query": {
+          "live": "1",
+          "session": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f"
+        },
+        "requestHeaders": {
+          "X-Session-Id": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f",
+          "Accept": "text/event-stream",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "expectedBody": {
+          "content": "---\nname: hello\nkind: function\n---\n\nReply with the word ok.\n"
+        },
+        "status": 200,
+        "sse": {
+          "frames": [
+            {
+              "id": "1",
+              "event": "status",
+              "data": {
+                "type": "status",
+                "run_id": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+                "sequence": 1,
+                "at": "2026-09-24T01:00:01.000Z",
+                "status": "running",
+                "message": "reactor model-luna",
+                "session": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f",
+                "controls": {
+                  "steer": true,
+                  "stop": true
+                }
+              }
+            },
+            {
+              "id": "2",
+              "event": "agent_activity",
+              "data": {
+                "type": "agent_activity",
+                "run_id": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+                "sequence": 2,
+                "at": "2026-09-24T01:00:01.000Z",
+                "kind": "model_start"
+              }
+            },
+            {
+              "id": "3",
+              "event": "agent_activity",
+              "data": {
+                "type": "agent_activity",
+                "run_id": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+                "sequence": 3,
+                "at": "2026-09-24T01:00:01.000Z",
+                "kind": "model_end"
+              }
+            },
+            {
+              "id": "4",
+              "event": "run_complete",
+              "data": {
+                "type": "run_complete",
+                "run_id": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+                "sequence": 4,
+                "at": "2026-09-24T01:00:01.000Z",
+                "status": "completed",
+                "runtime": "reactor",
+                "environment": {
+                  "id": "builtin",
+                  "version": "1.0.0",
+                  "runtime_contract": 1
+                },
+                "response": "ok",
+                "files": [
+                  "outputs/result.json"
+                ],
+                "price_cents": 2,
+                "environment_price_cents": 1,
+                "billing_status": "settled",
+                "usage": {
+                  "input_tokens": 100,
+                  "output_tokens": 5
+                },
+                "file_urls": {
+                  "outputs/result.json": "https://example.invalid/x?tok=SECRET_SIGNED_TOKEN"
+                }
+              }
+            }
+          ],
+          "end": "close"
+        }
+      }
+    ]
+  },
+  "exitCode": 21,
+  "stdout": {
+    "jsonl": [
+      {
+        "at": "2026-09-24T01:00:01.000Z",
+        "data": {
+          "controls": {
+            "steer": true,
+            "stop": true
+          },
+          "message": "Running on model-luna",
+          "status": "running"
+        },
+        "runId": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+        "schema": "openprose.service-event/1",
+        "sequence": 1,
+        "type": "status"
+      },
+      {
+        "at": "2026-09-24T01:00:01.000Z",
+        "data": {
+          "kind": "model_start"
+        },
+        "runId": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+        "schema": "openprose.service-event/1",
+        "sequence": 2,
+        "type": "agent_activity"
+      },
+      {
+        "at": null,
+        "data": {
+          "interaction": "run.submit",
+          "operation": "run.submit",
+          "problem": {
+            "action": "Resume with the `cli run watch` runner operation using details.resumeArgv (details.runId and details.afterSequence); never submit the run again to resume it.",
+            "boundary": "hosted-service",
+            "code": "SERVICE_WATCH_DEADLINE",
+            "details": {
+              "afterSequence": 2,
+              "cancelArgv": [
+                "--output",
+                "jsonl",
+                "cli",
+                "run",
+                "cancel",
+                "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+                "--session",
+                "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f",
+                "--yes"
+              ],
+              "reason": "the --wait deadline passed; the run continues. Resume with `prose --output jsonl cli run watch run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c --after 2 --session 5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f`",
+              "resumable": true,
+              "resumeArgv": [
+                "--output",
+                "jsonl",
+                "cli",
+                "run",
+                "watch",
+                "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+                "--after",
+                "2",
+                "--session",
+                "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f"
+              ],
+              "runId": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+              "session": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f"
+            },
+            "exitCode": 21,
+            "message": "The watch deadline elapsed before the hosted run finished; the run continues.",
+            "retryable": false,
+            "schema": "openprose.runner-error/1"
+          },
+          "result": null,
+          "schema": "openprose.service-operation/1"
+        },
+        "exitCode": 21,
+        "runId": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+        "schema": "openprose.service-event/1",
+        "sequence": null,
+        "type": "service.detached"
+      }
+    ]
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "id": "job-configure-needs-one-option",
+  "feature": "jobs",
+  "operation": "job.configure",
+  "description": "`job configure` without --config-file or --interval-seconds is INVOCATION_INVALID before any request.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "job",
+    "configure",
+    "7b2e4d19-6a3c-4e85-b1f0-9c4d8e2a6b73",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "job.update",
+      "operation": "job.configure",
+      "problem": {
+        "action": "Correct the value named in Detail; `prose --output json cli job configure --help` shows the accepted syntax.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "give --interval-seconds N to change only the cadence, or --config-file FILE with the full configuration; see `cli job configure --help` (interval_seconds must be an integer from 60 to 2678400)",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "job",
+            "configure",
+            "--help"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

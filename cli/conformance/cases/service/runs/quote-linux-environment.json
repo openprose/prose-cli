@@ -1,0 +1,95 @@
+{
+  "id": "quote-linux-environment",
+  "feature": "runs",
+  "operation": "run.quote",
+  "description": "--environment is validated against /health and sent as the only query parameter.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "quote",
+    "--environment",
+    "linux"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/health",
+        "status": 200,
+        "body": {
+          "status": "ok",
+          "environments": {
+            "default": "builtin",
+            "available": [
+              "builtin",
+              "linux"
+            ]
+          },
+          "models": [
+            "model-luna",
+            "model-sol"
+          ],
+          "default_model": "model-luna",
+          "version": "9.9.9-extra",
+          "capabilities": {
+            "web:search": {
+              "available": true,
+              "tool": "web_search"
+            }
+          }
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/run/quote",
+        "requestHeaders": {
+          "Authorization": {
+            "present": false
+          }
+        },
+        "status": 200,
+        "body": {
+          "hold": {
+            "hold_usd": "1.02",
+            "ttl_seconds": 900
+          },
+          "pricing_policy_id": "pricing-policy.sha256.f114eadc02b7550e58f12c49996382b04f867cb774ac295506806f599ef1e3cd",
+          "note": "Unused hold is released when the run settles."
+        },
+        "query": {
+          "environment": "linux"
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "run.quote",
+      "operation": "run.quote",
+      "problem": null,
+      "result": {
+        "environment": "linux",
+        "hold": {
+          "hold_cents": 102,
+          "hold_usd": "1.02",
+          "ttl_seconds": 900
+        },
+        "holdBasis": "flat hold, independent of program and model; a run's price is known only after it settles",
+        "note": "Unused hold is released when the run settles."
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "9.9.9-extra",
+    "web_search"
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "id": "auth-status-service-unavailable-array-body",
+  "feature": "account",
+  "operation": "auth.status",
+  "description": "A 502 whose body is not a JSON object is SERVICE_UNAVAILABLE with details.serviceStatus: the status is classified before the body is read.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "auth",
+    "status"
+  ],
+  "fixture": {
+    "credential": "rr_test_11111111111111111111111111111111",
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/organizations",
+        "status": 502,
+        "body": [
+          "fixture-secret-must-not-escape"
+        ]
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "schema": "openprose.service-operation/1",
+      "operation": "auth.status",
+      "interaction": "cli.auth_status",
+      "result": null,
+      "problem": {
+        "action": "Check your network connection and retry later.",
+        "boundary": "hosted-service",
+        "code": "SERVICE_UNAVAILABLE",
+        "exitCode": 10,
+        "message": "The OpenProse service is unavailable.",
+        "retryable": true,
+        "schema": "openprose.runner-error/1",
+        "details": {
+          "serviceStatus": 502
+        }
+      }
+    }
+  },
+  "stderr": {
+    "empty": true
+  },
+  "forbid": [
+    "rr_test_11111111111111111111111111111111",
+    "fixture-secret-must-not-escape"
+  ]
+}

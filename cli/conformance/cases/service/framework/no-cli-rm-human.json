@@ -1,0 +1,24 @@
+{
+  "id": "no-cli-rm-human",
+  "feature": "framework",
+  "operation": "program.delete",
+  "description": "`prose rm` (no `cli`) exits 2 with `cli program delete --help`, and the Action names `cli job delete`; nothing is forwarded or billed.",
+  "argv": [
+    "rm"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: Unknown command.\nDetail: `rm` is not a command; did you mean `prose cli program delete --help`? Runs are never deleted; a saved program is deleted with `cli program delete SLUG` and a job with `cli job delete JOB_ID`. Nothing was forwarded or sent. To pass these words to the OpenProse language instead, put `--` before them\nAction: A job is deleted with `cli job delete JOB_ID`. Use `cli program delete SLUG`; `prose cli program delete --help` shows its arguments.\n"
+  }
+}

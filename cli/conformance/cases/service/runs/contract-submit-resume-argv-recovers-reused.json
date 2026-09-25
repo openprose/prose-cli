@@ -1,0 +1,114 @@
+{
+  "id": "contract-submit-resume-argv-recovers-reused",
+  "feature": "runs",
+  "operation": "run.submit",
+  "description": "The ambiguous submission's resumeArgv (same --session, --detach): the service's duplicate-session 409 names the run, and the result is that run with reused: true (exit 0), never a second run and never 22.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "submit",
+    "p.prose.md",
+    "--yes",
+    "--session",
+    "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f",
+    "--detach"
+  ],
+  "files": [
+    {
+      "path": "p.prose.md",
+      "content": "---\nname: hello\nkind: function\n---\n\nReply with the word ok.\n"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/run",
+        "query": {
+          "live": "1",
+          "session": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f"
+        },
+        "requestHeaders": {
+          "X-Session-Id": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f",
+          "Accept": "text/event-stream",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "status": 409,
+        "responseHeaders": {
+          "X-Run-Id": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c"
+        },
+        "body": {
+          "error": "This session already has a run."
+        }
+      }
+    ],
+    "ids": [
+      "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f"
+    ],
+    "clock": {
+      "start": "2026-09-24T01:00:00.000Z",
+      "stepMs": 0
+    },
+    "journal": [
+      {
+        "session": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f",
+        "runId": null,
+        "createdAt": "2026-09-24T00:59:00.000Z",
+        "lastSequence": 0,
+        "sourceSha256": null
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "run.submit",
+      "operation": "run.submit",
+      "problem": null,
+      "result": {
+        "afterSequence": 0,
+        "cancelArgv": [
+          "--output",
+          "json",
+          "cli",
+          "run",
+          "cancel",
+          "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+          "--session",
+          "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f",
+          "--yes"
+        ],
+        "detached": true,
+        "resumeArgv": [
+          "--output",
+          "json",
+          "cli",
+          "run",
+          "watch",
+          "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+          "--after",
+          "0",
+          "--session",
+          "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f"
+        ],
+        "reused": true,
+        "run": {
+          "run_id": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+          "status": "unknown"
+        },
+        "runId": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+        "run_id": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+        "session": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f"
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

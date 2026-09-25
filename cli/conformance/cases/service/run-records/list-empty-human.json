@@ -1,0 +1,44 @@
+{
+  "id": "list-empty-human",
+  "feature": "run-records",
+  "operation": "run.list",
+  "description": "Human mode says there are no runs instead of printing nothing.",
+  "argv": [
+    "cli",
+    "run",
+    "list"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/runs",
+        "requestHeaders": {
+          "Authorization": {
+            "pattern": "^Bearer rr_test_[0-9a-f]{32}$"
+          }
+        },
+        "status": 200,
+        "query": {
+          "limit": "20"
+        },
+        "body": {
+          "runs": [],
+          "next_before": null
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "No runs.\n"
+  },
+  "stderr": {
+    "text": ""
+  }
+}

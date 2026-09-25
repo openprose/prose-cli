@@ -1,0 +1,68 @@
+{
+  "id": "default-yes",
+  "feature": "organizations",
+  "operation": "org.default",
+  "description": "PUT /organizations/default with {organization}.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "org",
+    "default",
+    "acme-research",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "PUT",
+        "path": "/organizations/default",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          },
+          "Accept": "application/json",
+          "Content-Type": "application/json"
+        },
+        "status": 200,
+        "body": {
+          "organization": {
+            "id": "5b0e7c1a-3f2d-4e8b-9a61-2c4d8e0f1a23",
+            "slug": "acme-research",
+            "name": "Acme Research",
+            "created_by": "cus_ExampleAdmin01",
+            "created_at": 1790012915257,
+            "role": "admin"
+          }
+        },
+        "expectedBody": {
+          "organization": "acme-research"
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "organizations.manage",
+      "operation": "org.default",
+      "problem": null,
+      "result": {
+        "organization": {
+          "id": "5b0e7c1a-3f2d-4e8b-9a61-2c4d8e0f1a23",
+          "slug": "acme-research",
+          "name": "Acme Research",
+          "created_at": 1790012915257,
+          "created_at_iso": "2026-09-21T17:48:35.257Z",
+          "role": "admin"
+        }
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

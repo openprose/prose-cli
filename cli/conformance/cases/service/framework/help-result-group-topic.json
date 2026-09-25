@@ -1,0 +1,21 @@
+{
+  "id": "help-result-group-topic",
+  "feature": "framework",
+  "operation": "result.list",
+  "description": "`cli result --help` says results are published results, not run records, and names the run commands.",
+  "argv": [
+    "cli",
+    "result",
+    "--help"
+  ],
+  "fixture": {
+    "exchanges": []
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "Usage: prose [GLOBAL OPTIONS] cli result <COMMAND> [ARGUMENTS] [OPTIONS]\n\nPublished results: outputs an owner chose to publish from a public program OWNER/SLUG.\nThey are not run records. Read a run's own output with `cli run show RUN_ID`,\n`cli run show RUN_ID --file outputs/result.json` or `cli run download RUN_ID --output-dir DIR`.\n\nCommands:\n  show                        Show one published result, or the latest.\n  list                        List a public program's published results.\n  publish                     Publish a completed run as a public result of a program.\n  unpublish                   Remove a published result.\n\nExamples:\n  prose cli result show exowner1/hello --latest\n  prose cli result list exowner1/hello --json\n  prose cli result publish hello --run run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c --yes\n  prose cli result unpublish hello AbCdEf012_-x --yes\n\nGlobal options:\n  --output human|json|jsonl   Output mode; the same as the PROSE_OUTPUT setting.\n\nRun `prose cli result <COMMAND> --help` for details. `prose cli service operations --json` prints every command as JSON.\n"
+  },
+  "stderr": {
+    "text": ""
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "id": "model-list-bad-default",
+  "feature": "discovery",
+  "operation": "model.list",
+  "description": "A default_model outside the model-id pattern is SERVICE_PROTOCOL_INVALID.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "model",
+    "list"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/models",
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef",
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          },
+          "Accept": "application/json"
+        },
+        "status": 200,
+        "body": {
+          "models": [
+            "model-sol"
+          ],
+          "default_model": "Sol!"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "models.list",
+      "operation": "model.list",
+      "problem": {
+        "action": "Retry later and report the sanitized error code if it persists.",
+        "boundary": "protocol",
+        "code": "SERVICE_PROTOCOL_INVALID",
+        "details": {
+          "reason": "unexpected model list response: default_model"
+        },
+        "exitCode": 10,
+        "message": "The OpenProse service returned an invalid response.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "id": "alias-account-org-list-extra",
+  "feature": "framework",
+  "operation": "org.list",
+  "description": "`cli org list EXTRA` uses the service grammar error: missing or invalid arguments, the help as suggestedArgv.",
+  "argv": [
+    "cli",
+    "org",
+    "list",
+    "extra"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: That command isn't quite right.\nDetail: missing or invalid arguments for `cli org list`\nAction: `prose cli org list --help` shows the syntax.\n"
+  }
+}

@@ -1,0 +1,73 @@
+{
+  "id": "program-save-owner-slug-first-save-refused",
+  "feature": "programs",
+  "operation": "program.save",
+  "description": "OWNER/SLUG for a slug the caller has not saved cannot be checked, so a first save asks for the bare slug instead of writing to the caller's namespace.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "program",
+    "save",
+    "alice/demo",
+    "demo.prose.md"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/programs/demo/revisions",
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "status": 404,
+        "body": {
+          "error": "Not found"
+        }
+      }
+    ]
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "program.save",
+      "operation": "program.save",
+      "problem": {
+        "action": "Correct the value named in Detail; `prose --output json cli program save --help` shows the accepted syntax.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "you have no saved program \"demo\" yet, so OWNER \"alice\" cannot be checked against your account; a first save takes the bare slug: pass \"demo\"",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "program",
+            "save",
+            "--help"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ],
+  "files": [
+    {
+      "path": "demo.prose.md",
+      "content": "---\nname: demo\nkind: function\n---\n\n### Returns\n\n- `text`: exactly `ok`\n"
+    }
+  ]
+}

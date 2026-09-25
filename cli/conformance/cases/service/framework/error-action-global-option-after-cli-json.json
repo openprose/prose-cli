@@ -1,0 +1,49 @@
+{
+  "id": "error-action-global-option-after-cli-json",
+  "feature": "framework",
+  "operation": "run.list",
+  "description": "The misplaced global option is rendered by the service renderer, with the moved argv as details.suggestedArgv.",
+  "argv": [
+    "cli",
+    "--output",
+    "json",
+    "run",
+    "list"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": null,
+      "operation": "cli",
+      "problem": {
+        "action": "Place global options before cli: `prose --output json cli run list`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "the global option --output must come before `cli`, not after it",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "list"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

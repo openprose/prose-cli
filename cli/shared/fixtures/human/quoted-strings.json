@@ -1,0 +1,144 @@
+{
+  "schema": "openprose.quoted-strings/1",
+  "summary": "How both ports quote a user-supplied value inside a reason or message: JSON string escaping, plus \\u escapes for DEL, C1 controls and invisible format, bidi and tag characters, so a quoted value can never reorder or hide text. Astral characters are escaped as a UTF-16 surrogate pair. A human Detail line renders a reason without doubling the backslashes of its quoted values; raw control characters are still made visible.",
+  "escapedCodePointRanges": [
+    [
+      0,
+      31
+    ],
+    [
+      127,
+      159
+    ],
+    [
+      173,
+      173
+    ],
+    [
+      1564,
+      1564
+    ],
+    [
+      6158,
+      6158
+    ],
+    [
+      8203,
+      8207
+    ],
+    [
+      8232,
+      8238
+    ],
+    [
+      8288,
+      8303
+    ],
+    [
+      65279,
+      65279
+    ],
+    [
+      65529,
+      65531
+    ],
+    [
+      917504,
+      917631
+    ]
+  ],
+  "cases": [
+    {
+      "id": "plain",
+      "input": "alice/demo@1",
+      "quoted": "\"alice/demo@1\""
+    },
+    {
+      "id": "quote-and-backslash",
+      "input": "say \"hi\" \\ there",
+      "quoted": "\"say \\\"hi\\\" \\\\ there\""
+    },
+    {
+      "id": "named-controls",
+      "input": "a\nb\tc\rd\be\ff",
+      "quoted": "\"a\\nb\\tc\\rd\\be\\ff\""
+    },
+    {
+      "id": "other-c0",
+      "input": "\u0000\u0001\u001b[31m",
+      "quoted": "\"\\u0000\\u0001\\u001b[31m\""
+    },
+    {
+      "id": "del-and-c1",
+      "input": "xyz",
+      "quoted": "\"x\\u007fy\\u0085z\\u009f\""
+    },
+    {
+      "id": "zero-width",
+      "input": "a​b",
+      "quoted": "\"a\\u200bb\""
+    },
+    {
+      "id": "bidi-override",
+      "input": "‮evil",
+      "quoted": "\"\\u202eevil\""
+    },
+    {
+      "id": "byte-order-mark",
+      "input": "﻿bom",
+      "quoted": "\"\\ufeffbom\""
+    },
+    {
+      "id": "soft-hyphen",
+      "input": "co­op",
+      "quoted": "\"co\\u00adop\""
+    },
+    {
+      "id": "tag-character",
+      "input": "x󠀁y",
+      "quoted": "\"x\\udb40\\udc01y\""
+    },
+    {
+      "id": "line-separators",
+      "input": "a b c",
+      "quoted": "\"a\\u2028b\\u2029c\""
+    },
+    {
+      "id": "word-joiner",
+      "input": "a⁠b",
+      "quoted": "\"a\\u2060b\""
+    },
+    {
+      "id": "unicode-letters-kept",
+      "input": "héllo 日本語 🚀",
+      "quoted": "\"héllo 日本語 🚀\""
+    },
+    {
+      "id": "replacement-kept",
+      "input": "caf�",
+      "quoted": "\"caf�\""
+    },
+    {
+      "id": "empty",
+      "input": "",
+      "quoted": "\"\""
+    }
+  ],
+  "detailCases": [
+    {
+      "id": "quoted-value-is-not-escaped-twice",
+      "input": "Unsupported harness \"a\\nb\"; expected openprose.",
+      "rendered": "Unsupported harness \"a\\nb\"; expected openprose."
+    },
+    {
+      "id": "raw-controls-are-escaped",
+      "input": "line\nbreak\u001b",
+      "rendered": "line\\nbreak\\u{001B}"
+    },
+    {
+      "id": "windows-path-backslashes-kept",
+      "input": "C:\\Users\\x",
+      "rendered": "C:\\Users\\x"
+    }
+  ]
+}

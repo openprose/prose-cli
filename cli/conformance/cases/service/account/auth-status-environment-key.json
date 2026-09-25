@@ -1,0 +1,56 @@
+{
+  "id": "auth-status-environment-key",
+  "feature": "account",
+  "operation": "auth.status",
+  "description": "A non-empty OPENPROSE_API_KEY wins over the stored key and is reported as credentialSource environment. Ported from the account corpus.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "auth",
+    "status"
+  ],
+  "fixture": {
+    "credential": null,
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/organizations",
+        "status": 200,
+        "body": {
+          "organizations": [
+            {
+              "id": "org-fixture",
+              "slug": "fixture",
+              "name": "Fixture",
+              "role": "admin"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "environment": {
+    "OPENPROSE_API_KEY": "rr_test_33333333333333333333333333333333"
+  },
+  "stdout": {
+    "json": {
+      "schema": "openprose.service-operation/1",
+      "operation": "auth.status",
+      "interaction": "cli.auth_status",
+      "result": {
+        "authenticated": true,
+        "credentialSource": "environment"
+      },
+      "problem": null
+    }
+  },
+  "stderr": {
+    "empty": true
+  },
+  "forbid": [
+    "rr_test_33333333333333333333333333333333"
+  ]
+}

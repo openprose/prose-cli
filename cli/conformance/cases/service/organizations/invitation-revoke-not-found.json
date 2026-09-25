@@ -1,0 +1,67 @@
+{
+  "id": "invitation-revoke-not-found",
+  "feature": "organizations",
+  "operation": "org.invitation.revoke",
+  "description": "invitation_not_found (404) is SERVICE_RESOURCE_NOT_FOUND.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "org",
+    "invitation",
+    "revoke",
+    "acme-research",
+    "0c9d8e7f-6a5b-4c3d-8e2f-1a0b9c8d7e6f",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "DELETE",
+        "path": "/organizations/acme-research/invitations/0c9d8e7f-6a5b-4c3d-8e2f-1a0b9c8d7e6f",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          },
+          "Accept": "application/json"
+        },
+        "status": 404,
+        "body": {
+          "error": "Invitation not found",
+          "code": "invitation_not_found"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "organizations.manage",
+      "operation": "org.invitation.revoke",
+      "problem": {
+        "action": "Check the invitation identifier named in Detail, then retry with the right one.",
+        "boundary": "hosted-service",
+        "code": "SERVICE_RESOURCE_NOT_FOUND",
+        "details": {
+          "reason": "ORG exists but has no invitation with this INVITATION_ID; `prose --output json cli org invite` prints the invitation id",
+          "serviceStatus": 404,
+          "resource": {
+            "id": "0c9d8e7f-6a5b-4c3d-8e2f-1a0b9c8d7e6f",
+            "kind": "invitation"
+          }
+        },
+        "exitCode": 10,
+        "message": "The requested OpenProse service resource was not found.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

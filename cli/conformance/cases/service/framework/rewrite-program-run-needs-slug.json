@@ -1,0 +1,50 @@
+{
+  "id": "rewrite-program-run-needs-slug",
+  "feature": "framework",
+  "operation": "run.submit",
+  "description": "`cli program run` without a program suggests the help of `cli run submit`.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "program",
+    "run"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": null,
+      "operation": "cli",
+      "problem": {
+        "action": "Use `cli run submit --from [OWNER/]SLUG[@REV]`; `prose --output json cli run submit --help` shows its arguments.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "unknown command `cli program run`; did you mean `cli run submit --from [OWNER/]SLUG[@REV]`? programs run with `cli run submit --from [OWNER/]SLUG[@REV]`",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "submit",
+            "--help"
+          ]
+        },
+        "exitCode": 2,
+        "message": "Unknown command.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "id": "auth-logout-with-env-key",
+  "feature": "account",
+  "operation": "auth.logout",
+  "description": "Logout while OPENPROSE_API_KEY is set is INVOCATION_INVALID: logout removes only the stored key, so the Action says to unset the variable.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "auth",
+    "logout"
+  ],
+  "environment": {
+    "OPENPROSE_API_KEY": "rr_test_0123456789abcdef0123456789abcdef"
+  },
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_fedcba9876543210fedcba9876543210"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": null,
+      "operation": "auth.logout",
+      "problem": {
+        "action": "Unset OPENPROSE_API_KEY to stop using that key; then `prose --output json cli auth logout` removes the stored key.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "credentialSource": "environment",
+          "credentialVariable": "OPENPROSE_API_KEY",
+          "reason": "OPENPROSE_API_KEY is set; `cli auth logout` removes only the stored key, so commands would keep using OPENPROSE_API_KEY"
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef",
+    "rr_test_fedcba9876543210fedcba9876543210"
+  ]
+}

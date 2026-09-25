@@ -1,0 +1,49 @@
+{
+  "id": "rewrite-environments",
+  "feature": "framework",
+  "operation": "run.submit",
+  "description": "`cli environments` alone gets the same explanation.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "environments"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": null,
+      "operation": "cli",
+      "problem": {
+        "action": "Use `cli run submit`: `prose --output json cli run submit --help`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "unknown command `cli environments`; did you mean `cli run submit --help`? a run chooses its environment with --environment builtin or --environment linux; there is no environment listing",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "submit",
+            "--help"
+          ]
+        },
+        "exitCode": 2,
+        "message": "Unknown command.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

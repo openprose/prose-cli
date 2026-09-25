@@ -1,0 +1,51 @@
+{
+  "id": "show-invalid-run-id",
+  "feature": "run-records",
+  "operation": "run.show",
+  "description": "A malformed run id is refused locally with the way to list runs; nothing is sent.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "show",
+    "garbage"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "run.read",
+      "operation": "run.show",
+      "problem": {
+        "action": "Correct the value named in Detail; `prose --output json cli run show --help` shows the accepted syntax.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "run id \"garbage\" is invalid; a run id is run_ followed by lowercase hex digits; list runs with `prose --output json cli run list`",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "show",
+            "--help"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

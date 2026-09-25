@@ -1,0 +1,49 @@
+{
+  "id": "unknown-option-removed-with-value",
+  "feature": "framework",
+  "operation": "run.list",
+  "description": "An unknown option with no mapping (`--color always`) is removed; the stray value is removed too, so the suggestion parses.",
+  "argv": [
+    "cli",
+    "run",
+    "list",
+    "--color",
+    "always",
+    "--json"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "runs.list",
+      "operation": "run.list",
+      "problem": {
+        "action": "Remove --color, which `cli run list` does not take, then remove the extra argument \"always\": `prose cli run list --json`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "unknown option --color for `cli run list`",
+          "suggestedArgv": [
+            "cli",
+            "run",
+            "list",
+            "--json"
+          ]
+        },
+        "exitCode": 2,
+        "message": "Unknown option.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

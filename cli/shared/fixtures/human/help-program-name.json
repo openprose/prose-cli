@@ -1,0 +1,24 @@
+{
+  "schema": "openprose.help-program-name/1",
+  "description": "help.v1.json stores `prose` as the program placeholder. A build that names another program (a developer build invoked as prose-dev) prints that name in every command of a help topic: a line starting with `prose `, the `Usage: prose` line and every `prose ...` code span. Other words are unchanged. Both ports apply this rule (Rust `render::localize_help_for`, Bun `localizeHelpFor`).",
+  "cases": [
+    {
+      "id": "public-build-identity",
+      "program": "prose",
+      "input": "Usage: prose [GLOBAL OPTIONS] cli run <COMMAND>\n\nExamples:\n  prose cli run list --json\n",
+      "rendered": "Usage: prose [GLOBAL OPTIONS] cli run <COMMAND>\n\nExamples:\n  prose cli run list --json\n"
+    },
+    {
+      "id": "usage-examples-and-spans",
+      "program": "prose-dev",
+      "input": "Usage: prose [GLOBAL OPTIONS] cli run <COMMAND>\n\nNew here? `prose cli service guide` walks through it.\nExamples:\n  prose cli run submit hello.prose.md --preview\n  prose --output json cli run list\n\nRun `prose cli run <COMMAND> --help` for details.\n",
+      "rendered": "Usage: prose-dev [GLOBAL OPTIONS] cli run <COMMAND>\n\nNew here? `prose-dev cli service guide` walks through it.\nExamples:\n  prose-dev cli run submit hello.prose.md --preview\n  prose-dev --output json cli run list\n\nRun `prose-dev cli run <COMMAND> --help` for details.\n"
+    },
+    {
+      "id": "other-words-unchanged",
+      "program": "/opt/bin/prose-dev",
+      "input": "Program files (.prose.md) and the word prose inside a sentence stay.\nprosecli is not a command.\n",
+      "rendered": "Program files (.prose.md) and the word prose inside a sentence stay.\nprosecli is not a command.\n"
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "id": "wallet-redeem-stdin-human",
+  "feature": "wallet",
+  "operation": "wallet.redeem",
+  "description": "--code-file - reads the code from standard input; human output never echoes it.",
+  "argv": [
+    "cli",
+    "wallet",
+    "redeem",
+    "--code-file",
+    "-",
+    "--yes"
+  ],
+  "stdin": "  Q7RC9-V5K2M\r\n",
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/wallet/redeem",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          }
+        },
+        "expectedBody": {
+          "code": "Q7RC9-V5K2M"
+        },
+        "status": 200,
+        "body": {
+          "ok": true,
+          "already_redeemed": true,
+          "amount_nanos": 5000000000,
+          "amount_usd": 5,
+          "available_nanos": 38370000000,
+          "available_usd": 38.37
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "Code already redeemed to this wallet: $5 credit.\nAvailable: $38.37\n"
+  },
+  "stderr": {
+    "text": ""
+  },
+  "forbid": [
+    "Q7RC9-V5K2M"
+  ]
+}

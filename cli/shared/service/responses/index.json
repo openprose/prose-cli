@@ -1,0 +1,307 @@
+{
+  "schema": "openprose.service-response-index/1",
+  "description": "A3: service response acceptance schemas. Required fields are what the CLI consumes; additional fields are tolerated and dropped by projections. probed=false marks shapes not yet observed on the hosted service.",
+  "responses": [
+    {
+      "name": "error",
+      "method": "*",
+      "path": "*",
+      "probed": true,
+      "schema": "error.schema.json"
+    },
+    {
+      "name": "health",
+      "method": "GET",
+      "path": "/health",
+      "probed": true,
+      "schema": "health.schema.json"
+    },
+    {
+      "name": "models",
+      "method": "GET",
+      "path": "/models",
+      "probed": true,
+      "schema": "models.schema.json"
+    },
+    {
+      "name": "examples-private",
+      "method": "GET",
+      "path": "/examples/private",
+      "probed": true,
+      "schema": "examples-private.schema.json"
+    },
+    {
+      "name": "repos",
+      "method": "GET",
+      "path": "/repos",
+      "probed": false,
+      "schema": "repos.schema.json"
+    },
+    {
+      "name": "run-quote",
+      "method": "GET",
+      "path": "/run/quote",
+      "probed": true,
+      "schema": "run-quote.schema.json"
+    },
+    {
+      "name": "run-event",
+      "method": "SSE",
+      "path": "/run",
+      "probed": true,
+      "schema": "run-event.schema.json"
+    },
+    {
+      "name": "run-complete",
+      "method": "SSE",
+      "path": "/run",
+      "probed": true,
+      "schema": "run-complete.schema.json"
+    },
+    {
+      "name": "run-input",
+      "method": "POST",
+      "path": "/run/{id}/input",
+      "probed": false,
+      "schema": "run-input.schema.json"
+    },
+    {
+      "name": "run-cancel",
+      "method": "POST",
+      "path": "/run/{id}/cancel",
+      "probed": true,
+      "schema": "run-cancel.schema.json"
+    },
+    {
+      "name": "runs-list",
+      "method": "GET",
+      "path": "/runs",
+      "probed": true,
+      "schema": "runs-list.schema.json"
+    },
+    {
+      "name": "run-manifest",
+      "method": "GET",
+      "path": "/runs/{id}",
+      "probed": true,
+      "schema": "run-manifest.schema.json"
+    },
+    {
+      "name": "run-share",
+      "method": "POST",
+      "path": "/runs/{id}/share",
+      "probed": false,
+      "schema": "run-share.schema.json"
+    },
+    {
+      "name": "programs-list",
+      "method": "GET",
+      "path": "/programs",
+      "probed": true,
+      "schema": "programs-list.schema.json"
+    },
+    {
+      "name": "program-read",
+      "method": "GET",
+      "path": "/p/{owner}/{slug}",
+      "probed": false,
+      "schema": "program-read.schema.json"
+    },
+    {
+      "name": "program-save",
+      "method": "PUT",
+      "path": "/programs/{slug}",
+      "probed": true,
+      "schema": "program-save.schema.json"
+    },
+    {
+      "name": "program-conflict",
+      "method": "PUT",
+      "path": "/programs/{slug}",
+      "probed": true,
+      "schema": "program-conflict.schema.json"
+    },
+    {
+      "name": "program-visibility",
+      "method": "PUT",
+      "path": "/programs/{slug}/visibility",
+      "probed": false,
+      "schema": "program-visibility.schema.json"
+    },
+    {
+      "name": "program-delete",
+      "method": "DELETE",
+      "path": "/programs/{slug}",
+      "probed": true,
+      "schema": "program-delete.schema.json"
+    },
+    {
+      "name": "program-revisions",
+      "method": "GET",
+      "path": "/programs/{slug}/revisions",
+      "probed": true,
+      "schema": "program-revisions.schema.json"
+    },
+    {
+      "name": "write",
+      "method": "POST",
+      "path": "/write",
+      "probed": false,
+      "schema": "write.schema.json"
+    },
+    {
+      "name": "results-list",
+      "method": "GET",
+      "path": "/p/{owner}/{slug}/results",
+      "probed": false,
+      "schema": "results-list.schema.json"
+    },
+    {
+      "name": "result-read",
+      "method": "GET",
+      "path": "/p/{owner}/{slug}/results/{publication_id}",
+      "probed": false,
+      "schema": "result-read.schema.json"
+    },
+    {
+      "name": "result-publish",
+      "method": "POST",
+      "path": "/programs/{slug}/results",
+      "probed": false,
+      "schema": "result-publish.schema.json"
+    },
+    {
+      "name": "result-unpublish",
+      "method": "DELETE",
+      "path": "/programs/{slug}/results/{publication_id}",
+      "probed": false,
+      "schema": "result-unpublish.schema.json"
+    },
+    {
+      "name": "triggers-list",
+      "method": "GET",
+      "path": "/triggers",
+      "probed": true,
+      "schema": "triggers-list.schema.json"
+    },
+    {
+      "name": "trigger-detail",
+      "method": "GET",
+      "path": "/triggers/{id}",
+      "probed": true,
+      "schema": "trigger-detail.schema.json"
+    },
+    {
+      "name": "trigger-create",
+      "method": "POST",
+      "path": "/triggers",
+      "probed": true,
+      "schema": "trigger-create.schema.json"
+    },
+    {
+      "name": "trigger-update",
+      "method": "PUT",
+      "path": "/triggers/{id}",
+      "probed": false,
+      "schema": "trigger-update.schema.json"
+    },
+    {
+      "name": "trigger-delete",
+      "method": "DELETE",
+      "path": "/triggers/{id}",
+      "probed": true,
+      "schema": "trigger-delete.schema.json"
+    },
+    {
+      "name": "trigger-deliveries",
+      "method": "GET",
+      "path": "/triggers/{id}/deliveries",
+      "probed": true,
+      "schema": "trigger-deliveries.schema.json"
+    },
+    {
+      "name": "trigger-rotate-secret",
+      "method": "POST",
+      "path": "/triggers/{id}/rotate-secret",
+      "probed": false,
+      "schema": "trigger-rotate-secret.schema.json"
+    },
+    {
+      "name": "trigger-contracts",
+      "method": "GET",
+      "path": "/triggers/{id}/contracts",
+      "probed": true,
+      "schema": "trigger-contracts.schema.json"
+    },
+    {
+      "name": "wallet-balance",
+      "method": "GET",
+      "path": "/wallet/balance",
+      "probed": true,
+      "schema": "wallet-balance.schema.json"
+    },
+    {
+      "name": "wallet-events",
+      "method": "GET",
+      "path": "/wallet/events",
+      "probed": true,
+      "schema": "wallet-events.schema.json"
+    },
+    {
+      "name": "wallet-usage",
+      "method": "GET",
+      "path": "/wallet/usage",
+      "probed": true,
+      "schema": "wallet-usage.schema.json"
+    },
+    {
+      "name": "wallet-redeem",
+      "method": "POST",
+      "path": "/wallet/redeem",
+      "probed": false,
+      "schema": "wallet-redeem.schema.json"
+    },
+    {
+      "name": "wallet-topup",
+      "method": "POST",
+      "path": "/wallet/topup",
+      "probed": false,
+      "schema": "wallet-topup.schema.json"
+    },
+    {
+      "name": "organizations-list",
+      "method": "GET",
+      "path": "/organizations",
+      "probed": true,
+      "schema": "organizations-list.schema.json"
+    },
+    {
+      "name": "organization",
+      "method": "GET",
+      "path": "/organizations/{name}",
+      "probed": false,
+      "schema": "organization.schema.json"
+    },
+    {
+      "name": "organization-members",
+      "method": "GET",
+      "path": "/organizations/{name}/members",
+      "probed": false,
+      "schema": "organization-members.schema.json"
+    },
+    {
+      "name": "organization-invitation",
+      "method": "POST",
+      "path": "/organizations/{name}/invitations",
+      "probed": false,
+      "schema": "organization-invitation.schema.json"
+    },
+    {
+      "name": "organization-ok",
+      "method": "DELETE",
+      "path": "/organizations/{name}/members/{id}",
+      "probed": false,
+      "schema": "organization-ok.schema.json"
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "id": "alias-share-email-argument",
+  "feature": "framework",
+  "operation": "run.share",
+  "description": "An email argument to `cli run share` gets the public-link explanation and a `--preview` suggestion.",
+  "argv": [
+    "cli",
+    "run",
+    "share",
+    "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+    "bob@example.com"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: That command isn't quite right.\nDetail: unexpected argument \"bob@example.com\" for `cli run share`; `cli run share` mints a public, unrevocable 24-hour link that anyone who has it can open; it is not shared with one person\nAction: `cli run share` makes a public, unrevocable 24-hour link, and `cli org invite` gives one person access; preview the link first: `prose cli run share run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c --preview`.\n"
+  }
+}

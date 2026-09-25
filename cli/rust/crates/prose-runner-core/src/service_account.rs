@@ -1,47 +1,54 @@
 //! Environment-isolated account operations. Credentials never enter harness configuration.
 use crate::error::ErrorCode;
 use crate::output::CommandOutcome;
+use crate::service::Environment;
 use crate::{CancellationToken, OutputMode, RunnerCommand, RunnerError};
 use serde_json::{Value, json};
-use std::io::{Read, Write};
+use std::io::Read;
 use std::time::{Duration, Instant};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ServiceEnvironment {
-    Production,
-    Staging,
-}
-impl ServiceEnvironment {
-    fn from_selection(value: &str) -> Self {
-        if value == "staging" {
-            Self::Staging
-        } else {
-            Self::Production
-        }
-    }
-    pub(crate) fn name(self) -> &'static str {
-        match self {
-            Self::Production => "production",
-            Self::Staging => "staging",
-        }
-    }
-    fn origin(self) -> &'static str {
-        match self {
-            Self::Production => "https://run-prose-production.openprose.workers.dev",
-            Self::Staging => "https://run-prose-staging.openprose.workers.dev",
-        }
-    }
-    fn variable(self) -> &'static str {
-        match self {
-            Self::Production => "OPENPROSE_API_KEY",
-            Self::Staging => "OPENPROSE_STAGING_API_KEY",
-        }
-    }
-}
 const LIMIT: u64 = 65_536;
 
 fn problem(code: ErrorCode) -> RunnerError {
     RunnerError::catalog(code)
+}
+
+/// `SERVICE_PROTOCOL_INVALID` naming the response field that failed (the
+/// reason shape of the service operations).
+fn unexpected(what: &str, field: &str) -> RunnerError {
+    problem(ErrorCode::ServiceProtocolInvalid)
+        .with_detail("reason", format!("unexpected {what} response: {field}"))
+}
+
+/// `SERVICE_UNAVAILABLE` for a non-success status the service answered with.
+fn unavailable(status: u64) -> RunnerError {
+    problem(ErrorCode::ServiceUnavailable).with_detail("serviceStatus", status)
+}
+
+/// A login that ended before a key was stored says so (the reason of each
+/// ending); errors that already carry details are kept.
+fn login_ended(error: RunnerError) -> RunnerError {
+    if error.details.is_some() {
+        return error;
+    }
+    let reason = match error.code {
+        ErrorCode::DeviceAuthFailed => "the device authorization was denied; nothing was stored",
+        ErrorCode::DeviceAuthExpired => {
+            "the device code expired before it was approved; nothing was stored"
+        }
+        ErrorCode::Cancelled => {
+            "login was interrupted before the code was approved; nothing was stored"
+        }
+        _ => return error,
+    };
+    error.with_detail("reason", reason)
+}
+
+/// An environment variable, decoded like the Bun build decodes its
+/// environment: each sequence that is not UTF-8 becomes U+FFFD (so a key
+/// that is not UTF-8 is a malformed key, never an absent one).
+fn environment_value(name: &str) -> Option<String> {
+    std::env::var_os(name).map(|value| value.to_string_lossy().into_owned())
 }
 
 fn valid_token(token: &str) -> bool {
@@ -53,7 +60,7 @@ fn valid_token(token: &str) -> bool {
 }
 
 pub(crate) struct Session {
-    environment: ServiceEnvironment,
+    environment: Environment,
     fixture: Option<Value>,
     next: usize,
     cancellation: CancellationToken,
@@ -63,21 +70,21 @@ pub(crate) struct Session {
 impl Session {
     fn new(
         cancellation: &CancellationToken,
-        environment: ServiceEnvironment,
+        environment: Environment,
     ) -> Result<Self, RunnerError> {
         Self::bounded(cancellation, environment, LIMIT)
     }
 
     pub(crate) fn registry(
         cancellation: &CancellationToken,
-        environment: ServiceEnvironment,
+        environment: Environment,
     ) -> Result<Self, RunnerError> {
         Self::bounded(cancellation, environment, 16 * 1024 * 1024)
     }
 
     fn bounded(
         cancellation: &CancellationToken,
-        environment: ServiceEnvironment,
+        environment: Environment,
         fixture_limit: u64,
     ) -> Result<Self, RunnerError> {
         let _ = fixture_limit;
@@ -95,28 +102,27 @@ impl Session {
                 return Err(problem(ErrorCode::ServiceProtocolInvalid));
             }
             fixture = Some(
-                serde_json::from_slice(&bytes)
-                    .map_err(|_| problem(ErrorCode::ServiceProtocolInvalid))?,
+                crate::service::http::parse_json(&bytes)
+                    .ok_or_else(|| problem(ErrorCode::ServiceProtocolInvalid))?,
             );
         }
         if let Some(value) = &fixture {
             if !value.is_object()
                 || !value["storeAvailable"].is_boolean()
-                || !value["exchanges"]
-                    .as_array()
-                    .is_some_and(|v| v.len() <= 182)
+                || value["exchanges"].as_array().is_none_or(|v| v.len() > 182)
                 || !(value
                     .get("credential")
                     .is_some_and(|v| v.is_null() || v.is_string())
                     || value.get("credentials").is_some_and(Value::is_object))
                 || value
                     .get("environment")
-                    .is_some_and(|v| v != environment.name())
+                    .is_some_and(|v| v != environment.name)
                 || value.get("credentials").is_some_and(|v| {
-                    !v.is_object()
-                        || ["production", "staging"]
-                            .iter()
-                            .any(|key| !v.get(*key).is_some_and(|v| v.is_null() || v.is_string()))
+                    v.as_object().is_none_or(|credentials| {
+                        credentials
+                            .values()
+                            .any(|v| !(v.is_null() || v.is_string()))
+                    })
                 })
             {
                 return Err(problem(ErrorCode::ServiceProtocolInvalid));
@@ -161,7 +167,7 @@ impl Session {
                 return Err(problem(ErrorCode::CredentialStoreUnavailable));
             }
             let slot = if fixture.get("credentials").is_some() {
-                &mut fixture["credentials"][self.environment.name()]
+                &mut fixture["credentials"][self.environment.name]
             } else {
                 &mut fixture["credential"]
             };
@@ -174,7 +180,7 @@ impl Session {
             }
             return Ok(previous);
         }
-        native_store(operation, token, &self.cancellation, self.environment)
+        native_store(operation, token, &self.cancellation, &self.environment)
     }
 
     fn request(
@@ -192,12 +198,11 @@ impl Session {
                 return Err(problem(ErrorCode::ServiceProtocolInvalid));
             }
             if let Some(token) = token {
-                let expected = std::env::var(self.environment.variable())
-                    .ok()
+                let expected = environment_value(self.environment.credential_env)
                     .filter(|value| !value.is_empty())
                     .or_else(|| {
                         let value = if fixture.get("credentials").is_some() {
-                            &fixture["credentials"][self.environment.name()]
+                            &fixture["credentials"][self.environment.name]
                         } else {
                             &fixture["credential"]
                         };
@@ -215,7 +220,7 @@ impl Session {
                 || exchange["path"] != path
                 || exchange
                     .get("origin")
-                    .is_some_and(|v| v != self.environment.origin())
+                    .is_some_and(|v| v != self.environment.origin.as_str())
             {
                 return Err(problem(ErrorCode::ServiceProtocolInvalid));
             }
@@ -232,13 +237,19 @@ impl Session {
             if timeout.is_zero() {
                 return Err(problem(ErrorCode::DeviceAuthExpired));
             }
-            let agent = ureq::AgentBuilder::new()
-                .timeout(timeout)
-                .redirects(0)
-                .build();
+            let url = format!("{}{path}", self.environment.origin);
+            let agent = crate::service::http::agent_builder(
+                &url,
+                &crate::service::http::process_environment,
+            )?
+            .timeout(timeout)
+            .build();
             let mut request = agent
-                .request(method, &format!("{}{path}", self.environment.origin()))
+                .request(method, &url)
                 .set("Accept", "application/json");
+            for (name, value) in crate::service::http::client_headers() {
+                request = request.set(&name, &value);
+            }
             if let Some(token) = token {
                 request = request.set("Authorization", &format!("Bearer {token}"));
             }
@@ -259,7 +270,7 @@ impl Session {
                 return Err(problem(ErrorCode::ServiceAuthRequired));
             }
             if !(200..=299).contains(&status) && !(status == 400 && path.ends_with("/poll")) {
-                return Err(problem(ErrorCode::ServiceUnavailable));
+                return Err(unavailable(status));
             }
             let mut bytes = Vec::new();
             response
@@ -273,8 +284,8 @@ impl Session {
             }
             (
                 status,
-                serde_json::from_slice(&bytes)
-                    .map_err(|_| problem(ErrorCode::ServiceProtocolInvalid))?,
+                crate::service::http::parse_json(&bytes)
+                    .ok_or_else(|| problem(ErrorCode::ServiceProtocolInvalid))?,
             )
         };
         self.check()?;
@@ -286,7 +297,7 @@ impl Session {
             } else {
                 ErrorCode::DeviceAuthFailed
             })),
-            _ => Err(problem(ErrorCode::ServiceUnavailable)),
+            _ => Err(unavailable(status)),
         }
     }
 
@@ -306,7 +317,26 @@ impl Session {
     }
 }
 
-fn organizations(value: Value) -> Result<Value, RunnerError> {
+/// Who the key belongs to, when GET /organizations says: a top-level `login`
+/// (at most 100 characters, no controls) and the slug of the organization
+/// marked `default: true` (null when none is). `None` when the service names
+/// no login; never the key (mirrors Bun `identity`).
+fn identity(body: &Value, token: &str) -> Option<Value> {
+    let login = body["login"].as_str().filter(|login| {
+        !login.is_empty()
+            && login.chars().count() <= 100
+            && !login.chars().any(|c| c <= '\u{1f}' || c == '\u{7f}')
+            && !login.contains(token)
+    })?;
+    let organization = body["organizations"]
+        .as_array()
+        .and_then(|rows| rows.iter().find(|row| row["default"] == true))
+        .and_then(|row| row["slug"].as_str())
+        .filter(|slug| !slug.contains(token));
+    Some(json!({"login": login, "organization": organization}))
+}
+
+fn organizations(value: &Value) -> Result<Value, RunnerError> {
     let entries = value["organizations"]
         .as_array()
         .ok_or_else(|| problem(ErrorCode::ServiceProtocolInvalid))?;
@@ -337,11 +367,49 @@ fn organizations(value: Value) -> Result<Value, RunnerError> {
     }
     Ok(json!(output))
 }
+/// `INVOCATION_INVALID` for login or logout while the selected variable is
+/// set: the command cannot change the key that commands actually use.
+fn environment_key_refusal(
+    operation: &str,
+    environment: &Environment,
+    mode: OutputMode,
+) -> RunnerError {
+    let variable = environment.credential_env;
+    let command = |words: &str| crate::service::render::follow_up_command(mode, words);
+    let (reason, action) = if operation == "login" {
+        (
+            format!(
+                "{variable} is set, and a non-empty {variable} takes precedence over a stored key, so `cli auth login` would not change the key commands use"
+            ),
+            format!(
+                "Keep using {variable} and check it with `{}`, or unset {variable} and run `{}`.",
+                command("auth status"),
+                command("auth login")
+            ),
+        )
+    } else {
+        (
+            format!(
+                "{variable} is set; `cli auth logout` removes only the stored key, so commands would keep using {variable}"
+            ),
+            format!(
+                "Unset {variable} to stop using that key; then `{}` removes the stored key.",
+                command("auth logout")
+            ),
+        )
+    };
+    let mut error = RunnerError::invocation(reason)
+        .with_detail("credentialSource", "environment")
+        .with_detail("credentialVariable", variable);
+    error.action = action;
+    error
+}
+
 /// Executes an account operation with a bounded environment-isolated transport.
 #[must_use]
 pub fn execute(
     command: &RunnerCommand,
-    selected: ServiceEnvironment,
+    selected: &Environment,
     mode: OutputMode,
     cancellation: &CancellationToken,
 ) -> CommandOutcome {
@@ -351,18 +419,18 @@ pub fn execute(
         RunnerCommand::OrgList => "list",
         _ => "status",
     };
+    let teaching = selected.clone();
+    // Where the key came from; kept on a failure that is about that key.
     let mut source = "none";
     let mut authenticated = false;
     let mut rows = json!([]);
+    let mut who: Option<Value> = None;
     let result = (|| -> Result<(), RunnerError> {
-        let mut session = Session::new(cancellation, selected)?;
-        let environment = std::env::var(selected.variable())
-            .ok()
-            .filter(|s| !s.is_empty());
+        let mut session = Session::new(cancellation, selected.clone())?;
+        let environment = environment_value(selected.credential_env).filter(|s| !s.is_empty());
         if environment.is_some() && matches!(operation, "login" | "logout") {
-            return Err(RunnerError::invocation(
-                "Environment credentials cannot be changed by login or logout.",
-            ));
+            source = "environment";
+            return Err(environment_key_refusal(operation, &teaching, mode));
         }
         if operation == "logout" {
             session.store("delete", None)?;
@@ -371,10 +439,11 @@ pub fn execute(
         if operation == "login" {
             session.store("get", None)?;
             let start = session.request("POST", "/auth/device", None, json!({}))?;
+            let what = "POST /auth/device";
             let code = start["device_code"]
                 .as_str()
                 .filter(|s| !s.is_empty() && s.len() <= 1024)
-                .ok_or_else(|| problem(ErrorCode::ServiceProtocolInvalid))?
+                .ok_or_else(|| unexpected(what, "device_code"))?
                 .to_owned();
             let user = start["user_code"]
                 .as_str()
@@ -385,18 +454,18 @@ pub fn execute(
                             .all(|b| b.is_ascii_uppercase() || b.is_ascii_digit() || b == b'-')
                         && !s.contains(&code)
                 })
-                .ok_or_else(|| problem(ErrorCode::ServiceProtocolInvalid))?;
+                .ok_or_else(|| unexpected(what, "user_code"))?;
             if start["verification_uri"] != "https://github.com/login/device" {
-                return Err(problem(ErrorCode::ServiceProtocolInvalid));
+                return Err(unexpected(what, "verification_uri"));
             }
             let expiry = start["expires_in"]
                 .as_u64()
                 .filter(|v| (1..=900).contains(v))
-                .ok_or_else(|| problem(ErrorCode::ServiceProtocolInvalid))?;
+                .ok_or_else(|| unexpected(what, "expires_in"))?;
             let mut interval = start["interval"]
                 .as_u64()
                 .filter(|v| (1..=30).contains(v))
-                .ok_or_else(|| problem(ErrorCode::ServiceProtocolInvalid))?;
+                .ok_or_else(|| unexpected(what, "interval"))?;
             eprintln!("Go to https://github.com/login/device and enter code: {user}");
             let began = Instant::now();
             session.deadline = Some(began + Duration::from_secs(expiry));
@@ -433,7 +502,7 @@ pub fn execute(
                         if session.store("get", None)?.as_deref() != Some(token) {
                             return Err(problem(ErrorCode::CredentialStoreUnavailable));
                         }
-                        source = "os-credential-store";
+                        source = "store";
                         authenticated = true;
                         return Ok(());
                     }
@@ -446,205 +515,219 @@ pub fn execute(
             }
             return Err(problem(ErrorCode::DeviceAuthExpired));
         }
+        // Status and org list share the service classifier:
+        // a missing, malformed or rejected key is SERVICE_AUTH_REQUIRED that
+        // names the variable, and its Action follows the key's source.
         let token = if let Some(token) = environment {
             source = "environment";
             Some(token)
         } else {
             let token = session.store("get", None)?;
             if token.is_some() {
-                source = "os-credential-store";
+                source = "store";
             }
             token
         };
-        if let Some(token) = token {
-            if !valid_token(&token) {
-                return Err(problem(ErrorCode::ServiceProtocolInvalid));
+        let Some(token) = token else {
+            if operation == "list" {
+                return Err(crate::service::credential_failure(
+                    &teaching,
+                    mode,
+                    "none",
+                    "missing",
+                    crate::service::missing_reason(&teaching, mode),
+                ));
             }
-            rows = organizations(session.request(
-                "GET",
-                "/organizations",
-                Some(&token),
-                Value::Null,
-            )?)?;
-            if rows.as_array().is_some_and(|entries| {
-                entries.iter().any(|entry| {
-                    ["id", "slug", "name"].iter().any(|key| {
-                        entry[*key]
-                            .as_str()
-                            .is_some_and(|value| value.contains(&token))
-                    })
-                })
-            }) {
-                rows = json!([]);
-                return Err(problem(ErrorCode::ServiceProtocolInvalid));
-            }
-            authenticated = true;
-        } else if operation == "list" {
-            return Err(problem(ErrorCode::ServiceAuthRequired));
+            return Ok(());
+        };
+        if !valid_token(&token) {
+            return Err(crate::service::credential_failure(
+                &teaching,
+                mode,
+                source,
+                "malformed",
+                crate::service::localize_hint(
+                    mode,
+                    &crate::service::malformed_reason(
+                        &token,
+                        teaching.credential_env,
+                        source == "environment",
+                        &teaching,
+                    ),
+                ),
+            ));
         }
+        let body = session
+            .request("GET", "/organizations", Some(&token), Value::Null)
+            .map_err(|error| {
+                if error.code == ErrorCode::ServiceAuthRequired {
+                    crate::service::credential_failure(
+                        &teaching,
+                        mode,
+                        source,
+                        "rejected",
+                        crate::service::rejected_reason(&teaching, mode, source),
+                    )
+                } else {
+                    error
+                }
+            })?;
+        who = identity(&body, &token);
+        rows = organizations(&body).map_err(|error| {
+            if error.details.is_none() {
+                unexpected("GET /organizations", "organizations")
+            } else {
+                error
+            }
+        })?;
+        if rows.as_array().is_some_and(|entries| {
+            entries.iter().any(|entry| {
+                ["id", "slug", "name"].iter().any(|key| {
+                    entry[*key]
+                        .as_str()
+                        .is_some_and(|value| value.contains(&token))
+                })
+            })
+        }) {
+            rows = json!([]);
+            return Err(unexpected("GET /organizations", "organizations"));
+        }
+        authenticated = true;
         Ok(())
     })();
-    let error = result.err();
-    if error.is_some() {
+    // An unavailable store names the variable that works without it (not for
+    // logout, which only removes a stored key).
+    let error = result.err().map(|error| {
+        let error = if operation == "login" {
+            login_ended(error)
+        } else {
+            error
+        };
+        if error.code == ErrorCode::CredentialStoreUnavailable && operation != "logout" {
+            crate::service::store_unavailable(error, &teaching)
+        } else {
+            error
+        }
+    });
+    // A failure that is about the key keeps the key's source; others name none.
+    if error.as_ref().is_some_and(|error| {
+        !matches!(
+            error.code,
+            ErrorCode::ServiceAuthRequired | ErrorCode::InvocationInvalid
+        )
+    }) {
         source = "none";
     }
     let exit = error.as_ref().map_or(0, |e| e.exit_code);
-    let report = if operation == "list" {
-        json!({
-            "schema":"openprose.organization-list/1","environment":selected.name(),"organizations":rows,"problem":error
-        })
-    } else {
-        json!({
-            "schema":"openprose.service-account/1","environment":selected.name(),"operation":operation,"authenticated":authenticated,"credentialSource":source,"problem":error
-        })
-    };
-    if mode == OutputMode::Human {
-        if let Some(error) = error {
-            CommandOutcome::human(
-                "",
-                format!(
-                    "OpenProse {}: {}: {}\n",
-                    selected.name(),
-                    error.code,
-                    error.message
-                ),
-                exit,
-            )
-        } else if operation == "list" {
-            CommandOutcome::human(
-                format!("OpenProse {} organizations:\n{}\n", selected.name(), rows),
-                "",
-                0,
-            )
+    if mode != OutputMode::Human {
+        // The service-operation/1 envelope every `cli` command prints: the
+        // account state (or the organizations) is the result.
+        let id = if operation == "list" {
+            "org.list".to_owned()
         } else {
-            CommandOutcome::human(
-                format!(
-                    "OpenProse {} account {operation}: {}\n",
-                    selected.name(),
-                    if authenticated {
-                        "authenticated"
-                    } else {
-                        "signed out"
-                    }
-                ),
-                "",
-                0,
-            )
-        }
-    } else {
-        CommandOutcome::json(report, exit)
+            format!("auth.{operation}")
+        };
+        let manifest_operation =
+            crate::service::operation(&id).expect("account operations are in the manifest");
+        let result = match &error {
+            Some(error) => Err(error.clone()),
+            None if operation == "list" => Ok(json!({"organizations": rows})),
+            None => {
+                let mut result =
+                    json!({"authenticated": authenticated, "credentialSource": source});
+                if let (true, Some(who)) = (authenticated, &who) {
+                    result["identity"] = who.clone();
+                }
+                Ok(result)
+            }
+        };
+        return crate::service::render::outcome(manifest_operation, selected, mode, result, None);
     }
+    // Human: a failure prints only its error (label, Detail, Action) on
+    // stderr, never a status line; success prints the result on stdout, after
+    // the custom-endpoint banner of a dev-endpoint build on stderr (identical
+    // in both products).
+    if let Some(error) = error {
+        return CommandOutcome::human(
+            "",
+            crate::service::render::human_error(&selected.label(), &error),
+            exit,
+        );
+    }
+    let banner = if selected.is_custom() {
+        format!("{}\n", selected.label())
+    } else {
+        String::new()
+    };
+    let stdout = if operation == "list" {
+        rows.as_array()
+            .map(|entries| {
+                entries
+                    .iter()
+                    .map(|entry| {
+                        format!(
+                            "{}  {}  {}\n",
+                            crate::error::human_safe_scalar(entry["slug"].as_str().unwrap_or("")),
+                            entry["role"].as_str().unwrap_or("-"),
+                            crate::error::human_safe_scalar(entry["name"].as_str().unwrap_or(""))
+                        )
+                    })
+                    .collect::<String>()
+            })
+            .unwrap_or_default()
+    } else {
+        let who = who
+            .as_ref()
+            .filter(|_| authenticated)
+            .map(|who| {
+                let organization = who["organization"]
+                    .as_str()
+                    .map(|slug| {
+                        format!(" (organization {})", crate::error::human_safe_scalar(slug))
+                    })
+                    .unwrap_or_default();
+                format!(
+                    " as {}{organization}",
+                    crate::error::human_safe_scalar(who["login"].as_str().unwrap_or_default())
+                )
+            })
+            .unwrap_or_default();
+        format!(
+            "OpenProse account {operation}: {}\n",
+            if authenticated {
+                format!("authenticated{who}")
+            } else {
+                "signed out".to_owned()
+            }
+        )
+    };
+    CommandOutcome::human(stdout, "", 0).with_preamble(banner)
 }
-#[cfg(not(target_os = "macos"))]
-
-fn native_store(
-    _: &str,
-    _: Option<&str>,
-    _: &CancellationToken,
-    _: ServiceEnvironment,
-) -> Result<Option<String>, RunnerError> {
-    Err(problem(ErrorCode::CredentialStoreUnavailable))
-}
-#[cfg(target_os = "macos")]
-
-fn native_store(
+/// The operating-system credential store: the login keychain through
+/// `/usr/bin/security` on macOS, the Secret Service through `secret-tool` on
+/// Linux. Other platforms have none (set the variable instead).
+pub(crate) fn native_store(
     operation: &str,
     token: Option<&str>,
     cancellation: &CancellationToken,
-    environment: ServiceEnvironment,
+    environment: &Environment,
 ) -> Result<Option<String>, RunnerError> {
-    use std::process::{Command, Stdio};
-    // No shell or token argv. Interactive security command parsing receives only
-    // fixed commands and a closed ASCII token alphabet over an anonymous pipe.
-    let arguments = format!("-s org.openprose.cli.{} -a api-key", environment.name());
-    let script = match operation {
-        "get" => format!("find-generic-password {arguments} -w\n"),
-        "delete" => format!("delete-generic-password {arguments}\n"),
-        "set" => {
-            let token = token
-                .filter(|s| valid_token(s))
-                .ok_or_else(|| problem(ErrorCode::ServiceProtocolInvalid))?;
-            format!("add-generic-password -U {arguments} -w {token}\n")
-        }
-        _ => return Err(problem(ErrorCode::CredentialStoreUnavailable)),
-    };
-    let mut child = Command::new("/usr/bin/security")
-        .arg("-i")
-        .env_clear()
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|_| problem(ErrorCode::CredentialStoreUnavailable))?;
-    let stdout = child.stdout.take().expect("piped stdout");
-    let stderr = child.stderr.take().expect("piped stderr");
-    let read = |pipe: Box<dyn Read + Send>| {
-        std::thread::spawn(move || {
-            let mut bytes = Vec::new();
-            let result = pipe.take(8193).read_to_end(&mut bytes);
-            (result.is_ok() && bytes.len() <= 8192, bytes)
-        })
-    };
-    let out_reader = read(Box::new(stdout));
-    let err_reader = read(Box::new(stderr));
-    let write_ok = child
-        .stdin
-        .take()
-        .is_some_and(|mut stdin| stdin.write_all(script.as_bytes()).is_ok());
-    let deadline = Instant::now() + Duration::from_secs(10);
-    let mut failed = !write_ok;
-    loop {
-        if cancellation.is_cancelled() || Instant::now() >= deadline || failed {
-            failed = true;
-            let _ = child.kill();
-            let _ = child.wait();
-            break;
-        }
-        match child.try_wait() {
-            Ok(Some(status)) => {
-                failed = !status.success();
-                break;
-            }
-            Ok(None) => std::thread::sleep(Duration::from_millis(25)),
-            Err(_) => {
-                failed = true;
-                let _ = child.kill();
-                let _ = child.wait();
-                break;
-            }
-        }
-    }
-    let (out_ok, stdout) = out_reader.join().unwrap_or_default();
-    let (err_ok, stderr) = err_reader.join().unwrap_or_default();
-    if cancellation.is_cancelled() {
-        return Err(problem(ErrorCode::Cancelled));
-    }
-    if !out_ok || !err_ok {
-        return Err(problem(ErrorCode::CredentialStoreUnavailable));
-    }
-    // security -i may exit zero after a failed subcommand. Inspect only fixed
-    // error markers; never propagate its output or captured command echo.
-    let diagnostic = String::from_utf8_lossy(&stderr);
-    if diagnostic.contains("could not be found") && matches!(operation, "get" | "delete") {
-        return Ok(None);
-    }
-    if failed
-        || diagnostic.contains("SecKeychain")
-        || diagnostic.contains("SecItem")
-        || diagnostic.contains("error:")
+    #[cfg(target_os = "macos")]
     {
-        return Err(problem(ErrorCode::CredentialStoreUnavailable));
+        crate::credential_store::macos::store(operation, token, cancellation, environment)
     }
-    if operation == "get" {
-        let output =
-            String::from_utf8(stdout).map_err(|_| problem(ErrorCode::ServiceProtocolInvalid))?;
-        let token = output.trim();
-        if !valid_token(token) {
-            return Err(problem(ErrorCode::ServiceProtocolInvalid));
+    #[cfg(not(target_os = "macos"))]
+    {
+        if cfg!(target_os = "linux") {
+            return crate::credential_store::linux_store(
+                operation,
+                token,
+                cancellation,
+                environment,
+            );
         }
-        Ok(Some(token.to_owned()))
-    } else {
-        Ok(None)
+        let _ = (operation, token, cancellation, environment);
+        Err(problem(ErrorCode::CredentialStoreUnavailable))
     }
 }
 #[must_use]
@@ -655,288 +738,39 @@ pub fn is_service_command(command: &RunnerCommand) -> bool {
             | RunnerCommand::AuthStatus
             | RunnerCommand::AuthLogout
             | RunnerCommand::OrgList
-            | RunnerCommand::EnvironmentShow
-            | RunnerCommand::EnvironmentUse(_)
-            | RunnerCommand::EnvironmentReset
             | RunnerCommand::Package(_)
     )
 }
 
-/// Resolves and executes service commands without reading workspace configuration.
+/// Resolves the service and executes an account or package command without
+/// reading workspace configuration.
 ///
 /// # Errors
-/// Returns an invocation or configuration error before any credential access
-/// when the command or user configuration is invalid.
+/// Returns an invocation error for a command that is not an account or
+/// package command, and (only in a `dev-endpoint` build) a configuration
+/// error for an invalid endpoint override.
 pub fn execute_user_command(
     command: &RunnerCommand,
-    flags: &crate::GlobalFlags,
     system: &crate::SystemContext,
     mode: OutputMode,
     cancellation: &CancellationToken,
 ) -> Result<CommandOutcome, RunnerError> {
     if !is_service_command(command) {
         return Err(RunnerError::invocation(
-            "Expected a service or environment command.",
+            "Expected an account or package command.",
         ));
     }
-    let selection = match command {
-        RunnerCommand::EnvironmentUse(value) => {
-            crate::config::write_service_selection(system, Some(value))?
-        }
-        RunnerCommand::EnvironmentReset => crate::config::write_service_selection(system, None)?,
-        _ => crate::config::resolve_service_selection(system)?,
-    };
-    if matches!(
-        command,
-        RunnerCommand::EnvironmentShow
-            | RunnerCommand::EnvironmentUse(_)
-            | RunnerCommand::EnvironmentReset
-    ) {
-        return Ok(if mode == OutputMode::Human {
-            CommandOutcome::human(
-                format!(
-                    "OpenProse {} environment ({})\n",
-                    selection.environment, selection.source
-                ),
-                "",
-                0,
-            )
-        } else {
-            CommandOutcome::json(
-                json!({"schema":"openprose.service-environment/1","environment":selection.environment,"source":selection.source,"problem":null}),
-                0,
-            )
-        });
-    }
-    let selected = ServiceEnvironment::from_selection(
-        flags
-            .service_environment
-            .as_deref()
-            .unwrap_or(&selection.environment),
-    );
+    let selected = crate::service::Environment::resolve(&system.environment)?;
     if let RunnerCommand::Package(command) = command {
         return Ok(crate::registry::execute(
             command,
-            selected,
+            &selected,
             &system.current_dir,
             mode,
             cancellation,
         ));
     }
-    Ok(execute(command, selected, mode, cancellation))
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn fixture_credentials_and_origins_are_environment_isolated() {
-        for environment in [ServiceEnvironment::Production, ServiceEnvironment::Staging] {
-            let mut session = Session {
-                environment,
-                fixture: Some(
-                    json!({"storeAvailable":true,"credentials":{"production":"production-only","staging":"staging-only"},"exchanges":[{"method":"POST","path":"/auth/device","origin":environment.origin(),"status":200,"body":{}}]}),
-                ),
-                next: 0,
-                deadline: None,
-                cancellation: CancellationToken::default(),
-            };
-            assert_eq!(
-                session.store("get", None).unwrap().unwrap(),
-                format!("{}-only", environment.name())
-            );
-            session.store("delete", None).unwrap();
-            let other = if environment == ServiceEnvironment::Production {
-                "staging"
-            } else {
-                "production"
-            };
-            assert_eq!(
-                session.fixture.as_ref().unwrap()["credentials"][other],
-                format!("{other}-only")
-            );
-            assert!(
-                session
-                    .request("POST", "/auth/device", None, json!({}))
-                    .is_ok()
-            );
-            session.next = 0;
-            session.fixture.as_mut().unwrap()["exchanges"][0]["origin"] =
-                json!("https://untrusted.invalid");
-            assert!(
-                session
-                    .request("POST", "/auth/device", None, json!({}))
-                    .is_err()
-            );
-        }
-    }
-
-    #[test]
-    fn transport_failures_prioritize_cancellation_then_expiry() {
-        let cancel = CancellationToken::default();
-        let mut session = Session {
-            environment: ServiceEnvironment::Staging,
-            fixture: None,
-            next: 0,
-            deadline: None,
-            cancellation: cancel.clone(),
-        };
-        assert_eq!(
-            session.transport_failure().code,
-            ErrorCode::ServiceUnavailable
-        );
-        session.deadline = Some(Instant::now());
-        assert_eq!(
-            session.transport_failure().code,
-            ErrorCode::DeviceAuthExpired
-        );
-        cancel.cancel();
-        assert_eq!(session.transport_failure().code, ErrorCode::Cancelled);
-    }
-
-    use super::*;
-    #[test]
-
-    fn token_alphabet_cannot_inject_native_commands() {
-        assert!(valid_token("rr_test_11111111111111111111111111111111"));
-        for token in [
-            "",
-            "fixture",
-            "rr_live_11111111111111111111111111111111",
-            "rr_test_11111111111111111111111111111111\nquit",
-            "rr_test_1111111111111111111111111111111\"",
-        ] {
-            assert!(!valid_token(token));
-        }
-    }
-    #[test]
-
-    fn fixture_transport_fails_closed_on_missing_or_wrong_requests() {
-        let mut session = Session {
-            environment: ServiceEnvironment::Staging,
-            fixture: Some(json!({
-                "credential":null,"storeAvailable":true,"exchanges":[]
-            })),
-            next: 0,
-            deadline: None,
-            cancellation: CancellationToken::default(),
-        };
-        assert_eq!(
-            session
-                .request("POST", "/auth/device", None, json!({}))
-                .unwrap_err()
-                .code,
-            ErrorCode::ServiceProtocolInvalid
-        );
-        assert_eq!(
-            session
-                .request("GET", "/organizations", None, Value::Null)
-                .unwrap_err()
-                .code,
-            ErrorCode::ServiceProtocolInvalid
-        );
-        session.fixture = Some(json!({
-            "credential":"expected","exchanges":[{
-                "method":"GET","path":"/organizations","status":200,"body":{
-                    "organizations":[]
-                }
-            }]
-        }));
-        assert_eq!(
-            session
-                .request("GET", "/organizations", Some("wrong"), Value::Null)
-                .unwrap_err()
-                .code,
-            ErrorCode::ServiceProtocolInvalid
-        );
-    }
-    #[test]
-
-    fn unknown_organization_roles_and_controls_fail_closed() {
-        for role in ["owner", "root"] {
-            assert!(
-                organizations(json!({
-                    "organizations":[{
-                        "id":"id","slug":"slug","name":"name","role":role
-                    }]
-                }))
-                .is_err()
-            );
-        }
-        assert!(
-            organizations(json!({
-                "organizations":[{
-                    "id":"id","slug":"slug","name":"\u{1b}"
-                }]
-            }))
-            .is_err()
-        );
-    }
-    #[test]
-
-    fn cancellation_precedes_fixture_store_and_transport() {
-        let cancel = CancellationToken::default();
-        cancel.cancel();
-        let mut session = Session {
-            environment: ServiceEnvironment::Staging,
-            fixture: Some(json!({
-                "credential":null,"storeAvailable":true,"exchanges":[]
-            })),
-            next: 0,
-            deadline: None,
-            cancellation: cancel,
-        };
-        assert_eq!(
-            session.store("get", None).unwrap_err().code,
-            ErrorCode::Cancelled
-        );
-        assert_eq!(
-            session
-                .request("POST", "/auth/device", None, json!({}))
-                .unwrap_err()
-                .code,
-            ErrorCode::Cancelled
-        );
-    }
-    #[test]
-
-    fn fixture_store_is_in_memory_and_logout_is_idempotent() {
-        let mut session = Session {
-            environment: ServiceEnvironment::Staging,
-            fixture: Some(json!({
-                "credential":null,"storeAvailable":true,"exchanges":[]
-            })),
-            next: 0,
-            deadline: None,
-            cancellation: CancellationToken::default(),
-        };
-        session.store("set", Some("test-only")).unwrap();
-        assert_eq!(
-            session.store("get", None).unwrap().as_deref(),
-            Some("test-only")
-        );
-        session.store("delete", None).unwrap();
-        session.store("delete", None).unwrap();
-        assert!(session.store("get", None).unwrap().is_none());
-    }
-    #[test]
-
-    fn staging_flag_preserves_language_boundary_and_rejects_other_operations() {
-        let parse = |args: &[&str]| crate::parse_invocation(args.iter().map(|s| s.to_string()));
-        assert!(parse(&["--service-environment", "staging", "cli", "org", "list"]).is_ok());
-        assert!(parse(&["--service-environment", "staging", "cli", "doctor"]).is_err());
-        assert!(
-            parse(&[
-                "--service-environment",
-                "production",
-                "cli",
-                "auth",
-                "status"
-            ])
-            .is_ok()
-        );
-        let parsed = parse(&["run", "--service-environment", "staging"]).unwrap();
-        assert!(parsed.globals.service_environment.is_none());
-    }
+    Ok(execute(command, &selected, mode, cancellation))
 }
 
 impl Session {
@@ -945,19 +779,7 @@ impl Session {
         required: bool,
     ) -> Result<Option<String>, RunnerError> {
         self.check()?;
-        let token = match std::env::var(self.environment.variable()) {
-            Ok(value) => {
-                if value.is_empty() {
-                    None
-                } else {
-                    Some(value)
-                }
-            }
-            Err(std::env::VarError::NotPresent) => None,
-            Err(std::env::VarError::NotUnicode(_)) => {
-                return Err(problem(ErrorCode::ServiceProtocolInvalid));
-            }
-        };
+        let token = environment_value(self.environment.credential_env).filter(|v| !v.is_empty());
         let token = match token {
             Some(token) => Some(token),
             None => match self.store("get", None) {
@@ -993,15 +815,14 @@ impl Session {
             return Err(problem(ErrorCode::ServiceProtocolInvalid));
         }
         let (status, bytes) = if let Some(fixture) = &self.fixture {
-            let expected = std::env::var(self.environment.variable())
-                .ok()
+            let expected = environment_value(self.environment.credential_env)
                 .filter(|v| !v.is_empty())
                 .or_else(|| {
                     if fixture["storeAvailable"] == false {
                         return None;
                     }
                     let value = if fixture.get("credentials").is_some() {
-                        &fixture["credentials"][self.environment.name()]
+                        &fixture["credentials"][self.environment.name]
                     } else {
                         &fixture["credential"]
                     };
@@ -1018,7 +839,7 @@ impl Session {
                 || exchange["path"] != path
                 || exchange
                     .get("origin")
-                    .is_some_and(|v| v != self.environment.origin())
+                    .is_some_and(|v| v != self.environment.origin.as_str())
             {
                 return Err(problem(ErrorCode::ServiceProtocolInvalid));
             }
@@ -1062,13 +883,19 @@ impl Session {
                 bytes,
             )
         } else {
-            let agent = ureq::AgentBuilder::new()
-                .timeout(Duration::from_secs(10))
-                .redirects(0)
-                .build();
+            let url = format!("{}{path}", self.environment.origin);
+            let agent = crate::service::http::agent_builder(
+                &url,
+                &crate::service::http::process_environment,
+            )?
+            .timeout(Duration::from_secs(10))
+            .build();
             let mut request = agent
-                .request(method, &format!("{}{path}", self.environment.origin()))
+                .request(method, &url)
                 .set("Accept", "application/json");
+            for (name, value) in crate::service::http::client_headers() {
+                request = request.set(&name, &value);
+            }
             if let Some(token) = token {
                 request = request.set("Authorization", &format!("Bearer {token}"));
             }
@@ -1110,6 +937,219 @@ fn registry_status(status: u16) -> RunnerError {
     problem(match status {
         401 | 403 => ErrorCode::ServiceAuthRequired,
         409 => ErrorCode::ServiceProtocolInvalid,
-        _ => ErrorCode::ServiceUnavailable,
+        // A registry 404 is a missing organization or version, never
+        // retryable; `registry::execute` names which.
+        404 => {
+            return problem(ErrorCode::ServiceResourceNotFound).with_detail("serviceStatus", 404);
+        }
+        _ => return unavailable(u64::from(status)),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    /// The retired service-selection option, spelled so the public-surface
+    /// scan does not match this negative test.
+    const RETIRED_OPTION: &str = concat!("--service-", "environment");
+
+    #[test]
+    fn fixture_credentials_and_origins_are_checked() {
+        let environment = Environment::production();
+        let mut session = Session {
+            environment: environment.clone(),
+            fixture: Some(
+                json!({"storeAvailable":true,"credentials":{"production":"production-only"},"exchanges":[{"method":"POST","path":"/auth/device","origin":environment.origin,"status":200,"body":{}}]}),
+            ),
+            next: 0,
+            deadline: None,
+            cancellation: CancellationToken::default(),
+        };
+        assert_eq!(
+            session.store("get", None).unwrap().unwrap(),
+            "production-only"
+        );
+        session.store("delete", None).unwrap();
+        assert!(session.store("get", None).unwrap().is_none());
+        assert!(
+            session
+                .request("POST", "/auth/device", None, json!({}))
+                .is_ok()
+        );
+        session.next = 0;
+        session.fixture.as_mut().unwrap()["exchanges"][0]["origin"] =
+            json!("https://untrusted.invalid");
+        assert!(
+            session
+                .request("POST", "/auth/device", None, json!({}))
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn transport_failures_prioritize_cancellation_then_expiry() {
+        let cancel = CancellationToken::default();
+        let mut session = Session {
+            environment: Environment::production(),
+            fixture: None,
+            next: 0,
+            deadline: None,
+            cancellation: cancel.clone(),
+        };
+        assert_eq!(
+            session.transport_failure().code,
+            ErrorCode::ServiceUnavailable
+        );
+        session.deadline = Some(Instant::now());
+        assert_eq!(
+            session.transport_failure().code,
+            ErrorCode::DeviceAuthExpired
+        );
+        cancel.cancel();
+        assert_eq!(session.transport_failure().code, ErrorCode::Cancelled);
+    }
+
+    use super::*;
+    #[test]
+
+    fn token_alphabet_cannot_inject_native_commands() {
+        assert!(valid_token("rr_test_11111111111111111111111111111111"));
+        for token in [
+            "",
+            "fixture",
+            "rr_live_11111111111111111111111111111111",
+            "rr_test_11111111111111111111111111111111\nquit",
+            "rr_test_1111111111111111111111111111111\"",
+        ] {
+            assert!(!valid_token(token));
+        }
+    }
+    #[test]
+
+    fn fixture_transport_fails_closed_on_missing_or_wrong_requests() {
+        let mut session = Session {
+            environment: Environment::production(),
+            fixture: Some(json!({
+                "credential":null,"storeAvailable":true,"exchanges":[]
+            })),
+            next: 0,
+            deadline: None,
+            cancellation: CancellationToken::default(),
+        };
+        assert_eq!(
+            session
+                .request("POST", "/auth/device", None, json!({}))
+                .unwrap_err()
+                .code,
+            ErrorCode::ServiceProtocolInvalid
+        );
+        assert_eq!(
+            session
+                .request("GET", "/organizations", None, Value::Null)
+                .unwrap_err()
+                .code,
+            ErrorCode::ServiceProtocolInvalid
+        );
+        session.fixture = Some(json!({
+            "credential":"expected","exchanges":[{
+                "method":"GET","path":"/organizations","status":200,"body":{
+                    "organizations":[]
+                }
+            }]
+        }));
+        assert_eq!(
+            session
+                .request("GET", "/organizations", Some("wrong"), Value::Null)
+                .unwrap_err()
+                .code,
+            ErrorCode::ServiceProtocolInvalid
+        );
+    }
+    #[test]
+
+    fn unknown_organization_roles_and_controls_fail_closed() {
+        for role in ["owner", "root"] {
+            assert!(
+                organizations(&json!({
+                    "organizations":[{
+                        "id":"id","slug":"slug","name":"name","role":role
+                    }]
+                }))
+                .is_err()
+            );
+        }
+        assert!(
+            organizations(&json!({
+                "organizations":[{
+                    "id":"id","slug":"slug","name":"\u{1b}"
+                }]
+            }))
+            .is_err()
+        );
+    }
+    #[test]
+
+    fn cancellation_precedes_fixture_store_and_transport() {
+        let cancel = CancellationToken::default();
+        cancel.cancel();
+        let mut session = Session {
+            environment: Environment::production(),
+            fixture: Some(json!({
+                "credential":null,"storeAvailable":true,"exchanges":[]
+            })),
+            next: 0,
+            deadline: None,
+            cancellation: cancel,
+        };
+        assert_eq!(
+            session.store("get", None).unwrap_err().code,
+            ErrorCode::Cancelled
+        );
+        assert_eq!(
+            session
+                .request("POST", "/auth/device", None, json!({}))
+                .unwrap_err()
+                .code,
+            ErrorCode::Cancelled
+        );
+    }
+    #[test]
+
+    fn fixture_store_is_in_memory_and_logout_is_idempotent() {
+        let mut session = Session {
+            environment: Environment::production(),
+            fixture: Some(json!({
+                "credential":null,"storeAvailable":true,"exchanges":[]
+            })),
+            next: 0,
+            deadline: None,
+            cancellation: CancellationToken::default(),
+        };
+        session.store("set", Some("test-only")).unwrap();
+        assert_eq!(
+            session.store("get", None).unwrap().as_deref(),
+            Some("test-only")
+        );
+        session.store("delete", None).unwrap();
+        session.store("delete", None).unwrap();
+        assert!(session.store("get", None).unwrap().is_none());
+    }
+    #[test]
+    fn service_environment_selection_is_gone() {
+        let parse = |args: &[&str]| crate::parse_invocation(args.iter().map(|s| (*s).to_string()));
+        // No global selects a service: the old option is not a runner option.
+        let parsed = parse(&[RETIRED_OPTION, "production", "cli", "auth", "status"]);
+        assert!(!matches!(
+            parsed,
+            Ok(crate::ParsedInvocation {
+                action: crate::invocation::Action::Runner {
+                    command: RunnerCommand::AuthStatus,
+                    ..
+                },
+                ..
+            })
+        ));
+        assert!(parse(&["cli", "org", "list"]).is_ok());
+        // Language arguments stay opaque.
+        assert!(parse(&["run", RETIRED_OPTION, "production"]).is_ok());
+    }
 }

@@ -1,0 +1,65 @@
+{
+  "id": "wallet-events-human",
+  "feature": "wallet",
+  "operation": "wallet.events",
+  "description": "Human events print one line per event, the note, and a copyable next-page hint.",
+  "argv": [
+    "cli",
+    "wallet",
+    "events"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/wallet/events",
+        "query": {
+          "limit": "20"
+        },
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          }
+        },
+        "status": 200,
+        "body": {
+          "customer_id": "cus_ExampleOwner01",
+          "events": [
+            {
+              "id": "charge:40",
+              "type": "run_charge",
+              "occurred_at": "2026-09-23T20:31:43.779Z",
+              "description": "Contract run\nmodel-luna",
+              "amount_cents": -2,
+              "balance_after_cents": 3337,
+              "ref": "run_01K5ZZZZZZZZZZZZZZZZZZZZZZ"
+            },
+            {
+              "id": "charge:39",
+              "type": "credit",
+              "occurred_at": "2026-09-23T20:31:42.174Z",
+              "description": "Credit code",
+              "amount_cents": 500,
+              "balance_after_cents": 3339,
+              "ref": null
+            }
+          ],
+          "next_before": "charge:39",
+          "note": "Informational view. Stripe receipts and your card statement are the authoritative record of payments."
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "2026-09-23T20:31:43.779Z  charge:40  -$0.02  balance $33.37  run charge: model-luna\n2026-09-23T20:31:42.174Z  charge:39  $5.00  balance $33.39  Credit code\nNote: Informational view. Stripe receipts and your card statement are the authoritative record of payments.\nNext page: prose cli wallet events --before charge:39\n"
+  },
+  "stderr": {
+    "text": ""
+  }
+}

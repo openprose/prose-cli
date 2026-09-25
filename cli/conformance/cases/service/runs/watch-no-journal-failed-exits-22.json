@@ -1,0 +1,87 @@
+{
+  "id": "watch-no-journal-failed-exits-22",
+  "feature": "runs",
+  "operation": "run.watch",
+  "description": "An ended run whose record status is error is HOSTED_RUN_FAILED (22) with the record's error, files and a download command.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "watch",
+    "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/runs/run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+        "requestHeaders": {
+          "Authorization": {
+            "pattern": "^Bearer rr_test_[0-9a-f]{32}$"
+          }
+        },
+        "status": 200,
+        "body": {
+          "run_id": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+          "created_at": "2026-09-24T01:00:00.000Z",
+          "status": "error",
+          "model": "model-luna",
+          "environment": {
+            "id": "builtin",
+            "version": "1.0.0",
+            "runtime_contract": 1
+          },
+          "price_cents": 2,
+          "environment_price_cents": 1,
+          "billing_status": "settled",
+          "customer_id": "cus_ExampleOwner01",
+          "usage": {
+            "input_tokens": 89195,
+            "output_tokens": 262
+          },
+          "files": [
+            "outputs/result.json"
+          ],
+          "has_patch": false,
+          "session_files": [],
+          "file_urls": {
+            "outputs/result.json": "https://example-host/runs/run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c/files/outputs/result.json?tok=SIGNEDTOKEN&exp=1790298569"
+          },
+          "error": "Model call failed"
+        }
+      }
+    ]
+  },
+  "exitCode": 22,
+  "stdout": {
+    "json": {
+      "interaction": "run.observe",
+      "operation": "run.watch",
+      "problem": {
+        "action": "Inspect the run with the `cli run show` runner operation, correct the program or inputs, then submit again.",
+        "boundary": "hosted-service",
+        "code": "HOSTED_RUN_FAILED",
+        "details": {
+          "files": [
+            "outputs/result.json"
+          ],
+          "reason": "the run finished with status error: A model call failed. (from its record; this machine has no live session to replay); its 1 file: `prose --output json cli run download run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c`",
+          "runId": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+          "source": "record"
+        },
+        "exitCode": 22,
+        "message": "The hosted run finished without completing successfully.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

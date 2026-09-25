@@ -1,0 +1,105 @@
+{
+  "id": "submit-preview-premium-model",
+  "feature": "runs",
+  "operation": "run.submit",
+  "description": "A --model the /models catalog lists as premium is refused before the plan, as the service would refuse it: SERVICE_PREMIUM_MODEL_LOCKED with the catalog summary and the top-up preview.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "submit",
+    "p.prose.md",
+    "--model",
+    "model-astra",
+    "--preview"
+  ],
+  "files": [
+    {
+      "path": "p.prose.md",
+      "content": "---\nname: hello\nkind: function\n---\n\nReply with the word ok.\n"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/models",
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef",
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          },
+          "Accept": "application/json"
+        },
+        "status": 200,
+        "body": {
+          "models": [
+            "model-sol",
+            "model-luna"
+          ],
+          "default_model": "model-sol",
+          "catalog": [
+            {
+              "id": "model-astra",
+              "status": "paid_top_up",
+              "tier": "premium",
+              "summary": "Most capable model for hard, long tasks. Higher rate per run. Unlocks with any wallet top-up."
+            },
+            {
+              "id": "model-sol",
+              "status": "available"
+            },
+            {
+              "id": "model-luna",
+              "status": "available"
+            },
+            {
+              "id": "model-sol-legacy",
+              "status": "hidden",
+              "successor": "model-sol"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "schema": "openprose.service-operation/1",
+      "operation": "run.submit",
+      "interaction": "run.submit",
+      "result": null,
+      "problem": {
+        "schema": "openprose.runner-error/1",
+        "code": "SERVICE_PREMIUM_MODEL_LOCKED",
+        "boundary": "hosted-service",
+        "message": "This model is a premium model that unlocks with any wallet top-up.",
+        "action": "Top up the wallet with any amount to unlock premium models; preview a top-up with `prose --output json cli wallet topup --amount-cents 500 --preview`.",
+        "exitCode": 10,
+        "retryable": false,
+        "details": {
+          "reason": "model-astra is a premium model: Most capable model for hard, long tasks. Higher rate per run. Unlocks with any wallet top-up.",
+          "model": "model-astra",
+          "tier": "premium",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "wallet",
+            "topup",
+            "--amount-cents",
+            "500",
+            "--preview"
+          ]
+        }
+      }
+    }
+  }
+}

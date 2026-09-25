@@ -1,0 +1,52 @@
+{
+  "id": "cancel-preview",
+  "feature": "runs",
+  "operation": "run.cancel",
+  "description": "run cancel --preview prints the plan and sends nothing.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "cancel",
+    "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+    "--preview"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "journal": [
+      {
+        "session": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f",
+        "runId": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+        "createdAt": "2026-09-24T00:59:00.000Z",
+        "lastSequence": 3,
+        "sourceSha256": null
+      }
+    ],
+    "exchanges": []
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "run.cancel",
+      "operation": "run.cancel",
+      "problem": null,
+      "result": {
+        "plannedRequest": {
+          "bodyBytes": null,
+          "bodySha256": null,
+          "description": "Cancel a live run, then report the wallet's available and reserved balance.",
+          "effect": "write",
+          "method": "POST",
+          "operation": "run.cancel"
+        },
+        "preview": true
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

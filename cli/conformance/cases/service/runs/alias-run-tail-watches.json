@@ -1,0 +1,96 @@
+{
+  "id": "alias-run-tail-watches",
+  "feature": "runs",
+  "operation": "run.watch",
+  "description": "`cli run tail RUN_ID` is an alias of `cli run watch RUN_ID`.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "tail",
+    "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/runs/run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+        "requestHeaders": {
+          "Authorization": {
+            "pattern": "^Bearer rr_test_[0-9a-f]{32}$"
+          }
+        },
+        "status": 200,
+        "body": {
+          "run_id": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+          "created_at": "2026-09-24T01:00:00.000Z",
+          "status": "completed",
+          "model": "model-luna",
+          "environment": {
+            "id": "builtin",
+            "version": "1.0.0",
+            "runtime_contract": 1
+          },
+          "price_cents": 2,
+          "environment_price_cents": 1,
+          "billing_status": "settled",
+          "customer_id": "cus_ExampleOwner01",
+          "usage": {
+            "input_tokens": 89195,
+            "output_tokens": 262
+          },
+          "files": [
+            "outputs/result.json",
+            "notes.txt"
+          ],
+          "has_patch": false,
+          "session_files": [],
+          "file_urls": {
+            "outputs/result.json": "https://example-host/runs/run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c/files/outputs/result.json?tok=SIGNEDTOKEN&exp=1790298569",
+            "notes.txt": "https://example-host/runs/run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c/files/notes.txt?tok=SIGNEDTOKEN&exp=1790298569"
+          }
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "run.observe",
+      "operation": "run.watch",
+      "problem": null,
+      "result": {
+        "afterSequence": 0,
+        "detached": false,
+        "run": {
+          "billing_status": "settled",
+          "cancelled": false,
+          "environment": "builtin",
+          "environment_price_cents": 1,
+          "files": [
+            "outputs/result.json",
+            "notes.txt"
+          ],
+          "price_cents": 2,
+          "run_id": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+          "status": "completed",
+          "usage": {
+            "input_tokens": 89195,
+            "output_tokens": 262
+          }
+        },
+        "runId": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+        "run_id": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+        "session": null,
+        "source": "record"
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

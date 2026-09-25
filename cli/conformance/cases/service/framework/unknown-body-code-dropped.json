@@ -1,0 +1,53 @@
+{
+  "id": "unknown-body-code-dropped",
+  "feature": "framework",
+  "operation": "repo.list",
+  "description": "A body code outside the allowlist is not echoed; classification falls through to the status.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "repo",
+    "list"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/repos",
+        "status": 409,
+        "body": {
+          "error": "conflict",
+          "code": "shiny_new_code"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "repos.list",
+      "operation": "repo.list",
+      "problem": {
+        "action": "Read the current state of the resource, reconcile the change, then retry.",
+        "boundary": "hosted-service",
+        "code": "SERVICE_WRITE_CONFLICT",
+        "details": {
+          "serviceMessage": "conflict",
+          "serviceStatus": 409
+        },
+        "exitCode": 10,
+        "message": "The OpenProse service reported a conflicting write.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

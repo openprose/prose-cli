@@ -6,7 +6,7 @@ Status: unpublished local candidate, September 18, 2026. The local implementatio
 
 The [SDK](../experiments/weave-seed/SDK.md) provides independent Bun and Rust loop implementations. Native coordinators provide `check`, `status`, bounded `step` and `serve`, and explicit `settle`. Both observe selected files, preserve cumulative attempts and pending effects, and share checkpoint and binding formats. The Rust coordinator no longer delegates observation to Bun; the selected Jev and native action adapters still require Bun.
 
-The reserved [CLI bridge](../cli/protocol/decisions/imp026-weave-host.md) is implemented in both products:
+The reserved [CLI bridge](../cli/protocol/decisions/weave-host.md) is implemented in both products:
 
 ```text
 prose cli weave --host-binding ABS check CONFIG

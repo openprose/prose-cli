@@ -1,0 +1,266 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.openprose.org/cli/v1/service/organizations.schema.json",
+  "title": "OpenProse service organization results",
+  "description": "Closed per-operation result projections. Referenced from shared/service/operations.v1.json by $defs name; no property name may match /cost/i.",
+  "$defs": {
+    "organization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "slug",
+        "name"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "common.schema.json#/$defs/uuid"
+        },
+        "slug": {
+          "$ref": "common.schema.json#/$defs/slug"
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 256,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+        },
+        "created_at": {
+          "$ref": "common.schema.json#/$defs/epochMs"
+        },
+        "created_at_iso": {
+          "description": "`created_at` as an RFC 3339 UTC time (null when `created_at` is null).",
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "common.schema.json#/$defs/timestamp"
+            }
+          ]
+        },
+        "role": {
+          "enum": [
+            "admin",
+            "developer",
+            "reader"
+          ]
+        }
+      }
+    },
+    "organizationResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "organization"
+      ],
+      "properties": {
+        "organization": {
+          "$ref": "#/$defs/organization"
+        }
+      }
+    },
+    "member": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "member",
+        "role",
+        "created_at"
+      ],
+      "properties": {
+        "member": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+        },
+        "handle": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+        },
+        "role": {
+          "enum": [
+            "admin",
+            "developer",
+            "reader"
+          ]
+        },
+        "created_at": {
+          "$ref": "common.schema.json#/$defs/epochMs"
+        },
+        "created_at_iso": {
+          "description": "`created_at` as an RFC 3339 UTC time (null when `created_at` is null).",
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "common.schema.json#/$defs/timestamp"
+            }
+          ]
+        }
+      },
+      "description": "A member's public fields. `member` is `member N`, the number `cli org member list` gives it (members sorted by when they joined), or, in `org member role`, the account id the caller named; the account id is otherwise never shown. `handle` appears when the service provides one."
+    },
+    "memberList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "members"
+      ],
+      "properties": {
+        "members": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/member"
+          },
+          "maxItems": 10000
+        }
+      }
+    },
+    "memberResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "member"
+      ],
+      "properties": {
+        "member": {
+          "$ref": "#/$defs/member"
+        }
+      }
+    },
+    "ok": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ok"
+      ],
+      "properties": {
+        "ok": {
+          "const": true
+        }
+      }
+    },
+    "invitation": {
+      "description": "The invitation token appears only in this result.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "invitation",
+        "token"
+      ],
+      "properties": {
+        "invitation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "account_id",
+            "role",
+            "created_at",
+            "expires_at",
+            "consumed_at",
+            "revoked_at"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "maxLength": 128,
+              "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+            },
+            "account_id": {
+              "type": "string",
+              "maxLength": 128,
+              "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+            },
+            "role": {
+              "enum": [
+                "admin",
+                "developer",
+                "reader"
+              ]
+            },
+            "created_at": {
+              "$ref": "common.schema.json#/$defs/epochMs"
+            },
+            "created_at_iso": {
+              "description": "`created_at` as an RFC 3339 UTC time (null when `created_at` is null).",
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "$ref": "common.schema.json#/$defs/timestamp"
+                }
+              ]
+            },
+            "expires_at": {
+              "$ref": "common.schema.json#/$defs/epochMs"
+            },
+            "expires_at_iso": {
+              "description": "`expires_at` as an RFC 3339 UTC time (null when `expires_at` is null).",
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "$ref": "common.schema.json#/$defs/timestamp"
+                }
+              ]
+            },
+            "consumed_at": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "$ref": "common.schema.json#/$defs/epochMs"
+                }
+              ]
+            },
+            "consumed_at_iso": {
+              "description": "`consumed_at` as an RFC 3339 UTC time (null when `consumed_at` is null).",
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "$ref": "common.schema.json#/$defs/timestamp"
+                }
+              ]
+            },
+            "revoked_at": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "$ref": "common.schema.json#/$defs/epochMs"
+                }
+              ]
+            },
+            "revoked_at_iso": {
+              "description": "`revoked_at` as an RFC 3339 UTC time (null when `revoked_at` is null).",
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "$ref": "common.schema.json#/$defs/timestamp"
+                }
+              ]
+            }
+          }
+        },
+        "token": {
+          "type": "string",
+          "maxLength": 512,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+        }
+      }
+    }
+  }
+}

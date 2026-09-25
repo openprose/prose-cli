@@ -1,0 +1,214 @@
+{
+  "id": "job-create-schedule",
+  "feature": "jobs",
+  "operation": "job.create",
+  "description": "With --yes the spec bytes are sent unchanged (no quote) and the created schedule is projected.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "job",
+    "create",
+    "--spec-file",
+    "spec.json",
+    "--yes"
+  ],
+  "files": [
+    {
+      "path": "spec.json",
+      "content": "{\"type\": \"schedule\", \"program_ref\": \"exowner1/jobs-example@0123456789abcdef\", \"interval_seconds\": 86400}\n"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/triggers",
+        "status": 201,
+        "expectedSha256": "08638838b9eca285b3ce1c2e02ed8169948c59a68bab1d981cb829b9b902479e",
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "trigger": {
+            "id": "7b2e4d19-6a3c-4e85-b1f0-9c4d8e2a6b73",
+            "type": "schedule",
+            "name": null,
+            "internalRef": "opaque-1",
+            "url": null,
+            "intervalSeconds": 86400,
+            "mode": null,
+            "repositoryId": null,
+            "repositoryFullName": null,
+            "repositoryBranch": null,
+            "contextRepositoryId": 1000001,
+            "contextRepositoryFullName": "exowner1/example-repo",
+            "contextRepositoryBranch": "main",
+            "createdAt": 1788438667830,
+            "adopted": false
+          },
+          "status": {
+            "configured": true,
+            "active": true,
+            "intervalSeconds": 86400,
+            "configurationRevision": 3,
+            "nextFireAt": 1790253069281,
+            "lastFiredAt": null,
+            "lastRunId": null,
+            "lastError": null,
+            "counts": {
+              "pending": 0,
+              "completed": 2,
+              "cost_units": 9
+            },
+            "configurationToken": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "contracts": [
+              {
+                "programRef": "exowner1/jobs-example@0123456789abcdef",
+                "programSlug": "jobs-example",
+                "enabled": true,
+                "model": "model-luna",
+                "contextRepositoryFullName": "exowner1/example-repo",
+                "contextRepositoryBranch": "main",
+                "runConfiguration": {
+                  "model": "model-luna",
+                  "environment": "builtin",
+                  "inputs": {
+                    "topic": "weekly\nsummary",
+                    "Cost_Center": "cc-1"
+                  },
+                  "inputEntries": [
+                    {
+                      "name": "Cost_Center",
+                      "value": "cc-1"
+                    }
+                  ],
+                  "files": [
+                    {
+                      "name": "brief.md",
+                      "content": "# Brief\nhello\n",
+                      "size": 14,
+                      "mime": "text/markdown"
+                    }
+                  ],
+                  "contextRepositories": [
+                    {
+                      "url": "https://github.com/exowner1/example-repo",
+                      "branch": "main"
+                    }
+                  ],
+                  "output": {
+                    "type": "commit",
+                    "repository": "https://github.com/exowner1/example-repo",
+                    "extra": true
+                  }
+                }
+              }
+            ],
+            "programRef": "exowner1/jobs-example@0123456789abcdef",
+            "programSlug": "jobs-example",
+            "model": "model-luna",
+            "contextRepository": {
+              "id": 1000001,
+              "owner": "exowner1",
+              "name": "example-repo"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "job.deploy",
+      "operation": "job.create",
+      "problem": null,
+      "result": {
+        "job": {
+          "context_repository_branch": "main",
+          "context_repository_full_name": "exowner1/example-repo",
+          "created_at": 1788438667830,
+          "created_at_iso": "2026-09-03T12:31:07.830Z",
+          "id": "7b2e4d19-6a3c-4e85-b1f0-9c4d8e2a6b73",
+          "interval_seconds": 86400,
+          "mode": null,
+          "name": null,
+          "repository_branch": null,
+          "repository_full_name": null,
+          "repository_id": null,
+          "type": "schedule",
+          "url": null
+        },
+        "status": {
+          "active": true,
+          "configuration_revision": 3,
+          "configured": true,
+          "contracts": [
+            {
+              "context_repository_branch": "main",
+              "context_repository_full_name": "exowner1/example-repo",
+              "enabled": true,
+              "model": "model-luna",
+              "program_ref": "exowner1/jobs-example@0123456789abcdef",
+              "program_slug": "jobs-example",
+              "run_configuration": {
+                "context_repositories": [
+                  {
+                    "branch": "main",
+                    "url": "https://github.com/exowner1/example-repo"
+                  }
+                ],
+                "environment": "builtin",
+                "files": [
+                  {
+                    "content": "# Brief\nhello\n",
+                    "name": "brief.md",
+                    "size": 14
+                  }
+                ],
+                "input_entries": [
+                  {
+                    "name": "Cost_Center",
+                    "value": "cc-1"
+                  }
+                ],
+                "inputs": {
+                  "topic": "weekly\nsummary"
+                },
+                "model": "model-luna",
+                "output": {
+                  "repository": "https://github.com/exowner1/example-repo",
+                  "type": "commit"
+                }
+              }
+            }
+          ],
+          "counts": {
+            "awaiting_billing": 0,
+            "cancelled": 0,
+            "completed": 2,
+            "failed": 0,
+            "queued": 0,
+            "running": 0
+          },
+          "interval_seconds": 86400,
+          "last_error": null,
+          "last_fired_at": null,
+          "last_fired_at_iso": null,
+          "last_run_id": null,
+          "next_fire_at": 1790253069281,
+          "next_fire_at_iso": "2026-09-24T12:31:09.281Z",
+          "revision_token": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

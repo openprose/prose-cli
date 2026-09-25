@@ -1,0 +1,67 @@
+{
+  "id": "job-update-schedule-refused-reason",
+  "feature": "jobs",
+  "operation": "job.update",
+  "description": "`job update` of a schedule: the 405 keeps the service message and names `cli job configure`.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "job",
+    "update",
+    "7b2e4d19-6a3c-4e85-b1f0-9c4d8e2a6b73",
+    "--spec-file",
+    "spec.json",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "PUT",
+        "path": "/triggers/7b2e4d19-6a3c-4e85-b1f0-9c4d8e2a6b73",
+        "status": 405,
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "expectedBodyText": "{\"name\":\"x\"}",
+        "body": {
+          "error": "Schedule settings must be changed with unified execution settings."
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "job.update",
+      "operation": "job.update",
+      "problem": {
+        "action": "Correct the request as details.reason and details.serviceMessage describe, then retry.",
+        "boundary": "hosted-service",
+        "code": "SERVICE_REQUEST_REJECTED",
+        "details": {
+          "reason": "`cli job update` changes webhook jobs only; change a schedule job with `cli job configure 7b2e4d19-6a3c-4e85-b1f0-9c4d8e2a6b73 --interval-seconds N --yes` or `cli job configure 7b2e4d19-6a3c-4e85-b1f0-9c4d8e2a6b73 --config-file FILE --yes`, and see details.serviceMessage for other job types",
+          "serviceMessage": "Schedule settings must be changed with unified execution settings.",
+          "serviceStatus": 405
+        },
+        "exitCode": 10,
+        "message": "The OpenProse service rejected the request.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "files": [
+    {
+      "path": "spec.json",
+      "content": "{\"name\":\"x\"}"
+    }
+  ]
+}

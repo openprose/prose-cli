@@ -1,0 +1,58 @@
+{
+  "id": "option-removal-watch-on-submit",
+  "feature": "framework",
+  "operation": "run.submit",
+  "description": "`--watch` on `cli run submit` is dropped: submit already follows the run until it ends; the suggestion is the argv without it.",
+  "argv": [
+    "cli",
+    "run",
+    "submit",
+    "hello.prose.md",
+    "--watch",
+    "--preview",
+    "--json"
+  ],
+  "files": [
+    {
+      "path": "hello.prose.md",
+      "content": "# Hello\n\nSay hello.\n"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "run.submit",
+      "operation": "run.submit",
+      "problem": {
+        "action": "Drop --watch: `prose cli run submit hello.prose.md --preview --json`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "unknown option --watch for `cli run submit`; the command already follows the run until it ends; --wait DURATION bounds how long, and `cli run submit --detach` returns at once",
+          "suggestedArgv": [
+            "cli",
+            "run",
+            "submit",
+            "hello.prose.md",
+            "--preview",
+            "--json"
+          ]
+        },
+        "exitCode": 2,
+        "message": "Unknown option.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

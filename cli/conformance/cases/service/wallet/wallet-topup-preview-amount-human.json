@@ -1,0 +1,29 @@
+{
+  "id": "wallet-topup-preview-amount-human",
+  "feature": "wallet",
+  "operation": "wallet.topup",
+  "description": "The human top-up preview names the amount (cents and dollars) from plannedRequest.summary.",
+  "argv": [
+    "cli",
+    "wallet",
+    "topup",
+    "--amount-cents",
+    "500",
+    "--preview"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "Preview: Start a Checkout session to add credit.\nSummary: amount $5.00\nEffect: starts a card payment\nNothing was changed.\n"
+  },
+  "stderr": {
+    "text": ""
+  }
+}

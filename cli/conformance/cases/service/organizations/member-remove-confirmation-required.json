@@ -1,0 +1,75 @@
+{
+  "id": "member-remove-confirmation-required",
+  "feature": "organizations",
+  "operation": "org.member.remove",
+  "description": "`org member remove` without --yes sends nothing and exits 2 with the exact planned request (every organization mutation is confirm-class).",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "org",
+    "member",
+    "remove",
+    "acme-research",
+    "cus_ExampleInvitee1"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "organizations.manage",
+      "operation": "org.member.remove",
+      "problem": {
+        "action": "Rerun the same command with --yes to confirm, or with --preview to see what it would do without sending anything.",
+        "boundary": "invocation",
+        "code": "CONFIRMATION_REQUIRED",
+        "details": {
+          "confirmArgv": [
+            "--output",
+            "json",
+            "cli",
+            "org",
+            "member",
+            "remove",
+            "acme-research",
+            "cus_ExampleInvitee1",
+            "--yes"
+          ],
+          "plannedRequest": {
+            "bodyBytes": null,
+            "bodySha256": null,
+            "description": "Remove a member.",
+            "effect": "destructive",
+            "method": "DELETE",
+            "operation": "org.member.remove"
+          },
+          "previewArgv": [
+            "--output",
+            "json",
+            "cli",
+            "org",
+            "member",
+            "remove",
+            "acme-research",
+            "cus_ExampleInvitee1",
+            "--preview"
+          ],
+          "reason": "--yes is required because it removes the member's access to the organization now"
+        },
+        "exitCode": 2,
+        "message": "This service operation requires explicit confirmation.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

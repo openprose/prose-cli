@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.openprose.org/cli/v1/service/responses/program-delete.schema.json",
+  "title": "service response acceptance: DELETE /programs/{slug}",
+  "x-probed": true,
+  "type": "object",
+  "required": [
+    "deleted"
+  ],
+  "properties": {
+    "deleted": {
+      "const": true
+    }
+  }
+}

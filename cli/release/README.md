@@ -62,6 +62,7 @@ VERSION=0.15.0-alpha.1
 SOURCE_REVISION=$(git rev-parse HEAD)
 REPOSITORY_ROOT=$(git rev-parse --show-toplevel)
 SOURCE_ROOT=$(pwd -P)
+CARGO_HOME_ROOT=$(cd "${CARGO_HOME:-$HOME/.cargo}" && pwd -P)
 PLATFORM_ID=
 PLATFORM_ARCH=
 case "$(uname -s):$(uname -m)" in
@@ -93,7 +94,7 @@ case "$PLATFORM_ID" in
 esac
 
 CARGO_INCREMENTAL=0 \
-RUSTFLAGS="--remap-path-prefix=$SOURCE_ROOT=/openprose-source" \
+RUSTFLAGS="--remap-path-prefix=$SOURCE_ROOT=/openprose-source --remap-path-prefix=$CARGO_HOME_ROOT=/cargo-home" \
 OPENPROSE_BUILD_VERSION="$VERSION" \
 OPENPROSE_BUILD_COMMIT="$SOURCE_REVISION" \
 OPENPROSE_REQUIRE_RELEASE_IMAGE=1 \

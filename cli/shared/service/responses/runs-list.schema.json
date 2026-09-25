@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.openprose.org/cli/v1/service/responses/runs-list.schema.json",
+  "title": "service response acceptance: GET /runs",
+  "x-probed": true,
+  "type": "object",
+  "required": [
+    "runs",
+    "next_before"
+  ],
+  "properties": {
+    "runs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "run_id",
+          "created_at",
+          "status",
+          "model"
+        ],
+        "properties": {
+          "run_id": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "environment": {
+            "type": "object",
+            "required": [
+              "id",
+              "version",
+              "runtime_contract"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "version": {
+                "type": "string"
+              },
+              "runtime_contract": {
+                "type": "integer"
+              }
+            }
+          },
+          "price_cents": {
+            "type": "integer"
+          },
+          "environment_price_cents": {
+            "type": "integer"
+          },
+          "billing_status": {
+            "type": "string"
+          },
+          "program_ref": {
+            "type": "string"
+          },
+          "repositories": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        }
+      }
+    },
+    "next_before": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  }
+}

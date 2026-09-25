@@ -1,0 +1,50 @@
+{
+  "id": "alias-logs-json",
+  "feature": "framework",
+  "operation": "run.list",
+  "description": "`cli logs` suggests `cli run list --limit 1`; `cli logs RUN_ID` would name `cli run watch RUN_ID`. (JSON envelope)",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "logs"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": null,
+      "operation": "cli",
+      "problem": {
+        "action": "Use `cli run list`: `prose --output json cli run list --limit 1`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "unknown command `cli logs`; did you mean `cli run list --limit 1`? `cli run watch RUN_ID` replays a run's events; `cli run list --limit 1` finds the latest run",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "list",
+            "--limit",
+            "1"
+          ]
+        },
+        "exitCode": 2,
+        "message": "Unknown command.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

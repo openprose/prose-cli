@@ -1,0 +1,68 @@
+{
+  "id": "package-withdraw-version-not-found",
+  "feature": "account",
+  "operation": "package.withdraw",
+  "description": "Withdrawing a version the registry does not have is SERVICE_RESOURCE_NOT_FOUND naming ORG/NAME@VERSION, not a retryable SERVICE_UNAVAILABLE.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "package",
+    "withdraw",
+    "acme-research/tool@9.9.9"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/registry/v1/organizations/acme-research/packages/tool/versions/9.9.9/withdraw",
+        "status": 404,
+        "body": {
+          "error": "Not found"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "schema": "openprose.service-operation/1",
+      "operation": "package.withdraw",
+      "interaction": "registry.gateway",
+      "result": null,
+      "problem": {
+        "action": "Run `prose --output json cli package list acme-research` to find the right package, then retry with it.",
+        "boundary": "hosted-service",
+        "code": "SERVICE_RESOURCE_NOT_FOUND",
+        "details": {
+          "reason": "package acme-research/tool@9.9.9 was not found; the version does not exist, or this key cannot read it",
+          "resource": {
+            "id": "acme-research/tool@9.9.9",
+            "kind": "package"
+          },
+          "serviceStatus": 404,
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "package",
+            "list",
+            "acme-research"
+          ]
+        },
+        "exitCode": 10,
+        "message": "The requested OpenProse service resource was not found.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      }
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

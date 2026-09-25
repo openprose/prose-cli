@@ -13,6 +13,8 @@ path = "src/main.rs"
 [features]
 default = []
 test-seams = ["prose-runner-core/test-seams"]
+# Developer builds only (see README): honour the endpoint override variable.
+dev-endpoint = ["prose-runner-core/dev-endpoint"]
 
 [dependencies]
 prose-runner-core = { path = "../prose-runner-core" }

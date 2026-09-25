@@ -1,0 +1,49 @@
+{
+  "id": "suggestion-verb-synonym-wallet-show",
+  "feature": "framework",
+  "operation": "wallet.balance",
+  "description": "The verb synonym show -> balance: `cli wallet show` suggests `cli wallet balance`.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "wallet",
+    "show"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": null,
+      "operation": "cli",
+      "problem": {
+        "action": "Use `cli wallet balance`: `prose --output json cli wallet balance`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "unknown command `cli wallet show`; did you mean `cli wallet balance`? Commands: balance, events, redeem, topup, usage",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "wallet",
+            "balance"
+          ]
+        },
+        "exitCode": 2,
+        "message": "Unknown command.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

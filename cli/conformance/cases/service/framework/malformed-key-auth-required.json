@@ -1,0 +1,51 @@
+{
+  "id": "malformed-key-auth-required",
+  "feature": "framework",
+  "operation": "repo.list",
+  "description": "A key that fails the strict predicate is SERVICE_AUTH_REQUIRED and is never echoed.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "repo",
+    "list"
+  ],
+  "environment": {
+    "OPENPROSE_API_KEY": "sk-not-an-openprose-key"
+  },
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "repos.list",
+      "operation": "repo.list",
+      "problem": {
+        "action": "Replace or unset OPENPROSE_API_KEY, then retry.",
+        "boundary": "authentication",
+        "code": "SERVICE_AUTH_REQUIRED",
+        "details": {
+          "credentialProblem": "malformed",
+          "credentialSource": "environment",
+          "credentialVariable": "OPENPROSE_API_KEY",
+          "reason": "the OPENPROSE_API_KEY value is not a valid OpenProse API key (an OpenProse API key is rr_test, an underscore and 32 lowercase hex digits); replace or unset OPENPROSE_API_KEY: an environment key takes precedence over `prose --output json cli auth login`"
+        },
+        "exitCode": 10,
+        "message": "OpenProse service authentication is required.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "sk-not-an-openprose-key"
+  ]
+}

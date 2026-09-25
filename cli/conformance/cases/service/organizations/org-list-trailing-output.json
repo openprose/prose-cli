@@ -1,0 +1,75 @@
+{
+  "id": "org-list-trailing-output",
+  "feature": "organizations",
+  "operation": "org.list",
+  "description": "`--output` after `cli org list` is honored.",
+  "argv": [
+    "cli",
+    "org",
+    "list",
+    "--output",
+    "json"
+  ],
+  "environment": {
+    "OPENPROSE_API_KEY": "rr_test_0123456789abcdef0123456789abcdef"
+  },
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/organizations",
+        "status": 200,
+        "body": {
+          "organizations": [
+            {
+              "id": "org_ExampleOwner01",
+              "slug": "exowner1",
+              "name": "Example Owner",
+              "role": "admin"
+            },
+            {
+              "id": "org_ExampleAcme001",
+              "slug": "acme-research",
+              "name": "Acme Research"
+            }
+          ]
+        },
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "schema": "openprose.service-operation/1",
+      "operation": "org.list",
+      "interaction": "organizations.manage",
+      "result": {
+        "organizations": [
+          {
+            "id": "org_ExampleOwner01",
+            "name": "Example Owner",
+            "role": "admin",
+            "slug": "exowner1"
+          },
+          {
+            "id": "org_ExampleAcme001",
+            "name": "Acme Research",
+            "slug": "acme-research"
+          }
+        ]
+      },
+      "problem": null
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

@@ -221,6 +221,51 @@ Do not skip a failed gate by loosening a version allowlist, changing evidence
 in place, dropping failed trials, retrying without recording the attempt, or
 using one product's output as the expected result for the other.
 
+## Keep the client public and user-only
+
+This repository is the public OpenProse user client. It is not developer
+tooling for the hosted service. Public builds talk only to the production
+OpenProse service, and nothing in this tree may name another service
+deployment, a developer credential variable, internal feature flags,
+deployment or runtime identities, or real run ids. The `public-surface` gate
+enforces this:
+
+```sh
+python3 cli/ci/check_public_surface.py                   # tracked files only
+python3 cli/ci/check_public_surface.py --build-release   # plus both ports' release --help and the Rust binary strings
+python3 cli/ci/run_local.py --only public-surface
+```
+
+Use neutral hosts such as `https://example.invalid` in tests and docs, and
+short synthetic run ids such as `run_aaaaaaaaaaaaaaaa`.
+
+The denylist (`cli/ci/public_surface_denylist.py`) writes out only generic
+patterns. Named internal terms, feature flags and captured identifiers are
+matched by salted digest, so the public file does not publish what it guards;
+the plaintext list stays with the service maintainers. When the gate reports
+an `internal service term`, reword the line rather than the denylist.
+
+### Developer endpoint build
+
+OpenProse developers who need to point the CLI at another service origin use a
+separate developer build. The override is compiled out of every default and
+release build, which ignore it entirely.
+
+```sh
+# Rust
+cargo build --release --locked -p prose-cli --features dev-endpoint
+# Bun (writes cli/bun/dist/prose-dev)
+cd cli/bun && bun run build:dev
+```
+
+In a developer build only, `OPENPROSE_API_URL` (an `https` origin with no path,
+query or credentials) replaces the production origin. The key is still
+`OPENPROSE_API_KEY`, and `prose cli auth login` stores it under a
+credential-store entry scoped to that origin, so it never overwrites your
+production key. Human output is labeled `OpenProse (custom endpoint <origin>)`
+and JSON envelopes report `"environment": "custom"`. Supply the origin at run
+time; never commit one.
+
 ## Pull request checklist
 
 - The change stays inside the CLI/language boundary.
@@ -235,6 +280,7 @@ using one product's output as the expected result for the other.
   authentication assumptions.
 - Evidence and release claims do not exceed the authority actually observed.
 - No secret, private path, or raw provider response is present in the diff.
+- The `public-surface` gate passes.
 
 For the current implementation status and known blockers, read
 `cli/protocol/STATUS.md`. For release construction and local package rehearsal,

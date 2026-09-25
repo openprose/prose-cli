@@ -1,0 +1,53 @@
+{
+  "id": "share-url-in-result",
+  "feature": "run-records",
+  "operation": "run.share",
+  "description": "share --yes returns the public URL and the fragment's expiry in the result only.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "share",
+    "run_5e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f68",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/runs/run_5e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f68/share",
+        "requestHeaders": {
+          "Authorization": {
+            "pattern": "^Bearer rr_test_[0-9a-f]{32}$"
+          }
+        },
+        "status": 200,
+        "body": {
+          "url": "https://openprose.example/share/runs/run_5e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f68#tok=abcdef0123456789&exp=1790298569",
+          "expires_in": 86400
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "run.share",
+      "operation": "run.share",
+      "problem": null,
+      "result": {
+        "expiresAt": "2026-09-25T01:09:29Z",
+        "expires_at": "2026-09-25T01:09:29Z",
+        "runId": "run_5e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f68",
+        "url": "https://openprose.example/share/runs/run_5e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f68#tok=abcdef0123456789&exp=1790298569"
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

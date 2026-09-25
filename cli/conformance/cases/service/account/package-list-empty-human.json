@@ -1,0 +1,37 @@
+{
+  "id": "package-list-empty-human",
+  "feature": "account",
+  "operation": "package.list",
+  "description": "A human listing with no public packages says so instead of printing nothing.",
+  "argv": [
+    "cli",
+    "package",
+    "list",
+    "acme-research"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/registry/v1/organizations/acme-research/packages",
+        "status": 200,
+        "body": {
+          "packages": [],
+          "nextCursor": null
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "No public packages in acme-research.\n"
+  },
+  "stderr": {
+    "text": ""
+  }
+}

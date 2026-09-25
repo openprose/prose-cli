@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.openprose.org/cli/v1/service/responses/run-complete.schema.json",
+  "title": "service response acceptance: SSE /run",
+  "x-probed": true,
+  "description": "Terminal SSE payload. `files` is an array of paths here (unlike the blocking JSON POST /run response).",
+  "type": "object",
+  "required": [
+    "type",
+    "run_id",
+    "status"
+  ],
+  "properties": {
+    "type": {
+      "const": "run_complete"
+    },
+    "run_id": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string"
+    },
+    "cancelled": {
+      "type": "boolean"
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "response": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "price_cents": {
+      "type": "integer"
+    },
+    "environment_price_cents": {
+      "type": "integer"
+    },
+    "billing_status": {
+      "type": "string"
+    },
+    "usage": {
+      "type": "object",
+      "required": [
+        "input_tokens",
+        "output_tokens"
+      ],
+      "properties": {
+        "input_tokens": {
+          "type": "integer"
+        },
+        "output_tokens": {
+          "type": "integer"
+        }
+      }
+    },
+    "environment": {
+      "type": "object",
+      "required": [
+        "id",
+        "version",
+        "runtime_contract"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "runtime_contract": {
+          "type": "integer"
+        }
+      }
+    },
+    "runtime": {
+      "type": "string"
+    },
+    "error": {
+      "type": "string"
+    },
+    "output": {
+      "type": "object"
+    }
+  }
+}

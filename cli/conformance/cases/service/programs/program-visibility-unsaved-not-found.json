@@ -1,0 +1,54 @@
+{
+  "id": "program-visibility-unsaved-not-found",
+  "feature": "programs",
+  "operation": "program.visibility",
+  "description": "A visibility change of a program never saved is a missing program, not the service's content error.",
+  "argv": [
+    "cli",
+    "program",
+    "visibility",
+    "nothing-here",
+    "public",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "PUT",
+        "path": "/programs/nothing-here/visibility",
+        "requestHeaders": {
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          },
+          "User-Agent": {
+            "pattern": "^prose-cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"
+          },
+          "Accept": "application/json",
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "status": 400,
+        "expectedBody": {
+          "visibility": "public"
+        },
+        "body": {
+          "error": "New program needs content."
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "empty": true
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ],
+  "stderr": {
+    "text": "OpenProse: SERVICE_RESOURCE_NOT_FOUND: The requested OpenProse service resource was not found.\nDetail: program nothing-here was not found\nAction: Run `prose cli program list` to find the right program, then retry with it.\n"
+  }
+}

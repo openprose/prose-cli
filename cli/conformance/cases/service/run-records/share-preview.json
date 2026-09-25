@@ -1,0 +1,43 @@
+{
+  "id": "share-preview",
+  "feature": "run-records",
+  "operation": "run.share",
+  "description": "share --preview prints the plan and sends nothing.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "share",
+    "run_5e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f68",
+    "--preview"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "run.share",
+      "operation": "run.share",
+      "problem": null,
+      "result": {
+        "plannedRequest": {
+          "bodyBytes": null,
+          "bodySha256": null,
+          "description": "Create a public link to a run's outputs.",
+          "effect": "outward",
+          "method": "POST",
+          "operation": "run.share"
+        },
+        "preview": true
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

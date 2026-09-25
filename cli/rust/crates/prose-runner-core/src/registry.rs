@@ -1,7 +1,8 @@
 //! Data-only package preparation and verified registry consumption.
 use crate::error::ErrorCode;
 use crate::output::CommandOutcome;
-use crate::service_account::{ServiceEnvironment, Session};
+use crate::service::Environment;
+use crate::service_account::Session;
 use crate::{CancellationToken, OutputMode, RunnerError};
 use serde::de::{self, Deserialize, Deserializer, MapAccess, SeqAccess, Visitor};
 use serde_json::{Value, json};
@@ -34,6 +35,12 @@ pub enum PackageCommand {
     },
     Withdraw {
         reference: String,
+    },
+    /// A known command whose arguments are invalid: `reason` is reported in
+    /// the service-operation envelope before any request.
+    Invalid {
+        operation: &'static str,
+        reason: String,
     },
 }
 fn invalid() -> RunnerError {
@@ -484,98 +491,236 @@ fn agrees(value: &Value, prepared: &Prepared) -> bool {
         })
 }
 
-pub(crate) fn parse(args: &[String]) -> Result<(PackageCommand, bool), RunnerError> {
-    let fail = || RunnerError::invocation("Invalid package command or options.");
-    let [operation, target, tail @ ..] = args else {
-        return Err(fail());
-    };
-    if target.is_empty() || target.starts_with('-') {
-        return Err(fail());
+/// Options per command, in help order (mirrors Bun `package-args.ts` OPTIONS).
+fn options_of(operation: &str) -> &'static [&'static str] {
+    match operation {
+        "publish" => &["--organization", "--name", "--version", "--public"],
+        "fetch" => &["--output-dir", "--sha256"],
+        "list" => &["--cursor"],
+        _ => &[],
     }
-    let mut options = BTreeMap::new();
-    let mut public = false;
-    let mut json = false;
-    let mut index = 0;
-    while index < tail.len() {
-        let name = tail[index].as_str();
-        if name == "--json" {
-            if json || index + 1 != tail.len() {
-                return Err(fail());
-            }
-            json = true;
-            index += 1;
-            continue;
+}
+fn target_of(operation: &str) -> (&'static str, &'static str) {
+    match operation {
+        "publish" => ("FILE|DIR", "the file or package directory to publish"),
+        "fetch" => ("ORG/NAME@VERSION", "the exact package version to download"),
+        "list" => ("ORG", "the organization whose public packages to list"),
+        _ => ("ORG/NAME@VERSION", "the exact package version to withdraw"),
+    }
+}
+const SLUG_RULE: &str = "lowercase letters, digits and inner hyphens, at most 63 characters";
+fn quoted(value: &str) -> String {
+    serde_json::to_string(value).unwrap_or_default()
+}
+fn joined(names: &[&str]) -> String {
+    match names {
+        [one] => (*one).to_owned(),
+        [rest @ .., last] => format!("{} and {last}", rest.join(", ")),
+        [] => String::new(),
+    }
+}
+fn slug_problem(label: &str, value: &str) -> Option<String> {
+    (!slug(value)).then(|| {
+        format!(
+            "{label} {} is not a valid slug ({SLUG_RULE})",
+            quoted(value)
+        )
+    })
+}
+fn version_problem(value: &str) -> Option<String> {
+    (!version(value)).then(|| {
+        format!(
+            "VERSION {} is not an exact semantic version (for example 1.2.0)",
+            quoted(value)
+        )
+    })
+}
+/// Why an `ORG/NAME@VERSION` reference is invalid (mirrors Bun `referenceProblem`).
+fn reference_problem(value: &str) -> Option<String> {
+    let Some((organization, package, version_value)) =
+        value.split_once('/').and_then(|(organization, rest)| {
+            rest.split_once('@')
+                .map(|(package, version_value)| (organization, package, version_value))
+        })
+    else {
+        return Some(format!(
+            "{} is not ORG/NAME@VERSION (for example acme/tool@1.2.0)",
+            quoted(value)
+        ));
+    };
+    slug_problem("ORG", organization)
+        .or_else(|| slug_problem("NAME", package))
+        .or_else(|| version_problem(version_value))
+}
+fn package_help_error(reason: String) -> RunnerError {
+    let mut error = RunnerError::invocation(reason);
+    error.action = crate::service::render::localize_product(
+        "Run `prose cli package --help` to see the package commands.",
+    );
+    error
+}
+/// Parses `cli package <COMMAND> ...`. A missing or unknown command is a bare
+/// `INVOCATION_INVALID`; any other problem is `PackageCommand::Invalid`, which
+/// `execute` reports in the openprose.service-operation/1 envelope before any
+/// request (mirrors Bun `parsePackageCommand`).
+pub(crate) fn parse(args: &[String]) -> Result<(PackageCommand, bool), RunnerError> {
+    let (args, json) = match args {
+        [rest @ .., last] if last == "--json" => (rest, true),
+        _ => (args, false),
+    };
+    let Some(operation) = args.first().filter(|value| !value.is_empty()) else {
+        return Err(package_help_error(
+            "cli package needs a command: publish, fetch, list or withdraw".to_owned(),
+        ));
+    };
+    let operation: &'static str = match operation.as_str() {
+        "publish" => "publish",
+        "fetch" => "fetch",
+        "list" => "list",
+        "withdraw" => "withdraw",
+        other => {
+            return Err(package_help_error(format!(
+                "unknown package command {}; the commands are publish, fetch, list and withdraw",
+                quoted(other)
+            )));
+        }
+    };
+    let command = match parse_operation(operation, &args[1..]) {
+        Ok(command) => command,
+        Err(reason) => PackageCommand::Invalid { operation, reason },
+    };
+    Ok((command, json))
+}
+fn parse_operation(operation: &'static str, rest: &[String]) -> Result<PackageCommand, String> {
+    let (target_name, target_what) = target_of(operation);
+    let Some(target) = rest
+        .first()
+        .filter(|value| !value.is_empty() && !value.starts_with('-'))
+    else {
+        return Err(format!(
+            "package {operation} needs {target_name}, {target_what}"
+        ));
+    };
+    let allowed = options_of(operation);
+    let mut values: BTreeMap<&str, String> = BTreeMap::new();
+    let mut index = 1;
+    while let Some(raw) = rest.get(index) {
+        if raw == "--json" {
+            return Err("--json must be the last argument".to_owned());
+        }
+        if !raw.starts_with("--") {
+            return Err(format!(
+                "unexpected argument {}; package {operation} takes one {target_name}",
+                quoted(raw)
+            ));
+        }
+        let (name, inline) = raw
+            .split_once('=')
+            .map_or((raw.as_str(), None), |(name, value)| (name, Some(value)));
+        let Some(name) = allowed.iter().copied().find(|option| *option == name) else {
+            return Err(format!(
+                "package {operation} does not take {name}; {}",
+                if allowed.is_empty() {
+                    "it takes no options".to_owned()
+                } else {
+                    format!("its options are {}", joined(allowed))
+                }
+            ));
+        };
+        if values.contains_key(name) {
+            return Err(format!("{name} was given twice"));
         }
         if name == "--public" {
-            if public || operation != "publish" {
-                return Err(fail());
+            if inline.is_some() {
+                return Err("--public takes no value".to_owned());
             }
-            public = true;
+            values.insert(name, String::new());
             index += 1;
             continue;
         }
-        let allowed = match operation.as_str() {
-            "publish" => matches!(name, "--organization" | "--name" | "--version"),
-            "fetch" => matches!(name, "--output-dir" | "--sha256"),
-            "list" => name == "--cursor",
-            _ => false,
+        let value = match inline {
+            Some(value) => Some(value),
+            None => rest.get(index + 1).map(String::as_str),
         };
-        if !allowed
-            || index + 1 >= tail.len()
-            || tail[index + 1].is_empty()
-            || tail[index + 1].starts_with('-')
-            || options.insert(name, tail[index + 1].clone()).is_some()
-        {
-            return Err(fail());
+        match value {
+            Some(value) if !value.is_empty() && (inline.is_some() || !value.starts_with('-')) => {
+                values.insert(name, value.to_owned());
+            }
+            _ => return Err(format!("{name} needs a value")),
         }
-        index += 2;
+        index += if inline.is_some() { 1 } else { 2 };
     }
-    let mut required = |key| options.remove(key).ok_or_else(fail);
-    let command = match operation.as_str() {
-        "publish" => PackageCommand::Publish {
-            source: target.clone(),
-            organization: required("--organization")?,
-            name: required("--name")?,
-            version: required("--version")?,
-            public,
-        },
+    let required: &[(&str, &str)] = match operation {
+        "publish" => &[
+            ("--organization", "ORG"),
+            ("--name", "NAME"),
+            ("--version", "VERSION"),
+        ],
+        "fetch" => &[("--output-dir", "FRESH_DIR, a new directory to create")],
+        _ => &[],
+    };
+    for (name, what) in required {
+        if !values.contains_key(name) {
+            return Err(format!("package {operation} needs {name} {what}"));
+        }
+    }
+    let mut take = |name: &str| values.remove(name);
+    let problem = |found: Option<String>| found.map_or(Ok(()), Err);
+    Ok(match operation {
+        "publish" => {
+            let organization = take("--organization").unwrap_or_default();
+            let name = take("--name").unwrap_or_default();
+            let version_value = take("--version").unwrap_or_default();
+            problem(
+                slug_problem("ORG", &organization)
+                    .or_else(|| slug_problem("NAME", &name))
+                    .or_else(|| version_problem(&version_value)),
+            )?;
+            PackageCommand::Publish {
+                source: target.clone(),
+                organization,
+                name,
+                version: version_value,
+                public: take("--public").is_some(),
+            }
+        }
         "fetch" => {
-            let destination = required("--output-dir")?;
+            let destination = take("--output-dir").unwrap_or_default();
+            let sha256 = take("--sha256");
+            problem(reference_problem(target).or_else(|| {
+                sha256
+                    .as_deref()
+                    .is_some_and(|value| !digest(value))
+                    .then(|| "--sha256 must be 64 lowercase hexadecimal digits".to_owned())
+            }))?;
             PackageCommand::Fetch {
                 reference: target.clone(),
                 destination,
-                sha256: options.remove("--sha256"),
+                sha256,
             }
         }
-        "list" => PackageCommand::List {
-            organization: target.clone(),
-            cursor: options.remove("--cursor"),
-        },
-        "withdraw" => PackageCommand::Withdraw {
-            reference: target.clone(),
-        },
-        _ => return Err(fail()),
-    };
-    let valid = match &command {
-        PackageCommand::Publish {
-            organization,
-            name,
-            version: v,
-            ..
-        } => slug(organization) && slug(name) && version(v),
-        PackageCommand::Fetch {
-            reference, sha256, ..
-        } => reference_parts(reference).is_ok() && sha256.as_deref().is_none_or(digest),
-        PackageCommand::List {
-            organization,
-            cursor,
-        } => slug(organization) && cursor.as_deref().is_none_or(valid_cursor),
-        PackageCommand::Withdraw { reference } => reference_parts(reference).is_ok(),
-    };
-    if !valid {
-        return Err(fail());
-    }
-    Ok((command, json))
+        "list" => {
+            let cursor = take("--cursor");
+            problem(slug_problem("ORG", target).or_else(|| {
+                cursor.as_deref().filter(|value| !valid_cursor(value)).map(|value| {
+                    format!(
+                        "--cursor {} is not a cursor from package list; pass the nextCursor value the previous page printed",
+                        quoted(value)
+                    )
+                })
+            }))?;
+            PackageCommand::List {
+                organization: target.clone(),
+                cursor,
+            }
+        }
+        _ => {
+            problem(reference_problem(target))?;
+            PackageCommand::Withdraw {
+                reference: target.clone(),
+            }
+        }
+    })
 }
 fn valid_cursor(value: &str) -> bool {
     if value.len() > 210 {
@@ -896,7 +1041,7 @@ fn materialize(_: &Path, _: &Prepared, _: &Value) -> Result<(), RunnerError> {
 
 pub(crate) fn execute(
     command: &PackageCommand,
-    environment: ServiceEnvironment,
+    environment: &Environment,
     cwd: &Path,
     mode: OutputMode,
     cancellation: &CancellationToken,
@@ -906,8 +1051,25 @@ pub(crate) fn execute(
         PackageCommand::Fetch { .. } => "fetch",
         PackageCommand::List { .. } => "list",
         PackageCommand::Withdraw { .. } => "withdraw",
+        PackageCommand::Invalid { operation, .. } => operation,
     };
     let result = (|| -> Result<Value, RunnerError> {
+        if let PackageCommand::Invalid { operation, reason } = command {
+            return Err(crate::service::teach(
+                RunnerError::invocation(reason.clone()),
+                &crate::service::Correction::Command {
+                    action:
+                        "Correct the value named in Detail; `{command}` shows the accepted syntax"
+                            .to_owned(),
+                    words: vec![
+                        "package".to_owned(),
+                        (*operation).to_owned(),
+                        "--help".to_owned(),
+                    ],
+                },
+                mode,
+            ));
+        }
         // Validate and collect local publication bytes before accessing credentials.
         let prepared = if let PackageCommand::Publish {
             source,
@@ -939,7 +1101,7 @@ pub(crate) fn execute(
         } else {
             None
         };
-        let mut session = Session::registry(cancellation, environment)?;
+        let mut session = Session::registry(cancellation, environment.clone())?;
         let required = matches!(
             command,
             PackageCommand::Publish { .. } | PackageCommand::Withdraw { .. }
@@ -959,7 +1121,7 @@ pub(crate) fn execute(
                     Some(&prepared.bytes),
                     &[200, 201],
                 )?;
-                let value: Value = serde_json::from_slice(&bytes).map_err(|_| protocol())?;
+                let value: Value = crate::service::http::parse_json(&bytes).ok_or_else(protocol)?;
                 receipt(&value).map_err(|_| protocol())?;
                 if !agrees(&value, &prepared) {
                     return Err(protocol());
@@ -975,7 +1137,7 @@ pub(crate) fn execute(
                 );
                 let bytes =
                     session.registry_request("GET", &path, token.as_deref(), None, &[200])?;
-                let value: Value = serde_json::from_slice(&bytes).map_err(|_| protocol())?;
+                let value: Value = crate::service::http::parse_json(&bytes).ok_or_else(protocol)?;
                 receipt(&value).map_err(|_| protocol())?;
                 if !reference_matches(&value, organization, package, version)
                     || sha256
@@ -994,7 +1156,8 @@ pub(crate) fn execute(
                 if value["reference"]["sha256"] != sha(&bytes) {
                     return Err(protocol());
                 }
-                let artifact: Value = serde_json::from_slice(&bytes).map_err(|_| protocol())?;
+                let artifact: Value =
+                    crate::service::http::parse_json(&bytes).ok_or_else(protocol)?;
                 let prepared = prepare(&artifact).map_err(|_| protocol())?;
                 if prepared.bytes != bytes || !agrees(&value, &prepared) {
                     return Err(protocol());
@@ -1021,7 +1184,7 @@ pub(crate) fn execute(
                 );
                 let bytes =
                     session.registry_request("GET", &path, token.as_deref(), None, &[200])?;
-                let value: Value = serde_json::from_slice(&bytes).map_err(|_| protocol())?;
+                let value: Value = crate::service::http::parse_json(&bytes).ok_or_else(protocol)?;
                 exact(&value, &["packages", "nextCursor"]).map_err(|_| protocol())?;
                 let packages = value["packages"]
                     .as_array()
@@ -1054,7 +1217,7 @@ pub(crate) fn execute(
                     Some(b"{}"),
                     &[200],
                 )?;
-                let value: Value = serde_json::from_slice(&bytes).map_err(|_| protocol())?;
+                let value: Value = crate::service::http::parse_json(&bytes).ok_or_else(protocol)?;
                 exact(&value, &["receipt", "withdrawn"]).map_err(|_| protocol())?;
                 receipt(&value["receipt"]).map_err(|_| protocol())?;
                 if value["withdrawn"] != true
@@ -1064,6 +1227,7 @@ pub(crate) fn execute(
                 }
                 Ok(value)
             }
+            PackageCommand::Invalid { .. } => Err(invalid()),
         })?;
         if token
             .as_ref()
@@ -1075,24 +1239,32 @@ pub(crate) fn execute(
     })();
     let (value, error) = match result {
         Ok(value) => (value, None),
+        Err(error) if error.code == ErrorCode::ServiceResourceNotFound => {
+            let (kind, id, reason, list) = missing(command);
+            let words = list.iter().map(String::as_str).collect::<Vec<_>>();
+            let error = crate::service::not_found::explain_not_found(
+                error.with_detail("reason", reason),
+                mode,
+                kind,
+                &id,
+                Some(&words),
+            );
+            (Value::Null, Some(error))
+        }
         Err(error) => (Value::Null, Some(error)),
     };
     let exit = error.as_ref().map_or(0, |e| e.exit_code);
     if mode == OutputMode::Human {
-        let marker = if environment == ServiceEnvironment::Staging {
-            "OpenProse staging environment\n"
+        let marker = if environment.is_custom() {
+            format!("{}\n", environment.label())
         } else {
-            ""
+            String::new()
         };
         if let Some(error) = error {
+            // A failure's first line names the service.
             CommandOutcome::human(
                 "",
-                format!(
-                    "{marker}{}: {}\n{}\n",
-                    error.code,
-                    error.message,
-                    error.human_action()
-                ),
+                crate::service::render::human_error(&environment.label(), &error),
                 exit,
             )
         } else {
@@ -1106,6 +1278,13 @@ pub(crate) fn execute(
             };
             let stdout = if operation == "list" {
                 let mut text = String::new();
+                if value["packages"].as_array().is_some_and(Vec::is_empty) {
+                    if let PackageCommand::List { organization, .. } = command {
+                        text.push_str("No public packages in ");
+                        text.push_str(organization);
+                        text.push_str(".\n");
+                    }
+                }
                 for receipt in value["packages"].as_array().unwrap() {
                     text.push_str(&format_reference(receipt));
                     text.push('\n');
@@ -1123,18 +1302,55 @@ pub(crate) fn execute(
                     &value
                 };
                 format!(
-                    "OpenProse {} package {operation}: {}\n",
-                    environment.name(),
+                    "OpenProse package {operation}: {}\n",
                     format_reference(receipt)
                 )
             };
-            CommandOutcome::human(stdout, marker, 0)
+            CommandOutcome::human(stdout, "", 0).with_preamble(marker)
         }
     } else {
-        CommandOutcome::json(
-            json!({"schema":"openprose.package-operation/1","environment":environment.name(),"operation":operation,"result":value,"problem":error}),
-            exit,
-        )
+        // The service-operation/1 envelope every `cli` command prints.
+        let manifest_operation = crate::service::operation(&format!("package.{operation}"))
+            .expect("package operations are in the manifest");
+        let result = match error {
+            Some(error) => Err(error),
+            None => Ok(value),
+        };
+        crate::service::render::outcome(manifest_operation, environment, mode, result, None)
+    }
+}
+/// What a registry 404 names (mirrors Bun `missing`): the version, or the
+/// organization of a listing or publication.
+fn missing(command: &PackageCommand) -> (&'static str, String, String, Vec<String>) {
+    match command {
+        PackageCommand::Fetch { reference, .. } | PackageCommand::Withdraw { reference } => {
+            let organization = reference.split('/').next().unwrap_or_default();
+            (
+                "package",
+                reference.clone(),
+                format!(
+                    "package {reference} was not found; the version does not exist, or this key cannot read it"
+                ),
+                vec![
+                    "package".to_owned(),
+                    "list".to_owned(),
+                    organization.to_owned(),
+                ],
+            )
+        }
+        PackageCommand::List { organization, .. }
+        | PackageCommand::Publish { organization, .. } => (
+            "organization",
+            organization.clone(),
+            format!("organization {organization} was not found"),
+            vec!["org".to_owned(), "list".to_owned()],
+        ),
+        PackageCommand::Invalid { .. } => (
+            "package",
+            String::new(),
+            String::new(),
+            vec!["package".to_owned(), "--help".to_owned()],
+        ),
     }
 }
 fn cancellation_check(cancellation: &CancellationToken) -> Result<(), RunnerError> {

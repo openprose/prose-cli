@@ -3,15 +3,17 @@ import pathlib,os,subprocess,json,shlex,concurrent.futures,time,signal,argparse,
 p=argparse.ArgumentParser();p.add_argument('--output',required=True);p.add_argument('--products',nargs='+',default=['rust','bun']);p.add_argument('--harnesses',nargs='+',default=['prime','omp']);a=p.parse_args()
 repo=pathlib.Path(__file__).resolve().parents[3];out=pathlib.Path(a.output);out.mkdir(parents=True,exist_ok=False)
 env=os.environ.copy()
-for line in pathlib.Path('/Users/sl/code/openprose/.env').read_text().splitlines():
+env_file=os.environ.get('OPENPROSE_REAL_TOOLS_ENV_FILE')
+for line in (pathlib.Path(env_file).read_text().splitlines() if env_file else []):
  line=line.strip().removeprefix('export ')
  if '=' not in line:continue
  k,v=line.split('=',1)
  if k in ('ANTHROPIC_API_KEY','OPENAI_API_KEY'):
   words=shlex.split(v,comments=True)
   if len(words)==1:env[k]=words[0]
-private='/Users/sl/Documents/openprose/lab/tools/alternate-harnesses/node_modules/.bin'
-env['PATH']=private+os.pathsep+env['PATH'];env.pop('ANTHROPIC_OAUTH_TOKEN',None)
+private=os.environ.get('OPENPROSE_REAL_TOOLS_HARNESS_BIN')
+if private:env['PATH']=private+os.pathsep+env['PATH']
+env.pop('ANTHROPIC_OAUTH_TOKEN',None)
 def one(cell):
  product,harness,provider,model=cell;name='-'.join([product,harness,provider]);run=out/name;run.mkdir();ws=run/'workspace';ws.mkdir()
  (ws/'README.md').write_text('# File canary\nRead the requested program and fulfill its instructions using native tools.\n')

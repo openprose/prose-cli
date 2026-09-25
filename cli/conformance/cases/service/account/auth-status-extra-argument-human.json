@@ -1,0 +1,24 @@
+{
+  "id": "auth-status-extra-argument-human",
+  "feature": "account",
+  "operation": "auth.status",
+  "description": "A human extra argument after `cli auth status` prints the service rejection in both products.",
+  "argv": [
+    "cli",
+    "auth",
+    "status",
+    "extra"
+  ],
+  "fixture": {
+    "credential": null,
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: That command isn't quite right.\nDetail: missing or invalid arguments for `cli auth status`\nAction: `prose cli auth status --help` shows the syntax.\n"
+  }
+}

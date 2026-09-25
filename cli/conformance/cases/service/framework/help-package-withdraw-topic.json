@@ -1,0 +1,22 @@
+{
+  "id": "help-package-withdraw-topic",
+  "feature": "framework",
+  "operation": "package.withdraw",
+  "description": "`cli package withdraw --help` prints its topic and withdraws nothing.",
+  "argv": [
+    "cli",
+    "package",
+    "withdraw",
+    "--help"
+  ],
+  "fixture": {
+    "exchanges": []
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "Usage: prose [GLOBAL OPTIONS] cli package withdraw <ORG>/<NAME>@<VERSION> [--json]\n\nWithdraw one version from discovery. Pinned retrieval of that exact version keeps\nworking.\n\nArguments:\n  ORG/NAME@VERSION            Exact package version.\n\nOptions:\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli package withdraw acme/tool@1.0.0 --json\n\nOutput: openprose.package-operation/1 (--json).\nExit codes: 0 success; 2 invalid invocation or configuration; 10 service, credential or registry error; 24 interrupted.\n"
+  },
+  "stderr": {
+    "text": ""
+  }
+}

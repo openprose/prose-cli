@@ -1,0 +1,107 @@
+{
+  "id": "wallet-events-jsonl-records",
+  "feature": "wallet",
+  "operation": "wallet.events",
+  "description": "`wallet events --output jsonl` prints record lines and a page trailer carrying nextBefore and the note in meta.",
+  "argv": [
+    "--output",
+    "jsonl",
+    "cli",
+    "wallet",
+    "events"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/wallet/events",
+        "query": {
+          "limit": "20"
+        },
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          }
+        },
+        "status": 200,
+        "body": {
+          "customer_id": "cus_ExampleOwner01",
+          "events": [
+            {
+              "id": "charge:40",
+              "type": "run_charge",
+              "occurred_at": "2026-09-23T20:31:43.779Z",
+              "description": "Contract run\nmodel-luna",
+              "amount_cents": -2,
+              "balance_after_cents": 3337,
+              "ref": "run_01K5ZZZZZZZZZZZZZZZZZZZZZZ"
+            },
+            {
+              "id": "charge:39",
+              "type": "credit",
+              "occurred_at": "2026-09-23T20:31:42.174Z",
+              "description": "Credit code",
+              "amount_cents": 500,
+              "balance_after_cents": 3339,
+              "ref": null
+            }
+          ],
+          "next_before": "charge:39",
+          "note": "Informational view. Stripe receipts and your card statement are the authoritative record of payments."
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "jsonl": [
+      {
+        "collection": "events",
+        "index": 0,
+        "operation": "wallet.events",
+        "record": {
+          "amount_cents": -2,
+          "balance_after_cents": 3337,
+          "description": "Contract run model-luna",
+          "id": "charge:40",
+          "occurred_at": "2026-09-23T20:31:43.779Z",
+          "ref": "run_01K5ZZZZZZZZZZZZZZZZZZZZZZ",
+          "type": "run_charge"
+        },
+        "schema": "openprose.service-record/1"
+      },
+      {
+        "collection": "events",
+        "index": 1,
+        "operation": "wallet.events",
+        "record": {
+          "amount_cents": 500,
+          "balance_after_cents": 3339,
+          "description": "Credit code",
+          "id": "charge:39",
+          "occurred_at": "2026-09-23T20:31:42.174Z",
+          "ref": null,
+          "type": "credit"
+        },
+        "schema": "openprose.service-record/1"
+      },
+      {
+        "collection": "events",
+        "count": 2,
+        "exitCode": 0,
+        "interaction": "wallet.events",
+        "meta": {
+          "note": "Informational view. Stripe receipts and your card statement are the authoritative record of payments."
+        },
+        "nextBefore": "charge:39",
+        "operation": "wallet.events",
+        "schema": "openprose.service-page/1"
+      }
+    ]
+  }
+}

@@ -1,0 +1,62 @@
+{
+  "id": "contract-auth-status-identity",
+  "feature": "account",
+  "operation": "auth.status",
+  "description": "`auth status --json` adds identity {login, organization} when GET /organizations names the login; organization is the one marked default.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "auth",
+    "status"
+  ],
+  "fixture": {
+    "credential": "rr_test_11111111111111111111111111111111",
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/organizations",
+        "status": 200,
+        "body": {
+          "login": "octocat",
+          "organizations": [
+            {
+              "id": "org-a",
+              "slug": "alpha",
+              "name": "Alpha",
+              "role": "admin"
+            },
+            {
+              "id": "org-b",
+              "slug": "beta",
+              "name": "Beta",
+              "role": "reader",
+              "default": true
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "cli.auth_status",
+      "operation": "auth.status",
+      "problem": null,
+      "result": {
+        "authenticated": true,
+        "credentialSource": "store",
+        "identity": {
+          "login": "octocat",
+          "organization": "beta"
+        }
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "rr_test_11111111111111111111111111111111"
+  ]
+}

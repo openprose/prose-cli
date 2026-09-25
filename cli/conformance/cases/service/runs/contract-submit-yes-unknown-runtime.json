@@ -1,0 +1,88 @@
+{
+  "id": "contract-submit-yes-unknown-runtime",
+  "feature": "runs",
+  "operation": "run.submit",
+  "description": "`submit --yes` checks --runtime against /health's runtimes before submitting; nothing is sent.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "submit",
+    "p.prose.md",
+    "--runtime",
+    "warp",
+    "--yes"
+  ],
+  "files": [
+    {
+      "path": "p.prose.md",
+      "content": "---\nname: hello\nkind: function\n---\n\nReply with the word ok.\n"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/health",
+        "status": 200,
+        "body": {
+          "status": "ok",
+          "environments": {
+            "default": "builtin",
+            "available": [
+              "builtin",
+              "linux"
+            ]
+          },
+          "runtimes": {
+            "available": [
+              "reactor"
+            ]
+          },
+          "models": [
+            "model-luna"
+          ],
+          "default_model": "model-luna"
+        }
+      }
+    ]
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "run.submit",
+      "operation": "run.submit",
+      "problem": {
+        "action": "Rerun with a runtime the service offers: `prose --output json cli run submit p.prose.md --runtime reactor --yes`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "runtime \"warp\" is not offered by this service (available: reactor); retry with --runtime reactor",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "submit",
+            "p.prose.md",
+            "--runtime",
+            "reactor",
+            "--yes"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

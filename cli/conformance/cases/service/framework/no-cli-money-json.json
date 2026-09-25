@@ -1,0 +1,47 @@
+{
+  "id": "no-cli-money-json",
+  "feature": "framework",
+  "operation": "wallet.balance",
+  "description": "`prose --output json money` prints the INVOCATION_INVALID envelope whose suggestedArgv is `cli wallet balance`.",
+  "argv": [
+    "--output",
+    "json",
+    "money"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": null,
+      "operation": "cli",
+      "problem": {
+        "action": "Use `cli wallet balance`: `prose --output json cli wallet balance`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "`money` is not a command; did you mean `prose --output json cli wallet balance`? Nothing was forwarded or sent. To pass these words to the OpenProse language instead, put `--` before them",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "wallet",
+            "balance"
+          ]
+        },
+        "exitCode": 2,
+        "message": "Unknown command.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

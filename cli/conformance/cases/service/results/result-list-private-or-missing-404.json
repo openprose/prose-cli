@@ -1,0 +1,78 @@
+{
+  "id": "result-list-private-or-missing-404",
+  "feature": "results",
+  "operation": "result.list",
+  "description": "A private or missing program is a JSON 404 -> SERVICE_RESOURCE_NOT_FOUND (no serviceMessage for 404).",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "result",
+    "list",
+    "Owner/secret"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/p/Owner/secret/results",
+        "status": 404,
+        "query": {
+          "limit": "20"
+        },
+        "body": {
+          "error": "Not found"
+        },
+        "requestHeaders": {
+          "Authorization": {
+            "present": false
+          },
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          }
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "schema": "openprose.service-operation/1",
+      "operation": "result.list",
+      "interaction": "results.list_public",
+      "result": null,
+      "problem": {
+        "schema": "openprose.runner-error/1",
+        "code": "SERVICE_RESOURCE_NOT_FOUND",
+        "boundary": "hosted-service",
+        "message": "The requested OpenProse service resource was not found.",
+        "action": "Run `prose --output json cli program list` to find the right program, then retry with it.",
+        "exitCode": 10,
+        "retryable": false,
+        "details": {
+          "serviceStatus": 404,
+          "reason": "Owner/secret is not a public program (it does not exist or is private)",
+          "resource": {
+            "id": "Owner/secret",
+            "kind": "program"
+          },
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "program",
+            "list"
+          ]
+        }
+      }
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

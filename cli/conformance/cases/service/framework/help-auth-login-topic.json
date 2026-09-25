@@ -1,0 +1,22 @@
+{
+  "id": "help-auth-login-topic",
+  "feature": "framework",
+  "operation": "auth.login",
+  "description": "`cli auth login --help` prints its topic (device flow, credential variables, exit codes) and starts no device flow.",
+  "argv": [
+    "cli",
+    "auth",
+    "login",
+    "--help"
+  ],
+  "fixture": {
+    "exchanges": []
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "Usage: prose [GLOBAL OPTIONS] cli auth login [--json]\n\nSign in with the GitHub device flow and store the new key in the operating\nsystem credential store. There is no plaintext fallback. Login is refused\n(INVOCATION_INVALID naming the variable) while OPENPROSE_API_KEY is set,\nbecause the variable would still win.\n\nArguments: none.\n\nOptions:\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli auth login\n  prose cli auth login --json\n\nGlobal options:\n  --output human|json|jsonl   Output mode; the same as the PROSE_OUTPUT setting.\n\nCredentials:\n  OPENPROSE_API_KEY           API key; a non-empty value wins over the stored key.\n\nDevice flow: `cli auth login` prints a one-time code and https://github.com/login/device\non stderr, never the key, and never opens a browser. A person approves the code\nthere within 15 minutes. An agent without a person sets the variable instead.\n\nOutput: openprose.service-account/1 (--json).\nExit codes: 0 success; 2 invalid invocation or configuration; 10 service or credential error; 24 interrupted.\n"
+  },
+  "stderr": {
+    "text": ""
+  }
+}

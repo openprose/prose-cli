@@ -1,0 +1,123 @@
+{
+  "id": "result-list-jsonl-records",
+  "feature": "results",
+  "operation": "result.list",
+  "description": "`result list --output jsonl` prints one record per publication and a page trailer whose meta carries the contract.",
+  "argv": [
+    "--output",
+    "jsonl",
+    "cli",
+    "result",
+    "list",
+    "Owner/demo"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/p/Owner/demo/results",
+        "status": 200,
+        "query": {
+          "limit": "20"
+        },
+        "body": {
+          "contract": {
+            "owner": "Owner",
+            "slug": "demo",
+            "rev_id": "0123456789abcdef",
+            "visibility": "public"
+          },
+          "results": [
+            {
+              "id": "AbCdEf012_-x",
+              "published_at": "2026-09-23T20:30:00.000Z",
+              "run_id": "run_abc123abc123abc123abc123abc123abc123abc123abc123abc123abc123abc1",
+              "program_ref": "Owner/demo@0123456789abcdef",
+              "created_at": "2026-09-23T20:26:28.686Z",
+              "model": "model-sol",
+              "status": "completed",
+              "owner_customer_id": "cus_private",
+              "price_cents": 4
+            },
+            {
+              "id": "Zy9_-8XwVu7t",
+              "published_at": "2026-09-22T10:00:00.000Z",
+              "run_id": "run_def456def456def456def456def456def456def456def456def456def456def4",
+              "program_ref": "Owner/demo@0123456789abcdef",
+              "created_at": "2026-09-23T20:26:28.686Z",
+              "model": "model-sol",
+              "status": "completed"
+            }
+          ]
+        },
+        "requestHeaders": {
+          "Authorization": {
+            "present": false
+          },
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          }
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "jsonl": [
+      {
+        "collection": "results",
+        "index": 0,
+        "operation": "result.list",
+        "record": {
+          "created_at": "2026-09-23T20:26:28.686Z",
+          "id": "AbCdEf012_-x",
+          "model": "model-sol",
+          "program_ref": "Owner/demo@0123456789abcdef",
+          "published_at": "2026-09-23T20:30:00.000Z",
+          "run_id": "run_abc123abc123abc123abc123abc123abc123abc123abc123abc123abc123abc1",
+          "status": "completed"
+        },
+        "schema": "openprose.service-record/1"
+      },
+      {
+        "collection": "results",
+        "index": 1,
+        "operation": "result.list",
+        "record": {
+          "created_at": "2026-09-23T20:26:28.686Z",
+          "id": "Zy9_-8XwVu7t",
+          "model": "model-sol",
+          "program_ref": "Owner/demo@0123456789abcdef",
+          "published_at": "2026-09-22T10:00:00.000Z",
+          "run_id": "run_def456def456def456def456def456def456def456def456def456def456def4",
+          "status": "completed"
+        },
+        "schema": "openprose.service-record/1"
+      },
+      {
+        "collection": "results",
+        "count": 2,
+        "exitCode": 0,
+        "interaction": "results.list_public",
+        "meta": {
+          "contract": {
+            "owner": "Owner",
+            "rev_id": "0123456789abcdef",
+            "slug": "demo"
+          }
+        },
+        "nextBefore": null,
+        "operation": "result.list",
+        "schema": "openprose.service-page/1"
+      }
+    ]
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

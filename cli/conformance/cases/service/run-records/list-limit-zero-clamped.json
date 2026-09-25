@@ -1,0 +1,53 @@
+{
+  "id": "list-limit-zero-clamped",
+  "feature": "run-records",
+  "operation": "run.list",
+  "description": "`--limit 0` suggests `--limit 1`, the smallest accepted value.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "list",
+    "--limit",
+    "0"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "runs.list",
+      "operation": "run.list",
+      "problem": {
+        "action": "Use --limit 1, the smallest value `cli run list` accepts: `prose --output json cli run list --limit 1`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "--limit \"0\" is invalid; use a whole number from 1 to 200",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "list",
+            "--limit",
+            "1"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "id": "alias-option-no-wait-json",
+  "feature": "framework",
+  "operation": "run.submit",
+  "description": "`--no-wait` on `cli run submit` suggests `--detach`. (JSON envelope)",
+  "files": [
+    {
+      "path": "hello.prose.md",
+      "content": "---\nname: hello\nkind: program\n---\nSay hello.\n"
+    }
+  ],
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "submit",
+    "hello.prose.md",
+    "--no-wait"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "run.submit",
+      "operation": "run.submit",
+      "problem": {
+        "action": "Replace --no-wait with --detach: `prose --output json cli run submit hello.prose.md --detach`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "unknown option --no-wait for `cli run submit`; did you mean --detach?",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "submit",
+            "hello.prose.md",
+            "--detach"
+          ]
+        },
+        "exitCode": 2,
+        "message": "Unknown option.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

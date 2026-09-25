@@ -38,11 +38,11 @@ class ContractRegistryTest(unittest.TestCase):
                 if "schema" in rule:
                     self.assertIn(rule["schema"], contracts.by_contract, str(path))
         # The regression must validate the actual schema, not merely recognize it.
-        valid = {"schema": "openprose.service-account/1", "environment": "staging",
-                 "operation": "status", "authenticated": False,
-                 "credentialSource": "none", "problem": None}
+        valid = {"schema": "openprose.service-operation/1", "operation": "auth.status",
+                 "interaction": "cli.auth_status",
+                 "result": {"authenticated": False, "credentialSource": "none"}, "problem": None}
         self.assertEqual([], contracts.errors(valid["schema"], valid))
-        self.assertTrue(contracts.errors(valid["schema"], {**valid, "authenticated": "false"}))
+        self.assertTrue(contracts.errors(valid["schema"], {**valid, "result": None}))
 
     def test_discovers_new_contracts_and_fails_closed_on_unknown_or_duplicate(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -604,10 +604,10 @@ class RunnerUnitTest(unittest.TestCase):
             "boundary": "hosted-service",
             "exitCode": 10,
             "retryable": False,
-            "message": "OpenProse-billed execution is not available in this build.",
+            "message": "Programs run here only with a local harness; hosted runs use `prose cli run submit`.",
             "action": (
-                "Select an available BYO harness with the `cli harness use <id>` "
-                "runner operation, then invoke the `cli doctor` runner operation."
+                "To use the hosted service, run `cli run submit FILE --preview`; running "
+                "programs on this machine needs a local harness (`cli harness list`)."
             ),
             "details": {"billingOwner": "openprose", "fallbackSelected": False},
         }

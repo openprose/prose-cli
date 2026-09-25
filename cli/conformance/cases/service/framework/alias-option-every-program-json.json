@@ -1,0 +1,62 @@
+{
+  "id": "alias-option-every-program-json",
+  "feature": "framework",
+  "operation": "job.create",
+  "description": "`--every 1h --program SLUG` fold into the suggested schedule spec (interval_seconds 3600, program_ref SLUG). (JSON envelope)",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "job",
+    "create",
+    "--every",
+    "1h",
+    "--program",
+    "demo"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "job.deploy",
+      "operation": "job.create",
+      "problem": {
+        "action": "Create a schedule job from a JSON spec on standard input, previewing it first: `printf '%s\\n' '{\"interval_seconds\":3600,\"program_ref\":\"demo\",\"type\":\"schedule\"}' | prose --output json cli job create --spec-file - --preview`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "unknown option --every for `cli job create`; a schedule job's interval is interval_seconds (3600 = hourly, 86400 = daily), set in the --spec-file JSON object",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "job",
+            "create",
+            "--spec-file",
+            "-",
+            "--preview"
+          ],
+          "suggestedSpec": {
+            "interval_seconds": 3600,
+            "program_ref": "demo",
+            "type": "schedule"
+          },
+          "suggestedStdin": "{\"interval_seconds\":3600,\"program_ref\":\"demo\",\"type\":\"schedule\"}\n"
+        },
+        "exitCode": 2,
+        "message": "Unknown option.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

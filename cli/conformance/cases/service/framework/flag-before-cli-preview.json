@@ -1,0 +1,30 @@
+{
+  "id": "flag-before-cli-preview",
+  "feature": "framework",
+  "operation": "wallet.topup",
+  "description": "`--preview` before `cli` is not forwarded; the suggestion previews after the command path.",
+  "argv": [
+    "--preview",
+    "cli",
+    "wallet",
+    "topup",
+    "--amount-cents",
+    "500"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: That command isn't quite right.\nDetail: `--preview` belongs after the command path, not before `cli`; nothing was forwarded or sent\nAction: Move --preview after the command path: `prose cli wallet topup --amount-cents 500 --preview`.\n"
+  },
+  "suggestedArgvReaches": true
+}

@@ -1,0 +1,34 @@
+{
+  "id": "alias-option-background",
+  "feature": "framework",
+  "operation": "run.submit",
+  "description": "`--background` on `cli run submit` suggests `--detach`.",
+  "files": [
+    {
+      "path": "hello.prose.md",
+      "content": "---\nname: hello\nkind: program\n---\nSay hello.\n"
+    }
+  ],
+  "argv": [
+    "cli",
+    "run",
+    "submit",
+    "hello.prose.md",
+    "--background"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: Unknown option.\nDetail: unknown option --background for `cli run submit`; did you mean --detach?\nAction: Replace --background with --detach: `prose cli run submit hello.prose.md --detach`.\n"
+  }
+}

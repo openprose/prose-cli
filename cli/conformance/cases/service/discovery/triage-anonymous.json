@@ -1,0 +1,112 @@
+{
+  "id": "triage-anonymous",
+  "feature": "discovery",
+  "operation": "service.triage",
+  "description": "Without any key triage still exits 0: it reads only the anonymous /health, reports the credential missing with the exact variable in credential.variable and nextCommands[0].env, and leaves every account section null (no key-authenticated request is sent).",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "service",
+    "triage"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/health",
+        "requestHeaders": {
+          "Authorization": {
+            "present": false
+          },
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          }
+        },
+        "status": 200,
+        "body": {
+          "status": "ok",
+          "environments": {
+            "default": "builtin",
+            "available": [
+              "builtin",
+              "linux"
+            ]
+          },
+          "models": [
+            "model-sol",
+            "model-luna"
+          ],
+          "default_model": "model-sol",
+          "version": "9.9.9-extra",
+          "capabilities": {
+            "web:search": {
+              "available": true,
+              "tool": "web_search"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "health.read",
+      "operation": "service.triage",
+      "problem": null,
+      "result": {
+        "credential": {
+          "problem": {
+            "action": "Set OPENPROSE_API_KEY or run `prose --output json cli auth login`, then retry.",
+            "boundary": "authentication",
+            "code": "SERVICE_AUTH_REQUIRED",
+            "details": {
+              "credentialProblem": "missing",
+              "credentialSource": "none",
+              "credentialVariable": "OPENPROSE_API_KEY",
+              "reason": "no API key for OpenProse: set OPENPROSE_API_KEY or run `prose --output json cli auth login`"
+            },
+            "exitCode": 10,
+            "message": "OpenProse service authentication is required.",
+            "retryable": false,
+            "schema": "openprose.runner-error/1"
+          },
+          "source": "none",
+          "state": "missing",
+          "variable": "OPENPROSE_API_KEY"
+        },
+        "health": {
+          "default_model": "model-sol",
+          "models": [
+            "model-sol",
+            "model-luna"
+          ],
+          "problem": null,
+          "status": "ok"
+        },
+        "jobs": null,
+        "nextCommands": [
+          {
+            "argv": null,
+            "env": "OPENPROSE_API_KEY",
+            "why": "no API key for OpenProse: set OPENPROSE_API_KEY or run `prose --output json cli auth login`"
+          }
+        ],
+        "organization": null,
+        "runs": null,
+        "wallet": null
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "9.9.9-extra",
+    "web_search"
+  ]
+}

@@ -1,0 +1,142 @@
+{
+  "id": "submit-from-latest-pins-program-ref",
+  "feature": "runs",
+  "operation": "run.submit",
+  "description": "--from OWNER/SLUG resolves the latest revision and submits the pinned program_ref instead of content.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "submit",
+    "--from",
+    "octo/hello",
+    "--yes",
+    "--detach"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "ids": [
+      "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f"
+    ],
+    "clock": {
+      "start": "2026-09-24T01:00:00.000Z",
+      "stepMs": 0
+    },
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/p/octo/hello",
+        "status": 200,
+        "body": {
+          "program": {
+            "owner": "octo",
+            "slug": "hello",
+            "visibility": "private",
+            "rev": 3,
+            "rev_id": "0123456789abcdef",
+            "commit_id": "fedcba9876543210",
+            "parent_commit_id": null,
+            "updated_at": 1,
+            "content": "---\nname: hello\nkind: function\n---\n\nReply with the word ok.\n"
+          },
+          "is_owner": true
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/run",
+        "query": {
+          "live": "1",
+          "session": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f"
+        },
+        "requestHeaders": {
+          "X-Session-Id": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f",
+          "Accept": "text/event-stream",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "expectedBody": {
+          "program_ref": "octo/hello@0123456789abcdef"
+        },
+        "status": 200,
+        "sse": {
+          "frames": [
+            {
+              "id": "1",
+              "event": "status",
+              "data": {
+                "type": "status",
+                "run_id": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+                "sequence": 1,
+                "at": "2026-09-24T01:00:01.000Z",
+                "status": "running",
+                "message": "reactor model-luna",
+                "session": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f",
+                "controls": {
+                  "steer": true,
+                  "stop": true
+                }
+              }
+            }
+          ],
+          "end": "close"
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "run.submit",
+      "operation": "run.submit",
+      "problem": null,
+      "result": {
+        "afterSequence": 1,
+        "cancelArgv": [
+          "--output",
+          "json",
+          "cli",
+          "run",
+          "cancel",
+          "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+          "--session",
+          "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f",
+          "--yes"
+        ],
+        "detached": true,
+        "resumeArgv": [
+          "--output",
+          "json",
+          "cli",
+          "run",
+          "watch",
+          "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+          "--after",
+          "1",
+          "--session",
+          "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f"
+        ],
+        "run": {
+          "run_id": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+          "status": "running"
+        },
+        "runId": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+        "run_id": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+        "session": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f"
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "journalAfter": [
+    {
+      "session": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f",
+      "runId": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+      "sourceSha256": null
+    }
+  ]
+}

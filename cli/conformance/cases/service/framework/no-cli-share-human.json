@@ -1,0 +1,24 @@
+{
+  "id": "no-cli-share-human",
+  "feature": "framework",
+  "operation": "run.share",
+  "description": "`prose share` (no `cli`) exits 2 with `cli run share --help`, and the Action says the link is public and `cli org invite` gives one person access; nothing is forwarded or billed.",
+  "argv": [
+    "share"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: Unknown command.\nDetail: `share` is not a command; did you mean `prose cli run share --help`? `cli run share RUN_ID` mints a public, unrevocable 24-hour link to a run's artifacts; `cli org invite` gives one person access. Nothing was forwarded or sent. To pass these words to the OpenProse language instead, put `--` before them\nAction: `cli run share` makes a public, unrevocable 24-hour link; `cli org invite` gives one person access. Use `cli run share RUN_ID --preview`; `prose cli run share --help` shows its arguments.\n"
+  }
+}

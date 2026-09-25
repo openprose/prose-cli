@@ -1,0 +1,65 @@
+{
+  "id": "show-feature-disabled",
+  "feature": "organizations",
+  "operation": "org.show",
+  "description": "The registry answers everyone who is not allowlisted with feature_disabled at 404: SERVICE_FEATURE_DISABLED, not NOT_FOUND.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "org",
+    "show",
+    "acme-research"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/organizations/acme-research",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          },
+          "Accept": "application/json"
+        },
+        "status": 404,
+        "body": {
+          "error": "example_feature is disabled",
+          "code": "feature_disabled",
+          "feature": "example_feature"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "organizations.manage",
+      "operation": "org.show",
+      "problem": {
+        "action": "Check your plan or organization, or contact OpenProse support.",
+        "boundary": "hosted-service",
+        "code": "SERVICE_FEATURE_DISABLED",
+        "exitCode": 10,
+        "message": "This capability is not available for this account.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1",
+        "details": {
+          "serviceCode": "feature_disabled",
+          "serviceStatus": 404
+        }
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "example_feature",
+    "example_feature is disabled"
+  ]
+}

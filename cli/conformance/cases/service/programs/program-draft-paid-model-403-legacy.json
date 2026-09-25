@@ -1,0 +1,77 @@
+{
+  "id": "program-draft-paid-model-403-legacy",
+  "feature": "programs",
+  "operation": "program.draft",
+  "description": "An older server's 403 paid_model_required is the same premium-model refusal as 402 paid_top_up_required: SERVICE_PREMIUM_MODEL_LOCKED with the top-up preview, never an authentication error. Without a model or summary in the body the reason is generic.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "program",
+    "draft",
+    "write a haiku about rain",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/write",
+        "requestHeaders": {
+          "Accept": "text/event-stream",
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef",
+          "Content-Type": "application/json"
+        },
+        "expectedBody": {
+          "request": "write a haiku about rain"
+        },
+        "status": 403,
+        "body": {
+          "error": "This model requires a paid plan.",
+          "code": "paid_model_required"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "schema": "openprose.service-operation/1",
+      "operation": "program.draft",
+      "interaction": "write.author",
+      "result": null,
+      "problem": {
+        "schema": "openprose.runner-error/1",
+        "code": "SERVICE_PREMIUM_MODEL_LOCKED",
+        "boundary": "hosted-service",
+        "message": "This model is a premium model that unlocks with any wallet top-up.",
+        "action": "Top up the wallet with any amount to unlock premium models; preview a top-up with `prose --output json cli wallet topup --amount-cents 500 --preview`.",
+        "exitCode": 10,
+        "retryable": false,
+        "details": {
+          "serviceStatus": 403,
+          "serviceCode": "paid_model_required",
+          "reason": "This model is premium; it unlocks with any wallet top-up.",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "wallet",
+            "topup",
+            "--amount-cents",
+            "500",
+            "--preview"
+          ]
+        }
+      }
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

@@ -51,6 +51,7 @@ ALLOWED_BUN_SCRIPTS = {
     "build": "bun --no-env-file --config=./config/empty-bunfig.toml run ./scripts/image-bundle.ts build",
     "build:test": "bun --no-env-file --config=./config/empty-bunfig.toml run ./scripts/image-bundle.ts build-test",
     "build:release": "bun --no-env-file --config=./config/empty-bunfig.toml run ./scripts/image-bundle.ts build --require-release-eligible",
+    "build:dev": "bun --no-env-file --config=./config/empty-bunfig.toml run ./scripts/image-bundle.ts build --dev-endpoint --outfile dist/prose-dev",
     "check": "bun run typecheck && bun run test && bun run build",
 }
 ALLOWED_BUN_DEPENDENCIES = {
@@ -122,9 +123,27 @@ ALLOWED_SHARED_REFERENCE_FILES = frozenset(
         "cli/shared/errors/taxonomy.v1.json",
         "cli/shared/fixtures/adapters/bin/adapter_probe.py",
         "cli/shared/fixtures/config/flat-toml-v1.json",
+        "cli/shared/fixtures/config/values-v1.json",
         "cli/shared/fixtures/human/human-safe-scalars.json",
+        "cli/shared/fixtures/human/dry-run.v1.json",
+        "cli/shared/fixtures/human/dry-run.v1.txt",
+        "cli/shared/fixtures/human/quoted-strings.json",
+        "cli/shared/fixtures/human/runner-errors.json",
+        "cli/shared/fixtures/credentials/macos-security.v1.json",
+        "cli/shared/fixtures/weave-help.txt",
+        "cli/shared/fixtures/dev-endpoint-origins.json",
+        "cli/shared/fixtures/journal-times.json",
+        "cli/shared/fixtures/human/help-program-name.json",
+        "cli/shared/fixtures/human/run-failure-actions.json",
         "cli/shared/fixtures/transport/deterministic-mock-adapter.json",
+        "cli/shared/fixtures/transport/proxy-selection.json",
+        "cli/shared/fixtures/transport/json-parse.json",
+        "cli/shared/fixtures/human/json-output.json",
         "cli/shared/fixtures/transport/mock-adapter.json",
+        "cli/shared/service/guide.v1.md",
+        "cli/shared/service/help.v1.json",
+        "cli/shared/service/operations.v1.json",
+        "cli/shared/service/service-interactions.v1.json",
     }
 )
 ALLOWED_SHARED_REFERENCE_PREFIXES = (
@@ -138,6 +157,7 @@ ALLOWED_MARKDOWN_REFERENCES = frozenset(
     {
         "cli/shared/image/sentinel-v1/payload/00-sentinel.md",
         "cli/shared/image/sentinel-v1/payload/10-byte-canary.md",
+        "cli/shared/service/guide.v1.md",
     }
 )
 LANGUAGE_LITERAL_TERMS = {

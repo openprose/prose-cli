@@ -1,0 +1,65 @@
+{
+  "id": "show-unknown-role-protocol-invalid",
+  "feature": "organizations",
+  "operation": "org.show",
+  "description": "A role outside admin|developer|reader is SERVICE_PROTOCOL_INVALID.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "org",
+    "show",
+    "acme-research"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/organizations/acme-research",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          },
+          "Accept": "application/json"
+        },
+        "status": 200,
+        "body": {
+          "organization": {
+            "id": "5b0e7c1a-3f2d-4e8b-9a61-2c4d8e0f1a23",
+            "slug": "acme-research",
+            "name": "Acme Research",
+            "created_by": "cus_ExampleAdmin01",
+            "created_at": 1790012915257,
+            "role": "owner"
+          }
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "organizations.manage",
+      "operation": "org.show",
+      "problem": {
+        "action": "Retry later and report the sanitized error code if it persists.",
+        "boundary": "protocol",
+        "code": "SERVICE_PROTOCOL_INVALID",
+        "exitCode": 10,
+        "message": "The OpenProse service returned an invalid response.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1",
+        "details": {
+          "reason": "the service response has a missing or invalid organization.role"
+        }
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

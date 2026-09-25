@@ -1,0 +1,45 @@
+{
+  "id": "service-operations-unexpected-argument",
+  "feature": "framework",
+  "operation": "service.operations",
+  "description": "`cli service operations` takes no arguments: an extra positional is INVOCATION_INVALID (exit 2) and no manifest is printed.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "service",
+    "operations",
+    "extra"
+  ],
+  "fixture": {
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": null,
+      "operation": "service.operations",
+      "problem": {
+        "action": "Remove the extra argument \"extra\": `prose --output json cli service operations`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "unexpected argument \"extra\" for `cli service operations`",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "service",
+            "operations"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

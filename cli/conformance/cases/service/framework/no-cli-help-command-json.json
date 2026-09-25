@@ -1,0 +1,50 @@
+{
+  "id": "no-cli-help-command-json",
+  "feature": "framework",
+  "operation": "run.submit",
+  "description": "`prose help run submit` under the default hosted harness suggests that command's help, `prose cli run submit --help`.",
+  "argv": [
+    "--output",
+    "json",
+    "help",
+    "run",
+    "submit"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": null,
+      "operation": "cli",
+      "problem": {
+        "action": "Show the help of `cli run submit`: `prose --output json cli run submit --help`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "`help run submit` is a language command, which runs only with a local harness; did you mean `prose --output json cli run submit --help`? Nothing was forwarded or sent. To run the language command, select a local harness with `prose cli harness use <id>`",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "submit",
+            "--help"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

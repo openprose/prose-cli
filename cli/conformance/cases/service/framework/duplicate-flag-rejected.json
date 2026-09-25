@@ -1,0 +1,54 @@
+{
+  "id": "duplicate-flag-rejected",
+  "feature": "framework",
+  "operation": "program.delete",
+  "description": "A repeated non-repeatable option is rejected.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "program",
+    "delete",
+    "demo",
+    "--yes",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "program.delete",
+      "operation": "program.delete",
+      "problem": {
+        "action": "Pass --yes once: `prose --output json cli program delete demo --yes`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "option --yes was specified more than once",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "program",
+            "delete",
+            "demo",
+            "--yes"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

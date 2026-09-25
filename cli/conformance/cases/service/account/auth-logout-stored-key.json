@@ -1,0 +1,37 @@
+{
+  "id": "auth-logout-stored-key",
+  "feature": "account",
+  "operation": "auth.logout",
+  "description": "Logout removes the stored key; the server key is not revoked. Ported from the account corpus.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "auth",
+    "logout"
+  ],
+  "fixture": {
+    "credential": "rr_test_11111111111111111111111111111111",
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "schema": "openprose.service-operation/1",
+      "operation": "auth.logout",
+      "interaction": null,
+      "result": {
+        "authenticated": false,
+        "credentialSource": "none"
+      },
+      "problem": null
+    }
+  },
+  "stderr": {
+    "empty": true
+  },
+  "forbid": [
+    "rr_test_11111111111111111111111111111111"
+  ]
+}

@@ -364,11 +364,36 @@ install upgrade help examples
 
 Unknown future commands follow the same path without a runner release.
 `prose help` is language help and is forwarded; `prose --help` describes the
-shell runner.
+shell runner. `prose help cli [COMMAND...]` is the one exception: `cli` is
+reserved, so it is never a language help topic, and the runner prints the
+matching `cli` help topic.
 
 The bare first token `cli` is the one permanent operational reservation.
 `prose -- cli ...` strips the delimiter and forces `cli ...` through the
 language path, preserving a deliberate escape hatch.
+
+One narrow exception protects agents that omit `cli` ("Missing `cli`" below). The first words after the
+runner globals may spell a service or runner command path (`run submit`,
+`job list`, `wallet balance`, `org member list`, `doctor`). If neither
+of the first two words names an existing file or directory relative to the
+working directory, the runner exits 2 with the `prose cli ...` command instead
+of forwarding. The same applies to a lone word that a `nounSynonyms` entry
+maps to exactly one command (`login`, `whoami`, `models`), to a verb before
+its group (`list jobs`) and to a `commandRewrites` word (`stop`, `delete`,
+`share`, `cron`). A language command that also names a service command
+(`status`, `help`, `examples`) is forwarded unless the default hosted harness,
+which runs no language command, would refuse it; `run FILE` is always
+forwarded, and `prose -- <WORDS>` always forwards.
+
+A second exception protects agents that put a command option first. When the first token the runner-global parser does not
+consume is a command-local option (a manifest `commonOptions` flag, an
+operation option, or an `optionAliases` spelling of one such as `-j` or `-y`),
+and only such options and runner globals precede `cli`, the runner exits 2
+(`INVOCATION_INVALID`) with `details.suggestedArgv` moving the options after
+the command path. `prose --json cli run list` is therefore never forwarded.
+An unknown option, or options not followed by `cli`, still freeze runner
+parsing as the first opaque language token. `prose help cli ... --json` prints
+the same topic as without `--json`.
 
 The forwarded `argv` is the literal `prose` introducer followed by the
 remaining argument vector after runner-global options; no display string or
@@ -401,11 +426,11 @@ the skill-owned unresolved-input or unresolved-approval terminal status. The
 runner never opens a prompt to continue the run. Users who want conversational
 questions, approvals, or a TUI use the direct skill path.
 
-### 7.2.1 Proposed local weave host bridge (IMP-026)
+### 7.2.1 Proposed local weave host bridge
 
 This isolated branch proposes `prose cli weave --host-binding ABS OP CONFIG ...`.
 It is not a released command. The exact admission, operation grammar, byte-stream,
-exit and interruption contract is [the IMP-026 decision](protocol/decisions/imp026-weave-host.md),
+exit and interruption contract is [the weave host decision](protocol/decisions/weave-host.md),
 with its self-contained [black-box fixture](shared/fixtures/weave-host-v1.json).
 Implementation must follow that corpus in both products before qualification.
 
@@ -482,6 +507,21 @@ Version 1 consumes only `PROSE_HARNESS`, `PROSE_TRANSPORT`, `PROSE_MODEL`,
 `PROSE_AUTH_PROFILE`. Other `PROSE_*` names are not runner configuration.
 Unknown configuration-file keys and invalid values fail closed with their
 source location; unknown environment variables are ignored by the runner.
+
+Both products apply one value grammar. Environment booleans are exactly
+`true`, `false`, `1` or `0`; durations match `^[1-9][0-9]*(ms|s|m|h)$` and are
+at most 24 hours (`maxTimeoutMs` in
+`shared/capabilities/transport-limits.v1.json`); an empty value is rejected,
+`PROSE_NATIVE_LOG` included; and a value holding U+FFFD (the replacement for
+bytes that are not UTF-8) is rejected. Values are checked in one order, the
+order of `values` in `shared/schemas/configuration-explanation.schema.json`
+(with `nativeLog` before `authProfile`), within each source: a file's values
+after all of its lines parse, then the environment, then flags. Every
+`CONFIG_INVALID` names its source in `details.source` (`path:line`, the
+variable, the flag, or `process cwd`), and reasons are fixed text without
+operating-system error strings. On Windows, variable names match without
+regard to case. The shared vectors are
+`shared/fixtures/config/values-v1.json`.
 
 Configuration files use a deliberately closed, portable subset of TOML. Each
 nonblank physical line contains either one comment or one assignment to a
@@ -738,6 +778,11 @@ compatibility/auth, and hosted availability/auth/quota → `10`;
 transport/prompt/image/recursion rejection → `20`; `STARTUP_TIMEOUT` → `21`;
 protocol and harness failure → `22`; `SEMANTIC_STATUS_UNKNOWN` → `23`;
 `CANCELLED` → `24`; and `PROCESS_CLEANUP_FAILED` → `25`.
+
+Both products cancel on `SIGINT`, `SIGTERM` and (POSIX) `SIGHUP`, the signal
+of a closed terminal: the run is cancelled cooperatively and ends with
+`CANCELLED` (`24`). Neither product handles Windows Ctrl+Break, whose default
+action ends the process.
 
 ## 9. Adapter architecture
 
@@ -1779,31 +1824,39 @@ parity with explicitly implementation-specific research variants; one isolated
 repository subtree; local functionality before public automation; and
 evidence-backed portability claims only.
 
-## IMP-034: explicit staging account commands
+## Account commands
 
-The opt-in global `--service-environment staging` admits only `cli auth login`,
-`cli auth status`, `cli auth logout`, and `cli org list`. Other values or uses
-are invocation errors. Without this option existing unavailable account behavior
-and all harness routing remain unchanged. This does not enable hosted execution.
-The only network origin is `https://run-prose-staging.openprose.workers.dev`;
-redirects and user-configurable token destinations are forbidden.
+`cli auth login`, `cli auth status`, `cli auth logout` and `cli org list`
+connect the CLI to an OpenProse account. They do not enable harness execution.
+Public builds reach exactly one origin, the production service origin
+(`environments.production.origin` in `shared/service/operations.v1.json`); redirects and
+user-configurable token destinations are forbidden, and no environment
+variable, option or configuration value changes the origin (see
+"Service origin" under hosted service operations for the separate developer build).
 
-The shared black-box corpus is `conformance/runner/staging-service-corpus.json`.
-Staging account and organization results use the closed `service-account` and
-`organization-list` schemas. Service errors are contained in `problem`, with
-exit code 10; cancellation uses existing `CANCELLED` and exit 24. No raw remote
-errors, device codes, API keys, or unknown response fields enter output.
-Organization projection contains only id, slug, name, and optional role.
+The shared black-box cases are `conformance/cases/service/account/` and
+`conformance/cases/service/organizations/`. Account and organization commands
+print the `openprose.service-operation/1` envelope like every other `cli`
+command (`operation` `auth.status`, `auth.login`, `auth.logout` or
+`org.list`); their results are the closed `service-account` (`authenticated`,
+`credentialSource`) and `organization-list` (`organizations`) schemas. Service
+errors are contained in `problem`, with exit code 10; cancellation uses existing
+`CANCELLED` and exit 24. No raw remote errors, device codes, API keys, or
+unknown response fields enter output. Organization projection contains only
+id, slug, name, and optional role.
 
-`OPENPROSE_STAGING_API_KEY` overrides only the staging local credential. It is
-never forwarded to a harness. Login/logout reject this variable when nonempty,
-because they cannot replace or clear the parent environment. Local credentials
-use OS credential storage, service `org.openprose.cli.staging`, account
-`api-key`; unavailable native storage fails closed with no plaintext fallback.
-Status without a token succeeds as signed out. Status with a token verifies it
-using GET `/organizations`; this endpoint can lazily create the account's default
-organization. Logout removes only the local credential; it does not revoke a
-server key. No provider credential is consulted or modified.
+`OPENPROSE_API_KEY` overrides the stored credential. It is never forwarded to
+a harness, even when explicitly re-allowed. Login/logout reject this variable
+when nonempty, because they cannot replace or clear the parent environment.
+Stored credentials use OS credential storage, service
+`org.openprose.cli.production`, account `api-key`; unavailable native storage
+fails closed with no plaintext fallback. Status without a token succeeds as
+signed out. Status with a token verifies it using GET `/organizations`; this
+endpoint can lazily create the account's default organization. Logout removes
+only the local credential; it does not revoke a server key. No provider
+credential is consulted or modified. A user `cli.toml` that still carries a
+`service_environment` key (written by `cli environment use` in earlier
+versions) is accepted and the key is ignored.
 
 Device login POSTs `/auth/device` without authorization, prints the returned
 user code and exact `https://github.com/login/device` verification URI on stderr,
@@ -1820,31 +1873,725 @@ SERVICE_PROTOCOL_INVALID. Requests have bounded time and response sizes and
 never retry by changing origins or credentials.
 
 Only compiled test-seam builds may honor `PROSE_TEST_SERVICE_FIXTURE`. The file
-contains `credential`, `storeAvailable`, ordered `exchanges` with exact `method`,
-`path`, HTTP `status`, and JSON `body`, plus optional `cancelBeforePoll`. This
-transport consumes the transcript without network, uses a virtual monotonic
-clock, and replaces the credential store in memory. It is not an endpoint
-override. Requests must match transcript methods and paths and use a bearer
-credential only for organization requests. Release builds ignore this seam.
+contains `credentials` (`{production: token|null}`), `storeAvailable`, ordered
+`exchanges` with exact `method`, `path`, HTTP `status`, and JSON `body`, plus
+optional `cancelBeforePoll`. This transport consumes the transcript without
+network, uses a virtual monotonic clock, and replaces the credential store in
+memory. It is not an endpoint override. Requests must match transcript methods
+and paths and use a bearer credential only for organization requests. Release
+builds ignore this seam.
 
-The staging credential predicate is exactly `rr_test_[0-9a-f]{32}`; invalid
-credentials normalize to SERVICE_PROTOCOL_INVALID. Device user codes are
+The credential predicate is exactly `rr_test_[0-9a-f]{32}`. A malformed or
+rejected key is SERVICE_AUTH_REQUIRED naming the variable (see
+"Credential teaching and account options"). Device user codes are
 1..32 characters from `[A-Z0-9-]`, and must not contain the private device code.
 Projected organization strings are nonempty, at most 4096 Unicode scalar values,
 contain no ASCII control characters or DEL, and cannot contain the bearer key.
 Extra organization fields, including nested private fields, are discarded.
-Malformed transcript roots fail SERVICE_PROTOCOL_INVALID: credential must be
-null or a string, storeAvailable a boolean, exchanges an array of at most 182.
+Malformed transcript roots fail SERVICE_PROTOCOL_INVALID: credentials must be
+an object, storeAvailable a boolean, exchanges an array of at most 182.
 
-## IMP-034 persistent service environments (supersedes staging-only admission)
+## Hosted service operations
 
-Production-default service environment contract, supersedes staging-only paragraph:
-- Grammar: prose cli environment show [--json]; prose cli environment use staging|production [--json]; prose cli environment reset [--json]. Global --output json supported. Reset removes stored selection =>production. Use production stores explicit production. Commands require no auth/network/keychain.
-- Persistent flat service_environment="staging"|"production" in existing USER cli.toml only. Use existing safe atomic writer preserving other values/comments and validate same protections. No project setting may redirect service. Service resolver reads user only, ignores project; normal project config with service_environment rejects CONFIG_INVALID. Keep service setting out of harness EffectiveValues/config-explain schema, expose via environment show.
-- Unset=>production. All auth login/status/logout and org list work by default, no flag needed. Retain --service-environment production|staging as ephemeral account/org override only; reject with environment management or unrelated ops. No generic endpoint env override.
-- Production origin https://run-prose-production.openprose.workers.dev; staging https://run-prose-staging.openprose.workers.dev. All OpenProse account/service requests route through selected fixed origin. Model/provider/kernel artifact endpoints unchanged.
-- Credentials: OPENPROSE_API_KEY production; OPENPROSE_STAGING_API_KEY staging. Only selected variable consulted. Both filtered from ALL harness/probe env even explicit reallow. Both namespaces independent org.openprose.cli.production and org.openprose.cli.staging account api-key. Backend actually issues rr_test_32hex on BOTH deployments, do not use rr_live_. No fallback across env. Login/logout reject only selected envtoken. Switching never reads/writes/deletes creds.
-- Human account/service and environment command output for staging clearly includes 'OpenProse staging'. JSON stays single parseable object with environment production|staging (no banner); device verification stderr remains necessary but contains no credential. Other local/harness human outputs need not change because they make no OpenProse service request.
-- Environment command closed output: schema openprose.service-environment/1, environment production|staging, source default|user-config, problem null|runner-error. Success show/use/reset returns selected env+source. Failure invalid config normal existing runner-error envelope allowed; never default silently if malformed user config. service-account/organization-list schemas environment enum both.
-- Test seam may optionally contain environment:'production'|'staging', credentials:{production: token|null,staging:token|null}; old credential applies only expected environment when provided. Assert selected env equals fixture.environment if supplied and exchange optional origin equals selected origin. Never reach network when fixture present or credential real stores.
-- Shared sequences will test persisted use/show/status/reset, fresh process, precedence, wrong env tokens, fixed origins, malformed/project config, JSON/human indicator. Update existing no-flag account tests to hermetic fixture behavior BEFORE full tests to avoid actual network/keychain.
+Status: see `protocol/STATUS.md`.
+The normative data is `shared/service/operations.v1.json` (the operation
+manifest), the schemas it names, and `shared/errors/taxonomy.v1.json`.
+
+**Scope.** `prose cli` gains runner-owned service operations that reach the
+OpenProse hosted service: discovery, pricing, hosted runs, run
+records, saved programs, published results, jobs, the wallet and
+organizations. They are not harness execution. `prose <FILE>` with the
+default `openprose` harness still reports `HOSTED_UNAVAILABLE` with unchanged
+text; hosted runs are `prose cli run submit`. Phase 5 (§12) is unchanged.
+
+**Grammar.** `prose [--output human|json|jsonl] cli <noun> <verb> [ARGUMENTS]
+[OPTIONS]`. Nouns are singular. Every operation, its
+arguments, options, requests, confirmation class, transport class and
+result schema are declared by the manifest, and both products derive parsing,
+help and confirmation from the embedded manifest. Each operation's `command`
+is its argv after `prose` (`["cli", "run", "submit"]`), as in the capabilities
+document. `prose cli service operations --json` prints the published manifest
+as the envelope's `result` (one line) and makes no request; the published
+manifest is the embedded manifest's public projection
+(`shared/service/operations-public.v1.json`, an allowlist of members): each
+operation's command, arguments, options, spec, effect, confirmation, output
+schema names, exit codes and examples, plus the grammar, exit dictionary,
+environment variables and status classification. Service routes and their
+catalog entries, service error strings, the service origin, the key format,
+the vendored export and this client's own transport, journal and identity
+settings are read internally and never printed; the projection records a size
+budget and strings that must never appear in it.
+Human mode prints a summary table (operation, effect, confirm, usage) and
+`--output jsonl` prints one `openprose.service-record/1` line per operation,
+in manifest order, then the `openprose.service-page/1` trailer. A service
+`--help` in a JSON mode (`prose --output json cli run --help`) prints the
+envelope whose result is `{help, operations}`: the help text and the manifest
+records of the commands it describes. The manifest also declares `exitCodes`, the exit dictionary keyed by
+error code (`{exit, retryable, meaning}`, each equal to the taxonomy entry),
+`envVars` (every variable service operations read), and per-operation
+`examples` (runnable command lines). `prose cli service capabilities [--json]`
+prints the grammar, variables, exit dictionary and the noun/verb
+index with examples on one page, or as one canonical
+`openprose.service-capabilities/1` line (`shared/schemas/service-capabilities.schema.json`);
+it makes no request. Both views are rendered once by
+`ci/render_service_help.py` into `shared/service/help.v1.json` (`capabilities`,
+`views`) and embedded by both products. `prose cli service guide [--json]` prints the agent guide `shared/service/guide.v1.md` byte for
+byte, or its `## ` sections as the result `{sections: [{id, title, body}]}` of
+one `openprose.service-operation/1` envelope; it makes no request and needs no
+key. Both products embed the file; the `service-help` gate fails when a
+`prose cli ...` command in it does not parse against the manifest, when a
+required section is missing, or when the generated cases pinning both views
+are stale. `prose cli service triage [--json]` is one
+read of the session state: it sends `GET /health` anonymously, then, with a usable key, `GET /wallet/balance`,
+`GET /organizations/default`, `GET /runs?limit=5` and `GET /triggers`. The
+result (`service/discovery.schema.json#/$defs/serviceTriage`) has one section
+per read, each `{problem}` or its projected fields with `problem: null`, a
+`credential` section (`variable`, `source`, `state`, `problem`) and
+`nextCommands` (`{why, argv, env}`) derived from state. It exits 0 whenever
+the report is produced; only cancellation and invocation errors end it early.
+Without a usable key the account sections are null and the credential
+problem names the variable to set; after an unanswered `/health` nothing else
+is sent. Sections carry price fields only. Human output is at most 25 lines. The `service-help` gate fails when the
+dictionary lacks a code that a shared corpus case emits or expects under a
+different exit, lacks a code an operation or the error classification names,
+disagrees with the taxonomy, or lists an unexplained code; and when an example
+names another command, an unknown or missing required option or argument, or
+a confirm-class command without `--yes` or `--preview`. The
+`service-operations-*` gates also run every example against the product and
+fail when its grammar parser rejects one. When stdout is a closed pipe
+(`| head -1`), both products stop writing stdout and exit with the command's
+own code without a diagnostic. The global `--model`,
+`--harness` and `--dry-run` options are `INVOCATION_INVALID` in the global
+position before a service operation. Operation options follow the command
+path, and an operation may define an option of the same name (`cli run submit
+--model`). Trailing `--json` equals `--output json`. No new environment
+variable is read for output; `PROSE_OUTPUT` keeps its §7.4 meaning. `--help`
+prints the text in `shared/service/help.v1.json` for that topic exactly.
+Every manifest command path has a topic, including the account `auth`,
+`org list` and `package` commands. `cli <noun> --help`, and
+`--help` or `-h` after an account verb, print that topic and never the runner
+help. Each operation's "Exit codes:" line is rendered from its manifest
+`exitCodes` (`{exit, meaning, codes?}`, ascending). The `service-help` gate
+fails when that list disagrees with the error taxonomy, lists a
+route-override code for an operation that does not send the route, or
+disagrees with the exits and codes that the shared corpora expect from the
+operation.
+
+**No prompts; confirmation.** No service operation prompts. `--yes` is required
+when any non-GET/HEAD request's catalog interaction has agent policy `confirm`
+or `never`, is `DELETE`, has effect `money`, `outward` or `destructive`, or is
+not reversible; the manifest may only tighten this. Without `--yes` the
+operation sends no mutation and exits 2 with `CONFIRMATION_REQUIRED`, whose
+`details.plannedRequest` describes the planned request: its method, what it
+does in words (`description`, the first sentence of the operation's summary),
+the body digest, the effect, the non-secret `summary` of the caller's inputs
+and, for `run submit` and `job create`, the service hold quote. The service
+route, its query and the price policy reference are never shown. `--preview` prints the same plan for any
+mutation as a successful result, exits 0 and sends no mutation. The account
+operations (`auth`, `org list`, `package`) keep their grammar; the manifest records their
+confirmation waivers.
+
+**Output.** JSON output is one `openprose.service-operation/1` object followed
+by LF. It contains `schema`, `operation`, the CLI id, and `interaction`, the
+primary service catalog id or null. It names no service environment (a
+developer build's human output names its endpoint, below). `result` is the
+closed per-operation projection; a paged operation's result carries
+`nextBefore`. `problem` is a runner error; when it is non-null, `result` is
+null. A `cli` command's `INVOCATION_INVALID` says what was wrong in its
+`message`: `Unknown command.`, `Unknown option.` or `That command isn't quite
+right.`; the language and the runner commands keep `Runner invocation is
+invalid.`. One JSON error shape: in JSON and JSONL modes this
+envelope also carries every invocation error of a service command line that
+was rejected before an operation ran: a near miss (`cli models`,
+`cli run delete`), a command option before `cli`, a missing `cli`, an invalid
+or conflicting `--output`, and an account-path refusal
+(`cli package frob`).
+`operation` is the operation the argv names, meaning the longest run of
+command words after `cli` that equals an operation's command, else the literal
+`cli`, whose `interaction` is null. JSONL prints the envelope as one line,
+except that a streaming operation prints its one `service.failed` line.
+Human output is unchanged. A bare `openprose.runner-error/1` is printed only
+for language commands and the local runner commands (`cli doctor`,
+`cli harness`, `cli config`, `cli cleanup`). A transport failure
+(`SERVICE_UNAVAILABLE` with no service response) carries `details.reason`, so
+every non-zero exit of a service command line has `problem.details`; the
+service corpus runner asserts both over every case. JSONL streams emit `openprose.service-event/1` lines. The service's
+`run_complete` frame becomes exactly one terminal `service.completed`,
+`service.failed` or `service.detached` line carrying the envelope, and nothing
+follows it; `service.detached` is the exit-21 end (detached or the `--wait`
+deadline: the run continues), `service.failed` every other failure. End of
+stream after an `error` frame is terminal. Unknown event types become
+`unrecognized` events carrying only a sanitized name. Heartbeat comments are
+ignored. Human mode writes results and text chunks to stdout, and status,
+activity and warnings to stderr. A status line carries the status word only
+(the service's status message stays in the JSONL event). An agent's structured
+final answer (`{status, reason, semantic_diff}`) prints as its words, never as
+JSON. Human errors name no HTTP status (`details.serviceStatus` keeps it); an
+allowlisted service code prints as `Service code:`. Results keep service field
+names verbatim and are built from allowlists: unknown fields are dropped at
+every depth. A run's `environment` is its public id (`builtin`, `linux`); the
+service's runtime name, runtime contract and environment version are not
+output. Signed file URLs and `customer_id` are never output.
+
+**Lists, times and human output.** A list operation names its
+item array in the manifest's `output.records`. With `--output jsonl` it prints
+one `openprose.service-record/1` line per item and then one
+`openprose.service-page/1` trailer carrying `count`, `nextBefore` (null when
+there is no next page) and `meta`, the result without its collection; a failed
+list operation prints the envelope. In JSON the cursor is
+`result.nextBefore`; error envelopes carry none. Every epoch-ms result field `X` has an additive `X_iso`
+(RFC 3339 UTC, or null). Human output uses dollars for money, prints
+`No <things>.` for an empty list, flattens nested records into `label: value`
+lines (`run show`, the job renderer), prints `Next page:` as a full command and ends the run, job and
+model views with copyable `Next:` commands from the one follow-up renderer.
+
+**Key order.** Every JSON or JSONL stdout line, including the
+account, organization-list and package envelopes and every
+runner error, is canonical: compact, with object keys sorted recursively as
+strings at every depth (so `"10"` sorts before `"2"`), UTF-8 without ASCII
+escaping, and one LF per document. Both products print identical bytes for
+identical documents; Rust gets this from `serde_json::Value`, Bun from
+`output.canonicalJson`. `--output-file` JSON uses the same order with a two-space indent. The one exception is
+`cli service operations --json`, whose result is the public projection of
+the embedded manifest.
+The shared corpora compare stdout bytes, not only parsed values.
+Share URLs, Checkout URLs, invitation tokens, webhook endpoints and signing
+secrets appear only in the result of the operation that creates them (a
+webhook's `endpoint_url` also appears in `job show` when its endpoint is the
+secret-free job-id path). Output
+contains server-provided prices only and no field matching `/cost/i`.
+
+**Allowlisted output.** Every result is built by copying the fields its closed
+schema (`shared/schemas/service/`) lists; nothing a service record carries
+beyond them reaches stdout or stderr, in any output mode. The shared corpus
+reruns every case with an unknown member on every service object and requires
+identical output. Job output uses the user noun and one casing (`job`, `jobs`,
+`max_jobs`, `job_limit`, snake_case fields, the opaque `revision_token`, run
+counts in the states `queued`, `running`, `completed`, `failed`, `cancelled`,
+`awaiting_billing`). A run's `billing_status` is `settled`, `settling` (a
+charge not yet final) or `unknown`. Stream status text names the model
+(`Running on MODEL`) and activity carries no tool call reference. A run's
+error text prints mapped words (`shared/fixtures/service/run-errors.v1.json`)
+with a generic fallback, never the service's stage names; `PROSE_DEBUG=1`
+prints the service's text instead. An example that `example show` cannot
+fetch is `viewOnWeb` with its `webUrl` when the service names one. Organization
+members are numbered (`member N`, by when they joined, with a `handle` when
+the service sends one); account and organization ids are not printed, and
+`org member role|remove` take `N`, `member N` or an account id. Cursors
+(`nextBefore`) are opaque.
+
+**Errors and exits.** A service response is classified in this order:
+
+1. its body `code`;
+2. then a route override: `/repos` 401 and `PUT /programs/{slug}` 403 map to
+   `GITHUB_LINK_REQUIRED`. `program save` narrows the 403 by the service
+   `error` text: only the linked-login refusal keeps `GITHUB_LINK_REQUIRED`,
+   a reserved handle or reassigned slug is `SERVICE_REQUEST_REJECTED`, and any
+   other 403 (such as `Invalid API key.`) is `SERVICE_AUTH_REQUIRED`;
+3. then its HTTP status, using the manifest's `errorClassification` table.
+
+`details` carries `serviceStatus` and an allowlisted `serviceCode`. For 400,
+409 and 422 on service operations only (not the account operations), it also carries `serviceMessage`: the
+service `error` text after the account text validator, at most 512 code
+points, with no control characters and with the key redacted. Account
+operations keep their frozen mapping and emit no remote text. Exits follow
+§7.5. The additional taxonomy codes are:
+
+- `CONFIRMATION_REQUIRED` (2);
+- service errors (10);
+- `SERVICE_WATCH_DEADLINE` and `HOSTED_RUN_DETACHED` (21, not retryable: the
+  run continues, so both carry `details.resumable: true` and
+  `details.resumeArgv`; retrying the command would start a second run);
+- `HOSTED_RUN_FAILED` and `RUN_SUBMISSION_AMBIGUOUS` (22);
+- `HOSTED_RUN_CANCELLED` (24, not retryable).
+
+A hosted cancellation reports the terminal `HOSTED_RUN_CANCELLED` (24).
+Exit 30 stays reserved for structured semantic failure.
+
+**Invocation errors and copyable commands.** Every
+`INVOCATION_INVALID` of a service invocation carries an Action for its own
+cause, never the generic runner syntax advice. When the Action names one
+command, `details.suggestedArgv` holds its arguments after the product name,
+and the Action shows the same argv as a shell-quoted `prose ...` line. The
+suggestion is one of:
+
+- a corrected copy of the rejected argv (a did-you-mean noun, verb or option,
+  a dropped duplicate or extra token, `--dry-run` replaced by `--preview`, a
+  global option moved before `cli`);
+- a follow-up command: the listing that shows valid values for a missing
+  argument (`run list` for `<RUN_ID>`, `program list` for a program, and so
+  on), or the command's `--help`.
+
+Follow-up commands, `resumeArgv`, `cancelArgv`, and every `prose cli ...`
+command quoted in a reason or human hint come from one renderer. It writes
+`--output <mode>` when the resolved mode is `json` or `jsonl`, then `cli` and
+the words. A copied command therefore never switches to human output. The
+`--output` and `--json` tokens that follow a rejected token are still read to
+choose the output mode and the suggested commands. The phrase "place global
+options before cli" appears only when a global option right after `cli`
+(`cli --output json run list`) was rejected. A misspelled service noun, a bare
+or unknown verb and a global option after `cli` are service invocation errors.
+They render as `OpenProse: INVOCATION_INVALID: ...` in human mode, or as a bare
+runner error in JSON, and they never name the executable path. Public builds
+print no banner; a developer build prints its custom-endpoint label at most
+once, before the first streamed or result byte. A failure that streamed
+nothing prints only the error, whose first line already carries the label.
+Both products render these bytes identically. The account `auth`,
+`package` and `org list` grammars keep their runner rendering for their own
+argument errors; an unknown verb in those groups is an intent-inference error
+(below).
+
+**Missing `cli`.** Service words given without `cli`
+are an invocation error. They are never forwarded to the language runner and
+never billed. After the runner globals, the runner checks the first
+unconsumed tokens:
+
+- **Command words.** Two words that form a command-path prefix of the
+  manifest or the runner commands (`run submit`, `job list`,
+  `org member list`, `harness list`), or one word that is a complete one-word
+  path (`doctor`), are a service command. So is a lone word whose
+  `nounSynonyms` entry names exactly one command: a complete path, or a
+  group with one verb, which is appended (`login` → `auth login`, `whoami` →
+  `auth status`, `models` → `model list`, `money` → `wallet balance`); a
+  group synonym followed by one of its verbs names that command. A verb before
+  its group (`list jobs` → `job list`) and a `commandRewrites` phrase (`stop`
+  → `run cancel`, `delete` → `program delete`, `share` → `run share`,
+  `cron` → `job create`, `show` → `run list --limit 1`) are service words
+  too; a rewrite's explanation follows the suggested command in the reason.
+  Distance is never used before `cli`. When neither word names an
+  existing file or directory (resolved against `--cwd` or the process working
+  directory), the result is `INVOCATION_INVALID` (exit 2) rendered by the
+  service renderer. The reason reads ``<words> is a service command; did you
+  mean `prose ... cli ...`? Nothing was forwarded or sent. To pass these words
+  to the OpenProse language instead, put `--` before them`` (``is not a
+  command`` for a synonym). The Action reads ``Insert cli before the service
+  command: `prose ... cli ...`.`` (``Use `cli <command>`: ...`` for a
+  synonym). `details.suggestedArgv` is the original argv with `cli` and the
+  command words in place of the typed words, with every global kept in place.
+- **Language commands.** `grammar.intentInference.languageCommands` is the
+  SPEC 7.1 list (a contract test compares them). A language command that also
+  names a service command (`status` → `service triage`, `help [COMMAND]` →
+  `--help`, `examples` → `example list`) is forwarded when a local harness is
+  selected. Under the default `openprose` harness, which runs no language
+  command, it is the `INVOCATION_INVALID` rejection instead (reason
+  ``<words> is a language command, which runs only with a local harness``).
+  `run FILE` is always forwarded: its `HOSTED_UNAVAILABLE` refusal keeps the
+  frozen Action, and `details.suggestedArgv` is `prose ... cli run submit FILE
+  --preview`.
+- **A file of that name.** When one of the words names an existing file or
+  directory, the argv is a language command and is forwarded unchanged. If
+  the default `openprose` harness then refuses with `HOSTED_UNAVAILABLE`, the
+  Action gains ``If you meant the hosted service command, use `prose cli
+  ...`.`` and `details.suggestedArgv` carries that argv.
+- **Global aliases before `cli`.** An `optionAliases` entry whose target is a
+  `grammar.globalOptions` name (`--format` → `--output`) may appear in the
+  global position. When `cli` or service command words follow, the alias is
+  suggested and never applied. Without `cli` or command words after it, the
+  token stays opaque language input. Any other unknown option before `cli` is
+  an ordinary unknown-option error.
+- **Command options before `cli`.** A command-local
+  option in the global position (a `commonOptions` flag such as `--json`,
+  `--yes` or `--preview`, any operation option such as `--limit` or
+  `--output-file`, or an `optionAliases` spelling of one such as `-j` or
+  `-y`), followed by `cli` with only such options and runner globals in
+  between, is `INVOCATION_INVALID` rendered by the service renderer. The
+  reason reads ``<`flag`[ (canonical)]...> belongs after the command path, not
+  before `cli`; nothing was forwarded or sent``; the Action reads ``Move
+  <canonical names> after the command path: `prose ...`.``;
+  `details.suggestedArgv` keeps the runner globals in place and appends the
+  options, by canonical name and with their values, after the command path
+  (before a literal `--`). `--json` among them selects JSON output for the
+  error.
+- **Pre-parse global values.** Before a manifest
+  command, an `--output` value that is not a mode suggests the mode equal in
+  letter case or nearest by distance, else `json`. This is a
+  service-renderer error in both ports and never names the executable path.
+- `prose -- <WORDS>` always forwards, with no hint.
+
+`prose --help` (`runner-help.txt`) lists every manifest command path and the
+exit-code dictionary (every exit code in `shared/errors/taxonomy.v1.json`).
+It also lists the service environment variables and a
+"For agents" section naming `prose cli service capabilities --json`,
+`prose cli service triage --json`,
+`prose cli service status --json`, `prose cli service operations --json`,
+`prose cli service guide` and `details.suggestedArgv`.
+`ci/render_service_help.py --check` (the `service-help` gate) fails when a
+manifest command, an exit code or one of those entries is missing. It also
+fails when the help names a command that does not exist. The shared case
+`framework/help-runner-top-level` pins the bytes in both ports.
+
+**Intent inference.** A word or option the grammar
+does not know is never guessed into execution: it is `INVOCATION_INVALID`
+(exit 2) with the corrected argv in `details.suggestedArgv`, even for reads.
+The tables live in the manifest at `grammar.intentInference`, and both
+products read them:
+
+- `verbSynonyms` maps a word in verb position to candidate verbs in
+  preference order; the first candidate that the group has wins (`run ls` →
+  `run list`, `run get` → `run show`, `wallet get` → `wallet balance`,
+  `org member rm` → `org member remove`). `nounSynonyms` maps a word right
+  after `cli` to command words (`organization` → `org`, `whoami` →
+  `auth status`). `optionAliases` maps a foreign option spelling to candidate
+  options; the first one the operation accepts wins (`-y` → `--yes`,
+  `-j` → `--json`, `--format` → `--output`, `--dry-run` → `--preview`). A synonym is tried
+  only when the word is not itself a command or option in that position.
+- Otherwise the suggestion is the unique nearest known word by
+  optimal-string-alignment distance, in which an adjacent transposition is
+  one edit (`lsit` → `list`, `shwo` → `show`, `--jsno` → `--json`). The
+  limit is `distance.shortWordMax` (1) for words of up to
+  `distance.shortWordLength` (4) characters and `distance.max` (2) beyond.
+  A tie at the smallest distance suggests nothing.
+- The reason reads ``unknown command `cli <typed>`; did you mean `cli
+  <meant>`? Commands: <list>`` (or ``unknown command `cli <typed>`. Commands:
+  <list>`` without a match). After `cli`, the list names every first word of
+  a manifest command and the runner commands `doctor`, `harness`, `cleanup`
+  and `config`. In a group it names the group's verbs, including the runner
+  groups `harness`, `cleanup` and `config` and the account groups `auth` and `package`. An unknown
+  option reads ``unknown option <typed> for `cli <command>`; did you mean
+  <meant>?``. Every such error is rendered by the service renderer, so both
+  products print the same bytes and never name the executable path.
+- Suggestions are complete: `details.suggestedArgv`,
+  run as given with `details.suggestedStdin` (when present) on standard
+  input, is never itself `INVOCATION_INVALID`. A corrected noun or verb that
+  leaves a group without a verb gains the next typed verb, the verb a
+  misspelled next word means, or the group's only verb (`cli models` and
+  `cli model` → `cli model list`); a group with several verbs suggests its
+  `--help`. A corrected bare command whose arguments are all optional
+  suggests its `--help` (`cli run submt` → `cli run submit --help`). When the
+  corrected argv names a service command the grammar would still reject,
+  the correction is settled: the Action reads ``<first fix>, then <second
+  fix>`` and `suggestedArgv` is the second fix (`cli run shw` → `cli run
+  list`, the listing for the missing RUN_ID). `optionConversions` change
+  units: `--amount 5` (dollars, before or after `cli`) suggests
+  `--amount-cents 500` and says the dollars were converted; a value that is
+  not a positive whole number is not converted, the reason states the unit,
+  and the suggestion is the help. `commandRewrites` map a phrase to a
+  command plus options (`cli run result RUN_ID` → `cli run show RUN_ID
+  --file outputs/result.json`; without RUN_ID, `cli run show --help`). An
+  unexpected argument fills the one missing required value option
+  (`cli wallet topup 500` → `--amount-cents 500`, `cli job create spec.json`
+  → `--spec-file spec.json` when the file exists; an `N` option takes only
+  digits). The argument of an operation with a `secretFileOptions` option
+  (`cli wallet redeem CODE`, `cli org invitation accept TOKEN`) is presumed
+  to be the secret: the reason and Action never echo it, and the suggestion
+  reads the option from standard input (`--code-file -`) with a
+  ``printf '%s\n' "$CODE" | ...`` example. An unknown option of a
+  `--spec-file` operation that names a text, interval or enum key of its
+  `spec` (`cli job update ID --name x`) suggests `--spec-file -`, and
+  `details.suggestedStdin` holds the JSON object of every such option
+  (`{"name":"x"}` and a newline); `*_secret` keys are never moved. A
+  whole-number `--limit` out of range suggests the nearest accepted value
+  (`--limit 500` → `--limit 200`, `--limit 0` → `--limit 1`). A did-you-mean
+  in a handler's reason carries the corrected command (`VISIBILITY pubic`
+  → `public`), and an existing `run download` directory suggests the first
+  free `DIR-2` … `DIR-99` as `--output-dir`. The service corpus runner reruns
+  every JSON case's `suggestedArgv` offline in the case's fixture and fails
+  on `INVOCATION_INVALID` (`service_operations.py --round-trip-only` runs
+  that check alone).
+- Discovery: every `cli ... --help` topic has an
+  `Examples:` section rendered from the manifest `examples` (an operation's
+  own; one per child command, in command order, for a group), after the
+  options or command list and before the global options or `Output:` line.
+  An option whose value the client or service fills in when it is omitted
+  carries a manifest `default`, printed as `Default: ...` (`wallet usage
+  --start` 30 days ago and `--end` today, UTC; `run submit --model`,
+  `--environment`, `--runtime`); `program save` says a new program is
+  private. `prose --help` starts its "For agents" section within its first
+  25 lines, before the runner commands and options.
+  `render_service_help.py --check` fails when a topic lacks its examples, or
+  when "For agents" moves below line 25.
+- Help: `-h` is `--help` wherever `--help` is accepted. Bare `prose cli`,
+  `prose cli help`, `prose cli help <command...>` and a trailing `help` or
+  `-h` after a command group or path print that topic and exit 0, in every
+  output mode.
+
+**Runs.** `run submit` is always live. It mints a session UUID and records
+`{session, runId, createdAt, lastSequence, sourceSha256}` in the run journal
+before sending `POST /run?live=1&session=<id>` with `X-Session-Id` and
+`Accept: text/event-stream`. The journal lives at
+`$XDG_STATE_HOME/openprose/cli/production/runs/`, with directories 0700,
+files 0600 and no key. The CLI never sends a non-live submission. It never
+retries `POST /run` blindly. It resubmits at most once with the same session,
+and only when the connection dropped before the first event. A 409 reporting
+that the session already has a run proves the first submission was admitted.
+The CLI then takes the run id from an `X-Run-Id` header when present, and
+otherwise exits `RUN_SUBMISSION_AMBIGUOUS` and keeps the journal entry. Only
+the duplicate-session 409 counts (it names a run, or carries the service's
+"This session already has a run." text without a `code`); any other 409 is
+classified normally, or is `RUN_SUBMISSION_AMBIGUOUS` after a resubmission.
+Interrupting `run submit` or `run watch`, or reaching `--wait`, detaches and
+never cancels. The `--wait` default is 30 minutes and the maximum is 6 hours.
+An interrupt or a lost stream exits `HOSTED_RUN_DETACHED` (21, not
+retryable: retrying `run submit` would start a second run) and the deadline
+exits `SERVICE_WATCH_DEADLINE` (21). Both carry `runId`, `afterSequence`,
+`resumeArgv` and `cancelArgv`. A `--wait` that passes before the run id is
+known keeps reading the stream until the id arrives, for at most the stream
+connect timeout, then exits 21 naming the run. `RUN_SUBMISSION_AMBIGUOUS`
+(22) is left for a submission lost without a run id; its
+`details.resumeArgv` is the same `run submit` with `--session S --detach`.
+`run submit --session S` of a session that already has a run (this
+machine's journal, or the service's duplicate-session 409 naming the run
+without a resubmission) exits 0 with that run and `result.reused: true`.
+`run submit` and `run watch` results carry `run_id` beside `runId`, and a
+detached (or reused) result's `run` is `{run_id, status}`. When the service closes a `run watch` stream
+cleanly with nothing past `--after`, the run has already finished, and watch
+replays once from 0 to report its outcome. Only `run cancel --yes` cancels, and it reports the wallet's
+`reserved_*` beside `available_*`. `run watch`, `run input` and `run cancel`
+take the session from the journal unless `--session` is given; with neither,
+they read the run record first.
+
+**Ended runs.** `run cancel` of a run the service
+reports as ended (409 `This run has already ended.`) exits 0 with
+`{runId, status: "already_ended", runStatus}`: `runStatus` is the run record's
+status from `GET /runs/{id}`, or null when the record is not written yet
+(404); the wallet is not read. `run input` refused with 409 `This run is no
+longer accepting instructions.` stays `SERVICE_WRITE_CONFLICT` (not
+retryable), with `details.reason`, `details.runId`, an Action saying not to
+retry and `details.suggestedArgv` `cli run show RUN_ID`. `run watch` without
+`--session` or a journal entry reads `GET /runs/{id}`: an ended record
+(`completed`, `error`, `failed`, `timeout`, `cancelled`) is reported like a
+replay (exit 0 with `session: null`, `afterSequence: 0`, `source: "record"`
+and `run` projected from the record without `response`; `HOSTED_RUN_FAILED`
+22 or `HOSTED_RUN_CANCELLED` 24 with `details.files` and `source`), and a 404
+or another status is `INVOCATION_INVALID` whose reason says the live session
+is in the submitting machine's journal, with `suggestedArgv` `cli run show
+RUN_ID`. `run download` without `--output-dir` writes to `./RUN_ID` and
+still refuses an existing directory.
+
+**Not found and idempotent deletes.** Every operation
+that addresses a resource by an argument has a manifest `notFound` entry
+(`resource`, an `id` template over its arguments, an optional `list` command,
+an optional `hint`, and `serviceCodes` overrides such as
+`organization_not_found`). A `SERVICE_RESOURCE_NOT_FOUND` on that operation
+carries `details.resource` `{kind, id}`, a `details.reason` naming the id
+(``job <id> was not found``) unless the handler gave
+a more specific one, `details.suggestedArgv` for the listing command, and the
+Action ``Run `<list>` to find the right <kind>, then retry with it.`` (or
+``Check the <kind> identifier named in Detail, then retry with the right one.``
+when no command lists it). A 404 on one of a run's files names the file
+(`kind` `file`, `id` `RUN_ID/PATH`, `suggestedArgv` `cli run show RUN_ID`). A
+`SERVICE_REQUEST_REJECTED` Action names only the details present (``Correct the
+request as details.serviceMessage describes, then retry.``); with none it
+points at the operation's `--help`, also as `suggestedArgv`. Human output
+never names a JSON field in an Action: the rejected Action names the printed
+lines instead (``Correct the request as the Detail and Service message lines
+above describe, then retry.``), and the catalog Actions of
+`SERVICE_WATCH_DEADLINE`, `HOSTED_RUN_DETACHED`, `HOSTED_RUN_CANCELLED` and
+`RUN_SUBMISSION_AMBIGUOUS` point at the command their `Detail:` line names.
+JSON keeps the catalog Action. A confirmed
+`program delete` or `job delete` whose DELETE is a 404 exits 0 with
+`{..., deleted: true, alreadyAbsent: true}` (`already_absent` for a job):
+the goal state holds, so a retry after a lost response is not a failure.
+
+**Idempotence only where it is true.** `alreadyAbsent`
+is reported only for a 404 on a well-formed identifier the caller owns:
+- `job delete` requires `JOB_ID` to be a lowercase UUID
+  (`8-4-4-4-12` hex digits, as `job list` prints it). Anything else, including
+  a path-like value such as `..`, is `INVOCATION_INVALID` (exit 2) before any
+  request, with a reason naming the value (and the lower-case form when that
+  is a UUID), the Action ``List your jobs with `<cli job list>` and pass one of
+  their ids.`` and `suggestedArgv` `cli job list`.
+- An own-scope `OWNER/SLUG` (`program save|visibility|delete|revisions`,
+  `result publish|unpublish`) whose `OWNER` cannot be confirmed as the caller
+  (the caller's `GET /programs/{slug}/revisions` is a 404 or an empty list) is
+  `INVOCATION_INVALID` (exit 2) before any write, `--preview` included: the
+  reason says ``OWNER "X" is not confirmed as you`` and names the bare slug to
+  pass, the Action names the bare slug and `cli program list`, and
+  `suggestedArgv` is `cli program list`. That 404 is never mapped to
+  `alreadyAbsent`. (A first `program save` keeps its own reason asking for the
+  bare slug.) When `OWNER` is confirmed, the plan (`--preview` result and
+  `CONFIRMATION_REQUIRED` `details.plannedRequest`) carries
+  `owner: {handle, verified: true}` and human output prints
+  `Owner: HANDLE (verified as you)`; a bare-`SLUG` plan has no `owner`.
+- `run cancel` and `run input` without `--session` or a journal entry read
+  `GET /runs/{id}` (the manifest's `run.read` request; `run input` gains it as
+  request 1) before the confirmation gate. An ended record (`completed`,
+  `error`, `failed`, `timeout`, `cancelled`) makes `cancel` exit 0 with
+  `{runId, status: "already_ended", runStatus}` (nothing is POSTed, the wallet
+  is not read, `--yes` is not needed because nothing changes) and makes
+  `input` `SERVICE_WRITE_CONFLICT` (exit 10, not retryable) with
+  `details.reason` naming the status, `details.runId`, `details.source:
+  "record"`, the ended-run Action and `suggestedArgv` `cli run show RUN_ID`.
+  A 404 or a status that is not ended is `INVOCATION_INVALID` whose Action
+  names the verb (``Cancel the run from the machine that submitted it (its run
+  journal holds the live session) or pass that session with --session UUID;
+  nothing was cancelled. ...``, and the `input` equivalent), with
+  `suggestedArgv` `cli run show RUN_ID`. Cancel is therefore idempotent from
+  any machine.
+
+**Registry errors.** A registry 404 is
+`SERVICE_RESOURCE_NOT_FOUND` (exit 10, not retryable), never
+`SERVICE_UNAVAILABLE`: fetch and withdraw name `{kind: package, id:
+ORG/NAME@VERSION}` with `suggestedArgv` `cli package list ORG`; list and
+publish name the organization with `cli org list`. 413 and 429 stay
+`SERVICE_UNAVAILABLE`. An invalid `cli package <COMMAND>` invocation is
+`INVOCATION_INVALID` in the `openprose.service-operation/1` envelope in both
+ports, before any request, with a per-cause reason (missing `ORG` or
+`ORG/NAME@VERSION`, an option the command does not take with the ones it does,
+a duplicate or valueless option, a missing required option, a value that is not
+a slug, a version, a cursor or a digest) and `suggestedArgv` `cli package
+<COMMAND> --help`; a missing or unknown command is a bare `INVOCATION_INVALID`
+naming the four commands. A human listing with no public packages prints
+`No public packages in ORG.` Human registry errors use the service error
+layout (`<label>: CODE: message`, `Detail:`, `Action:`).
+
+**Program and result references.** The owner-scoped
+verbs (`program save|visibility|delete|revisions`, `result publish|unpublish`)
+take `SLUG` or `OWNER/SLUG` as `program list` prints it. `OWNER` is checked
+before any other request against the owner named by `GET
+/programs/{slug}/revisions` (the caller's own revisions, compared
+case-insensitively; `revisions` checks its own response): another owner is
+`INVOCATION_INVALID` ending `pass "SLUG"`; when the caller has no program
+`SLUG`, a first `save` is `INVOCATION_INVALID` asking for the bare slug and the other verbs are refused too, because `OWNER` cannot be
+confirmed. Slug errors describe the pattern in words
+and name the lower-case slug when that is valid. `result list|show` accept a
+bare own `SLUG` (owner from the same revisions request, sent with the key).
+`program show` resolves a numeric `@N` (`1` to `999999999`, no leading zero)
+of the caller's own program through the revisions list to its `rev_id`
+(another owner or an unknown number is `INVOCATION_INVALID` naming the command
+to use) and, in human mode, reports it on stderr; every other command that
+takes `@REV` refuses `@N` naming `program show ...@N --json`. Every projected
+program and revision carries `ref` (`OWNER/SLUG@rev_id`); human `list` and
+`revisions` lines label `rev_id=`, `commit_id=` and `ref=`. Follow-up hints
+name the confirmed owner or the bare slug, never an `OWNER` placeholder.
+`result show` without an id (or with the id `latest`) reads the newest
+publication. `example show NAME` matches an exact id, else an id or label
+case-insensitively, and an unknown name names the unique nearest id (the
+manifest's `intentInference.distance`) with that `example show` command as
+`details.suggestedArgv`. `program visibility` lower-cases `VISIBILITY` and
+names the nearest value on a typo. `org rename ORG --name NAME` equals the
+positional `NAME`.
+
+**Preview fidelity, job spec schemas and confirmation reasons.** `plannedRequest` gains an optional `summary`: the non-secret top-level
+JSON body fields the manifest lists in `confirmation.summaryFields` (`type`,
+`slug`, `name`, `program_ref` as `programRef`, `model`, `reasoning_effort`, the
+sorted keys of `inputs` as `inputKeys`, `interval_seconds`, `delivery_mode`,
+`visibility`, `role`, `amount_cents`), omitted when none is present; secrets,
+program text and input values never appear. Human previews print it as
+`Summary: field=value; ...` (cents also in dollars) and `CONFIRMATION_REQUIRED`
+as `Planned summary:`; a plan with a quote prints `Hold: $X (flat hold,
+independent of program and model)`. `run submit` and `program draft` check a
+`--model` against `GET /models` (manifest request `when: "--model"`) before the
+confirmation gate: a name that is neither offered nor the default is
+`INVOCATION_INVALID` naming the three nearest offered
+models, with `suggestedArgv` the same command using the nearest; a failed
+lookup is advisory (the service decides) except an interrupt. `program draft`
+quotes the flat run hold (`GET /run/quote`, advisory) into its plan. `org
+create` checks the service slug rule (1-63 lowercase letters, digits or
+interior hyphens; not `openprose`, `system`, `default`, `invitations` or
+UUID-shaped) before any request, suggesting a derived slug as `suggestedArgv`
+when one exists. `job create`, `job update` and `job configure` check the spec
+file against the operation's manifest `spec` (a closed per-type schema: keys,
+required keys, `pinnedRef`, `stringMap`, `interval`, enums, nested bindings) and
+report every violation at once in `details.violations` (the reason numbers
+them): unknown keys with the nearest accepted key (compared without case, `_`
+and `-`), camelCase names with their snake_case request names, an unknown type with the nearest type,
+an unpinned `program_ref` with the command that prints `ref`, non-string input
+values. A webhook spec with no `program_ref` (`spec.unpaidWhen`) plans effect
+`write` with no hold and sends no quote. Every confirm-class operation carries a
+manifest `confirmReason` (the consequence, e.g. rotate-secret invalidates the
+old secret now, detach stops the program, unpublish removes the public page):
+the `--yes` help line reads `required because <confirmReason>.` and
+`CONFIRMATION_REQUIRED` carries `details.reason` `--yes is required because
+<confirmReason>`; `render_service_help.py --check` and the manifest schema
+refuse a missing, misplaced or circular reason. `run quote` results carry
+`holdBasis` and its human output says the hold is flat and the price is known
+only after settlement.
+
+**Transport.** Requests never follow redirects and are never retried, not even
+GETs. Each operation has a transport class with bounded time and size:
+
+- `account`: the account command limits.
+- `control`: 1 MiB and 15 s.
+- `listing`: 8 MiB and 30 s.
+- `stream`: 30 s to connect and 45 s idle, with events of at most 1 MiB.
+- `download`: streamed to a fresh directory, at most 64 MiB per file, 512 MiB
+  per run and 10,000 files.
+
+Exceeding a limit is `SERVICE_RESPONSE_TOO_LARGE`. Every service request,
+including the account ones, sends `X-OpenProse-Client: cli/<version>+<rust|bun>`
+and `User-Agent: prose-cli/<version>`, and carries no user or host data.
+
+**Service origin.** Public builds (every release and every
+default build) talk only to the production origin in the manifest
+(`environments.production.origin`)
+with `OPENPROSE_API_KEY` or the `org.openprose.cli.production` stored key. They
+read no variable, option or configuration value that changes the origin.
+
+A developer build (Rust cargo feature `dev-endpoint`, Bun build define
+`PROSE_DEV_BUILD=true`; neither is on by default) additionally reads
+`OPENPROSE_API_URL`, an `https` origin with no path, query, fragment or user
+info. When it is set, that origin replaces production, the key is still
+`OPENPROSE_API_KEY`, `cli auth login` stores the key under a credential-store
+service scoped to that origin (`org.openprose.cli.custom-<first 16 hex digits
+of the SHA-256 of the origin>`) so it never replaces the production key, the
+run journal uses the same `custom-<digest>` directory, reports carry
+`environment: "custom"`, and human output is labeled `OpenProse (custom
+endpoint <origin>)`. The override code is compiled out of public builds; the
+`public-surface` gate checks the release binaries. All OpenProse credential
+variables are filtered from every harness environment. The strict
+`rr_test_[0-9a-f]{32}` predicate always applies.
+
+**Credential teaching and account options.** Service verbs and the account verbs share one credential
+classifier. `SERVICE_AUTH_REQUIRED` for a key problem carries
+`details.credentialSource` (`environment`, `store`, `none`),
+`details.credentialVariable` and `details.credentialProblem` (`missing`,
+`malformed`, `rejected`), and its Action follows the source: `Replace or unset
+<VARIABLE>, then retry.` for an environment key, ``Run `<login>` again, or set
+<VARIABLE>, then retry.`` for a stored key, and ``Set <VARIABLE> or run
+`<login>`, then retry.`` for no key, where `<login>` keeps the output mode.
+`CREDENTIAL_STORE_UNAVAILABLE` names the variable in its reason and Action
+(``Set <VARIABLE> for this command, or unlock or configure the operating system
+credential store, then retry.``) except for `auth logout`; on macOS, a key
+saved by an earlier build that the keychain will not release without a prompt
+has the Action ``Run the command in a desktop session and allow access in the
+macOS keychain prompt once, or set <VARIABLE> for this command.``. The runner-error
+schema admits exactly these Actions besides the taxonomy text. `cli auth
+status` and `cli org list` report a malformed or rejected key (401 or 403 on
+`GET /organizations`) as that `SERVICE_AUTH_REQUIRED`, never
+`SERVICE_PROTOCOL_INVALID`; the error keeps `details.credentialSource`
+(`environment` or `store`, the one source enum) on a key failure. `cli auth login`
+and `cli auth logout` while the variable is set are `INVOCATION_INVALID` with
+a reason and Action naming it and `credentialSource: environment`. Human
+account output prints a failure only as the service error text (label,
+`Detail:`, `Action:`) on stderr, never a status line; on success
+`cli org list` prints `SLUG  ROLE  NAME` lines (`-` without a role).
+`cli auth status|login|logout`, `cli org list` and `cli package ...` accept
+`--output` (separate or `=` value) after the command path; the same value
+before `cli` is accepted and a different one is `INVOCATION_INVALID`.
+
+**Coverage.** `shared/service/service-interactions.v1.json` is the service's
+interaction export, projected to the interactions the manifest maps and
+the routes it sends, with its digests in `service-interactions.source.json`.
+`conformance/runner/service_coverage.py --strict-mapping` requires every
+vendored interaction to be mapped and every vendored route to be sent. It also
+requires every request to match an exported route and auth, and confirmation
+and effect to be at least the catalog's. Interactions the CLI does not offer
+never enter this repository. The
+CLI has no raw request passthrough. `--strict`, which
+the `service-coverage` admission gate runs, adds a case floor: every service
+operation needs at least one success case and one failure case in
+`conformance/cases/service/`, which both products run in full.
+
+**Tests.** The shared corpus under `conformance/cases/service/` is
+authoritative. It runs through `conformance/runner/service_operations.py`
+against test-seam builds only, using the extended fixture format in
+`conformance/runner/service-fixture.schema.json`. That format adds:
+
+- query and request-header assertions;
+- SSE frame scripts;
+- disconnects and idle stalls;
+- response headers;
+- raw and base64 bodies;
+- a virtual clock, deterministic ids and a preset journal.
+
+Release builds ignore `PROSE_TEST_SERVICE_FIXTURE`. Hermetic tests do not
+establish deployed behavior.
+
+**Public surface.** This repository is a public user client. The
+`public-surface` gate (`ci/check_public_surface.py`) fails when a tracked file,
+either port's release `--help` output, or the strings of the release Rust
+binary contain internal service detail or developer-only surface: non-production
+service hostnames, developer credential variables, internal flag, deployment or
+runtime names, or real run ids. Its denylist is `ci/public_surface_denylist.py`;
+named internal terms in it are matched by salted digest, never written out.

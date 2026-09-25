@@ -1,0 +1,78 @@
+{
+  "id": "auth-login-pending-slow-down",
+  "feature": "account",
+  "operation": "auth.login",
+  "description": "Device flow: pending, then slow_down, then complete stores the key in the OS credential store. The code goes to stderr; the device code and key never appear. Ported from the account corpus.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "auth",
+    "login"
+  ],
+  "fixture": {
+    "credential": null,
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/auth/device",
+        "status": 200,
+        "body": {
+          "device_code": "fixture-device-secret",
+          "user_code": "ABCD-EFGH",
+          "verification_uri": "https://github.com/login/device",
+          "expires_in": 60,
+          "interval": 1
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/auth/device/poll",
+        "status": 200,
+        "body": {
+          "status": "pending"
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/auth/device/poll",
+        "status": 200,
+        "body": {
+          "status": "slow_down"
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/auth/device/poll",
+        "status": 200,
+        "body": {
+          "status": "complete",
+          "api_key": "rr_test_22222222222222222222222222222222",
+          "customer_id": "customer-fixture",
+          "github_login": "fixture"
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "schema": "openprose.service-operation/1",
+      "operation": "auth.login",
+      "interaction": "auth.device_flow",
+      "result": {
+        "authenticated": true,
+        "credentialSource": "store"
+      },
+      "problem": null
+    }
+  },
+  "stderr": {
+    "text": "Go to https://github.com/login/device and enter code: ABCD-EFGH\n"
+  },
+  "forbid": [
+    "rr_test_22222222222222222222222222222222",
+    "fixture-device-secret"
+  ]
+}

@@ -1,0 +1,62 @@
+{
+  "id": "job-deliveries-feature-disabled",
+  "feature": "jobs",
+  "operation": "job.deliveries",
+  "description": "A feature_disabled answer to job deliveries is SERVICE_FEATURE_DISABLED; the feature name is never echoed.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "job",
+    "deliveries",
+    "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/triggers/3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10/deliveries",
+        "status": 404,
+        "body": {
+          "error": "Not found",
+          "code": "feature_disabled",
+          "feature": "example_feature"
+        },
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "job.deliveries",
+      "operation": "job.deliveries",
+      "problem": {
+        "action": "Check your plan or organization, or contact OpenProse support.",
+        "boundary": "hosted-service",
+        "code": "SERVICE_FEATURE_DISABLED",
+        "details": {
+          "serviceCode": "feature_disabled",
+          "serviceStatus": 404
+        },
+        "exitCode": 10,
+        "message": "This capability is not available for this account.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "example_feature",
+    "Not found"
+  ]
+}

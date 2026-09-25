@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.openprose.org/cli/v1/service/responses/result-publish.schema.json",
+  "title": "service response acceptance: POST /programs/{slug}/results",
+  "x-probed": false,
+  "type": "object",
+  "required": [
+    "publication"
+  ],
+  "properties": {
+    "publication": {
+      "type": "object",
+      "required": [
+        "id",
+        "published_at",
+        "run_id",
+        "program_ref",
+        "created_at",
+        "model",
+        "status"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "published_at": {
+          "type": "string"
+        },
+        "run_id": {
+          "type": "string"
+        },
+        "program_ref": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

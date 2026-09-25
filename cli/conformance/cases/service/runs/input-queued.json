@@ -1,0 +1,67 @@
+{
+  "id": "input-queued",
+  "feature": "runs",
+  "operation": "run.input",
+  "description": "run input sends {id, text} with the journal session; the instruction id is minted once (reuse it with --id to retry).",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "input",
+    "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+    "Also write a haiku.",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "journal": [
+      {
+        "session": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f",
+        "runId": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+        "createdAt": "2026-09-24T00:59:00.000Z",
+        "lastSequence": 3,
+        "sourceSha256": null
+      }
+    ],
+    "ids": [
+      "9d8c7b6a-5f4e-4d3c-8b2a-1f0e9d8c7b6a"
+    ],
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/run/run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c/input",
+        "query": {
+          "session": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f"
+        },
+        "expectedBody": {
+          "id": "9d8c7b6a-5f4e-4d3c-8b2a-1f0e9d8c7b6a",
+          "text": "Also write a haiku."
+        },
+        "status": 200,
+        "body": {
+          "id": "9d8c7b6a-5f4e-4d3c-8b2a-1f0e9d8c7b6a",
+          "status": "queued"
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "run.steer",
+      "operation": "run.input",
+      "problem": null,
+      "result": {
+        "id": "9d8c7b6a-5f4e-4d3c-8b2a-1f0e9d8c7b6a",
+        "runId": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+        "status": "queued"
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

@@ -65,7 +65,7 @@ describe("frozen Phase-7 developer-experience parity", () => {
       kind: "runner.failed",
       error: {
         code: "HOSTED_UNAVAILABLE",
-        action: "Select an available BYO harness with the `cli harness use <id>` runner operation, then invoke the `cli doctor` runner operation.",
+        action: "To use the hosted service, run `cli run submit FILE --preview`; running programs on this machine needs a local harness (`cli harness list`).",
       },
     });
     expect(io.stderr()).toBe("");

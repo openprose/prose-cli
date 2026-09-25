@@ -1,0 +1,43 @@
+{
+  "id": "preview-sends-nothing",
+  "feature": "framework",
+  "operation": "program.delete",
+  "description": "--preview returns the plan as a successful result, exits 0 and sends no request (the fixture has no exchanges).",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "program",
+    "delete",
+    "demo",
+    "--preview"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "program.delete",
+      "operation": "program.delete",
+      "problem": null,
+      "result": {
+        "plannedRequest": {
+          "bodyBytes": null,
+          "bodySha256": null,
+          "description": "Delete a saved program and its revisions.",
+          "effect": "destructive",
+          "method": "DELETE",
+          "operation": "program.delete"
+        },
+        "preview": true
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

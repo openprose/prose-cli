@@ -1,0 +1,35 @@
+{
+  "id": "alias-option-timeout-wait-unit",
+  "feature": "framework",
+  "operation": "run.submit",
+  "description": "`--timeout 30` on `cli run submit` suggests `--wait 30s`: the unit a bare number lacks is added.",
+  "files": [
+    {
+      "path": "hello.prose.md",
+      "content": "---\nname: hello\nkind: program\n---\nSay hello.\n"
+    }
+  ],
+  "argv": [
+    "cli",
+    "run",
+    "submit",
+    "hello.prose.md",
+    "--timeout",
+    "30"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: Unknown option.\nDetail: unknown option --timeout for `cli run submit`; did you mean --wait? --wait takes a duration with a unit, so 30 is 30s\nAction: Use --wait 30s: `prose cli run submit hello.prose.md --wait 30s`.\n"
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "id": "error-action-missing-verb-human",
+  "feature": "framework",
+  "operation": "run.list",
+  "description": "A bare noun is rendered by the service renderer: environment label, no executable path, and the group help in the same environment.",
+  "argv": [
+    "cli",
+    "run"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: That command isn't quite right.\nDetail: `cli run` needs a command: cancel, download, input, list, quote, share, show, submit, watch\nAction: Choose one of the `cli run` commands; `prose cli run --help` describes them.\n"
+  }
+}

@@ -1,0 +1,201 @@
+{
+  "id": "submit-cancelled-remote-exits-24",
+  "feature": "runs",
+  "operation": "run.submit",
+  "description": "run_complete{cancelled:true,status:error} is the terminal HOSTED_RUN_CANCELLED (24, not retryable), not a failure and not a retry hint.",
+  "argv": [
+    "--output",
+    "jsonl",
+    "cli",
+    "run",
+    "submit",
+    "p.prose.md",
+    "--yes"
+  ],
+  "files": [
+    {
+      "path": "p.prose.md",
+      "content": "---\nname: hello\nkind: function\n---\n\nReply with the word ok.\n"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "ids": [
+      "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f"
+    ],
+    "clock": {
+      "start": "2026-09-24T01:00:00.000Z",
+      "stepMs": 0
+    },
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/run",
+        "query": {
+          "live": "1",
+          "session": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f"
+        },
+        "requestHeaders": {
+          "X-Session-Id": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f",
+          "Accept": "text/event-stream",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "expectedBody": {
+          "content": "---\nname: hello\nkind: function\n---\n\nReply with the word ok.\n"
+        },
+        "status": 200,
+        "sse": {
+          "frames": [
+            {
+              "id": "1",
+              "event": "status",
+              "data": {
+                "type": "status",
+                "run_id": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+                "sequence": 1,
+                "at": "2026-09-24T01:00:01.000Z",
+                "status": "running",
+                "message": "reactor model-luna",
+                "session": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f",
+                "controls": {
+                  "steer": true,
+                  "stop": true
+                }
+              }
+            },
+            {
+              "id": "2",
+              "event": "status",
+              "data": {
+                "type": "status",
+                "run_id": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+                "sequence": 2,
+                "at": "2026-09-24T01:00:01.000Z",
+                "status": "cancelling",
+                "message": "Stopping the run."
+              }
+            },
+            {
+              "id": "3",
+              "event": "error",
+              "data": {
+                "type": "error",
+                "run_id": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+                "sequence": 3,
+                "at": "2026-09-24T01:00:01.000Z",
+                "message": "Stopped by the user."
+              }
+            },
+            {
+              "id": "4",
+              "event": "run_complete",
+              "data": {
+                "type": "run_complete",
+                "run_id": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+                "sequence": 4,
+                "at": "2026-09-24T01:00:01.000Z",
+                "status": "error",
+                "runtime": "reactor",
+                "environment": {
+                  "id": "builtin",
+                  "version": "1.0.0",
+                  "runtime_contract": 1
+                },
+                "response": "",
+                "files": [],
+                "price_cents": 0,
+                "environment_price_cents": 1,
+                "billing_status": "parked",
+                "usage": {
+                  "input_tokens": 100,
+                  "output_tokens": 5
+                },
+                "file_urls": {
+                  "outputs/result.json": "https://example.invalid/x?tok=SECRET_SIGNED_TOKEN"
+                },
+                "cancelled": true,
+                "error": "Stopped by the user."
+              }
+            }
+          ],
+          "end": "close"
+        }
+      }
+    ]
+  },
+  "exitCode": 24,
+  "stdout": {
+    "jsonl": [
+      {
+        "at": "2026-09-24T01:00:01.000Z",
+        "data": {
+          "controls": {
+            "steer": true,
+            "stop": true
+          },
+          "message": "Running on model-luna",
+          "status": "running"
+        },
+        "runId": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+        "schema": "openprose.service-event/1",
+        "sequence": 1,
+        "type": "status"
+      },
+      {
+        "at": "2026-09-24T01:00:01.000Z",
+        "data": {
+          "message": "Stopping the run.",
+          "status": "cancelling"
+        },
+        "runId": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+        "schema": "openprose.service-event/1",
+        "sequence": 2,
+        "type": "status"
+      },
+      {
+        "at": "2026-09-24T01:00:01.000Z",
+        "data": {
+          "message": "Stopped by the user."
+        },
+        "runId": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+        "schema": "openprose.service-event/1",
+        "sequence": 3,
+        "type": "error"
+      },
+      {
+        "at": null,
+        "data": {
+          "interaction": "run.submit",
+          "operation": "run.submit",
+          "problem": {
+            "action": "Read the cancelled run with the `cli run show` runner operation using details.runId; submit again only to start a new run.",
+            "boundary": "hosted-service",
+            "code": "HOSTED_RUN_CANCELLED",
+            "details": {
+              "afterSequence": 4,
+              "reason": "the run was cancelled on the service; read it with `prose --output jsonl cli run show run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c`",
+              "runId": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+              "session": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f"
+            },
+            "exitCode": 24,
+            "message": "The hosted run was cancelled on the service and will not continue.",
+            "retryable": false,
+            "schema": "openprose.runner-error/1"
+          },
+          "result": null,
+          "schema": "openprose.service-operation/1"
+        },
+        "exitCode": 24,
+        "runId": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+        "schema": "openprose.service-event/1",
+        "sequence": null,
+        "type": "service.failed"
+      }
+    ]
+  }
+}

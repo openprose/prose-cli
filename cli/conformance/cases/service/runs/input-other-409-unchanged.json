@@ -1,0 +1,69 @@
+{
+  "id": "input-other-409-unchanged",
+  "feature": "runs",
+  "operation": "run.input",
+  "description": "Another 409 on run input (a reused id with different text) keeps the generic conflict Action.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "input",
+    "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+    "more",
+    "--yes",
+    "--id",
+    "9d8c7b6a-5f4e-4d3c-8b2a-1f0e9d8c7b6a"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "journal": [
+      {
+        "session": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f",
+        "runId": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+        "createdAt": "2026-09-24T00:59:00.000Z",
+        "lastSequence": 3,
+        "sourceSha256": null
+      }
+    ],
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/run/run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c/input",
+        "query": {
+          "session": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f"
+        },
+        "status": 409,
+        "body": {
+          "error": "That instruction id already identifies different text."
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "run.steer",
+      "operation": "run.input",
+      "problem": {
+        "action": "Read the current state of the resource, reconcile the change, then retry.",
+        "boundary": "hosted-service",
+        "code": "SERVICE_WRITE_CONFLICT",
+        "details": {
+          "serviceMessage": "That instruction id already identifies different text.",
+          "serviceStatus": 409
+        },
+        "exitCode": 10,
+        "message": "The OpenProse service reported a conflicting write.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

@@ -1,0 +1,65 @@
+{
+  "id": "wallet-balance-unsafe-integer",
+  "feature": "wallet",
+  "operation": "wallet.balance",
+  "description": "A response holding an integer beyond 2^53-1 is SERVICE_PROTOCOL_INVALID in both products (shared/fixtures/transport/json-parse.json): neither can represent it exactly.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "wallet",
+    "balance"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/wallet/balance",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          }
+        },
+        "status": 200,
+        "body": {
+          "balance": {
+            "available_cents": 3235,
+            "available_dollars": "32.35",
+            "available_nanos": 9007199254740993,
+            "posted_cents": 3337,
+            "posted_dollars": "33.37",
+            "reserved_cents": 102,
+            "reserved_nanos": 1020000000,
+            "reserved_dollars": "1.02"
+          }
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "wallet.balance",
+      "operation": "wallet.balance",
+      "problem": {
+        "action": "Retry later and report the sanitized error code if it persists.",
+        "boundary": "protocol",
+        "code": "SERVICE_PROTOCOL_INVALID",
+        "exitCode": 10,
+        "message": "The OpenProse service returned an invalid response.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1",
+        "details": {
+          "reason": "the service response is not a valid JSON object"
+        }
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

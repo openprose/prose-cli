@@ -1,0 +1,100 @@
+{
+  "id": "example-show-did-you-mean",
+  "feature": "discovery",
+  "operation": "example.show",
+  "description": "An id one edit away from a listed id is SERVICE_RESOURCE_NOT_FOUND that names the nearest id and suggests its show command.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "example",
+    "show",
+    "slack-helo"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/examples/private",
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef",
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          },
+          "Accept": "application/json"
+        },
+        "status": 200,
+        "body": {
+          "examples": [
+            {
+              "id": "private-example",
+              "label": "Private example",
+              "source": "/examples/private/private-example"
+            },
+            {
+              "id": "private-agent-browser",
+              "label": "Persona Website Feedback",
+              "source": "/examples/private/private-agent-browser"
+            },
+            {
+              "id": "agent-native",
+              "label": "Agent-native",
+              "source": "https://examples.example.org/examples/agent-native.prose.md"
+            },
+            {
+              "id": "agent-native-change",
+              "label": "Agent-native change",
+              "source": "https://examples.example.org/examples/agent-native-change.prose.md"
+            },
+            {
+              "id": "slack-hello",
+              "label": "Slack hello",
+              "source": "/examples/private/slack-hello"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "examples.private",
+      "operation": "example.show",
+      "problem": {
+        "action": "Run `prose --output json cli example show slack-hello` to find the right example, then retry with it.",
+        "boundary": "hosted-service",
+        "code": "SERVICE_RESOURCE_NOT_FOUND",
+        "details": {
+          "reason": "no example named \"slack-helo\"; did you mean \"slack-hello\"? Show it with `prose --output json cli example show slack-hello`, or list the available ids with `prose --output json cli example list`",
+          "resource": {
+            "id": "slack-helo",
+            "kind": "example"
+          },
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "example",
+            "show",
+            "slack-hello"
+          ]
+        },
+        "exitCode": 10,
+        "message": "The requested OpenProse service resource was not found.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

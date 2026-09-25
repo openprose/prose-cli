@@ -1,0 +1,51 @@
+{
+  "id": "repos-401-github-link-required",
+  "feature": "framework",
+  "operation": "repo.list",
+  "description": "GET /repos 401 is GITHUB_LINK_REQUIRED (route override), not a bad key.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "repo",
+    "list"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/repos",
+        "status": 401,
+        "body": {
+          "error": "Reconnect GitHub to list repositories"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "repos.list",
+      "operation": "repo.list",
+      "problem": {
+        "action": "Link or reconnect GitHub for this account in the OpenProse web app, then retry; the API key itself is valid.",
+        "boundary": "authentication",
+        "code": "GITHUB_LINK_REQUIRED",
+        "details": {
+          "serviceStatus": 401
+        },
+        "exitCode": 10,
+        "message": "This operation needs a linked GitHub account on the OpenProse account.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

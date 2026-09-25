@@ -1,0 +1,25 @@
+{
+  "id": "help-alias-cli-help",
+  "feature": "framework",
+  "operation": "service.status",
+  "description": "`cli help` prints the `cli` topic.",
+  "argv": [
+    "cli",
+    "help"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "Usage: prose [GLOBAL OPTIONS] cli <COMMAND> [ARGUMENTS] [OPTIONS]\n\nOpenProse service and account commands. They reach the hosted OpenProse service\nand never prompt. New here? `prose cli service guide` walks through a first\nprogram, a daily schedule, scripting and costs. Commands for this machine\n(doctor, config) are listed by `prose --help`.\n\nCommands:\n  run                         Run a program on the hosted service, then follow, read or cancel it: submit, watch, show, list, cancel, download, input, quote, share.\n  program                     Save your programs and manage their revisions: save, list, show, delete, draft, revisions, visibility.\n  example                     Working example programs to read and copy: list, show.\n  job                         Run a saved program on a schedule or from a webhook: create, list, show, delete, configure, contract, deliveries, rotate-secret, update.\n  wallet                      Balance, usage and credit: balance, usage, events, topup, redeem.\n  auth                        Sign in, check or remove the stored key: login, status, logout.\n  model                       Hosted models: list.\n  result                      Published results of public programs (OWNER/SLUG); a run's own output is `cli run show` or `cli run download`: show, list, publish, unpublish.\n  org                         Organizations, members and invitations: list, show, create, default, invitation, invite, member, rename.\n  repo                        Repositories the service can read: list.\n  package                     Registry packages (no source execution): fetch, list, publish, withdraw.\n  service                     Service status, triage, the guide and the command list: triage, status, guide, capabilities, operations.\n\nExamples:\n  prose cli run submit hello.prose.md --preview\n  prose cli program save hello hello.prose.md --preview\n  prose cli example list --json\n  prose cli job create --spec-file job.json --preview\n  prose cli wallet balance --json\n  prose cli auth login\n  prose cli model list --json\n  prose cli result show exowner1/hello --latest\n  prose cli org list --json\n  prose cli repo list --json\n  prose cli package publish my-package --organization acme --name tool --version 1.0.0 --json\n  prose cli service triage --json\n\nGlobal options:\n  --output human|json|jsonl   Output mode; the same as the PROSE_OUTPUT setting.\n\nRun `prose cli <COMMAND> --help` for details. `prose cli service operations --json` prints every command as JSON.\n"
+  },
+  "stderr": {
+    "text": ""
+  }
+}

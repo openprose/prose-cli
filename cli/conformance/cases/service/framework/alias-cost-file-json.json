@@ -1,0 +1,56 @@
+{
+  "id": "alias-cost-file-json",
+  "feature": "framework",
+  "operation": "run.quote",
+  "description": "`cli cost FILE` suggests `cli run quote FILE`. (JSON envelope)",
+  "files": [
+    {
+      "path": "hello.prose.md",
+      "content": "---\nname: hello\nkind: program\n---\nSay hello.\n"
+    }
+  ],
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "cost",
+    "hello.prose.md"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": null,
+      "operation": "cli",
+      "problem": {
+        "action": "Past spending is `cli wallet usage`. Use `cli run quote`: `prose --output json cli run quote hello.prose.md`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "unknown command `cli cost`; did you mean `cli run quote`? `cli run quote FILE` prices a run before it starts; past spending is `cli wallet usage`",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "quote",
+            "hello.prose.md"
+          ]
+        },
+        "exitCode": 2,
+        "message": "Unknown command.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

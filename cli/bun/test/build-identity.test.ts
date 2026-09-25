@@ -244,7 +244,7 @@ describe("standalone build identity and seam exclusion", () => {
       runner: { name: "bun", version: "0.1.0", commit },
       build: { profile: "release", testSeamsEnabled: false },
     });
-    const failure = await run([first, "--output=json", "run"], root);
+    const failure = await run([first, "--output=json", "run", "example.prose.md"], root);
     expect(failure.exitCode).toBe(10);
     expect(JSON.parse(failure.stdout)).toMatchObject({
       schema: "openprose.runner-result/1",
@@ -320,7 +320,7 @@ describe("standalone build identity and seam exclusion", () => {
       runner: { name: "bun", version, commit: "version-test-commit" },
     });
 
-    const failure = await run([executable, "--output=json", "run"], root);
+    const failure = await run([executable, "--output=json", "run", "example.prose.md"], root);
     expect(failure.exitCode).toBe(10);
     expect(JSON.parse(failure.stdout)).toMatchObject({
       runner: { name: "bun", version, commit: "version-test-commit" },

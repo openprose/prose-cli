@@ -1,0 +1,86 @@
+{
+  "id": "watch-no-journal-live-status",
+  "feature": "runs",
+  "operation": "run.watch",
+  "description": "A record whose status is not an ended status is treated as live elsewhere and names that status.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "watch",
+    "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/runs/run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+        "requestHeaders": {
+          "Authorization": {
+            "pattern": "^Bearer rr_test_[0-9a-f]{32}$"
+          }
+        },
+        "status": 200,
+        "body": {
+          "run_id": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+          "created_at": "2026-09-24T01:00:00.000Z",
+          "status": "running",
+          "model": "model-luna",
+          "environment": {
+            "id": "builtin",
+            "version": "1.0.0",
+            "runtime_contract": 1
+          },
+          "price_cents": 2,
+          "environment_price_cents": 1,
+          "billing_status": "settled",
+          "customer_id": "cus_ExampleOwner01",
+          "usage": {
+            "input_tokens": 89195,
+            "output_tokens": 262
+          },
+          "files": [],
+          "has_patch": false,
+          "session_files": [],
+          "file_urls": {}
+        }
+      }
+    ]
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "run.observe",
+      "operation": "run.watch",
+      "problem": {
+        "action": "Watch the run from the machine that submitted it or pass --session UUID; once it ends, read its outcome with `prose --output json cli run show run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c is running, and this machine's run journal has no live session for it. A run's live session is kept in the run journal of the machine that submitted it: watch it there, or pass --session UUID; once the run ends, `prose --output json cli run show run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c` reads its outcome",
+          "runId": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "show",
+            "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

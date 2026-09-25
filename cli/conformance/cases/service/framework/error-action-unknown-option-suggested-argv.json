@@ -1,0 +1,53 @@
+{
+  "id": "error-action-unknown-option-suggested-argv",
+  "feature": "framework",
+  "operation": "run.cancel",
+  "description": "A did-you-mean option returns the corrected argv as details.suggestedArgv.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "cancel",
+    "run_1111111111111111111111111111111111111111111111111111111111111111",
+    "--yess"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "run.cancel",
+      "operation": "run.cancel",
+      "problem": {
+        "action": "Replace --yess with --yes: `prose --output json cli run cancel run_1111111111111111111111111111111111111111111111111111111111111111 --yes`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "unknown option --yess for `cli run cancel`; did you mean --yes?",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "cancel",
+            "run_1111111111111111111111111111111111111111111111111111111111111111",
+            "--yes"
+          ]
+        },
+        "exitCode": 2,
+        "message": "Unknown option.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

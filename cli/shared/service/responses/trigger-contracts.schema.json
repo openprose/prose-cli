@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.openprose.org/cli/v1/service/responses/trigger-contracts.schema.json",
+  "title": "service response acceptance: GET /triggers/{id}/contracts",
+  "x-probed": true,
+  "type": "object",
+  "required": [
+    "contracts"
+  ],
+  "properties": {
+    "contracts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "programRef"
+        ],
+        "properties": {
+          "programRef": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "max_contracts": {
+      "type": "integer"
+    }
+  }
+}

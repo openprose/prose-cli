@@ -1,0 +1,104 @@
+{
+  "id": "submit-paid-top-up-402",
+  "feature": "runs",
+  "operation": "run.submit",
+  "description": "402 paid_top_up_required (a premium model before any wallet top-up) is SERVICE_PREMIUM_MODEL_LOCKED: details.reason carries the service's model summary, details.model and details.tier name it, and the Action and details.suggestedArgv preview a top-up in the same output mode.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "submit",
+    "p.prose.md",
+    "--yes"
+  ],
+  "files": [
+    {
+      "path": "p.prose.md",
+      "content": "---\nname: hello\nkind: function\n---\n\nReply with the word ok.\n"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "ids": [
+      "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f"
+    ],
+    "clock": {
+      "start": "2026-09-24T01:00:00.000Z",
+      "stepMs": 0
+    },
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/run",
+        "query": {
+          "live": "1",
+          "session": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f"
+        },
+        "requestHeaders": {
+          "X-Session-Id": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f",
+          "Accept": "text/event-stream",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "expectedBody": {
+          "content": "---\nname: hello\nkind: function\n---\n\nReply with the word ok.\n"
+        },
+        "status": 402,
+        "body": {
+          "error": "This model requires a wallet top-up.",
+          "code": "paid_top_up_required",
+          "model": "model-astra",
+          "tier": "premium",
+          "summary": "Most capable model for hard, long tasks. Higher rate per run. Unlocks with any wallet top-up.",
+          "topup": {
+            "page": "/wallet"
+          }
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "schema": "openprose.service-operation/1",
+      "operation": "run.submit",
+      "interaction": "run.submit",
+      "result": null,
+      "problem": {
+        "schema": "openprose.runner-error/1",
+        "code": "SERVICE_PREMIUM_MODEL_LOCKED",
+        "boundary": "hosted-service",
+        "message": "This model is a premium model that unlocks with any wallet top-up.",
+        "action": "Top up the wallet with any amount to unlock premium models; preview a top-up with `prose --output json cli wallet topup --amount-cents 500 --preview`.",
+        "exitCode": 10,
+        "retryable": false,
+        "details": {
+          "serviceStatus": 402,
+          "serviceCode": "paid_top_up_required",
+          "reason": "model-astra is a premium model: Most capable model for hard, long tasks. Higher rate per run. Unlocks with any wallet top-up.",
+          "model": "model-astra",
+          "tier": "premium",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "wallet",
+            "topup",
+            "--amount-cents",
+            "500",
+            "--preview"
+          ]
+        }
+      }
+    }
+  },
+  "forbid": [
+    "/wallet\"",
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

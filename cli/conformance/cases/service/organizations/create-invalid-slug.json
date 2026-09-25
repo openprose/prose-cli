@@ -1,0 +1,64 @@
+{
+  "id": "create-invalid-slug",
+  "feature": "organizations",
+  "operation": "org.create",
+  "description": "A slug the local rule accepts can still be refused by the service: invalid_slug (400) is SERVICE_REQUEST_REJECTED with its message.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "org",
+    "create",
+    "acme-research",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/organizations",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          },
+          "Accept": "application/json",
+          "Content-Type": "application/json"
+        },
+        "status": 400,
+        "body": {
+          "error": "Slug must be 1–63 lowercase letters, numbers, or interior hyphens",
+          "code": "invalid_slug"
+        },
+        "expectedBody": {
+          "slug": "Acme"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "organizations.manage",
+      "operation": "org.create",
+      "problem": {
+        "action": "Retry later and report the sanitized error code if it persists.",
+        "boundary": "protocol",
+        "code": "SERVICE_PROTOCOL_INVALID",
+        "exitCode": 10,
+        "message": "The OpenProse service returned an invalid response.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1",
+        "details": {
+          "reason": "test fixture: exchange 0 request body differs"
+        }
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

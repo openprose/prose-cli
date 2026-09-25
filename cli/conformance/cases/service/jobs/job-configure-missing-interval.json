@@ -1,0 +1,63 @@
+{
+  "id": "job-configure-missing-interval",
+  "feature": "jobs",
+  "operation": "job.configure",
+  "description": "A configuration without interval_seconds is rejected locally and says where to read the current values.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "job",
+    "configure",
+    "7b2e4d19-6a3c-4e85-b1f0-9c4d8e2a6b73",
+    "--config-file",
+    "config.json",
+    "--yes"
+  ],
+  "files": [
+    {
+      "path": "config.json",
+      "content": "{\"configuration_revision\":3}"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "job.update",
+      "operation": "job.configure",
+      "problem": {
+        "action": "Correct the value named in Detail; `prose --output json cli job configure --help` shows the accepted syntax.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "the configuration needs interval_seconds, revision_token and bindings; `prose --output json cli job show JOB_ID` prints the current values",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "job",
+            "configure",
+            "--help"
+          ],
+          "violations": [
+            "the configuration needs interval_seconds, revision_token and bindings; `prose --output json cli job show JOB_ID` prints the current values"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

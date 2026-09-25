@@ -1,0 +1,88 @@
+{
+  "id": "submit-known-session-reuses-run",
+  "feature": "runs",
+  "operation": "run.submit",
+  "description": "`run submit --session S` when this machine's journal maps S to a run sends nothing and returns that run (reused: true) with resumeArgv and cancelArgv.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "submit",
+    "p.prose.md",
+    "--yes",
+    "--session",
+    "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d"
+  ],
+  "files": [
+    {
+      "path": "p.prose.md",
+      "content": "---\nname: hello\nkind: function\n---\n\nReply with the word ok.\n"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "clock": {
+      "start": "2026-09-24T01:00:00.000Z",
+      "stepMs": 0
+    },
+    "exchanges": [],
+    "journal": [
+      {
+        "session": "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+        "runId": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+        "createdAt": "2026-09-24T00:59:00.000Z",
+        "lastSequence": 3,
+        "sourceSha256": null
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "run.submit",
+      "operation": "run.submit",
+      "problem": null,
+      "result": {
+        "afterSequence": 3,
+        "cancelArgv": [
+          "--output",
+          "json",
+          "cli",
+          "run",
+          "cancel",
+          "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+          "--session",
+          "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+          "--yes"
+        ],
+        "detached": true,
+        "resumeArgv": [
+          "--output",
+          "json",
+          "cli",
+          "run",
+          "watch",
+          "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+          "--after",
+          "3",
+          "--session",
+          "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d"
+        ],
+        "reused": true,
+        "run": {
+          "run_id": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+          "status": "unknown"
+        },
+        "runId": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+        "run_id": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+        "session": "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d"
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

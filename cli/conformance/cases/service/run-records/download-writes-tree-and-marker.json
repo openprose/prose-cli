@@ -1,0 +1,143 @@
+{
+  "id": "download-writes-tree-and-marker",
+  "feature": "run-records",
+  "operation": "run.download",
+  "description": "Every manifest file is written under a new directory, then .prose-run-manifest.json last; no signed URL is kept.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "download",
+    "run_5e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f68",
+    "--output-dir",
+    "out"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/runs/run_5e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f68",
+        "requestHeaders": {
+          "Authorization": {
+            "pattern": "^Bearer rr_test_[0-9a-f]{32}$"
+          }
+        },
+        "status": 200,
+        "body": {
+          "run_id": "run_5e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f68",
+          "created_at": "2026-09-23T20:29:47.788Z",
+          "status": "completed",
+          "model": "model-sol",
+          "environment": {
+            "id": "builtin",
+            "version": "1.0.0",
+            "runtime_contract": 1
+          },
+          "price_cents": 4,
+          "environment_price_cents": 1,
+          "billing_status": "settled",
+          "program_ref": "openprose/prose-write@840170241e030597",
+          "customer_id": "cus_ExampleOwner01",
+          "usage": {
+            "input_tokens": 103123,
+            "output_tokens": 836,
+            "cache_read_input_tokens": 5
+          },
+          "files": [
+            "outputs/result.json",
+            "notes.txt"
+          ],
+          "has_patch": false,
+          "session_files": [],
+          "file_urls": {
+            "outputs/result.json": "https://run-prose-production.openprose.workers.dev/runs/run_5e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f68/files/outputs/result.json?tok=SIGNEDTOKEN&exp=1790298569",
+            "notes.txt": "https://run-prose-production.openprose.workers.dev/runs/run_5e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f68/files/notes.txt?tok=SIGNEDTOKEN&exp=1790298569"
+          },
+          "spec_commit": "0123abcd",
+          "browser_live_view": {
+            "status": "ended"
+          }
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/runs/run_5e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f68/files/outputs/result.json",
+        "requestHeaders": {
+          "Authorization": {
+            "pattern": "^Bearer rr_test_[0-9a-f]{32}$"
+          }
+        },
+        "status": 200,
+        "bodyText": "---\nname: literal-helper-author\nkind: function\n---\n\nReturn the literal text.\n"
+      },
+      {
+        "method": "GET",
+        "path": "/runs/run_5e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f68/files/notes.txt",
+        "requestHeaders": {
+          "Authorization": {
+            "pattern": "^Bearer rr_test_[0-9a-f]{32}$"
+          }
+        },
+        "status": 200,
+        "bodyText": "notes\n"
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "run.read",
+      "operation": "run.download",
+      "problem": null,
+      "result": {
+        "fileCount": 2,
+        "files": [
+          {
+            "bytes": 77,
+            "path": "outputs/result.json",
+            "sha256": "babc0692545e565262e741e602e3e102f505b5d79b4aa2fc36a0f71661cbb382"
+          },
+          {
+            "bytes": 6,
+            "path": "notes.txt",
+            "sha256": "444e0fffbd825e9610ff5b199485707a0c895339ae80c15cc8a8aee41b106fda"
+          }
+        ],
+        "marker": ".prose-run-manifest.json",
+        "outputDir": "out",
+        "runId": "run_5e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f68",
+        "totalBytes": 83
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "expectFiles": [
+    {
+      "path": "out/outputs/result.json",
+      "content": "---\nname: literal-helper-author\nkind: function\n---\n\nReturn the literal text.\n"
+    },
+    {
+      "path": "out/notes.txt",
+      "content": "notes\n"
+    },
+    {
+      "path": "out/.prose-run-manifest.json",
+      "sha256": "92be64eea4cb94edfc5d2ec31e70deecb8778a2764be9cf7ab029b040689b20f"
+    },
+    {
+      "path": "out/.prose-run-manifest.json.partial",
+      "absent": true
+    }
+  ],
+  "forbid": [
+    "tok=",
+    "SIGNEDTOKEN",
+    "cus_ExampleOwner01"
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "id": "alias-share-with-email",
+  "feature": "framework",
+  "operation": "run.share",
+  "description": "`cli run share RUN_ID --with EMAIL --yes` never hands back a public-link argv: the Action says the link is public and unrevocable and names `cli org invite`, and the suggestion is `--preview` without `--yes`.",
+  "argv": [
+    "cli",
+    "run",
+    "share",
+    "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+    "--with",
+    "bob@example.com",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: Unknown option.\nDetail: unknown option --with for `cli run share`; `cli run share` mints a public, unrevocable 24-hour link that anyone who has it can open; it is not shared with one person\nAction: `cli run share` makes a public, unrevocable 24-hour link, and `cli org invite` gives one person access; preview the link first: `prose cli run share run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c --preview`.\n"
+  }
+}

@@ -1,0 +1,56 @@
+{
+  "id": "invite-expires-in-unit",
+  "feature": "organizations",
+  "operation": "org.invite",
+  "description": "--expires-in 1h is INVOCATION_INVALID (whole seconds, 1 to 2592000) before any request.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "org",
+    "invite",
+    "acme-research",
+    "cus_ExampleInvitee1",
+    "--role",
+    "reader",
+    "--expires-in=1h",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "organizations.manage",
+      "operation": "org.invite",
+      "problem": {
+        "action": "Correct the value named in Detail; `prose --output json cli org invite --help` shows the accepted syntax.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "--expires-in must be a whole number of seconds from 1 to 2592000",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "org",
+            "invite",
+            "--help"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

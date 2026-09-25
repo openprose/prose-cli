@@ -1,0 +1,42 @@
+{
+  "id": "auth-login-store-unavailable",
+  "feature": "account",
+  "operation": "auth.login",
+  "description": "Login with no OS credential store is CREDENTIAL_STORE_UNAVAILABLE before any request; the Action names OPENPROSE_API_KEY. Ported from the account corpus.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "auth",
+    "login"
+  ],
+  "fixture": {
+    "credential": null,
+    "storeAvailable": false,
+    "exchanges": []
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "schema": "openprose.service-operation/1",
+      "operation": "auth.login",
+      "interaction": "auth.device_flow",
+      "result": null,
+      "problem": {
+        "action": "Set OPENPROSE_API_KEY for this command, or unlock or configure the operating system credential store, then retry.",
+        "boundary": "authentication",
+        "code": "CREDENTIAL_STORE_UNAVAILABLE",
+        "details": {
+          "reason": "the OS credential store is unavailable; set OPENPROSE_API_KEY for this command"
+        },
+        "exitCode": 10,
+        "message": "The operating system credential store is unavailable.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      }
+    }
+  },
+  "stderr": {
+    "empty": true
+  }
+}

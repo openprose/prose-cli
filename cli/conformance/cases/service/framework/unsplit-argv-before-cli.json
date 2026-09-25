@@ -1,0 +1,49 @@
+{
+  "id": "unsplit-argv-before-cli",
+  "feature": "framework",
+  "operation": "run.submit",
+  "description": "A whole command line passed as one word (`prose \"cli run list --limit 5\"`) is never forwarded: it exits 2 and suggests the split argv.",
+  "argv": [
+    "--output",
+    "json",
+    "cli run list --limit 5"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": null,
+      "operation": "cli",
+      "problem": {
+        "action": "Pass each word separately: `prose --output json cli run list --limit 5`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "the word \"cli run list --limit 5\" holds a whole command line; the argv looks unsplit (quoted, so the shell passed it as one word): did you mean `prose --output json cli run list --limit 5`? Nothing was forwarded or sent",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "list",
+            "--limit",
+            "5"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

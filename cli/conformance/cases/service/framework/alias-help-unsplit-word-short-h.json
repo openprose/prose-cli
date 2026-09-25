@@ -1,0 +1,51 @@
+{
+  "id": "alias-help-unsplit-word-short-h",
+  "feature": "framework",
+  "operation": "service.guide",
+  "description": "An unsplit word followed by `-h` suggests the split command's `--help`, dropping the rest of the line.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    " service",
+    "guide",
+    "-h"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": null,
+      "operation": "cli",
+      "problem": {
+        "action": "Pass each word separately: `prose --output json cli service guide --help`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "the word \" service\" holds a whole command line; the argv looks unsplit (quoted, so the shell passed it as one word): did you mean `cli service`?",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "service",
+            "guide",
+            "--help"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

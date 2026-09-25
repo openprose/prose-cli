@@ -1,0 +1,87 @@
+{
+  "id": "program-show-anonymous-public",
+  "feature": "programs",
+  "operation": "program.show",
+  "description": "Without any configured key, `program show` reads a public program anonymously (no Authorization header).",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "program",
+    "show",
+    "bob/haiku"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/p/bob/haiku",
+        "requestHeaders": {
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          },
+          "User-Agent": {
+            "pattern": "^prose-cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"
+          },
+          "Accept": "application/json",
+          "Authorization": {
+            "present": false
+          }
+        },
+        "status": 200,
+        "body": {
+          "program": {
+            "owner": "Bob",
+            "slug": "haiku",
+            "visibility": "public",
+            "content": "---\nname: demo\nkind: function\n---\n\n### Returns\n\n- `text`: exactly `ok`\n",
+            "rev": 1,
+            "rev_id": "0123456789abcdef",
+            "commit_id": "1111111111111111",
+            "parent_commit_id": null,
+            "updated_at": 1790212199320
+          },
+          "is_owner": false
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "schema": "openprose.service-operation/1",
+      "operation": "program.show",
+      "interaction": "program.read",
+      "result": {
+        "program": {
+          "owner": "Bob",
+          "slug": "haiku",
+          "rev": 1,
+          "rev_id": "0123456789abcdef",
+          "commit_id": "1111111111111111",
+          "parent_commit_id": null,
+          "updated_at": 1790212199320,
+          "updated_at_iso": "2026-09-24T01:09:59.320Z",
+          "visibility": "public",
+          "ref": "Bob/haiku@0123456789abcdef"
+        },
+        "is_owner": false,
+        "file": {
+          "bytes": 71,
+          "sha256": "21be1edbc07387251e649a195675e24a96eaeac3e16fe91f834f3dd7530043ce",
+          "written": false,
+          "content": "---\nname: demo\nkind: function\n---\n\n### Returns\n\n- `text`: exactly `ok`\n"
+        }
+      },
+      "problem": null
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

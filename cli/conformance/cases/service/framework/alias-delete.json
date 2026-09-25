@@ -1,0 +1,25 @@
+{
+  "id": "alias-delete",
+  "feature": "framework",
+  "operation": "program.delete",
+  "description": "`cli delete` suggests `cli program delete --help`, and the Action names `cli job delete`.",
+  "argv": [
+    "cli",
+    "delete"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: Unknown command.\nDetail: unknown command `cli delete`; did you mean `cli program delete SLUG`? runs are never deleted; a saved program is deleted with `cli program delete SLUG` and a job with `cli job delete JOB_ID`\nAction: A job is deleted with `cli job delete JOB_ID`. Use `cli program delete SLUG`; `prose cli program delete --help` shows its arguments.\n"
+  }
+}

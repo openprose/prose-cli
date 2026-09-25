@@ -1,0 +1,51 @@
+{
+  "id": "malformed-key-live-prefix",
+  "feature": "framework",
+  "operation": "model.list",
+  "description": "An rr_live_ key from the environment is malformed (not an OpenProse API key): details name the source and variable and never echo the key.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "model",
+    "list"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "models.list",
+      "operation": "model.list",
+      "problem": {
+        "action": "Replace or unset OPENPROSE_API_KEY, then retry.",
+        "boundary": "authentication",
+        "code": "SERVICE_AUTH_REQUIRED",
+        "details": {
+          "credentialProblem": "malformed",
+          "credentialSource": "environment",
+          "credentialVariable": "OPENPROSE_API_KEY",
+          "reason": "the OPENPROSE_API_KEY value starts with rr_live_, which is not an OpenProse API key (an OpenProse API key is rr_test, an underscore and 32 lowercase hex digits); replace or unset OPENPROSE_API_KEY"
+        },
+        "exitCode": 10,
+        "message": "OpenProse service authentication is required.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "environment": {
+    "OPENPROSE_API_KEY": "rr_live_0123456789abcdef0123456789abcdef"
+  },
+  "forbid": [
+    "rr_live_0123456789abcdef0123456789abcdef"
+  ]
+}

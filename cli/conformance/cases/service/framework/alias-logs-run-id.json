@@ -1,0 +1,26 @@
+{
+  "id": "alias-logs-run-id",
+  "feature": "framework",
+  "operation": "run.watch",
+  "description": "`cli logs RUN_ID` suggests `cli run watch RUN_ID`.",
+  "argv": [
+    "cli",
+    "logs",
+    "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: Unknown command.\nDetail: unknown command `cli logs`; did you mean `cli run watch RUN_ID`? `cli run watch RUN_ID` replays a run's events; `cli run list --limit 1` finds the latest run\nAction: Use `cli run watch`: `prose cli run watch run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c`.\n"
+  }
+}

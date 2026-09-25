@@ -1,0 +1,53 @@
+{
+  "id": "wallet-topup-amount-not-whole-dollars",
+  "feature": "wallet",
+  "operation": "wallet.topup",
+  "description": "A non-integer `--amount` gets no guess; the reason states the unit and the suggestion is the help.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "wallet",
+    "topup",
+    "--amount",
+    "5.50",
+    "--preview"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "wallet.topup",
+      "operation": "wallet.topup",
+      "problem": {
+        "action": "Pass --amount-cents with a whole number of cents; `prose --output json cli wallet topup --help` shows the options of `cli wallet topup`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "unknown option --amount for `cli wallet topup`; the option is --amount-cents, a whole number of cents (--amount-cents 500 for 5 dollars); \"5.50\" is not a positive whole number of dollars, so it was not converted",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "wallet",
+            "topup",
+            "--help"
+          ]
+        },
+        "exitCode": 2,
+        "message": "Unknown option.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

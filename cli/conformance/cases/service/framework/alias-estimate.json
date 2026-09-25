@@ -1,0 +1,25 @@
+{
+  "id": "alias-estimate",
+  "feature": "framework",
+  "operation": "run.quote",
+  "description": "`cli estimate` suggests `cli run quote --help`, and the Action names `cli wallet usage` for past spending.",
+  "argv": [
+    "cli",
+    "estimate"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: Unknown command.\nDetail: unknown command `cli estimate`; did you mean `cli run quote`? `cli run quote FILE` prices a run before it starts; past spending is `cli wallet usage`\nAction: Past spending is `cli wallet usage`. Use `cli run quote`; `prose cli run quote --help` shows its arguments.\n"
+  }
+}

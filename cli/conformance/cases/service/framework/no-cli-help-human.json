@@ -1,0 +1,24 @@
+{
+  "id": "no-cli-help-human",
+  "feature": "framework",
+  "operation": "service.operations",
+  "description": "`prose help` is a language command, but the default hosted harness runs none, so it exits 2 with `prose --help`; nothing is forwarded.",
+  "argv": [
+    "help"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: That command isn't quite right.\nDetail: `help` is a language command, which runs only with a local harness; did you mean `prose --help`? Nothing was forwarded or sent. To run the language command, select a local harness with `prose cli harness use <id>`\nAction: Show the runner help: `prose --help`.\n"
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "id": "fix-wait-without-unit",
+  "feature": "framework",
+  "operation": "run.watch",
+  "description": "`--wait 5` suggests `--wait 5s`.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "watch",
+    "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+    "--wait",
+    "5"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "run.observe",
+      "operation": "run.watch",
+      "problem": {
+        "action": "Give --wait a unit, 5s for seconds: `prose --output json cli run watch run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c --wait 5s`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "--wait \"5\" must be a duration like 90s, 10m or 2h, from 1s to 6h",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "watch",
+            "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+            "--wait",
+            "5s"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

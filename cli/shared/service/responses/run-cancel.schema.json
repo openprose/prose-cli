@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.openprose.org/cli/v1/service/responses/run-cancel.schema.json",
+  "title": "service response acceptance: POST /run/{id}/cancel",
+  "x-probed": true,
+  "type": "object",
+  "required": [
+    "status"
+  ],
+  "properties": {
+    "status": {
+      "type": "string"
+    }
+  }
+}

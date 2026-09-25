@@ -14,6 +14,8 @@ type Options = {
   outfile: string;
   requireReleaseEligible: boolean;
   testSeams: boolean;
+  /** OpenProse developer build: honours the runtime endpoint override (src/core/service/dev-endpoint.ts). */
+  devBuild: boolean;
   buildProfile: "development" | "release";
   buildCommit: string;
   buildVersion: string;
@@ -32,7 +34,7 @@ const semver = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-((?:0|[1-9
 function usage(): never {
   console.error(
     "usage: bun scripts/image-bundle.ts <check|build> [--image-dir PATH] [--bundle PATH] "
-      + "[--checksum PATH] [--outfile PATH] [--require-release-eligible] [--test-seams] "
+      + "[--checksum PATH] [--outfile PATH] [--require-release-eligible] [--test-seams] [--dev-endpoint] "
       + "[--codex-instructions framed|developer|base] "
       + "| build-test [--outfile PATH]",
   );
@@ -60,6 +62,7 @@ function options(argv: string[]): Options {
     outfile: resolve(bunRoot, testOnly ? "dist/prose-test" : "dist/prose"),
     requireReleaseEligible: false,
     testSeams: testOnly,
+    devBuild: false,
     buildProfile: "development",
     buildCommit: process.env.OPENPROSE_BUILD_COMMIT ?? "development",
     buildVersion: process.env.OPENPROSE_BUILD_VERSION ?? packageManifest.version,
@@ -92,6 +95,10 @@ function options(argv: string[]): Options {
       result.testSeams = true;
       continue;
     }
+    if (argument === "--dev-endpoint") {
+      result.devBuild = true;
+      continue;
+    }
     if (argument === "--image-dir") result.imageDir = takeValue(args, index++, argument);
     else if (argument === "--bundle") result.bundle = takeValue(args, index++, argument);
     else if (argument === "--checksum") result.checksum = takeValue(args, index++, argument);
@@ -104,6 +111,14 @@ function options(argv: string[]): Options {
   }
   if (result.publishedKernelStartup && result.codexInstructionPlacement !== "developer") {
     console.error("image-bundle: published startup requires developer append; select an explicit image for other placements");
+    process.exit(2);
+  }
+  if (result.devBuild && result.requireReleaseEligible) {
+    console.error("image-bundle: release-eligible builds cannot enable the developer endpoint");
+    process.exit(2);
+  }
+  if (result.devBuild && result.outfile === resolve(bunRoot, "dist/prose")) {
+    console.error("image-bundle: a developer-endpoint build must not overwrite the ordinary dist/prose build; pass --outfile");
     process.exit(2);
   }
   if (result.requireReleaseEligible && result.testSeams) {
@@ -186,6 +201,8 @@ async function compile(input: Options): Promise<void> {
       OPENPROSE_BUILD_VERSION: JSON.stringify(input.buildVersion),
       OPENPROSE_BUILD_PROFILE: JSON.stringify(input.buildProfile),
       OPENPROSE_TEST_SEAMS: String(input.testSeams),
+      // Always defined, so a public build folds the dev-endpoint branch away.
+      PROSE_DEV_BUILD: String(input.devBuild),
       OPENPROSE_WINDOWS_HOST_SHA256: JSON.stringify(input.windowsHostSha256),
       OPENPROSE_WINDOWS_HOST_ADMISSION: String(input.windowsHostAdmission),
       OPENPROSE_CODEX_INSTRUCTION_PLACEMENT: JSON.stringify(input.codexInstructionPlacement),

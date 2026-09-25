@@ -2828,7 +2828,7 @@ describe("ordinary functional-alpha installed execution", () => {
       const human = await execute("human");
       expect(human.exit).toBe(0);
       expect(human.stdout).toContain(operation === "dry-run"
-        ? "Dry run: mechanically ready; authentication unverified\n"
+        ? "Readiness: mechanically ready; authentication unverified\n"
         : "status: mechanically ready; authentication unverified\n");
       expect(await Bun.file(observationPath).exists()).toBeFalse();
       expect(await Bun.file(`${observationPath}.auth-probe`).exists()).toBeFalse();
@@ -2860,7 +2860,7 @@ describe("ordinary functional-alpha installed execution", () => {
     };
     for (const [args, line] of [
       [["--harness", "codex", "--output", "human", "cli", "doctor"], "status: ready\n"],
-      [["--harness", "codex", "--dry-run", "--output", "human", "run"], "Dry run: ready\n"],
+      [["--harness", "codex", "--dry-run", "--output", "human", "run"], "Readiness: ready\n"],
     ] as const) {
       const verified = await execute([...args], input.root);
       expect(verified.exit).toBe(0);
@@ -2869,7 +2869,7 @@ describe("ordinary functional-alpha installed execution", () => {
     }
     for (const [args, line, authLine] of [
       [["--harness", "mock", "--output", "human", "cli", "doctor"], "status: ready\n", "auth readiness: not-applicable\n"],
-      [["--harness", "mock", "--dry-run", "--output", "human", "run"], "Dry run: ready\n", "Auth: none-test-only (not-applicable)\n"],
+      [["--harness", "mock", "--dry-run", "--output", "human", "run"], "Readiness: ready\n", "Auth: none-test-only (not-applicable)\n"],
     ] as const) {
       const notApplicable = await execute([...args], input.root, sentinelFixtureImage);
       expect(notApplicable.exit).toBe(0);
@@ -2879,7 +2879,7 @@ describe("ordinary functional-alpha installed execution", () => {
     }
     for (const [args, line] of [
       [["--harness", "codex", "--output", "human", "cli", "doctor"], "status: not ready\n"],
-      [["--harness", "codex", "--dry-run", "--output", "human", "run"], "Dry run: blocked\n"],
+      [["--harness", "codex", "--dry-run", "--output", "human", "run"], "Readiness: blocked\n"],
     ] as const) {
       const blocked = await execute([...args], join(input.root, "empty-path"));
       expect(blocked.exit).toBe(10);

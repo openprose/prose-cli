@@ -1,24 +1,14 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.openprose.org/cli/v1/organization-list.schema.json",
+  "title": "OpenProse organizations (the result of cli org list)",
+  "description": "The `result` of the openprose.service-operation/1 envelope of `cli org list`; --output jsonl prints one service-record/1 line per organization and a service-page/1 trailer.",
   "type": "object",
   "additionalProperties": false,
   "required": [
-    "schema",
-    "environment",
-    "organizations",
-    "problem"
+    "organizations"
   ],
   "properties": {
-    "schema": {
-      "const": "openprose.organization-list/1"
-    },
-    "environment": {
-      "enum": [
-        "production",
-        "staging"
-      ]
-    },
     "organizations": {
       "type": "array",
       "items": {
@@ -51,16 +41,6 @@
           }
         }
       }
-    },
-    "problem": {
-      "oneOf": [
-        {
-          "type": "null"
-        },
-        {
-          "$ref": "runner-error.schema.json"
-        }
-      ]
     }
   }
 }

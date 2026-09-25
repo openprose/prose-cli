@@ -1,0 +1,41 @@
+{
+  "id": "job-contract-list-empty-human",
+  "feature": "jobs",
+  "operation": "job.contract.list",
+  "description": "An empty contract list is exit 0 with an explicit line.",
+  "argv": [
+    "cli",
+    "job",
+    "contract",
+    "list",
+    "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/triggers/3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10/contracts",
+        "status": 200,
+        "body": {
+          "contracts": [],
+          "max_contracts": 5
+        },
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "No contracts.\n"
+  },
+  "stderr": {
+    "text": ""
+  }
+}

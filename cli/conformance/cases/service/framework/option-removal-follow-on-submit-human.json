@@ -1,0 +1,35 @@
+{
+  "id": "option-removal-follow-on-submit-human",
+  "feature": "framework",
+  "operation": "run.submit",
+  "description": "Human `--follow` on submit names --wait and --detach and drops the flag.",
+  "argv": [
+    "cli",
+    "run",
+    "submit",
+    "hello.prose.md",
+    "--follow",
+    "--preview"
+  ],
+  "files": [
+    {
+      "path": "hello.prose.md",
+      "content": "# Hello\n\nSay hello.\n"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: Unknown option.\nDetail: unknown option --follow for `cli run submit`; the command already follows the run until it ends; --wait DURATION bounds how long, and `cli run submit --detach` returns at once\nAction: Drop --follow: `prose cli run submit hello.prose.md --preview`.\n"
+  }
+}

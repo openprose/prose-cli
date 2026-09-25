@@ -65,17 +65,22 @@ class ContractsTest(unittest.TestCase):
         self.assertEqual([], [f"{list(error.path)}: {error.message}" for error in errors])
 
     def test_registry_reports_bind_operation_and_failure(self):
+        # `cli package ...` prints the service-operation/1 envelope; its result
+        # is a receipt, a page of receipts or a withdrawal.
         receipt = load_json(FIXTURES / "registry/directory.receipt.json")
-        base = {"schema": "openprose.package-operation/1", "environment": "staging", "operation": "publish", "result": receipt, "problem": None}
-        self.assert_valid("package-operation.schema.json", base)
-        for operation, result in (("fetch", receipt), ("list", {"packages": [receipt], "nextCursor": None}), ("withdraw", {"receipt": receipt, "withdrawn": True})):
-            self.assert_valid("package-operation.schema.json", {**base, "operation": operation, "result": result})
+        for result in (receipt, {"packages": [receipt], "nextCursor": None}, {"receipt": receipt, "withdrawn": True}):
+            self.assert_valid("package-operation.schema.json", result)
+        base = {"schema": "openprose.service-operation/1", "operation": "package.publish",
+                "interaction": "registry.gateway", "result": receipt, "problem": None}
+        self.assert_valid("service-operation.schema.json", base)
         taxonomy = load_json(SHARED / "errors/taxonomy.v1.json")
         records = taxonomy["errors"]
         failure = {"schema": "openprose.runner-error/1", **next(item for item in records if item["code"] == "SERVICE_UNAVAILABLE")}
-        self.assert_valid("package-operation.schema.json", {**base, "result": None, "problem": failure})
-        for changes in ({"result": None}, {"operation": "list"}, {"problem": failure}, {"token": "secret"}, {"environment": "custom"}):
-            self.assertTrue(list(self.validator("package-operation.schema.json").iter_errors({**base, **changes})))
+        self.assert_valid("service-operation.schema.json", {**base, "result": None, "problem": failure})
+        for changes in ({"result": None}, {"problem": failure}, {"token": "secret"}, {"environment": "production"}):
+            self.assertTrue(list(self.validator("service-operation.schema.json").iter_errors({**base, **changes})))
+        for bad in ({**receipt, "token": "secret"}, {"packages": [receipt]}, {"receipt": receipt, "withdrawn": False}):
+            self.assertTrue(list(self.validator("package-operation.schema.json").iter_errors(bad)))
         self.assertEqual(receipt["reference"]["sha256"], sha256((FIXTURES / "registry/directory.canonical.json").read_bytes()))
 
     def test_kernel_startup_instruction_recipes_and_provider_routes(self):
@@ -334,8 +339,8 @@ class ContractsTest(unittest.TestCase):
         }["HOSTED_UNAVAILABLE"]
         self.assertEqual(
             hosted_error["action"],
-            "Select an available BYO harness with the `cli harness use <id>` "
-            "runner operation, then invoke the `cli doctor` runner operation.",
+            "To use the hosted service, run `cli run submit FILE --preview`; running "
+            "programs on this machine needs a local harness (`cli harness list`).",
         )
         self.assertEqual(
             examples["account-status-unavailable.json"]["problem"]["action"],
@@ -790,6 +795,12 @@ class ContractsTest(unittest.TestCase):
             "HOSTED_AUTH_REQUIRED", "HOSTED_QUOTA_EXCEEDED", "INTERNAL_ERROR",
             "SERVICE_UNAVAILABLE", "SERVICE_AUTH_REQUIRED", "SERVICE_PROTOCOL_INVALID",
             "CREDENTIAL_STORE_UNAVAILABLE", "DEVICE_AUTH_FAILED", "DEVICE_AUTH_EXPIRED",
+            # Hosted service operations (additive).
+            "CONFIRMATION_REQUIRED", "SERVICE_REQUEST_REJECTED", "SERVICE_RESOURCE_NOT_FOUND",
+            "SERVICE_FEATURE_DISABLED", "SERVICE_BALANCE_INSUFFICIENT", "SERVICE_PREMIUM_MODEL_LOCKED", "SERVICE_ACCOUNT_SUSPENDED",
+            "SERVICE_WRITE_CONFLICT", "GITHUB_LINK_REQUIRED", "SERVICE_RESPONSE_TOO_LARGE",
+            "SERVICE_WATCH_DEADLINE", "HOSTED_RUN_FAILED", "RUN_SUBMISSION_AMBIGUOUS",
+            "HOSTED_RUN_DETACHED", "HOSTED_RUN_CANCELLED", "EXAMPLE_NOT_VIEWABLE",
         }
         records = taxonomy["errors"]
         self.assertEqual({record["code"] for record in records}, expected_codes)

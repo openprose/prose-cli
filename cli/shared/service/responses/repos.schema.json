@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.openprose.org/cli/v1/service/responses/repos.schema.json",
+  "title": "service response acceptance: GET /repos",
+  "x-probed": false,
+  "type": "object",
+  "description": "Provisional: not observed on the hosted service."
+}

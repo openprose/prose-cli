@@ -1,0 +1,57 @@
+{
+  "id": "wallet-redeem-code-argument-rejected",
+  "feature": "wallet",
+  "operation": "wallet.redeem",
+  "description": "The code is never accepted on argv: a positional is INVOCATION_INVALID.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "wallet",
+    "redeem",
+    "NOT-A-CODE",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "wallet.redeem",
+      "operation": "wallet.redeem",
+      "problem": {
+        "action": "Pipe the code in on standard input: `printf '%s\\n' \"$CODE\" | prose --output json cli wallet redeem --code-file - --yes`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "`cli wallet redeem` never takes the code as an argument, so the argument was not echoed; it reads --code-file, a file or - for standard input",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "wallet",
+            "redeem",
+            "--code-file",
+            "-",
+            "--yes"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "NOT-A-CODE"
+  ]
+}

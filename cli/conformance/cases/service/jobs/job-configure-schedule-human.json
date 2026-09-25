@@ -1,0 +1,141 @@
+{
+  "id": "job-configure-schedule-human",
+  "feature": "jobs",
+  "operation": "job.configure",
+  "description": "Human `job configure` renders the readable job (no raw JSON) and ends with full `Next:` commands in the invocation's environment.",
+  "argv": [
+    "cli",
+    "job",
+    "configure",
+    "7b2e4d19-6a3c-4e85-b1f0-9c4d8e2a6b73",
+    "--config-file",
+    "config.json",
+    "--yes"
+  ],
+  "files": [
+    {
+      "path": "config.json",
+      "content": "{\"interval_seconds\": 3600, \"configuration_revision\": 3, \"revision_token\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"bindings\": [{\"program_ref\": \"exowner1/jobs-example@0123456789abcdef\", \"run_configuration\": {\"model\": \"model-luna\"}}]}"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "PUT",
+        "path": "/triggers/7b2e4d19-6a3c-4e85-b1f0-9c4d8e2a6b73/configuration",
+        "status": 202,
+        "body": {
+          "trigger": {
+            "id": "7b2e4d19-6a3c-4e85-b1f0-9c4d8e2a6b73",
+            "type": "schedule",
+            "name": null,
+            "internalRef": "opaque-1",
+            "url": null,
+            "intervalSeconds": 3600,
+            "mode": null,
+            "repositoryId": null,
+            "repositoryFullName": null,
+            "repositoryBranch": null,
+            "contextRepositoryId": 1000001,
+            "contextRepositoryFullName": "exowner1/example-repo",
+            "contextRepositoryBranch": "main",
+            "createdAt": 1788438667830,
+            "adopted": false
+          },
+          "status": {
+            "configured": true,
+            "active": true,
+            "intervalSeconds": 3600,
+            "configurationRevision": 4,
+            "nextFireAt": 1790253069281,
+            "lastFiredAt": null,
+            "lastRunId": null,
+            "lastError": null,
+            "counts": {
+              "pending": 0,
+              "completed": 2,
+              "cost_units": 9
+            },
+            "configurationToken": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "contracts": [
+              {
+                "programRef": "exowner1/jobs-example@0123456789abcdef",
+                "programSlug": "jobs-example",
+                "enabled": true,
+                "model": "model-luna",
+                "contextRepositoryFullName": "exowner1/example-repo",
+                "contextRepositoryBranch": "main",
+                "runConfiguration": {
+                  "model": "model-luna",
+                  "environment": "builtin",
+                  "inputs": {
+                    "topic": "weekly\nsummary",
+                    "Cost_Center": "cc-1"
+                  },
+                  "inputEntries": [
+                    {
+                      "name": "Cost_Center",
+                      "value": "cc-1"
+                    }
+                  ],
+                  "files": [
+                    {
+                      "name": "brief.md",
+                      "content": "# Brief\nhello\n",
+                      "size": 14,
+                      "mime": "text/markdown"
+                    }
+                  ],
+                  "contextRepositories": [
+                    {
+                      "url": "https://github.com/exowner1/example-repo",
+                      "branch": "main"
+                    }
+                  ],
+                  "output": {
+                    "type": "commit",
+                    "repository": "https://github.com/exowner1/example-repo",
+                    "extra": true
+                  }
+                }
+              }
+            ],
+            "programRef": "exowner1/jobs-example@0123456789abcdef",
+            "programSlug": "jobs-example",
+            "model": "model-luna",
+            "contextRepository": {
+              "id": 1000001,
+              "owner": "exowner1",
+              "name": "example-repo"
+            }
+          }
+        },
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "expectedBody": {
+          "interval_seconds": 3600,
+          "configuration_revision": 3,
+          "bindings": [
+            {
+              "program_ref": "exowner1/jobs-example@0123456789abcdef",
+              "run_configuration": {
+                "model": "model-luna"
+              }
+            }
+          ],
+          "configuration_token": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "Job 7b2e4d19-6a3c-4e85-b1f0-9c4d8e2a6b73 (schedule)\n  created: 2026-09-03T12:31:07.830Z\n  active: true\n  interval: 3600s\n  next fire: 2026-09-24T12:31:09.281Z\n  runs: completed 2\n  program: exowner1/jobs-example@0123456789abcdef enabled=true model=model-luna\nNext: prose cli job configure 7b2e4d19-6a3c-4e85-b1f0-9c4d8e2a6b73 --interval-seconds N --yes\n"
+  }
+}

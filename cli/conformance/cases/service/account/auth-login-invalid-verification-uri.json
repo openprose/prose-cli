@@ -1,0 +1,58 @@
+{
+  "id": "auth-login-invalid-verification-uri",
+  "feature": "account",
+  "operation": "auth.login",
+  "description": "Device flow: a verification URI other than the GitHub device page is refused (SERVICE_PROTOCOL_INVALID) and never printed. Ported from the account corpus.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "auth",
+    "login"
+  ],
+  "fixture": {
+    "credential": null,
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/auth/device",
+        "status": 200,
+        "body": {
+          "device_code": "fixture-device-secret",
+          "user_code": "ABCD-EFGH",
+          "verification_uri": "https://attacker.invalid/device",
+          "expires_in": 60,
+          "interval": 1
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "schema": "openprose.service-operation/1",
+      "operation": "auth.login",
+      "interaction": "auth.device_flow",
+      "result": null,
+      "problem": {
+        "action": "Retry later and report the sanitized error code if it persists.",
+        "boundary": "protocol",
+        "code": "SERVICE_PROTOCOL_INVALID",
+        "exitCode": 10,
+        "message": "The OpenProse service returned an invalid response.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1",
+        "details": {
+          "reason": "unexpected POST /auth/device response: verification_uri"
+        }
+      }
+    }
+  },
+  "stderr": {
+    "empty": true
+  },
+  "forbid": [
+    "fixture-device-secret"
+  ]
+}

@@ -1,0 +1,113 @@
+{
+  "id": "program-list-without-content-by-default",
+  "feature": "programs",
+  "operation": "program.list",
+  "description": "`program list` projects each program without content by default, keeps the service order, and drops unknown fields and platform_programs.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "program",
+    "list"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/programs",
+        "requestHeaders": {
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          },
+          "User-Agent": {
+            "pattern": "^prose-cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"
+          },
+          "Accept": "application/json",
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "status": 200,
+        "body": {
+          "programs": [
+            {
+              "owner": "alice",
+              "slug": "newer",
+              "visibility": "public",
+              "content": "---\nname: demo\nkind: function\n---\n\n### Returns\n\n- `text`: exactly `ok`\n",
+              "rev": 2,
+              "rev_id": "fedcba9876543210",
+              "commit_id": "2222222222222222",
+              "parent_commit_id": "1111111111111111",
+              "updated_at": 1790212207327,
+              "message": "second",
+              "ownerCustomerId": "cus_hidden"
+            },
+            {
+              "owner": "alice",
+              "slug": "older",
+              "visibility": "private",
+              "content": "---\nname: demo\nkind: function\n---\n\n### Returns\n\n- `text`: exactly `ok`\n",
+              "rev": 1,
+              "rev_id": "0123456789abcdef",
+              "commit_id": "1111111111111111",
+              "parent_commit_id": null,
+              "updated_at": 1790212199320
+            }
+          ],
+          "platform_programs": [
+            {
+              "ref": "openprose/prose-write@abcdefabcdefabcd"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "schema": "openprose.service-operation/1",
+      "operation": "program.list",
+      "interaction": "programs.list",
+      "result": {
+        "programs": [
+          {
+            "owner": "alice",
+            "slug": "newer",
+            "rev": 2,
+            "rev_id": "fedcba9876543210",
+            "commit_id": "2222222222222222",
+            "parent_commit_id": "1111111111111111",
+            "updated_at": 1790212207327,
+            "updated_at_iso": "2026-09-24T01:10:07.327Z",
+            "visibility": "public",
+            "message": "second",
+            "ref": "alice/newer@fedcba9876543210"
+          },
+          {
+            "owner": "alice",
+            "slug": "older",
+            "rev": 1,
+            "rev_id": "0123456789abcdef",
+            "commit_id": "1111111111111111",
+            "parent_commit_id": null,
+            "updated_at": 1790212199320,
+            "updated_at_iso": "2026-09-24T01:09:59.320Z",
+            "visibility": "private",
+            "ref": "alice/older@0123456789abcdef"
+          }
+        ]
+      },
+      "problem": null
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef",
+    "cus_hidden",
+    "prose-write"
+  ]
+}

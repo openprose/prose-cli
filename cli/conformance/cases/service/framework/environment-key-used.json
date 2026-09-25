@@ -1,0 +1,58 @@
+{
+  "id": "environment-key-used",
+  "feature": "framework",
+  "operation": "repo.list",
+  "description": "OPENPROSE_API_KEY takes precedence over the store.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "repo",
+    "list"
+  ],
+  "environment": {
+    "OPENPROSE_API_KEY": "rr_test_fedcba9876543210fedcba9876543210"
+  },
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/repos",
+        "status": 503,
+        "bodyText": "",
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_fedcba9876543210fedcba9876543210"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "repos.list",
+      "operation": "repo.list",
+      "problem": {
+        "action": "Check your network connection and retry later.",
+        "boundary": "hosted-service",
+        "code": "SERVICE_UNAVAILABLE",
+        "details": {
+          "serviceStatus": 503
+        },
+        "exitCode": 10,
+        "message": "The OpenProse service is unavailable.",
+        "retryable": true,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "rr_test_fedcba9876543210fedcba9876543210"
+  ]
+}

@@ -1,0 +1,90 @@
+{
+  "id": "submit-ambiguous-human",
+  "feature": "runs",
+  "operation": "run.submit",
+  "description": "Human ambiguous submission: the Action points at the run list command in Detail instead of naming JSON fields.",
+  "argv": [
+    "cli",
+    "run",
+    "submit",
+    "p.prose.md",
+    "--yes"
+  ],
+  "files": [
+    {
+      "path": "p.prose.md",
+      "content": "---\nname: hello\nkind: function\n---\n\nReply with the word ok.\n"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "ids": [
+      "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f"
+    ],
+    "clock": {
+      "start": "2026-09-24T01:00:00.000Z",
+      "stepMs": 0
+    },
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/run",
+        "query": {
+          "live": "1",
+          "session": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f"
+        },
+        "requestHeaders": {
+          "X-Session-Id": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f",
+          "Accept": "text/event-stream",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "expectedBody": {
+          "content": "---\nname: hello\nkind: function\n---\n\nReply with the word ok.\n"
+        },
+        "status": 200,
+        "disconnect": "before-response"
+      },
+      {
+        "method": "POST",
+        "path": "/run",
+        "query": {
+          "live": "1",
+          "session": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f"
+        },
+        "requestHeaders": {
+          "X-Session-Id": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f",
+          "Accept": "text/event-stream",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "expectedBody": {
+          "content": "---\nname: hello\nkind: function\n---\n\nReply with the word ok.\n"
+        },
+        "status": 409,
+        "body": {
+          "error": "This session already has a run. Reconnect instead of submitting it again."
+        }
+      }
+    ]
+  },
+  "exitCode": 22,
+  "stdout": {
+    "text": ""
+  },
+  "journalAfter": [
+    {
+      "session": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f",
+      "runId": null,
+      "lastSequence": 0,
+      "sourceSha256": "53d546038958fb20cdf40a251fae02ad28748f40b60d78d76db88779f074ff11"
+    }
+  ],
+  "stderr": {
+    "text": "OpenProse: RUN_SUBMISSION_AMBIGUOUS: The run submission could not be confirmed and was not repeated.\nDetail: the service reports that this session already has a run but did not name it; the submission was not repeated. Check `prose cli run list --limit 5` before submitting again, or recover the run with `prose cli run submit p.prose.md --yes --session 5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f --detach`: the same session never starts a second run; the local run journal keeps the session\nAction: Check recent runs with the command in Detail above before submitting again; submitting again could start a second paid run.\n"
+  }
+}

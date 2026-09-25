@@ -1,0 +1,89 @@
+{
+  "id": "submit-confirmation-quote-failure-keeps-plan",
+  "feature": "runs",
+  "operation": "run.submit",
+  "description": "A failed quote never hides the plan: CONFIRMATION_REQUIRED without a quote.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "submit",
+    "p.prose.md"
+  ],
+  "files": [
+    {
+      "path": "p.prose.md",
+      "content": "---\nname: hello\nkind: function\n---\n\nReply with the word ok.\n"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/run/quote",
+        "requestHeaders": {
+          "Authorization": {
+            "present": false
+          }
+        },
+        "status": 500,
+        "body": {
+          "error": "boom"
+        }
+      }
+    ]
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "run.submit",
+      "operation": "run.submit",
+      "problem": {
+        "action": "Rerun the same command with --yes to confirm, or with --preview to see what it would do without sending anything.",
+        "boundary": "invocation",
+        "code": "CONFIRMATION_REQUIRED",
+        "details": {
+          "confirmArgv": [
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "submit",
+            "p.prose.md",
+            "--yes"
+          ],
+          "plannedRequest": {
+            "bodyBytes": 80,
+            "bodySha256": "ff2b93e1185f8f379d05b79546262b4bede0761fc4868b35ad38d360497d7060",
+            "description": "Run a program on the hosted service and stream it until it finishes, detaches or the deadline passes.",
+            "effect": "money",
+            "method": "POST",
+            "operation": "run.submit"
+          },
+          "previewArgv": [
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "submit",
+            "p.prose.md",
+            "--preview"
+          ],
+          "reason": "--yes is required because it starts a paid run: a hold (money set aside from the wallet, not the price) is reserved now, and the run's price is charged when it settles"
+        },
+        "exitCode": 2,
+        "message": "This service operation requires explicit confirmation.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

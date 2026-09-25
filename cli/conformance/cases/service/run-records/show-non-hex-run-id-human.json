@@ -1,0 +1,27 @@
+{
+  "id": "show-non-hex-run-id-human",
+  "feature": "run-records",
+  "operation": "run.show",
+  "description": "A RUN_ID that is not run_ and lowercase hex digits is refused before any request.",
+  "argv": [
+    "cli",
+    "run",
+    "show",
+    "run_nope"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: That command isn't quite right.\nDetail: run id \"run_nope\" is invalid; a run id is run_ followed by lowercase hex digits; list runs with `prose cli run list`\nAction: Correct the value named in Detail; `prose cli run show --help` shows the accepted syntax.\n"
+  }
+}

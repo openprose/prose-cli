@@ -1,0 +1,152 @@
+{
+  "id": "submit-completes-json",
+  "feature": "runs",
+  "operation": "run.submit",
+  "description": "JSON mode prints only the final envelope with the closed run projection.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "submit",
+    "p.prose.md",
+    "--yes"
+  ],
+  "files": [
+    {
+      "path": "p.prose.md",
+      "content": "---\nname: hello\nkind: function\n---\n\nReply with the word ok.\n"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "ids": [
+      "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f"
+    ],
+    "clock": {
+      "start": "2026-09-24T01:00:00.000Z",
+      "stepMs": 0
+    },
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/run",
+        "query": {
+          "live": "1",
+          "session": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f"
+        },
+        "requestHeaders": {
+          "X-Session-Id": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f",
+          "Accept": "text/event-stream",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "expectedBody": {
+          "content": "---\nname: hello\nkind: function\n---\n\nReply with the word ok.\n"
+        },
+        "status": 200,
+        "sse": {
+          "frames": [
+            {
+              "id": "1",
+              "event": "status",
+              "data": {
+                "type": "status",
+                "run_id": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+                "sequence": 1,
+                "at": "2026-09-24T01:00:01.000Z",
+                "status": "running",
+                "message": "reactor model-luna",
+                "session": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f",
+                "controls": {
+                  "steer": true,
+                  "stop": true
+                }
+              }
+            },
+            {
+              "id": "2",
+              "event": "text_chunk",
+              "data": {
+                "type": "text_chunk",
+                "run_id": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+                "sequence": 2,
+                "at": "2026-09-24T01:00:01.000Z",
+                "text": "ok"
+              }
+            },
+            {
+              "id": "3",
+              "event": "run_complete",
+              "data": {
+                "type": "run_complete",
+                "run_id": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+                "sequence": 3,
+                "at": "2026-09-24T01:00:01.000Z",
+                "status": "completed",
+                "runtime": "reactor",
+                "environment": {
+                  "id": "builtin",
+                  "version": "1.0.0",
+                  "runtime_contract": 1
+                },
+                "response": "ok",
+                "files": [
+                  "outputs/result.json"
+                ],
+                "price_cents": 2,
+                "environment_price_cents": 1,
+                "billing_status": "settled",
+                "usage": {
+                  "input_tokens": 100,
+                  "output_tokens": 5
+                },
+                "file_urls": {
+                  "outputs/result.json": "https://example.invalid/x?tok=SECRET_SIGNED_TOKEN"
+                }
+              }
+            }
+          ],
+          "end": "close"
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "run.submit",
+      "operation": "run.submit",
+      "problem": null,
+      "result": {
+        "afterSequence": 3,
+        "detached": false,
+        "run": {
+          "billing_status": "settled",
+          "cancelled": false,
+          "environment": "builtin",
+          "environment_price_cents": 1,
+          "files": [
+            "outputs/result.json"
+          ],
+          "price_cents": 2,
+          "response": "ok",
+          "run_id": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+          "status": "completed",
+          "usage": {
+            "input_tokens": 100,
+            "output_tokens": 5
+          }
+        },
+        "runId": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+        "run_id": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+        "session": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f"
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

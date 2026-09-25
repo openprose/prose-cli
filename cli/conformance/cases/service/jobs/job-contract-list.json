@@ -1,0 +1,74 @@
+{
+  "id": "job-contract-list",
+  "feature": "jobs",
+  "operation": "job.contract.list",
+  "description": "Contracts project to the public snake_case contract fields (program_ref, program_slug, enabled, model); content and inputs are dropped.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "job",
+    "contract",
+    "list",
+    "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/triggers/3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10/contracts",
+        "status": 200,
+        "body": {
+          "contracts": [
+            {
+              "program_ref": "exowner1/slack-hello@97ddf3a447f534a7",
+              "owner": "exowner1",
+              "slug": "slack-hello",
+              "rev_id": "97ddf3a447f534a7",
+              "content": "# private program text",
+              "is_platform_default": false,
+              "enabled": true,
+              "bound_at": 1789501241012,
+              "inputs": {
+                "channel": "C0123"
+              },
+              "model": "model-luna"
+            }
+          ],
+          "max_contracts": 5
+        },
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "job.contracts",
+      "operation": "job.contract.list",
+      "problem": null,
+      "result": {
+        "contracts": [
+          {
+            "enabled": true,
+            "model": "model-luna",
+            "program_ref": "exowner1/slack-hello@97ddf3a447f534a7",
+            "program_slug": "slack-hello"
+          }
+        ],
+        "max_contracts": 5
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "private program text"
+  ]
+}

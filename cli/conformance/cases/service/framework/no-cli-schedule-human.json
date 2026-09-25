@@ -1,0 +1,24 @@
+{
+  "id": "no-cli-schedule-human",
+  "feature": "framework",
+  "operation": "job.create",
+  "description": "`prose schedule` (no `cli`) exits 2 with `cli job create --help`: a schedule is a job; nothing is forwarded or billed.",
+  "argv": [
+    "schedule"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: Unknown command.\nDetail: `schedule` is not a command; did you mean `prose cli job create --help`? A schedule is a job of type schedule created from a JSON spec; it runs every interval_seconds seconds (86400 = daily), not on a cron expression. Nothing was forwarded or sent. To pass these words to the OpenProse language instead, put `--` before them\nAction: A schedule job runs every interval_seconds seconds, not on a cron expression. Use `cli job create`, then add --spec-file FILE; `prose cli job create --help` shows the options of `cli job create`.\n"
+  }
+}

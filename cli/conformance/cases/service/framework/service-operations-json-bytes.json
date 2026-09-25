@@ -1,0 +1,20 @@
+{
+  "id": "service-operations-json-bytes",
+  "feature": "framework",
+  "operation": "service.operations",
+  "description": "`cli service operations` prints the published manifest (the embedded manifest's public projection) as one envelope line and makes no request.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "service",
+    "operations"
+  ],
+  "fixture": {
+    "exchanges": []
+  },
+  "exitCode": 0,
+  "stdout": {
+    "manifestBytes": true
+  }
+}

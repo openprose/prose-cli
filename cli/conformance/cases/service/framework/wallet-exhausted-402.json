@@ -1,0 +1,53 @@
+{
+  "id": "wallet-exhausted-402",
+  "feature": "framework",
+  "operation": "repo.list",
+  "description": "wallet_exhausted maps to SERVICE_BALANCE_INSUFFICIENT.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "repo",
+    "list"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/repos",
+        "status": 402,
+        "body": {
+          "error": "Insufficient balance.",
+          "code": "wallet_exhausted"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "repos.list",
+      "operation": "repo.list",
+      "problem": {
+        "action": "Add credit with the `cli wallet topup` or `cli wallet redeem` runner operation, then retry.",
+        "boundary": "hosted-service",
+        "code": "SERVICE_BALANCE_INSUFFICIENT",
+        "details": {
+          "serviceCode": "wallet_exhausted",
+          "serviceStatus": 402
+        },
+        "exitCode": 10,
+        "message": "The OpenProse wallet balance is insufficient for this operation.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

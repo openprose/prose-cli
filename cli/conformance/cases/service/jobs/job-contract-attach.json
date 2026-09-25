@@ -1,0 +1,56 @@
+{
+  "id": "job-contract-attach",
+  "feature": "jobs",
+  "operation": "job.contract.attach",
+  "description": "`contract attach --yes` POSTs {program_ref} and returns the contract the service bound.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "job",
+    "contract",
+    "attach",
+    "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10",
+    "exowner1/jobs-example@0123456789abcdef",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/triggers/3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10/contracts",
+        "status": 201,
+        "expectedBody": {
+          "program_ref": "exowner1/jobs-example@0123456789abcdef"
+        },
+        "body": {
+          "bound": "exowner1/jobs-example@0123456789abcdef"
+        },
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "job.contracts",
+      "operation": "job.contract.attach",
+      "problem": null,
+      "result": {
+        "contracts": [
+          {
+            "program_ref": "exowner1/jobs-example@0123456789abcdef"
+          }
+        ]
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

@@ -1,0 +1,131 @@
+{
+  "id": "submit-drop-then-409-x-run-id-recovers",
+  "feature": "runs",
+  "operation": "run.submit",
+  "description": "A drop before the first event resubmits once with the same session; the duplicate-session 409 proves admission and X-Run-Id recovers the run id into the journal; the lost stream is HOSTED_RUN_DETACHED with resumeArgv.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "submit",
+    "p.prose.md",
+    "--yes"
+  ],
+  "files": [
+    {
+      "path": "p.prose.md",
+      "content": "---\nname: hello\nkind: function\n---\n\nReply with the word ok.\n"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "ids": [
+      "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f"
+    ],
+    "clock": {
+      "start": "2026-09-24T01:00:00.000Z",
+      "stepMs": 0
+    },
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/run",
+        "query": {
+          "live": "1",
+          "session": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f"
+        },
+        "requestHeaders": {
+          "X-Session-Id": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f",
+          "Accept": "text/event-stream",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "expectedBody": {
+          "content": "---\nname: hello\nkind: function\n---\n\nReply with the word ok.\n"
+        },
+        "status": 200,
+        "disconnect": "before-response"
+      },
+      {
+        "method": "POST",
+        "path": "/run",
+        "query": {
+          "live": "1",
+          "session": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f"
+        },
+        "requestHeaders": {
+          "X-Session-Id": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f",
+          "Accept": "text/event-stream",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "expectedBody": {
+          "content": "---\nname: hello\nkind: function\n---\n\nReply with the word ok.\n"
+        },
+        "status": 409,
+        "responseHeaders": {
+          "X-Run-Id": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c"
+        }
+      }
+    ]
+  },
+  "exitCode": 21,
+  "stdout": {
+    "json": {
+      "interaction": "run.submit",
+      "operation": "run.submit",
+      "problem": {
+        "action": "Resume with the `cli run watch` runner operation using details.resumeArgv (details.runId and details.afterSequence); never submit the run again to resume it.",
+        "boundary": "hosted-service",
+        "code": "HOSTED_RUN_DETACHED",
+        "details": {
+          "afterSequence": 0,
+          "cancelArgv": [
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "cancel",
+            "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+            "--session",
+            "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f",
+            "--yes"
+          ],
+          "reason": "the submission was admitted as run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c but its event stream was lost; the run was not cancelled. Resume with `prose --output json cli run watch run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c --after 0 --session 5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f` (it reports the outcome even if the run already finished), or read the record with `prose --output json cli run show run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c`",
+          "resumable": true,
+          "resumeArgv": [
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "watch",
+            "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+            "--after",
+            "0",
+            "--session",
+            "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f"
+          ],
+          "runId": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+          "session": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f"
+        },
+        "exitCode": 21,
+        "message": "The client stopped following the hosted run before its outcome arrived; the run was not cancelled.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "journalAfter": [
+    {
+      "session": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f",
+      "runId": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c"
+    }
+  ]
+}

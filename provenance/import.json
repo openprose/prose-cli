@@ -1,5 +1,5 @@
 {
-  "source": "/Users/sl/code/openprose-cli-vm",
+  "source": "openprose-cli-vm (predecessor working tree)",
   "sourceHead": "48de5b7b01107638d897a9c9ebaacc6d667c7404",
   "sourceClean": false,
   "selection": "Current working-tree cli/ files; excludes generated/build/dependency/evidence directories, env files, logs, symlinks, files over 5MB",

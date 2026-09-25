@@ -1,0 +1,55 @@
+{
+  "id": "wallet-events-empty",
+  "feature": "wallet",
+  "operation": "wallet.events",
+  "description": "An empty page exits 0 with events [] and nextBefore null.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "wallet",
+    "events",
+    "--limit",
+    "100"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/wallet/events",
+        "query": {
+          "limit": "100"
+        },
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          }
+        },
+        "status": 200,
+        "body": {
+          "customer_id": "c",
+          "events": [],
+          "next_before": null
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "wallet.events",
+      "operation": "wallet.events",
+      "problem": null,
+      "result": {
+        "events": [],
+        "nextBefore": null
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

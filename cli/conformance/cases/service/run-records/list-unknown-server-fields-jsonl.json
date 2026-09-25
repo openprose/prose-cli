@@ -1,0 +1,129 @@
+{
+  "id": "list-unknown-server-fields-jsonl",
+  "feature": "run-records",
+  "operation": "run.list",
+  "description": "Fields the CLI does not know never reach --output jsonl records.",
+  "argv": [
+    "--output",
+    "jsonl",
+    "cli",
+    "run",
+    "list",
+    "--limit",
+    "2"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/runs",
+        "requestHeaders": {
+          "Authorization": {
+            "pattern": "^Bearer rr_test_[0-9a-f]{32}$"
+          }
+        },
+        "status": 200,
+        "query": {
+          "limit": "2"
+        },
+        "body": {
+          "runs": [
+            {
+              "run_id": "run_5e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f68",
+              "created_at": "2026-09-23T20:29:47.788Z",
+              "status": "completed",
+              "model": "model-sol",
+              "environment": {
+                "id": "builtin",
+                "version": "1.0.0",
+                "runtime_contract": 1,
+                "__probe": "LEAKPROBE"
+              },
+              "price_cents": 4,
+              "environment_price_cents": 1,
+              "billing_status": "settled",
+              "program_ref": "openprose/prose-write@840170241e030597",
+              "__probe": "LEAKPROBE"
+            },
+            {
+              "run_id": "run_80299f89351054da80299f89351054da80299f89351054da80299f89351054da",
+              "created_at": "2026-09-23T20:29:47.788Z",
+              "status": "error",
+              "model": "model-sol",
+              "environment": {
+                "id": "builtin",
+                "version": "1.0.0",
+                "runtime_contract": 1,
+                "__probe": "LEAKPROBE"
+              },
+              "price_cents": 4,
+              "environment_price_cents": 1,
+              "billing_status": "settled",
+              "program_ref": "openprose/prose-write@840170241e030597",
+              "__probe": "LEAKPROBE"
+            }
+          ],
+          "next_before": "8210005908474_run_f72ef8b1feafaf93f72ef8b1feafaf93f72ef8b1feafaf93f72ef8b1feafaf93"
+        }
+      }
+    ]
+  },
+  "forbid": [
+    "__probe",
+    "LEAKPROBE"
+  ],
+  "exitCode": 0,
+  "stdout": {
+    "jsonl": [
+      {
+        "collection": "runs",
+        "index": 0,
+        "operation": "run.list",
+        "record": {
+          "billing_status": "settled",
+          "created_at": "2026-09-23T20:29:47.788Z",
+          "environment": "builtin",
+          "environment_price_cents": 1,
+          "model": "model-sol",
+          "price_cents": 4,
+          "program_ref": "openprose/prose-write@840170241e030597",
+          "run_id": "run_5e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f68",
+          "status": "completed"
+        },
+        "schema": "openprose.service-record/1"
+      },
+      {
+        "collection": "runs",
+        "index": 1,
+        "operation": "run.list",
+        "record": {
+          "billing_status": "settled",
+          "created_at": "2026-09-23T20:29:47.788Z",
+          "environment": "builtin",
+          "environment_price_cents": 1,
+          "model": "model-sol",
+          "price_cents": 4,
+          "program_ref": "openprose/prose-write@840170241e030597",
+          "run_id": "run_80299f89351054da80299f89351054da80299f89351054da80299f89351054da",
+          "status": "error"
+        },
+        "schema": "openprose.service-record/1"
+      },
+      {
+        "collection": "runs",
+        "count": 2,
+        "exitCode": 0,
+        "interaction": "runs.list",
+        "meta": {},
+        "nextBefore": "8210005908474_run_f72ef8b1feafaf93f72ef8b1feafaf93f72ef8b1feafaf93f72ef8b1feafaf93",
+        "operation": "run.list",
+        "schema": "openprose.service-page/1"
+      }
+    ]
+  }
+}

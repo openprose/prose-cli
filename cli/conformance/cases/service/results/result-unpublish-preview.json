@@ -1,0 +1,47 @@
+{
+  "id": "result-unpublish-preview",
+  "feature": "results",
+  "operation": "result.unpublish",
+  "description": "--preview returns the DELETE plan and sends nothing.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "result",
+    "unpublish",
+    "demo",
+    "AbCdEf012_-x",
+    "--preview"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "results.unpublish",
+      "operation": "result.unpublish",
+      "problem": null,
+      "result": {
+        "plannedRequest": {
+          "bodyBytes": null,
+          "bodySha256": null,
+          "description": "Remove a published result.",
+          "effect": "write",
+          "method": "DELETE",
+          "operation": "result.unpublish"
+        },
+        "preview": true
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

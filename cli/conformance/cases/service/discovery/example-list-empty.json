@@ -1,0 +1,49 @@
+{
+  "id": "example-list-empty",
+  "feature": "discovery",
+  "operation": "example.list",
+  "description": "An empty list is success with an explicit empty array (never a non-zero exit).",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "example",
+    "list"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/examples/private",
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef",
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          },
+          "Accept": "application/json"
+        },
+        "status": 200,
+        "body": {
+          "examples": []
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "schema": "openprose.service-operation/1",
+      "operation": "example.list",
+      "interaction": "examples.private",
+      "result": {
+        "examples": []
+      },
+      "problem": null
+    }
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "id": "help-cli-group-help-json",
+  "feature": "framework",
+  "operation": "run.list",
+  "description": "`prose cli run --help --json` prints the `cli run` topic instead of an unknown-command error.",
+  "argv": [
+    "cli",
+    "run",
+    "--help",
+    "--json"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "Usage: prose [GLOBAL OPTIONS] cli run <COMMAND> [ARGUMENTS] [OPTIONS]\n\nCommands:\n  submit                      Run a program on the hosted service and stream it until it finishes, detaches or the deadline passes.\n  watch                       Replay and follow a live run's events from a sequence number.\n  show                        Show a run manifest (status, files, price), or one output file with --file.\n  list                        List runs, newest first, one page at a time.\n  cancel                      Cancel a live run, then report the wallet's available and reserved balance.\n  download                    Download every file listed in a run manifest into a new directory (./RUN_ID unless --output-dir).\n  input                       Send an instruction to a live run.\n  quote                       Report the hold a run reserves: money set aside from the wallet while the run is live.\n  share                       Create a public link to a run's outputs.\n\nExamples:\n  prose cli run submit hello.prose.md --preview\n  prose cli run watch run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c --json\n  prose cli run show run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c --json\n  prose cli run list --limit 10 --json\n  prose cli run cancel run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c --preview\n  prose cli run download run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c\n  prose cli run input run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c 'Also write a haiku.' --yes\n  prose cli run quote --json\n  prose cli run share run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c --yes\n\nGlobal options:\n  --output human|json|jsonl   Output mode; the same as the PROSE_OUTPUT setting.\n\nRun `prose cli run <COMMAND> --help` for details. `prose cli service operations --json` prints every command as JSON.\n"
+  },
+  "stderr": {
+    "empty": true
+  }
+}

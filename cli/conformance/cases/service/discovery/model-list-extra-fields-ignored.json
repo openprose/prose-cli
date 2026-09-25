@@ -1,0 +1,65 @@
+{
+  "id": "model-list-extra-fields-ignored",
+  "feature": "discovery",
+  "operation": "model.list",
+  "description": "Fields of /models other than models and default_model (for example a list of retired models) are ignored and never printed: the CLI shows only the models the service offers.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "model",
+    "list"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/models",
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef",
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          },
+          "Accept": "application/json"
+        },
+        "status": 200,
+        "body": {
+          "models": [
+            "model-sol"
+          ],
+          "default_model": "model-sol",
+          "retired": [
+            "gpt-5-oldmodel"
+          ],
+          "tiers": {
+            "gpt-5-oldmodel": "archived"
+          }
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "schema": "openprose.service-operation/1",
+      "operation": "model.list",
+      "interaction": "models.list",
+      "result": {
+        "models": [
+          "model-sol"
+        ],
+        "default_model": "model-sol"
+      },
+      "problem": null
+    }
+  },
+  "forbid": [
+    "gpt-5-oldmodel",
+    "archived"
+  ]
+}

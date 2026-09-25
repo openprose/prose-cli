@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.openprose.org/cli/v1/service/responses/wallet-balance.schema.json",
+  "title": "service response acceptance: GET /wallet/balance",
+  "x-probed": true,
+  "type": "object",
+  "required": [
+    "balance"
+  ],
+  "properties": {
+    "balance": {
+      "type": "object",
+      "required": [
+        "available_cents",
+        "available_dollars",
+        "posted_cents",
+        "posted_dollars",
+        "reserved_cents",
+        "reserved_dollars"
+      ],
+      "properties": {
+        "available_cents": {
+          "type": "integer"
+        },
+        "available_dollars": {
+          "type": "string"
+        },
+        "posted_cents": {
+          "type": "integer"
+        },
+        "posted_dollars": {
+          "type": "string"
+        },
+        "reserved_cents": {
+          "type": "integer"
+        },
+        "reserved_dollars": {
+          "type": "string"
+        }
+      }
+    },
+    "customer_id": {
+      "type": "string"
+    }
+  }
+}

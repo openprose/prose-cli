@@ -1,0 +1,3 @@
+Usage: prose cli weave --host-binding ABS check|status|step CONFIG
+       prose cli weave --host-binding ABS serve CONFIG --poll-ms N --max-steps N
+       prose cli weave --host-binding ABS settle CONFIG --binding VALUE --attempt VALUE --outcome completed|not-applied --receipt VALUE

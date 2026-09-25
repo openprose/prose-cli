@@ -1,0 +1,69 @@
+{
+  "id": "wallet-redeem-pending-202",
+  "feature": "wallet",
+  "operation": "wallet.redeem",
+  "description": "202 credit_pending is a success carrying the service message.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "wallet",
+    "redeem",
+    "--code-file",
+    "code.txt",
+    "--yes"
+  ],
+  "files": [
+    {
+      "path": "code.txt",
+      "content": "Q7RC9-V5K2M\n"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/wallet/redeem",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          }
+        },
+        "expectedBody": {
+          "code": "Q7RC9-V5K2M"
+        },
+        "status": 202,
+        "body": {
+          "ok": true,
+          "credit_pending": true,
+          "amount_nanos": 5000000000,
+          "amount_usd": 5,
+          "message": "Your code is claimed; the credit will appear shortly."
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "wallet.redeem",
+      "operation": "wallet.redeem",
+      "problem": null,
+      "result": {
+        "amount_usd": 5,
+        "credit_pending": true,
+        "message": "Your code is claimed; the credit will appear shortly.",
+        "ok": true
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "Q7RC9-V5K2M"
+  ]
+}

@@ -494,7 +494,9 @@ fn execute_host(
                 Err(_) => {}
             },
             Ok(ReaderMessage::StdoutEof) => stdout_eof = true,
-            Ok(ReaderMessage::StdoutTruncated { .. } | ReaderMessage::StdoutIo) if pending.is_none() => {
+            Ok(ReaderMessage::StdoutTruncated { .. } | ReaderMessage::StdoutIo)
+                if pending.is_none() =>
+            {
                 pending = Some(SupervisorFailure::new(
                     FailureKind::ProtocolTruncated,
                     "Windows process host event channel ended incompletely",

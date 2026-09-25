@@ -1,0 +1,31 @@
+{
+  "id": "service-operations-no-internal-detail",
+  "feature": "framework",
+  "operation": "service.operations",
+  "description": "The printed manifest is its public projection: no service route, catalog route, private example route, service origin, key format or service error string appears in it (shared/service/operations-public.v1.json).",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "service",
+    "operations"
+  ],
+  "fixture": {
+    "exchanges": []
+  },
+  "exitCode": 0,
+  "stdout": {
+    "manifestBytes": true
+  },
+  "forbid": [
+    "/triggers/",
+    "/examples/private",
+    "workers.dev",
+    "rr_test_",
+    "credit_grants_misconfigured",
+    "catalogRoute",
+    "interactionsSource",
+    "transportClasses",
+    "\"requests\""
+  ]
+}

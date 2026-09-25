@@ -1,0 +1,670 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.openprose.org/cli/v1/service/discovery.schema.json",
+  "title": "OpenProse service discovery results",
+  "description": "Closed per-operation result projections. Referenced from shared/service/operations.v1.json by $defs name; no property name may match /cost/i.",
+  "$defs": {
+    "serviceStatus": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "models",
+        "default_model"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "maxLength": 32,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+        },
+        "models": {
+          "type": "array",
+          "items": {
+            "$ref": "common.schema.json#/$defs/modelId"
+          },
+          "maxItems": 64
+        },
+        "default_model": {
+          "$ref": "common.schema.json#/$defs/modelId"
+        },
+        "environments": {
+          "description": "The environment ids /health offers (`environments.available`): the values `cli run submit --environment` and `cli run quote --environment` accept. Empty when /health lists none.",
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
+          }
+        }
+      },
+      "description": "`cli service status`: whether the service answers and the models this client may run. Nothing else from /health is projected."
+    },
+    "modelList": {
+      "description": "`cli model list`: the models the service lists for this account, with the default model and, when the service sends one, the catalog of models with their status.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "models",
+        "default_model"
+      ],
+      "properties": {
+        "models": {
+          "type": "array",
+          "items": {
+            "$ref": "common.schema.json#/$defs/modelId"
+          },
+          "maxItems": 64
+        },
+        "default_model": {
+          "$ref": "common.schema.json#/$defs/modelId"
+        },
+        "catalog": {
+          "description": "Every model the service names with its status, projected through an allowlist: `available` (listed in models), `paid_top_up` (premium: unlocks with any wallet top-up), `hidden` (still accepted, not recommended; `successor` names the model to use) or a newer status. Absent when the service sends no catalog; retired models are never listed.",
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "status"
+            ],
+            "properties": {
+              "id": {
+                "$ref": "common.schema.json#/$defs/modelId"
+              },
+              "status": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]{0,31}$",
+                "not": {
+                  "const": "deprecated"
+                }
+              },
+              "tier": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]{0,31}$"
+              },
+              "summary": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512,
+                "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+              },
+              "successor": {
+                "$ref": "common.schema.json#/$defs/modelId"
+              }
+            }
+          }
+        }
+      }
+    },
+    "exampleList": {
+      "description": "Each example's id and label. An example published outside the OpenProse service, which `cli example show` cannot fetch, is marked `viewOnWeb` and carries its `webUrl` when the service names one.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "examples"
+      ],
+      "properties": {
+        "examples": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "label"
+            ],
+            "properties": {
+              "id": {
+                "$ref": "common.schema.json#/$defs/slug"
+              },
+              "label": {
+                "type": "string",
+                "maxLength": 256,
+                "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+              },
+              "viewOnWeb": {
+                "description": "Present (true) when the example is viewed on the web, not fetched with `cli example show`.",
+                "const": true
+              },
+              "webUrl": {
+                "description": "The example's web page, when the service names one.",
+                "type": "string",
+                "maxLength": 2048,
+                "pattern": "^https://[\\u0021-\\u002e\\u0030-\\u007e][\\u0021-\\u007e]*$"
+              }
+            }
+          },
+          "maxItems": 256
+        }
+      }
+    },
+    "exampleShow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "label",
+        "bytes",
+        "sha256",
+        "written"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "common.schema.json#/$defs/slug"
+        },
+        "label": {
+          "type": "string",
+          "maxLength": 256,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sha256": {
+          "$ref": "common.schema.json#/$defs/sha256"
+        },
+        "written": {
+          "type": "boolean"
+        },
+        "content": {
+          "$ref": "common.schema.json#/$defs/text"
+        }
+      }
+    },
+    "repoList": {
+      "description": "Provisional: /repos success was not observed on the hosted service.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repositories"
+      ],
+      "properties": {
+        "repositories": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "name",
+              "full_name",
+              "private"
+            ],
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "name": {
+                "type": "string",
+                "maxLength": 100,
+                "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+              },
+              "full_name": {
+                "type": "string",
+                "maxLength": 200,
+                "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+              },
+              "private": {
+                "type": "boolean"
+              },
+              "default_branch": {
+                "type": "string",
+                "maxLength": 256,
+                "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+              }
+            }
+          },
+          "maxItems": 10000
+        }
+      }
+    },
+    "serviceTriage": {
+      "description": "`cli service triage`. Each section is `{problem}` when its read failed or the projected fields with `problem: null`; account sections are null when no read was attempted (no usable credential, a rejected key, or an unreachable service). Price-side fields only.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "health",
+        "credential",
+        "wallet",
+        "organization",
+        "runs",
+        "jobs",
+        "nextCommands"
+      ],
+      "properties": {
+        "health": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "problem"
+              ],
+              "properties": {
+                "problem": {
+                  "$ref": "../runner-error.schema.json"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "problem",
+                "status",
+                "default_model",
+                "models"
+              ],
+              "properties": {
+                "problem": {
+                  "type": "null"
+                },
+                "status": {
+                  "type": "string",
+                  "maxLength": 32,
+                  "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+                },
+                "default_model": {
+                  "$ref": "common.schema.json#/$defs/modelId"
+                },
+                "models": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "common.schema.json#/$defs/modelId"
+                  },
+                  "maxItems": 64
+                }
+              }
+            }
+          ]
+        },
+        "credential": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "variable",
+            "source",
+            "state",
+            "problem"
+          ],
+          "properties": {
+            "variable": {
+              "enum": [
+                "OPENPROSE_API_KEY"
+              ]
+            },
+            "source": {
+              "enum": [
+                "environment",
+                "store",
+                "none"
+              ]
+            },
+            "state": {
+              "description": "valid: a key-authenticated read succeeded; unverified: a key is present but no key-authenticated read succeeded; missing, malformed, rejected (the service refused the key) or unavailable (the OS credential store failed): see problem.",
+              "enum": [
+                "valid",
+                "unverified",
+                "missing",
+                "malformed",
+                "rejected",
+                "unavailable"
+              ]
+            },
+            "problem": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "$ref": "../runner-error.schema.json"
+                }
+              ]
+            }
+          }
+        },
+        "wallet": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "problem"
+                  ],
+                  "properties": {
+                    "problem": {
+                      "$ref": "../runner-error.schema.json"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "problem",
+                    "balance",
+                    "low",
+                    "lowBelowCents"
+                  ],
+                  "properties": {
+                    "problem": {
+                      "type": "null"
+                    },
+                    "balance": {
+                      "$ref": "common.schema.json#/$defs/balance"
+                    },
+                    "low": {
+                      "type": "boolean"
+                    },
+                    "lowBelowCents": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "organization": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "problem"
+                  ],
+                  "properties": {
+                    "problem": {
+                      "$ref": "../runner-error.schema.json"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "problem",
+                    "default"
+                  ],
+                  "properties": {
+                    "problem": {
+                      "type": "null"
+                    },
+                    "default": {
+                      "$ref": "organizations.schema.json#/$defs/organization"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "runs": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "problem"
+                  ],
+                  "properties": {
+                    "problem": {
+                      "$ref": "../runner-error.schema.json"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "problem",
+                    "recent",
+                    "live"
+                  ],
+                  "properties": {
+                    "problem": {
+                      "type": "null"
+                    },
+                    "recent": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/$defs/triageRun"
+                      },
+                      "maxItems": 5
+                    },
+                    "live": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "common.schema.json#/$defs/runId"
+                      },
+                      "maxItems": 5
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "jobs": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "problem"
+                  ],
+                  "properties": {
+                    "problem": {
+                      "$ref": "../runner-error.schema.json"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "problem",
+                    "total",
+                    "max",
+                    "jobs"
+                  ],
+                  "properties": {
+                    "problem": {
+                      "type": "null"
+                    },
+                    "total": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "max": {
+                      "oneOf": [
+                        {
+                          "type": "null"
+                        },
+                        {
+                          "type": "integer",
+                          "minimum": 0
+                        }
+                      ]
+                    },
+                    "jobs": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "id",
+                          "type"
+                        ],
+                        "properties": {
+                          "id": {
+                            "$ref": "common.schema.json#/$defs/uuid"
+                          },
+                          "type": {
+                            "type": "string",
+                            "maxLength": 64,
+                            "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+                          },
+                          "name": {
+                            "type": "string",
+                            "maxLength": 256,
+                            "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+                          },
+                          "next_fire_at": {
+                            "$ref": "common.schema.json#/$defs/epochMs"
+                          },
+                          "next_fire_at_iso": {
+                            "description": "`next_fire_at` as an RFC 3339 UTC time (null when `next_fire_at` is null).",
+                            "oneOf": [
+                              {
+                                "type": "null"
+                              },
+                              {
+                                "$ref": "common.schema.json#/$defs/timestamp"
+                              }
+                            ]
+                          },
+                          "last_event_at": {
+                            "$ref": "common.schema.json#/$defs/epochMs"
+                          },
+                          "last_event_at_iso": {
+                            "description": "`last_event_at` as an RFC 3339 UTC time (null when `last_event_at` is null).",
+                            "oneOf": [
+                              {
+                                "type": "null"
+                              },
+                              {
+                                "$ref": "common.schema.json#/$defs/timestamp"
+                              }
+                            ]
+                          },
+                          "last_run_id": {
+                            "$ref": "common.schema.json#/$defs/runId"
+                          },
+                          "last_error": {
+                            "type": "string",
+                            "maxLength": 1024,
+                            "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+                          }
+                        }
+                      },
+                      "maxItems": 5
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "nextCommands": {
+          "type": "array",
+          "maxItems": 7,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "why",
+              "argv",
+              "env"
+            ],
+            "properties": {
+              "why": {
+                "type": "string",
+                "maxLength": 1024,
+                "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+              },
+              "argv": {
+                "description": "A follow-up argv after the product name that keeps this invocation's environment and output mode; null when the step is setting env.",
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "type": "string",
+                      "maxLength": 512,
+                      "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+                    }
+                  }
+                ]
+              },
+              "env": {
+                "description": "The credential variable to set, or null.",
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "enum": [
+                      "OPENPROSE_API_KEY"
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "triageRun": {
+      "description": "A recent run as triage reports it: user fields only, never runtime details.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "run_id",
+        "created_at",
+        "status",
+        "model"
+      ],
+      "properties": {
+        "run_id": {
+          "$ref": "common.schema.json#/$defs/runId"
+        },
+        "created_at": {
+          "$ref": "common.schema.json#/$defs/timestamp"
+        },
+        "status": {
+          "type": "string",
+          "maxLength": 32,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+        },
+        "model": {
+          "$ref": "common.schema.json#/$defs/modelId"
+        },
+        "program_ref": {
+          "$ref": "common.schema.json#/$defs/programRef"
+        },
+        "price_cents": {
+          "$ref": "common.schema.json#/$defs/cents"
+        }
+      }
+    }
+  }
+}

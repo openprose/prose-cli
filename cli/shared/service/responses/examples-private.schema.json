@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.openprose.org/cli/v1/service/responses/examples-private.schema.json",
+  "title": "service response acceptance: GET /examples/private",
+  "x-probed": true,
+  "type": "object",
+  "required": [
+    "examples"
+  ],
+  "properties": {
+    "examples": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "source"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "id": "invitation-revoke-dot-segment-rejected",
+  "feature": "organizations",
+  "operation": "org.invitation.revoke",
+  "description": "INVITATION_ID `.` is INVOCATION_INVALID before any request (a dot segment cannot be planned faithfully).",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "org",
+    "invitation",
+    "revoke",
+    "acme-research",
+    ".",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "organizations.manage",
+      "operation": "org.invitation.revoke",
+      "problem": {
+        "action": "Correct the value named in Detail; `prose --output json cli org invitation revoke --help` shows the accepted syntax.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "<INVITATION_ID> cannot be `.` or `..`; a URL path segment would drop it",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "org",
+            "invitation",
+            "revoke",
+            "--help"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "id": "help-org-invitation-group-topic",
+  "feature": "organizations",
+  "operation": "org.invitation.revoke",
+  "description": "`cli org invitation --help` prints the nested group topic and exits 0 (not an unknown-command error).",
+  "argv": [
+    "cli",
+    "org",
+    "invitation",
+    "--help"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "Usage: prose [GLOBAL OPTIONS] cli org invitation <COMMAND> [ARGUMENTS] [OPTIONS]\n\nCommands:\n  accept                      Accept an invitation.\n  revoke                      Revoke a pending invitation.\n\nExamples:\n  prose cli org invitation accept --token-file invite.token --yes\n  prose cli org invitation revoke acme-research 7e6d5c4b-3a29-4817-8f6e-5d4c3b2a1908 --yes\n\nGlobal options:\n  --output human|json|jsonl   Output mode; the same as the PROSE_OUTPUT setting.\n\nRun `prose cli org invitation <COMMAND> --help` for details. `prose cli service operations --json` prints every command as JSON.\n"
+  },
+  "stderr": {
+    "text": ""
+  }
+}

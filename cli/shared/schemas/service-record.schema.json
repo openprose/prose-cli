@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.openprose.org/cli/v1/service-record.schema.json",
+  "title": "OpenProse service list record v1",
+  "description": "One item of a list operation's collection (the manifest's output.records) in --output jsonl. Every item is one line, in result order; exactly one openprose.service-page/1 trailer follows.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "operation",
+    "collection",
+    "index",
+    "record"
+  ],
+  "properties": {
+    "schema": {
+      "const": "openprose.service-record/1"
+    },
+    "operation": {
+      "type": "string",
+      "pattern": "^[a-z]+(?:\\.[a-z][a-z-]*)*$"
+    },
+    "collection": {
+      "type": "string",
+      "pattern": "^[a-z][A-Za-z_]*$"
+    },
+    "index": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "record": {
+      "description": "The item exactly as it appears in the JSON result's collection array (validated by the operation's result schema)."
+    }
+  }
+}

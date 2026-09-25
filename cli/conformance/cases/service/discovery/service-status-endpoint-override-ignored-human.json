@@ -1,0 +1,71 @@
+{
+  "id": "service-status-endpoint-override-ignored-human",
+  "feature": "discovery",
+  "operation": "service.status",
+  "description": "Human twin of service-status-endpoint-override-ignored: the header says OpenProse and never names a custom endpoint.",
+  "argv": [
+    "cli",
+    "service",
+    "status"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/health",
+        "requestHeaders": {
+          "Authorization": {
+            "present": false
+          },
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          }
+        },
+        "status": 200,
+        "body": {
+          "status": "ok",
+          "environments": {
+            "default": "builtin",
+            "available": [
+              "builtin",
+              "linux"
+            ]
+          },
+          "models": [
+            "model-sol",
+            "model-luna"
+          ],
+          "default_model": "model-sol",
+          "version": "9.9.9-extra",
+          "capabilities": {
+            "web:search": {
+              "available": true,
+              "tool": "web_search"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "Service: ok\nModels: model-sol, model-luna (default model-sol)\nEnvironments: builtin, linux\nNext: prose cli service triage\n"
+  },
+  "stderr": {
+    "text": ""
+  },
+  "forbid": [
+    "9.9.9-extra",
+    "custom endpoint",
+    "example.invalid",
+    "web_search"
+  ],
+  "environment": {
+    "OPENPROSE_API_URL": "https://example.invalid"
+  }
+}

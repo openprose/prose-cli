@@ -1,0 +1,28 @@
+{
+  "id": "unknown-option-before-cli",
+  "feature": "framework",
+  "operation": "run.list",
+  "description": "An option no command knows, spelled before `cli` and a service command, is an invocation error that names it.",
+  "argv": [
+    "--bogus",
+    "cli",
+    "run",
+    "list"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: Unknown option.\nDetail: unknown option --bogus before `cli`\nAction: Remove the unknown option: `prose cli run list`.\n"
+  },
+  "suggestedArgvReaches": true
+}

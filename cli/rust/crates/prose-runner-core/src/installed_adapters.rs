@@ -3,10 +3,10 @@
 //! These adapters transport an opaque Skill Runtime Image and task envelope.
 //! They deliberately contain no `OpenProse` command or program semantics.
 
-mod native_tools;
 mod claude_shutdown;
+mod native_tools;
 
-use crate::image::{sha256_hex, RuntimeImage};
+use crate::image::{RuntimeImage, sha256_hex};
 use crate::{ErrorCode, RunnerError};
 use prose_process_supervisor::{
     CancellationToken, CommandProbe, CommandProbeOutcome, EnvironmentPolicy, JsonlProtocol,
@@ -16,7 +16,7 @@ use prose_process_supervisor::{
 use serde::de::{Error as _, MapAccess, SeqAccess, Visitor};
 use serde::ser::{SerializeMap, SerializeSeq};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::ffi::{OsStr, OsString};
 use std::fmt;
 use std::fs;
@@ -212,16 +212,32 @@ impl InstalledAdapter {
     #[must_use]
     pub const fn prompt_placement(self) -> &'static str {
         match self {
-            Self::CodexExecJson => if cfg!(any(test, feature = "test-seams")) { "user-prefix-framed" } else { "developer" },
-            Self::AgentsSdkJsonl | Self::ClaudePrintStreamJson | Self::PrimeRpc | Self::OmpRpc => "system-append",
+            Self::CodexExecJson => {
+                if cfg!(any(test, feature = "test-seams")) {
+                    "user-prefix-framed"
+                } else {
+                    "developer"
+                }
+            }
+            Self::AgentsSdkJsonl | Self::ClaudePrintStreamJson | Self::PrimeRpc | Self::OmpRpc => {
+                "system-append"
+            }
         }
     }
 
     #[must_use]
     pub const fn prompt_strictness(self) -> &'static str {
         match self {
-            Self::CodexExecJson => if cfg!(any(test, feature = "test-seams")) { "degraded" } else { "strict" },
-            Self::AgentsSdkJsonl | Self::ClaudePrintStreamJson | Self::PrimeRpc | Self::OmpRpc => "strict",
+            Self::CodexExecJson => {
+                if cfg!(any(test, feature = "test-seams")) {
+                    "degraded"
+                } else {
+                    "strict"
+                }
+            }
+            Self::AgentsSdkJsonl | Self::ClaudePrintStreamJson | Self::PrimeRpc | Self::OmpRpc => {
+                "strict"
+            }
         }
     }
 
@@ -236,7 +252,10 @@ impl InstalledAdapter {
     #[must_use]
     pub fn protocol(self) -> JsonlProtocol {
         match self {
-            Self::AgentsSdkJsonl => JsonlProtocol::installed("start","final",["tool_call","tool_result"]).with_failure_events(["error"]),
+            Self::AgentsSdkJsonl => {
+                JsonlProtocol::installed("start", "final", ["tool_call", "tool_result"])
+                    .with_failure_events(["error"])
+            }
             Self::CodexExecJson => JsonlProtocol::installed(
                 "thread.started",
                 "turn.completed",
@@ -248,9 +267,17 @@ impl InstalledAdapter {
                 ],
             )
             .with_failure_events(["turn.failed", "error"]),
-            Self::ClaudePrintStreamJson => {
-                JsonlProtocol::installed("system", "result", ["system", "assistant", "user", "stream_event", "tool_progress"])
-            }
+            Self::ClaudePrintStreamJson => JsonlProtocol::installed(
+                "system",
+                "result",
+                [
+                    "system",
+                    "assistant",
+                    "user",
+                    "stream_event",
+                    "tool_progress",
+                ],
+            ),
             Self::PrimeRpc => JsonlProtocol::installed(
                 "response",
                 "agent_end",
@@ -518,8 +545,20 @@ impl InstalledAdapter {
     #[must_use]
     pub const fn recipe_json(self) -> &'static str {
         match self {
-            Self::AgentsSdkJsonl => include_str!("../../../../shared/capabilities/adapters/recipes/agents-sdk-jsonl.v1.json"),
-            Self::CodexExecJson => if cfg!(any(test, feature = "test-seams")) { include_str!("../../../../shared/capabilities/adapters/recipes/codex-exec-json.v1.json") } else { include_str!("../../../../shared/capabilities/adapters/recipes/codex-exec-json-developer.v1.json") },
+            Self::AgentsSdkJsonl => include_str!(
+                "../../../../shared/capabilities/adapters/recipes/agents-sdk-jsonl.v1.json"
+            ),
+            Self::CodexExecJson => {
+                if cfg!(any(test, feature = "test-seams")) {
+                    include_str!(
+                        "../../../../shared/capabilities/adapters/recipes/codex-exec-json.v1.json"
+                    )
+                } else {
+                    include_str!(
+                        "../../../../shared/capabilities/adapters/recipes/codex-exec-json-developer.v1.json"
+                    )
+                }
+            }
             Self::ClaudePrintStreamJson => include_str!(
                 "../../../../shared/capabilities/adapters/recipes/claude-print-stream-json.v1.json"
             ),
@@ -640,22 +679,58 @@ pub struct PreparedLaunch {
 
 impl PreparedLaunch {
     /// Opt-in native tool selection; the default launch is left byte-for-byte unchanged.
-    pub fn apply_workspace_profile(&mut self, auth_group:&str, dirs:&[String], rules:&[String])->Result<(),RunnerError>{
-        if self.adapter != InstalledAdapter::ClaudePrintStreamJson {return Err(RunnerError::config("Workspace profile requires Claude."));}
-        if rules.iter().any(|v|v.trim().is_empty() || v.contains('\0') || v.starts_with('-')) {return Err(RunnerError::config("Invalid native tool permission rule."));}
-        self.argv.retain(|arg|arg != "--bare");
-        let mut flags:Vec<OsString>=vec!["--setting-sources".into(),"".into(),"--tools".into(),"Read,Write,Edit,Glob,Grep,Agent,Bash".into()];
-        for directory in dirs {flags.extend(["--add-dir".into(),directory.into()]);}
-        for rule in rules {flags.extend(["--allowedTools".into(),rule.into()]);}
-        self.argv.splice(0..0,flags);
-        if auth_group == "anthropic-api-key" {
-            let files=self.prompt_files.as_ref().ok_or_else(||RunnerError::catalog(ErrorCode::InternalRunnerFault))?;
-            let directory=files.create_credential_config_directory().map_err(|_|RunnerError::catalog(ErrorCode::InternalRunnerFault).with_detail("reason","Cannot create private native config"))?;
-            // Closed environment excludes inherited SIMPLE, config overrides and competing credentials.
-            self.environment=self.environment.clone().set("CLAUDE_CONFIG_DIR",directory.as_os_str(),Sensitivity::Secret);
-            self.credential_config_directory=Some(directory);
+    pub fn apply_workspace_profile(
+        &mut self,
+        auth_group: &str,
+        dirs: &[String],
+        rules: &[String],
+    ) -> Result<(), RunnerError> {
+        if self.adapter != InstalledAdapter::ClaudePrintStreamJson {
+            return Err(RunnerError::config("Workspace profile requires Claude."));
         }
-        assert_argv_limits(self.adapter,&self.executable,&self.argv,HostPlatform::current())
+        if rules
+            .iter()
+            .any(|v| v.trim().is_empty() || v.contains('\0') || v.starts_with('-'))
+        {
+            return Err(RunnerError::config("Invalid native tool permission rule."));
+        }
+        self.argv.retain(|arg| arg != "--bare");
+        let mut flags: Vec<OsString> = vec![
+            "--setting-sources".into(),
+            "".into(),
+            "--tools".into(),
+            "Read,Write,Edit,Glob,Grep,Agent,Bash".into(),
+        ];
+        for directory in dirs {
+            flags.extend(["--add-dir".into(), directory.into()]);
+        }
+        for rule in rules {
+            flags.extend(["--allowedTools".into(), rule.into()]);
+        }
+        self.argv.splice(0..0, flags);
+        if auth_group == "anthropic-api-key" {
+            let files = self
+                .prompt_files
+                .as_ref()
+                .ok_or_else(|| RunnerError::catalog(ErrorCode::InternalRunnerFault))?;
+            let directory = files.create_credential_config_directory().map_err(|_| {
+                RunnerError::catalog(ErrorCode::InternalRunnerFault)
+                    .with_detail("reason", "Cannot create private native config")
+            })?;
+            // Closed environment excludes inherited SIMPLE, config overrides and competing credentials.
+            self.environment = self.environment.clone().set(
+                "CLAUDE_CONFIG_DIR",
+                directory.as_os_str(),
+                Sensitivity::Secret,
+            );
+            self.credential_config_directory = Some(directory);
+        }
+        assert_argv_limits(
+            self.adapter,
+            &self.executable,
+            &self.argv,
+            HostPlatform::current(),
+        )
     }
 
     #[must_use]
@@ -797,13 +872,25 @@ pub(crate) fn admitted_assistant_messages(
     let Some(record) = records.last() else {
         return Ok(Vec::new());
     };
-    if matches!(adapter, InstalledAdapter::PrimeRpc | InstalledAdapter::OmpRpc) && records.iter().any(native_tools::rich) {
-        return Ok(native_tools::normalize(records,expected_rpc_id,adapter==InstalledAdapter::OmpRpc,false)?.assistant_messages);
+    if matches!(
+        adapter,
+        InstalledAdapter::PrimeRpc | InstalledAdapter::OmpRpc
+    ) && records.iter().any(native_tools::rich)
+    {
+        return Ok(native_tools::normalize(
+            records,
+            expected_rpc_id,
+            adapter == InstalledAdapter::OmpRpc,
+            false,
+        )?
+        .assistant_messages);
     }
 
     match adapter {
         InstalledAdapter::AgentsSdkJsonl => {
-            if record_type(record) != Some("final") { return Ok(Vec::new()); }
+            if record_type(record) != Some("final") {
+                return Ok(Vec::new());
+            }
             Ok(normalize_transport(adapter, records, expected_rpc_id)?.assistant_messages)
         }
         InstalledAdapter::CodexExecJson => {
@@ -966,9 +1053,16 @@ pub fn normalize_transport(
     normalize_transport_mode(adapter, records, expected_rpc_id, false)
 }
 
-pub(crate) fn validate_prime_native_prefix(records:&[Value],id:&str)->Result<(),RunnerError>{native_tools::normalize_mode(records,id,false,false,true).map(|_|())}
+pub(crate) fn validate_prime_native_prefix(records: &[Value], id: &str) -> Result<(), RunnerError> {
+    native_tools::normalize_mode(records, id, false, false, true).map(|_| ())
+}
 
-pub fn normalize_transport_mode(adapter:InstalledAdapter,records:&[Value],expected_rpc_id:&str,native_claude:bool)->Result<TransportNormalization,RunnerError>{
+pub fn normalize_transport_mode(
+    adapter: InstalledAdapter,
+    records: &[Value],
+    expected_rpc_id: &str,
+    native_claude: bool,
+) -> Result<TransportNormalization, RunnerError> {
     let malformed = || RunnerError::catalog(ErrorCode::ProtocolMalformed);
     let failed = || RunnerError::catalog(ErrorCode::HarnessFailed);
     match adapter {
@@ -1027,18 +1121,55 @@ pub fn normalize_transport_mode(adapter:InstalledAdapter,records:&[Value],expect
             })
         }
         InstalledAdapter::AgentsSdkJsonl => {
-            if records.first().and_then(record_type) != Some("start") || records.first().and_then(|r|r.get("model")).and_then(Value::as_str).is_none() || records.first().and_then(|r|r.get("cwd")).and_then(Value::as_str).is_none() {return Err(malformed());}
-            for r in records.iter().skip(1).take(records.len().saturating_sub(2)) {
-                if !matches!(record_type(r),Some("tool_call"|"tool_result")) || r.get("name").and_then(Value::as_str).is_none() {return Err(malformed());}
+            if records.first().and_then(record_type) != Some("start")
+                || records
+                    .first()
+                    .and_then(|r| r.get("model"))
+                    .and_then(Value::as_str)
+                    .is_none()
+                || records
+                    .first()
+                    .and_then(|r| r.get("cwd"))
+                    .and_then(Value::as_str)
+                    .is_none()
+            {
+                return Err(malformed());
             }
-            let last=records.last().ok_or_else(malformed)?;
-            if record_type(last)==Some("error") {return Err(failed().with_detail("nativeFailure",sdk_native_failure(last)));}
-            if records.len()<2 || record_type(last)!=Some("final") {return Err(malformed());}
-            let output=last.get("output").and_then(Value::as_str).ok_or_else(malformed)?;
-            Ok(TransportNormalization{terminal_event:"final",assistant_messages:vec![output.to_owned()]})
+            for r in records.iter().skip(1).take(records.len().saturating_sub(2)) {
+                if !matches!(record_type(r), Some("tool_call" | "tool_result"))
+                    || r.get("name").and_then(Value::as_str).is_none()
+                {
+                    return Err(malformed());
+                }
+            }
+            let last = records.last().ok_or_else(malformed)?;
+            if record_type(last) == Some("error") {
+                return Err(failed().with_detail("nativeFailure", sdk_native_failure(last)));
+            }
+            if records.len() < 2 || record_type(last) != Some("final") {
+                return Err(malformed());
+            }
+            let output = last
+                .get("output")
+                .and_then(Value::as_str)
+                .ok_or_else(malformed)?;
+            Ok(TransportNormalization {
+                terminal_event: "final",
+                assistant_messages: vec![output.to_owned()],
+            })
         }
         InstalledAdapter::ClaudePrintStreamJson => {
-            if native_claude && records.iter().filter(|r|r["type"]=="system" && r["subtype"]=="init").any(|r|r.get("messaging_socket_path").is_some_and(|v|!v.as_str().is_some_and(|s|!s.is_empty()))) {return Err(malformed());}
+            if native_claude
+                && records
+                    .iter()
+                    .filter(|r| r["type"] == "system" && r["subtype"] == "init")
+                    .any(|r| {
+                        r.get("messaging_socket_path")
+                            .is_some_and(|v| v.as_str().is_none_or(str::is_empty))
+                    })
+            {
+                return Err(malformed());
+            }
             let Some(session_id) = records
                 .first()
                 .filter(|record| {
@@ -1061,32 +1192,123 @@ pub fn normalize_transport_mode(adapter:InstalledAdapter,records:&[Value],expect
                         assistant_messages.extend(assistant_text_content(record)?);
                     }
                     Some("user" | "stream_event" | "tool_progress") => {}
-                    Some("system") if record.get("subtype").and_then(Value::as_str)==Some("init") => {
-                        let previous=&records[index-1];
-                        if (!native_claude && previous.get("subtype").and_then(Value::as_str)!=Some("task_notification")) || !record.get("uuid").and_then(Value::as_str).is_some_and(|v|!v.is_empty()) {return Err(malformed());}
-                        let mut first=records[0].as_object().ok_or_else(malformed)?.clone();let mut repeated=record.as_object().ok_or_else(malformed)?.clone();first.remove("uuid");repeated.remove("uuid");if native_claude{first.remove("messaging_socket_path");repeated.remove("messaging_socket_path");}if first!=repeated{return Err(malformed());}
+                    Some("system")
+                        if record.get("subtype").and_then(Value::as_str) == Some("init") =>
+                    {
+                        let previous = &records[index - 1];
+                        if (!native_claude
+                            && previous.get("subtype").and_then(Value::as_str)
+                                != Some("task_notification"))
+                            || record
+                                .get("uuid")
+                                .and_then(Value::as_str)
+                                .is_none_or(str::is_empty)
+                        {
+                            return Err(malformed());
+                        }
+                        let mut first = records[0].as_object().ok_or_else(malformed)?.clone();
+                        let mut repeated = record.as_object().ok_or_else(malformed)?.clone();
+                        first.remove("uuid");
+                        repeated.remove("uuid");
+                        if native_claude {
+                            first.remove("messaging_socket_path");
+                            repeated.remove("messaging_socket_path");
+                        }
+                        if first != repeated {
+                            return Err(malformed());
+                        }
                     }
-                    Some("system") if record.get("subtype").and_then(Value::as_str)==Some("background_tasks_changed") => {
-                        if !record.get("uuid").and_then(Value::as_str).is_some_and(|v|!v.is_empty()) {return Err(malformed());}
-                        let tasks=record.get("tasks").and_then(Value::as_array).ok_or_else(malformed)?;
-                        if !tasks.iter().all(|task|["task_id","description","task_type"].iter().all(|key|task.get(*key).and_then(Value::as_str).is_some_and(|v|!v.is_empty()))) {return Err(malformed());}
+                    Some("system")
+                        if record.get("subtype").and_then(Value::as_str)
+                            == Some("background_tasks_changed") =>
+                    {
+                        if record
+                            .get("uuid")
+                            .and_then(Value::as_str)
+                            .is_none_or(str::is_empty)
+                        {
+                            return Err(malformed());
+                        }
+                        let tasks = record
+                            .get("tasks")
+                            .and_then(Value::as_array)
+                            .ok_or_else(malformed)?;
+                        if !tasks.iter().all(|task| {
+                            ["task_id", "description", "task_type"].iter().all(|key| {
+                                task.get(*key)
+                                    .and_then(Value::as_str)
+                                    .is_some_and(|v| !v.is_empty())
+                            })
+                        }) {
+                            return Err(malformed());
+                        }
                     }
-                    Some("system") if matches!(record.get("subtype").and_then(Value::as_str),Some("task_started"|"task_progress"|"task_updated"|"task_notification")) => {
-                        if !["task_id","uuid"].iter().all(|key|record.get(*key).and_then(Value::as_str).is_some_and(|v|!v.is_empty())) {return Err(malformed());}
+                    Some("system")
+                        if matches!(
+                            record.get("subtype").and_then(Value::as_str),
+                            Some(
+                                "task_started"
+                                    | "task_progress"
+                                    | "task_updated"
+                                    | "task_notification"
+                            )
+                        ) =>
+                    {
+                        if !["task_id", "uuid"].iter().all(|key| {
+                            record
+                                .get(*key)
+                                .and_then(Value::as_str)
+                                .is_some_and(|v| !v.is_empty())
+                        }) {
+                            return Err(malformed());
+                        }
                         match record.get("subtype").and_then(Value::as_str) {
-                            Some("task_started") if record.get("description").and_then(Value::as_str).is_none() => return Err(malformed()),
-                            Some("task_updated") if !record.get("patch").is_some_and(Value::is_object) => return Err(malformed()),
-                            Some("task_notification") if !matches!(record.get("status").and_then(Value::as_str),Some("completed"|"failed"|"stopped")) => return Err(malformed()),
+                            Some("task_started")
+                                if record.get("description").and_then(Value::as_str).is_none() =>
+                            {
+                                return Err(malformed());
+                            }
+                            Some("task_updated")
+                                if !record.get("patch").is_some_and(Value::is_object) =>
+                            {
+                                return Err(malformed());
+                            }
+                            Some("task_notification")
+                                if !matches!(
+                                    record.get("status").and_then(Value::as_str),
+                                    Some("completed" | "failed" | "stopped")
+                                ) =>
+                            {
+                                return Err(malformed());
+                            }
                             Some("task_progress") => {
-                                let usage=record.get("usage").ok_or_else(malformed)?;
-                                if !["total_tokens","tool_uses","duration_ms"].iter().all(|key|usage.get(*key).and_then(Value::as_u64).is_some_and(|v|v<=9_007_199_254_740_991)) {return Err(malformed());}
+                                let usage = record.get("usage").ok_or_else(malformed)?;
+                                if !["total_tokens", "tool_uses", "duration_ms"]
+                                    .iter()
+                                    .all(|key| {
+                                        usage
+                                            .get(*key)
+                                            .and_then(Value::as_u64)
+                                            .is_some_and(|v| v <= 9_007_199_254_740_991)
+                                    })
+                                {
+                                    return Err(malformed());
+                                }
                             }
                             _ => {}
                         }
                         // Child task completion does not settle the outer invocation.
                     }
-                    Some("system") if record.get("subtype").and_then(Value::as_str) == Some("permission_denied") => {
-                        if !["tool_name","tool_use_id","message"].iter().all(|key|record.get(*key).and_then(Value::as_str).is_some()){return Err(malformed());}
+                    Some("system")
+                        if record.get("subtype").and_then(Value::as_str)
+                            == Some("permission_denied") =>
+                    {
+                        if !["tool_name", "tool_use_id", "message"]
+                            .iter()
+                            .all(|key| record.get(*key).and_then(Value::as_str).is_some())
+                        {
+                            return Err(malformed());
+                        }
                     }
                     Some("system")
                         if record.get("subtype").and_then(Value::as_str)
@@ -1130,7 +1352,9 @@ pub fn normalize_transport_mode(adapter:InstalledAdapter,records:&[Value],expect
                     _ => return Err(malformed()),
                 }
             }
-            if (native_claude && !claude_shutdown::has_fresh_result(records)) || (!native_claude && records.last().and_then(record_type) != Some("result")) {
+            if (native_claude && !claude_shutdown::has_fresh_result(records))
+                || (!native_claude && records.last().and_then(record_type) != Some("result"))
+            {
                 return Err(malformed());
             }
             Ok(TransportNormalization {
@@ -1138,7 +1362,9 @@ pub fn normalize_transport_mode(adapter:InstalledAdapter,records:&[Value],expect
                 assistant_messages,
             })
         }
-        InstalledAdapter::PrimeRpc if native_claude => native_tools::normalize_mode(records,expected_rpc_id,false,true,true),
+        InstalledAdapter::PrimeRpc if native_claude => {
+            native_tools::normalize_mode(records, expected_rpc_id, false, true, true)
+        }
         InstalledAdapter::PrimeRpc => normalize_prime_rpc(records, expected_rpc_id),
         InstalledAdapter::OmpRpc => normalize_omp_rpc(records, expected_rpc_id),
     }
@@ -1268,7 +1494,9 @@ fn normalize_prime_rpc(
     records: &[Value],
     expected_rpc_id: &str,
 ) -> Result<TransportNormalization, RunnerError> {
-    if records.iter().any(native_tools::rich) { return native_tools::normalize(records, expected_rpc_id, false, true); }
+    if records.iter().any(native_tools::rich) {
+        return native_tools::normalize(records, expected_rpc_id, false, true);
+    }
     let mut lifecycle = PrimeLifecycle::AwaitPromptAck;
     let mut counters = PrimeDiagnosticCounters::default();
     macro_rules! malformed {
@@ -1911,7 +2139,9 @@ fn normalize_omp_rpc(
     records: &[Value],
     expected_rpc_id: &str,
 ) -> Result<TransportNormalization, RunnerError> {
-    if records.iter().any(native_tools::rich) { return native_tools::normalize(records, expected_rpc_id, true, true); }
+    if records.iter().any(native_tools::rich) {
+        return native_tools::normalize(records, expected_rpc_id, true, true);
+    }
     let malformed = || RunnerError::catalog(ErrorCode::ProtocolMalformed);
     let failed = || RunnerError::catalog(ErrorCode::HarnessFailed);
     let expected_state_id = omp_rpc_id(expected_rpc_id, "state.1");
@@ -2923,8 +3153,9 @@ pub fn environment_policy(
     })?;
     // Remove service-only credentials from ambient storage as well as the
     // closed allowlist, so later allow_inherited calls cannot recover them.
-    let ambient = ambient.into_iter()
-        .filter(|(name, _)| !name.to_string_lossy().eq_ignore_ascii_case("OPENPROSE_STAGING_API_KEY") && !name.to_string_lossy().eq_ignore_ascii_case("OPENPROSE_API_KEY"))
+    let ambient = ambient
+        .into_iter()
+        .filter(|(name, _)| !is_service_credential_name(name))
         .collect::<Vec<_>>();
     auth_readiness(adapter, auth_group, &ambient)?;
     let mut policy = EnvironmentPolicy::from_pairs(ambient);
@@ -2937,6 +3168,17 @@ pub fn environment_policy(
     Ok(policy)
 }
 
+/// The service credential (`OPENPROSE_API_KEY`) is never inherited by a harness or a
+/// probe, whatever the allowlist says.
+const SERVICE_CREDENTIAL_NAMES: &[&str] = &["OPENPROSE_API_KEY"];
+
+fn is_service_credential_name(name: &OsString) -> bool {
+    let name = name.to_string_lossy();
+    SERVICE_CREDENTIAL_NAMES
+        .iter()
+        .any(|credential| name.eq_ignore_ascii_case(credential))
+}
+
 /// Builds a public-only environment for a local `--version` probe.
 ///
 /// A PATH-selected executable is not trusted with any credential name or
@@ -2945,8 +3187,9 @@ pub(crate) fn version_probe_environment(
     _adapter: InstalledAdapter,
     ambient: impl IntoIterator<Item = (OsString, OsString)>,
 ) -> EnvironmentPolicy {
-    let ambient = ambient.into_iter()
-        .filter(|(name, _)| !name.to_string_lossy().eq_ignore_ascii_case("OPENPROSE_STAGING_API_KEY") && !name.to_string_lossy().eq_ignore_ascii_case("OPENPROSE_API_KEY"));
+    let ambient = ambient
+        .into_iter()
+        .filter(|(name, _)| !is_service_credential_name(name));
     let mut policy = EnvironmentPolicy::from_pairs(ambient);
     for name in VERSION_PROBE_ENVIRONMENT {
         policy = policy.allow_inherited(*name, Sensitivity::Public);
@@ -3124,27 +3367,58 @@ pub fn prepare_launch(
                 "--ignore-rules".into(),
             ];
             if !cfg!(any(test, feature = "test-seams")) {
-                let text = std::str::from_utf8(image_bytes).map_err(|_| RunnerError::catalog(ErrorCode::ImageInvalid))?;
-                let encoded = serde_json::to_string(text).map_err(|_| RunnerError::catalog(ErrorCode::ImageInvalid))?.replace('\u{7f}', "\\u007f");
-                argv.extend(["-c".into(), format!("developer_instructions={encoded}").into()]);
+                let text = std::str::from_utf8(image_bytes)
+                    .map_err(|_| RunnerError::catalog(ErrorCode::ImageInvalid))?;
+                let encoded = serde_json::to_string(text)
+                    .map_err(|_| RunnerError::catalog(ErrorCode::ImageInvalid))?
+                    .replace('\u{7f}', "\\u007f");
+                argv.extend([
+                    "-c".into(),
+                    format!("developer_instructions={encoded}").into(),
+                ]);
             }
             if auth_group == "openai-api-key" {
-              let settings:Vec<String>=serde_json::from_str(include_str!("../../../../shared/capabilities/adapters/codex-env-route.v1.json")).expect("Codex API settings");
-              for setting in settings {argv.extend(["-c".into(),setting.into()]);}
+                let settings: Vec<String> = serde_json::from_str(include_str!(
+                    "../../../../shared/capabilities/adapters/codex-env-route.v1.json"
+                ))
+                .expect("Codex API settings");
+                for setting in settings {
+                    argv.extend(["-c".into(), setting.into()]);
+                }
             }
             argv.extend(["--cd".into(), cwd.as_os_str().to_owned()]);
             append_model(&mut argv, model);
             argv.push("-".into());
             (
                 argv,
-                Some(if cfg!(any(test, feature = "test-seams")) { render_one_field(one_field_framing, image_bytes, task_bytes)? } else { task_bytes.to_vec() }),
+                Some(if cfg!(any(test, feature = "test-seams")) {
+                    render_one_field(one_field_framing, image_bytes, task_bytes)?
+                } else {
+                    task_bytes.to_vec()
+                }),
             )
         }
         InstalledAdapter::AgentsSdkJsonl => {
-            let files=private_files(adapter,image_bytes,task_bytes)?;
-            let image_path=files.image_path().as_os_str().to_owned();prompt_files=Some(files);
-            let selected=model.ok_or_else(||RunnerError::catalog(ErrorCode::ConfigInvalid).with_detail("reason","Agents SDK requires an explicit model"))?;
-            (vec!["--cwd".into(),cwd.as_os_str().to_owned(),"--instructions".into(),image_path,"--model".into(),selected.into(),"--prompt".into(),task_json.into()],None)
+            let files = private_files(adapter, image_bytes, task_bytes)?;
+            let image_path = files.image_path().as_os_str().to_owned();
+            prompt_files = Some(files);
+            let selected = model.ok_or_else(|| {
+                RunnerError::catalog(ErrorCode::ConfigInvalid)
+                    .with_detail("reason", "Agents SDK requires an explicit model")
+            })?;
+            (
+                vec![
+                    "--cwd".into(),
+                    cwd.as_os_str().to_owned(),
+                    "--instructions".into(),
+                    image_path,
+                    "--model".into(),
+                    selected.into(),
+                    "--prompt".into(),
+                    task_json.into(),
+                ],
+                None,
+            )
         }
         InstalledAdapter::ClaudePrintStreamJson => {
             let files = private_files(adapter, image_bytes, task_bytes)?;
@@ -3160,7 +3434,9 @@ pub fn prepare_launch(
                 "--append-system-prompt-file".into(),
                 image_path,
             ];
-            if auth_group == "anthropic-api-key" { argv.insert(0, "--bare".into()); }
+            if auth_group == "anthropic-api-key" {
+                argv.insert(0, "--bare".into());
+            }
             append_model(&mut argv, model);
             argv.push(task_json.into());
             (argv, None)
@@ -3550,7 +3826,7 @@ pub(crate) fn omp_rpc_id(invocation_id: &str, suffix: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::{json, Value};
+    use serde_json::{Value, json};
     use tempfile::TempDir;
 
     const FRAMING: &[u8] =
@@ -3580,22 +3856,37 @@ mod tests {
     }
 
     #[test]
-    fn staging_service_token_cannot_be_reallowed_into_harness_or_probe() {
+    fn service_token_cannot_be_reallowed_into_harness_or_probe() {
         let secret = "rr_test_11111111111111111111111111111111";
-        let ambient = || vec![(OsString::from("OPENPROSE_STAGING_API_KEY"), OsString::from(secret)), (OsString::from("OPENPROSE_API_KEY"), OsString::from(secret))];
+        let ambient = || {
+            vec![
+                (OsString::from("OPENPROSE_API_KEY"), OsString::from(secret)),
+                (OsString::from("openprose_api_key"), OsString::from(secret)),
+            ]
+        };
         let adapter = InstalledAdapter::CodexExecJson;
-        let harness = environment_policy(adapter, adapter.default_probe_auth_group(), ambient()).unwrap();
+        let harness =
+            environment_policy(adapter, adapter.default_probe_auth_group(), ambient()).unwrap();
         let probe = version_probe_environment(adapter, ambient());
         for policy in [harness, probe] {
-            let policy = policy.allow_inherited("OPENPROSE_STAGING_API_KEY", Sensitivity::Secret).allow_inherited("OPENPROSE_API_KEY", Sensitivity::Secret);
+            let policy = policy
+                .allow_inherited("OPENPROSE_API_KEY", Sensitivity::Secret)
+                .allow_inherited("openprose_api_key", Sensitivity::Secret);
             assert!(!policy.secret_strings().iter().any(|value| value == secret));
-            assert!(!policy.output_protected_strings().iter().any(|value| value == secret));
+            assert!(
+                !policy
+                    .output_protected_strings()
+                    .iter()
+                    .any(|value| value == secret)
+            );
         }
     }
 
     fn empty_environment(adapter: InstalledAdapter) -> EnvironmentPolicy {
         let ambient = match adapter {
-            InstalledAdapter::AgentsSdkJsonl => vec![("OPENAI_API_KEY".into(),"fixture-secret".into())],
+            InstalledAdapter::AgentsSdkJsonl => {
+                vec![("OPENAI_API_KEY".into(), "fixture-secret".into())]
+            }
             InstalledAdapter::PrimeRpc | InstalledAdapter::OmpRpc => {
                 vec![("OPENROUTER_API_KEY".into(), "fixture-secret".into())]
             }
@@ -3727,13 +4018,15 @@ mod tests {
             InstalledAdapter::PrimeRpc.version_probe().output,
             VersionProbeOutput::Stderr
         );
-        assert!([
-            InstalledAdapter::CodexExecJson,
-            InstalledAdapter::ClaudePrintStreamJson,
-            InstalledAdapter::OmpRpc,
-        ]
-        .into_iter()
-        .all(|adapter| adapter.version_probe().output == VersionProbeOutput::Stdout));
+        assert!(
+            [
+                InstalledAdapter::CodexExecJson,
+                InstalledAdapter::ClaudePrintStreamJson,
+                InstalledAdapter::OmpRpc,
+            ]
+            .into_iter()
+            .all(|adapter| adapter.version_probe().output == VersionProbeOutput::Stdout)
+        );
     }
 
     #[test]
@@ -3788,7 +4081,10 @@ mod tests {
         );
         let executable = root.path().join("adapter-probe");
         let invocation_id = "fixture-invocation-0001";
-        for adapter in ALL.into_iter().filter(|adapter| *adapter != InstalledAdapter::AgentsSdkJsonl) {
+        for adapter in ALL
+            .into_iter()
+            .filter(|adapter| *adapter != InstalledAdapter::AgentsSdkJsonl)
+        {
             let launch = prepare_launch(
                 adapter,
                 executable.clone(),
@@ -4057,7 +4353,9 @@ mod tests {
 
     #[test]
     fn exact_version_allowlists_reject_nearby_or_malformed_versions() {
-        assert!(InstalledAdapter::CodexExecJson.version_is_supported("codex-cli 0.149.0-alpha.4.1"));
+        assert!(
+            InstalledAdapter::CodexExecJson.version_is_supported("codex-cli 0.149.0-alpha.4.1")
+        );
         assert!(
             !InstalledAdapter::CodexExecJson.version_is_supported("codex-cli 0.149.0-alpha.4.2")
         );
@@ -4157,8 +4455,13 @@ mod tests {
         ] {
             let error = assert_platform_supported(
                 InstalledAdapter::PrimeRpc,
-                HostPlatform { os, arch, libc: None },
-            ).unwrap_err();
+                HostPlatform {
+                    os,
+                    arch,
+                    libc: None,
+                },
+            )
+            .unwrap_err();
             let value = serde_json::to_value(error).unwrap();
             assert_eq!(value["details"]["hostPlatform"], wanted_os);
             assert_eq!(value["details"]["hostArchitecture"], wanted_arch);
@@ -4312,9 +4615,11 @@ mod tests {
             let protected = policy.output_protected_strings();
             assert!(protected.iter().any(|value| value == "/fixture/home"));
             assert!(!protected.iter().any(|value| value == raw_secret));
-            assert!(!protected
-                .iter()
-                .any(|value| value.contains("store-override")));
+            assert!(
+                !protected
+                    .iter()
+                    .any(|value| value.contains("store-override"))
+            );
         }
     }
 
@@ -5168,12 +5473,14 @@ mod tests {
 
         let mut atomic_text = text_only.clone();
         atomic_text.drain(7..10);
-        assert!(normalize_transport(
-            InstalledAdapter::PrimeRpc,
-            &atomic_text,
-            "fixture-invocation-0001",
-        )
-        .is_ok());
+        assert!(
+            normalize_transport(
+                InstalledAdapter::PrimeRpc,
+                &atomic_text,
+                "fixture-invocation-0001",
+            )
+            .is_ok()
+        );
 
         let mut empty_deltas_then_atomic_text = text_only.clone();
         for record in &mut empty_deltas_then_atomic_text[6..] {
@@ -5186,12 +5493,14 @@ mod tests {
                 record["message"]["content"][0]["text"] = json!("");
             }
         }
-        assert!(normalize_transport(
-            InstalledAdapter::PrimeRpc,
-            &empty_deltas_then_atomic_text,
-            "fixture-invocation-0001",
-        )
-        .is_ok());
+        assert!(
+            normalize_transport(
+                InstalledAdapter::PrimeRpc,
+                &empty_deltas_then_atomic_text,
+                "fixture-invocation-0001",
+            )
+            .is_ok()
+        );
 
         let mut invalid_first_content = text_only.clone();
         invalid_first_content[6]["assistantMessageEvent"]["contentIndex"] = json!(1);
@@ -5348,12 +5657,14 @@ mod tests {
                 }
             }
         }
-        assert!(normalize_transport(
-            InstalledAdapter::PrimeRpc,
-            &records,
-            "fixture-invocation-0001",
-        )
-        .is_ok());
+        assert!(
+            normalize_transport(
+                InstalledAdapter::PrimeRpc,
+                &records,
+                "fixture-invocation-0001",
+            )
+            .is_ok()
+        );
     }
 
     #[test]
@@ -5819,12 +6130,14 @@ mod tests {
             let mut records = omp_lifecycle();
             *records.last_mut().unwrap() = terminal;
             records.insert(3, omp_response(true));
-            assert!(normalize_transport(
-                InstalledAdapter::OmpRpc,
-                &records,
-                "fixture-invocation-0001"
-            )
-            .is_ok());
+            assert!(
+                normalize_transport(
+                    InstalledAdapter::OmpRpc,
+                    &records,
+                    "fixture-invocation-0001"
+                )
+                .is_ok()
+            );
         }
 
         for event_type in OMP_ASSISTANT_MESSAGE_EVENTS {
@@ -6239,15 +6552,21 @@ mod tests {
     #[test]
     fn omp_rpc_accepts_exact_set_widget_presentation_across_lifecycle_and_settlement() {
         let supervisor_protocol = InstalledAdapter::OmpRpc.protocol();
-        assert!(supervisor_protocol
-            .allowed_events
-            .contains("extension_ui_request"));
-        assert!(!supervisor_protocol
-            .failure_events
-            .contains("extension_ui_request"));
-        assert!(supervisor_protocol
-            .allowed_after_terminal_events
-            .contains("extension_ui_request"));
+        assert!(
+            supervisor_protocol
+                .allowed_events
+                .contains("extension_ui_request")
+        );
+        assert!(
+            !supervisor_protocol
+                .failure_events
+                .contains("extension_ui_request")
+        );
+        assert!(
+            supervisor_protocol
+                .allowed_after_terminal_events
+                .contains("extension_ui_request")
+        );
 
         let base = omp_lifecycle();
         let turn_end = base
@@ -6285,12 +6604,14 @@ mod tests {
             }),
         );
         cleared.insert(4, omp_response(true));
-        assert!(normalize_transport(
-            InstalledAdapter::OmpRpc,
-            &cleared,
-            "fixture-invocation-0001"
-        )
-        .is_ok());
+        assert!(
+            normalize_transport(
+                InstalledAdapter::OmpRpc,
+                &cleared,
+                "fixture-invocation-0001"
+            )
+            .is_ok()
+        );
 
         for presentation in [
             json!({"type":"extension_ui_request","id":"notify","method":"notify","message":"status","notifyType":"info"}),
@@ -6301,12 +6622,14 @@ mod tests {
             let mut records = omp_lifecycle();
             records.insert(3, omp_response(true));
             records.insert(3, presentation);
-            assert!(normalize_transport(
-                InstalledAdapter::OmpRpc,
-                &records,
-                "fixture-invocation-0001"
-            )
-            .is_ok());
+            assert!(
+                normalize_transport(
+                    InstalledAdapter::OmpRpc,
+                    &records,
+                    "fixture-invocation-0001"
+                )
+                .is_ok()
+            );
         }
     }
 
@@ -6448,12 +6771,14 @@ mod tests {
         let init = json!({"type":"system","subtype":"init","session_id":"fixture-session"});
         let done = json!({"type":"result","subtype":"success","is_error":false,"session_id":"fixture-session"});
         let adapter = InstalledAdapter::ClaudePrintStreamJson;
-        assert!(normalize_transport(
-            adapter,
-            &[init.clone(), telemetry.clone(), done.clone()],
-            "unused"
-        )
-        .is_ok());
+        assert!(
+            normalize_transport(
+                adapter,
+                &[init.clone(), telemetry.clone(), done.clone()],
+                "unused"
+            )
+            .is_ok()
+        );
         assert!(
             normalize_transport(adapter, &[init.clone(), telemetry.clone()], "unused").is_err()
         );
@@ -6475,183 +6800,511 @@ mod tests {
     #[test]
     fn claude_api_profile_is_explicit_and_requires_key() {
         let adapter = InstalledAdapter::ClaudePrintStreamJson;
-        assert_eq!(credential_names(adapter,"anthropic-api-key"),Some(["ANTHROPIC_API_KEY"].as_slice()));
-        assert!(auth_readiness(adapter,"anthropic-api-key",&[]).is_err());
-        assert_eq!(auth_readiness(adapter,"anthropic-api-key",&[("ANTHROPIC_API_KEY".into(),"fixture-key".into())]).unwrap(),"unknown");
-        assert_eq!(credential_names(adapter,"claude-subscription"),Some([].as_slice()));
+        assert_eq!(
+            credential_names(adapter, "anthropic-api-key"),
+            Some(["ANTHROPIC_API_KEY"].as_slice())
+        );
+        assert!(auth_readiness(adapter, "anthropic-api-key", &[]).is_err());
+        assert_eq!(
+            auth_readiness(
+                adapter,
+                "anthropic-api-key",
+                &[("ANTHROPIC_API_KEY".into(), "fixture-key".into())]
+            )
+            .unwrap(),
+            "unknown"
+        );
+        assert_eq!(
+            credential_names(adapter, "claude-subscription"),
+            Some([].as_slice())
+        );
         let root = TempDir::new().unwrap();
         for group in ["anthropic-api-key", "claude-subscription"] {
-            let launch = prepare_launch(adapter,root.path().join("claude"),root.path(),&full_image(),FRAMING,TASK.as_bytes(),"fixture",None,group,empty_environment(adapter)).unwrap();
-            assert_eq!(launch.argv.iter().any(|arg| arg == "--bare"),group == "anthropic-api-key");
+            let launch = prepare_launch(
+                adapter,
+                root.path().join("claude"),
+                root.path(),
+                &full_image(),
+                FRAMING,
+                TASK.as_bytes(),
+                "fixture",
+                None,
+                group,
+                empty_environment(adapter),
+            )
+            .unwrap();
+            assert_eq!(
+                launch.argv.iter().any(|arg| arg == "--bare"),
+                group == "anthropic-api-key"
+            );
         }
     }
 
     #[test]
-    fn workspace_profile_launch_matches_shared_fixture(){
-        let fixture:Value=serde_json::from_str(include_str!("../../../../shared/fixtures/adapters/native-profile.json")).unwrap();
-        let root=TempDir::new().unwrap();let adapter=InstalledAdapter::ClaudePrintStreamJson;
-        for group in ["anthropic-api-key","claude-subscription"] {
-            let mut launch=prepare_launch(adapter,root.path().join("claude"),root.path(),&full_image(),FRAMING,TASK.as_bytes(),"fixture",None,group,empty_environment(adapter)).unwrap();
-            launch.apply_workspace_profile(group,&[],&[]).unwrap();
-            let flags:Vec<_>=fixture["flags"].as_array().unwrap().iter().map(|x|OsString::from(x.as_str().unwrap())).collect();assert_eq!(&launch.argv[..flags.len()],flags.as_slice());
-            assert!(!launch.argv.iter().any(|x|x=="--bare" || x=="--allowedTools" || x=="--add-dir"));
-            assert!(launch.argv.iter().any(|x|x=="--safe-mode"));
-            assert_eq!(launch.credential_config_directory().is_some(),group=="anthropic-api-key");
-            let owned=launch.credential_config_directory().map(Path::to_owned);launch.finalize_private_files().unwrap();if let Some(path)=owned {assert!(!path.exists());}
+    fn workspace_profile_launch_matches_shared_fixture() {
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../../../../shared/fixtures/adapters/native-profile.json"
+        ))
+        .unwrap();
+        let root = TempDir::new().unwrap();
+        let adapter = InstalledAdapter::ClaudePrintStreamJson;
+        for group in ["anthropic-api-key", "claude-subscription"] {
+            let mut launch = prepare_launch(
+                adapter,
+                root.path().join("claude"),
+                root.path(),
+                &full_image(),
+                FRAMING,
+                TASK.as_bytes(),
+                "fixture",
+                None,
+                group,
+                empty_environment(adapter),
+            )
+            .unwrap();
+            launch.apply_workspace_profile(group, &[], &[]).unwrap();
+            let flags: Vec<_> = fixture["flags"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|x| OsString::from(x.as_str().unwrap()))
+                .collect();
+            assert_eq!(&launch.argv[..flags.len()], flags.as_slice());
+            assert!(
+                !launch
+                    .argv
+                    .iter()
+                    .any(|x| x == "--bare" || x == "--allowedTools" || x == "--add-dir")
+            );
+            assert!(launch.argv.iter().any(|x| x == "--safe-mode"));
+            assert_eq!(
+                launch.credential_config_directory().is_some(),
+                group == "anthropic-api-key"
+            );
+            let owned = launch.credential_config_directory().map(Path::to_owned);
+            launch.finalize_private_files().unwrap();
+            if let Some(path) = owned {
+                assert!(!path.exists());
+            }
         }
-        let mut launch=prepare_launch(adapter,root.path().join("claude"),root.path(),&full_image(),FRAMING,TASK.as_bytes(),"fixture",None,"claude-subscription",empty_environment(adapter)).unwrap();
-        launch.apply_workspace_profile("claude-subscription",&["/tmp/a b".into()],&["Bash(git status:*)".into(),"Agent".into()]).unwrap();
-        assert!(launch.argv.windows(2).any(|x|x==[OsString::from("--add-dir"),OsString::from("/tmp/a b")]));
-        assert_eq!(launch.argv.iter().filter(|x|*x=="--allowedTools").count(),2);
+        let mut launch = prepare_launch(
+            adapter,
+            root.path().join("claude"),
+            root.path(),
+            &full_image(),
+            FRAMING,
+            TASK.as_bytes(),
+            "fixture",
+            None,
+            "claude-subscription",
+            empty_environment(adapter),
+        )
+        .unwrap();
+        launch
+            .apply_workspace_profile(
+                "claude-subscription",
+                &["/tmp/a b".into()],
+                &["Bash(git status:*)".into(), "Agent".into()],
+            )
+            .unwrap();
+        assert!(
+            launch
+                .argv
+                .windows(2)
+                .any(|x| x == [OsString::from("--add-dir"), OsString::from("/tmp/a b")])
+        );
+        assert_eq!(
+            launch
+                .argv
+                .iter()
+                .filter(|x| *x == "--allowedTools")
+                .count(),
+            2
+        );
     }
 
     #[test]
     fn claude_permission_denial_remains_nonterminal() {
-        let init=json!({"type":"system","subtype":"init","session_id":"s"});
-        let denial=json!({"type":"system","subtype":"permission_denied","session_id":"s","tool_name":"Bash","tool_use_id":"t","message":"Denied"});
-        let final_record=json!({"type":"result","subtype":"success","is_error":false,"session_id":"s"});
-        let adapter=InstalledAdapter::ClaudePrintStreamJson;
-        assert!(normalize_transport(adapter,&[init.clone(),denial.clone(),final_record.clone()],"unused").is_ok());
-        assert!(normalize_transport(adapter,&[init.clone(),denial.clone()],"unused").is_err());
-        let mut invalid=denial;invalid["session_id"]=json!("other");
-        assert!(normalize_transport(adapter,&[init,invalid,final_record],"unused").is_err());
+        let init = json!({"type":"system","subtype":"init","session_id":"s"});
+        let denial = json!({"type":"system","subtype":"permission_denied","session_id":"s","tool_name":"Bash","tool_use_id":"t","message":"Denied"});
+        let final_record =
+            json!({"type":"result","subtype":"success","is_error":false,"session_id":"s"});
+        let adapter = InstalledAdapter::ClaudePrintStreamJson;
+        assert!(
+            normalize_transport(
+                adapter,
+                &[init.clone(), denial.clone(), final_record.clone()],
+                "unused"
+            )
+            .is_ok()
+        );
+        assert!(normalize_transport(adapter, &[init.clone(), denial.clone()], "unused").is_err());
+        let mut invalid = denial;
+        invalid["session_id"] = json!("other");
+        assert!(normalize_transport(adapter, &[init, invalid, final_record], "unused").is_err());
     }
-
 }
 
 #[test]
-fn agents_sdk_native_transport_requires_start_and_terminal(){
- let start=serde_json::json!({"type":"start","model":"fixture","cwd":"/tmp"});
- let mut records=vec![start,serde_json::json!({"type":"tool_call","name":"execute_shell"}),serde_json::json!({"type":"tool_result","name":"execute_shell"})];
- assert!(normalize_transport(InstalledAdapter::AgentsSdkJsonl,&records,"fixture").is_err());
- records.push(serde_json::json!({"type":"final","output":"All done, no JSON."}));
- assert_eq!(normalize_transport(InstalledAdapter::AgentsSdkJsonl,&records,"fixture").unwrap().assistant_messages,vec!["All done, no JSON."]);
- records.push(serde_json::json!({"type":"final","output":"duplicate"}));
- assert!(normalize_transport(InstalledAdapter::AgentsSdkJsonl,&records,"fixture").is_err());
+fn agents_sdk_native_transport_requires_start_and_terminal() {
+    let start = serde_json::json!({"type":"start","model":"fixture","cwd":"/tmp"});
+    let mut records = vec![
+        start,
+        serde_json::json!({"type":"tool_call","name":"execute_shell"}),
+        serde_json::json!({"type":"tool_result","name":"execute_shell"}),
+    ];
+    assert!(normalize_transport(InstalledAdapter::AgentsSdkJsonl, &records, "fixture").is_err());
+    records.push(serde_json::json!({"type":"final","output":"All done, no JSON."}));
+    assert_eq!(
+        normalize_transport(InstalledAdapter::AgentsSdkJsonl, &records, "fixture")
+            .unwrap()
+            .assistant_messages,
+        vec!["All done, no JSON."]
+    );
+    records.push(serde_json::json!({"type":"final","output":"duplicate"}));
+    assert!(normalize_transport(InstalledAdapter::AgentsSdkJsonl, &records, "fixture").is_err());
 }
 
 #[test]
-fn claude_native_task_lifecycle_never_settles_outer_invocation(){
- let tasks:Vec<Value>=serde_json::from_str(include_str!("../../../../shared/fixtures/adapters/claude-task-lifecycle.json")).unwrap();
- let init=serde_json::json!({"type":"system","subtype":"init","session_id":"fixture-session"});
- let done=serde_json::json!({"type":"result","subtype":"success","is_error":false,"session_id":"fixture-session"});
- let adapter=InstalledAdapter::ClaudePrintStreamJson;
- let mut records=vec![init.clone()];records.extend(tasks.clone());
- assert!(normalize_transport(adapter,&records,"unused").is_err());records.push(done.clone());assert!(normalize_transport(adapter,&records,"unused").is_ok());
- for task in tasks {
-  for (key,value) in [("session_id",serde_json::json!("other")),("task_id",serde_json::json!("")),("subtype",serde_json::json!("task_invented"))]{
-   let mut invalid=task.clone();invalid[key]=value;assert!(normalize_transport(adapter,&[init.clone(),invalid,done.clone()],"unused").is_err());
-  }
- }
+fn claude_native_task_lifecycle_never_settles_outer_invocation() {
+    let tasks: Vec<Value> = serde_json::from_str(include_str!(
+        "../../../../shared/fixtures/adapters/claude-task-lifecycle.json"
+    ))
+    .unwrap();
+    let init = serde_json::json!({"type":"system","subtype":"init","session_id":"fixture-session"});
+    let done = serde_json::json!({"type":"result","subtype":"success","is_error":false,"session_id":"fixture-session"});
+    let adapter = InstalledAdapter::ClaudePrintStreamJson;
+    let mut records = vec![init.clone()];
+    records.extend(tasks.clone());
+    assert!(normalize_transport(adapter, &records, "unused").is_err());
+    records.push(done.clone());
+    assert!(normalize_transport(adapter, &records, "unused").is_ok());
+    for task in tasks {
+        for (key, value) in [
+            ("session_id", serde_json::json!("other")),
+            ("task_id", serde_json::json!("")),
+            ("subtype", serde_json::json!("task_invented")),
+        ] {
+            let mut invalid = task.clone();
+            invalid[key] = value;
+            assert!(
+                normalize_transport(adapter, &[init.clone(), invalid, done.clone()], "unused")
+                    .is_err()
+            );
+        }
+    }
 }
 #[test]
-fn claude_background_inventory_is_nonterminal(){
- let event:Value=serde_json::from_str(include_str!("../../../../shared/fixtures/adapters/claude-background-tasks.json")).unwrap();
- let init=serde_json::json!({"type":"system","subtype":"init","session_id":"fixture-session"});let done=serde_json::json!({"type":"result","subtype":"success","is_error":false,"session_id":"fixture-session"});let a=InstalledAdapter::ClaudePrintStreamJson;
- assert!(normalize_transport(a,&[init.clone(),event.clone()],"unused").is_err());assert!(normalize_transport(a,&[init.clone(),event.clone(),done.clone()],"unused").is_ok());let mut bad=event;bad["tasks"]=serde_json::json!([{}]);assert!(normalize_transport(a,&[init,bad,done],"unused").is_err());
+fn claude_background_inventory_is_nonterminal() {
+    let event: Value = serde_json::from_str(include_str!(
+        "../../../../shared/fixtures/adapters/claude-background-tasks.json"
+    ))
+    .unwrap();
+    let init = serde_json::json!({"type":"system","subtype":"init","session_id":"fixture-session"});
+    let done = serde_json::json!({"type":"result","subtype":"success","is_error":false,"session_id":"fixture-session"});
+    let a = InstalledAdapter::ClaudePrintStreamJson;
+    assert!(normalize_transport(a, &[init.clone(), event.clone()], "unused").is_err());
+    assert!(normalize_transport(a, &[init.clone(), event.clone(), done.clone()], "unused").is_ok());
+    let mut bad = event;
+    bad["tasks"] = serde_json::json!([{}]);
+    assert!(normalize_transport(a, &[init, bad, done], "unused").is_err());
 }
 #[test]
-fn claude_task_resumption_preserves_initial_configuration(){
- let init=serde_json::json!({"type":"system","subtype":"init","session_id":"fixture-session","uuid":"initial"});let notice=serde_json::json!({"type":"system","subtype":"task_notification","session_id":"fixture-session","uuid":"n","task_id":"t","status":"completed"});let done=serde_json::json!({"type":"result","subtype":"success","is_error":false,"session_id":"fixture-session"});let mut repeated=init.clone();repeated["uuid"]=serde_json::json!("resumed");let a=InstalledAdapter::ClaudePrintStreamJson;
- assert!(normalize_transport(a,&[init.clone(),notice.clone(),repeated.clone(),done.clone()],"unused").is_ok());assert!(normalize_transport(a,&[init.clone(),repeated.clone(),done.clone()],"unused").is_err());repeated["cwd"]=serde_json::json!("changed");assert!(normalize_transport(a,&[init,notice,repeated,done],"unused").is_err());
+fn claude_task_resumption_preserves_initial_configuration() {
+    let init = serde_json::json!({"type":"system","subtype":"init","session_id":"fixture-session","uuid":"initial"});
+    let notice = serde_json::json!({"type":"system","subtype":"task_notification","session_id":"fixture-session","uuid":"n","task_id":"t","status":"completed"});
+    let done = serde_json::json!({"type":"result","subtype":"success","is_error":false,"session_id":"fixture-session"});
+    let mut repeated = init.clone();
+    repeated["uuid"] = serde_json::json!("resumed");
+    let a = InstalledAdapter::ClaudePrintStreamJson;
+    assert!(
+        normalize_transport(
+            a,
+            &[init.clone(), notice.clone(), repeated.clone(), done.clone()],
+            "unused"
+        )
+        .is_ok()
+    );
+    assert!(
+        normalize_transport(a, &[init.clone(), repeated.clone(), done.clone()], "unused").is_err()
+    );
+    repeated["cwd"] = serde_json::json!("changed");
+    assert!(normalize_transport(a, &[init, notice, repeated, done], "unused").is_err());
 }
 
 #[cfg(test)]
 mod native_turn_tests {
- use super::*;
- #[test]
- fn native_claude_turns_need_final_success_and_legacy_rejects_duplicates(){
-  let records:Vec<Value>=serde_json::from_str(include_str!("../../../../shared/fixtures/adapters/claude-native-turns.json")).unwrap();
-  let run=|r:&[Value]|normalize_transport_mode(InstalledAdapter::ClaudePrintStreamJson,r,"fixture",true);
-  assert!(run(&records).is_ok());assert!(normalize_transport(InstalledAdapter::ClaudePrintStreamJson,&records,"fixture").is_err());
-  let mut more=records.clone();more.push(json!({"type":"assistant","session_id":"fixture-session","message":{"role":"assistant","content":[]}}));assert!(run(&more).is_err());
-  more.push(records[2].clone());assert!(run(&more).is_ok());
-  for change in [json!({"session_id":"other"}),json!({"is_error":true}),json!({"type":"unsupported"})] {
-   let mut bad=records.clone();for(k,v)in change.as_object().unwrap(){bad[2][k]=v.clone();}assert!(run(&bad).is_err());
-  }
-  assert!(run(&records[..1]).is_err());
- }
- #[test]
- #[ignore="set CLAUDE_REPLAY_PATH to a retained native trace"]
- fn recorded_claude_native_turn_replay(){
-  let text=std::fs::read_to_string(std::env::var("CLAUDE_REPLAY_PATH").unwrap()).unwrap();let records:Vec<Value>=text.lines().map(|l|serde_json::from_str(l).unwrap()).collect();
-  assert_eq!(normalize_transport_mode(InstalledAdapter::ClaudePrintStreamJson,&records,"fixture",true).is_ok(),std::env::var("CLAUDE_REPLAY_EXPECT_COMPLETE").as_deref()==Ok("true") || records.last().unwrap()["type"]=="result");
-  if records.last().unwrap()["type"]!="result" { let mut synthetic=records.clone();synthetic.push(json!({"type":"result","subtype":"success","is_error":false,"session_id":records[0]["session_id"]}));assert!(normalize_transport_mode(InstalledAdapter::ClaudePrintStreamJson,&synthetic,"fixture",true).is_ok()); }
- }
+    use super::*;
+    #[test]
+    fn native_claude_turns_need_final_success_and_legacy_rejects_duplicates() {
+        let records: Vec<Value> = serde_json::from_str(include_str!(
+            "../../../../shared/fixtures/adapters/claude-native-turns.json"
+        ))
+        .unwrap();
+        let run = |r: &[Value]| {
+            normalize_transport_mode(InstalledAdapter::ClaudePrintStreamJson, r, "fixture", true)
+        };
+        assert!(run(&records).is_ok());
+        assert!(
+            normalize_transport(InstalledAdapter::ClaudePrintStreamJson, &records, "fixture")
+                .is_err()
+        );
+        let mut more = records.clone();
+        more.push(json!({"type":"assistant","session_id":"fixture-session","message":{"role":"assistant","content":[]}}));
+        assert!(run(&more).is_err());
+        more.push(records[2].clone());
+        assert!(run(&more).is_ok());
+        for change in [
+            json!({"session_id":"other"}),
+            json!({"is_error":true}),
+            json!({"type":"unsupported"}),
+        ] {
+            let mut bad = records.clone();
+            for (k, v) in change.as_object().unwrap() {
+                bad[2][k] = v.clone();
+            }
+            assert!(run(&bad).is_err());
+        }
+        assert!(run(&records[..1]).is_err());
+    }
+    #[test]
+    #[ignore = "set CLAUDE_REPLAY_PATH to a retained native trace"]
+    fn recorded_claude_native_turn_replay() {
+        let text = std::fs::read_to_string(std::env::var("CLAUDE_REPLAY_PATH").unwrap()).unwrap();
+        let records: Vec<Value> = text
+            .lines()
+            .map(|l| serde_json::from_str(l).unwrap())
+            .collect();
+        assert_eq!(
+            normalize_transport_mode(
+                InstalledAdapter::ClaudePrintStreamJson,
+                &records,
+                "fixture",
+                true
+            )
+            .is_ok(),
+            std::env::var("CLAUDE_REPLAY_EXPECT_COMPLETE").as_deref() == Ok("true")
+                || records.last().unwrap()["type"] == "result"
+        );
+        if records.last().unwrap()["type"] != "result" {
+            let mut synthetic = records.clone();
+            synthetic.push(json!({"type":"result","subtype":"success","is_error":false,"session_id":records[0]["session_id"]}));
+            assert!(
+                normalize_transport_mode(
+                    InstalledAdapter::ClaudePrintStreamJson,
+                    &synthetic,
+                    "fixture",
+                    true
+                )
+                .is_ok()
+            );
+        }
+    }
 }
 
 #[cfg(test)]
 #[test]
-fn native_repeated_init_requires_metadata_identity_and_fresh_result(){
- let init=json!({"type":"system","subtype":"init","session_id":"fixture","uuid":"one","tools":["Read"],"model":"fixture-model","apiKeySource":"fixture-auth"});
- let result=json!({"type":"result","subtype":"success","is_error":false,"session_id":"fixture"});
- let mut repeated=init.clone();repeated["uuid"]=json!("two");let records=vec![init.clone(),result.clone(),repeated.clone(),result.clone()];
- let run=|r:&[Value]|normalize_transport_mode(InstalledAdapter::ClaudePrintStreamJson,r,"fixture",true);
- assert!(run(&records).is_ok());assert!(run(&records[..3]).is_err());assert!(normalize_transport(InstalledAdapter::ClaudePrintStreamJson,&records,"fixture").is_err());
- for (key,value) in [("uuid",json!("")),("tools",json!(["Write"])),("model",json!("other")),("apiKeySource",json!("other")),("session_id",json!("other"))]{let mut bad=records.clone();bad[2][key]=value;assert!(run(&bad).is_err());}
+fn native_repeated_init_requires_metadata_identity_and_fresh_result() {
+    let init = json!({"type":"system","subtype":"init","session_id":"fixture","uuid":"one","tools":["Read"],"model":"fixture-model","apiKeySource":"fixture-auth"});
+    let result =
+        json!({"type":"result","subtype":"success","is_error":false,"session_id":"fixture"});
+    let mut repeated = init.clone();
+    repeated["uuid"] = json!("two");
+    let records = vec![
+        init.clone(),
+        result.clone(),
+        repeated.clone(),
+        result.clone(),
+    ];
+    let run = |r: &[Value]| {
+        normalize_transport_mode(InstalledAdapter::ClaudePrintStreamJson, r, "fixture", true)
+    };
+    assert!(run(&records).is_ok());
+    assert!(run(&records[..3]).is_err());
+    assert!(
+        normalize_transport(InstalledAdapter::ClaudePrintStreamJson, &records, "fixture").is_err()
+    );
+    for (key, value) in [
+        ("uuid", json!("")),
+        ("tools", json!(["Write"])),
+        ("model", json!("other")),
+        ("apiKeySource", json!("other")),
+        ("session_id", json!("other")),
+    ] {
+        let mut bad = records.clone();
+        bad[2][key] = value;
+        assert!(run(&bad).is_err());
+    }
 }
 
 #[cfg(test)]
 #[test]
-fn native_routing_metadata_mutation_is_typed_and_not_identity(){
- let init=json!({"type":"system","subtype":"init","session_id":"fixture","uuid":"one"});let result=json!({"type":"result","subtype":"success","is_error":false,"session_id":"fixture"});
- let run=|r:&[Value]|normalize_transport_mode(InstalledAdapter::ClaudePrintStreamJson,r,"fixture",true);
- for initial in [None,Some("/tmp/old")] {for next in [None,Some("/tmp/new")] {let mut first=init.clone();let mut repeated=init.clone();repeated["uuid"]=json!("two");if let Some(v)=initial{first["messaging_socket_path"]=json!(v);}if let Some(v)=next{repeated["messaging_socket_path"]=json!(v);}let records=vec![first,result.clone(),repeated,result.clone()];assert!(run(&records).is_ok());assert!(run(&records[..3]).is_err());}}
- for bad in [json!(null),json!(0),json!({}),json!("")] {let mut invalid=init.clone();invalid["messaging_socket_path"]=bad;assert!(run(&[invalid.clone(),result.clone()]).is_err());assert!(run(&[init.clone(),invalid,result.clone()]).is_err());}
+fn native_routing_metadata_mutation_is_typed_and_not_identity() {
+    let init = json!({"type":"system","subtype":"init","session_id":"fixture","uuid":"one"});
+    let result =
+        json!({"type":"result","subtype":"success","is_error":false,"session_id":"fixture"});
+    let run = |r: &[Value]| {
+        normalize_transport_mode(InstalledAdapter::ClaudePrintStreamJson, r, "fixture", true)
+    };
+    for initial in [None, Some("/tmp/old")] {
+        for next in [None, Some("/tmp/new")] {
+            let mut first = init.clone();
+            let mut repeated = init.clone();
+            repeated["uuid"] = json!("two");
+            if let Some(v) = initial {
+                first["messaging_socket_path"] = json!(v);
+            }
+            if let Some(v) = next {
+                repeated["messaging_socket_path"] = json!(v);
+            }
+            let records = vec![first, result.clone(), repeated, result.clone()];
+            assert!(run(&records).is_ok());
+            assert!(run(&records[..3]).is_err());
+        }
+    }
+    for bad in [json!(null), json!(0), json!({}), json!("")] {
+        let mut invalid = init.clone();
+        invalid["messaging_socket_path"] = bad;
+        assert!(run(&[invalid.clone(), result.clone()]).is_err());
+        assert!(run(&[init.clone(), invalid, result.clone()]).is_err());
+    }
 }
 
 #[cfg(test)]
 #[test]
-fn claude_correlated_shutdown_requires_closed_known_native_tasks(){
- let records:Vec<Value>=serde_json::from_str(include_str!("../../../../shared/fixtures/adapters/claude-shutdown.json")).unwrap();
- let run=|r:&[Value]|normalize_transport_mode(InstalledAdapter::ClaudePrintStreamJson,r,"fixture",true);
- assert!(run(&records).is_ok());assert!(normalize_transport(InstalledAdapter::ClaudePrintStreamJson,&records,"fixture").is_err());
- let mut variants=Vec::new();
- for (index,key,value) in [(7,"task_id",json!("other")),(7,"tool_use_id",json!("other")),(7,"session_id",json!("other")),(2,"task_type",json!("agent")),(5,"tasks",json!([{"task_id":"new","description":"new","task_type":"local_bash"}]))]{let mut bad=records.clone();bad[index][key]=value;variants.push(bad);}
- let mut bad=records.clone();bad.pop();variants.push(bad);
- for event in [json!({"type":"assistant","session_id":"fixture-session","message":{"role":"assistant","content":[]}}),json!({"type":"tool_progress","session_id":"fixture-session"})]{let mut bad=records.clone();bad.push(event);variants.push(bad);}
- let mut bad=records.clone();bad[6]["patch"]["end_time"]=json!(-1);variants.push(bad);
- for bad in variants{assert!(run(&bad).is_err());}
+fn claude_correlated_shutdown_requires_closed_known_native_tasks() {
+    let records: Vec<Value> = serde_json::from_str(include_str!(
+        "../../../../shared/fixtures/adapters/claude-shutdown.json"
+    ))
+    .unwrap();
+    let run = |r: &[Value]| {
+        normalize_transport_mode(InstalledAdapter::ClaudePrintStreamJson, r, "fixture", true)
+    };
+    assert!(run(&records).is_ok());
+    assert!(
+        normalize_transport(InstalledAdapter::ClaudePrintStreamJson, &records, "fixture").is_err()
+    );
+    let mut variants = Vec::new();
+    for (index, key, value) in [
+        (7, "task_id", json!("other")),
+        (7, "tool_use_id", json!("other")),
+        (7, "session_id", json!("other")),
+        (2, "task_type", json!("agent")),
+        (
+            5,
+            "tasks",
+            json!([{"task_id":"new","description":"new","task_type":"local_bash"}]),
+        ),
+    ] {
+        let mut bad = records.clone();
+        bad[index][key] = value;
+        variants.push(bad);
+    }
+    let mut bad = records.clone();
+    bad.pop();
+    variants.push(bad);
+    for event in [
+        json!({"type":"assistant","session_id":"fixture-session","message":{"role":"assistant","content":[]}}),
+        json!({"type":"tool_progress","session_id":"fixture-session"}),
+    ] {
+        let mut bad = records.clone();
+        bad.push(event);
+        variants.push(bad);
+    }
+    let mut bad = records.clone();
+    bad[6]["patch"]["end_time"] = json!(-1);
+    variants.push(bad);
+    for bad in variants {
+        assert!(run(&bad).is_err());
+    }
 }
 
-pub(crate) fn sdk_native_failure(record: &Value)->Value {
- let kind=match record.get("error_type").and_then(Value::as_str) {Some("MaxTurnsExceeded")=>"max-turns",Some("TimeoutError")=>"timeout",_=>"execution"};
- let mut result=json!({"kind":kind});
- if let Some(n)=record.get("elapsed_seconds").and_then(Value::as_f64).filter(|n|n.is_finite() && *n>=0.0) {result["elapsedSeconds"]=json!(n);}
- if let Some(l)=record.get("limits").filter(|l|l.as_object().is_some_and(|m|m.len()==4)) {
-  let ints=["maxTurns","maxOutputTokens"].iter().all(|k|l.get(k).and_then(Value::as_f64).is_some_and(|n|n.is_finite() && n>0.0 && n.fract()==0.0 && n<=9_007_199_254_740_991.0));
-  let times=["timeoutSeconds","toolTimeoutSeconds"].iter().all(|k|l.get(k).and_then(Value::as_f64).is_some_and(|n|n.is_finite() && n>0.0 && n<=9_007_199_254_740.991));
-  if ints && times {result["limits"]=l.clone();}
- }
- result
+pub(crate) fn sdk_native_failure(record: &Value) -> Value {
+    let kind = match record.get("error_type").and_then(Value::as_str) {
+        Some("MaxTurnsExceeded") => "max-turns",
+        Some("TimeoutError") => "timeout",
+        _ => "execution",
+    };
+    let mut result = json!({"kind":kind});
+    if let Some(n) = record
+        .get("elapsed_seconds")
+        .and_then(Value::as_f64)
+        .filter(|n| n.is_finite() && *n >= 0.0)
+    {
+        result["elapsedSeconds"] = json!(n);
+    }
+    if let Some(l) = record
+        .get("limits")
+        .filter(|l| l.as_object().is_some_and(|m| m.len() == 4))
+    {
+        let ints = ["maxTurns", "maxOutputTokens"].iter().all(|k| {
+            l.get(k).and_then(Value::as_f64).is_some_and(|n| {
+                n.is_finite() && n > 0.0 && n.fract() == 0.0 && n <= 9_007_199_254_740_991.0
+            })
+        });
+        let times = ["timeoutSeconds", "toolTimeoutSeconds"].iter().all(|k| {
+            l.get(k)
+                .and_then(Value::as_f64)
+                .is_some_and(|n| n.is_finite() && n > 0.0 && n <= 9_007_199_254_740.99)
+        });
+        if ints && times {
+            result["limits"] = l.clone();
+        }
+    }
+    result
 }
 
 #[cfg(test)]
 mod sdk_budget_diagnostic_tests {
- use super::*;
- #[test]
- fn native_failure_is_closed_and_validated() {
-  let f:Value=serde_json::from_str(include_str!("../../../../shared/fixtures/adapters/sdk-native-limits.json")).unwrap();
-  for case in f["errorCases"].as_array().unwrap() {
-   let record=json!({"error_type":case["error_type"],"limits":f["defaults"],"elapsed_seconds":1.5});
-   let d=sdk_native_failure(&record);assert_eq!(d["kind"],case["kind"]);assert_eq!(d["limits"],f["defaults"]);assert_eq!(d["elapsedSeconds"],1.5);assert!(!d.to_string().contains("Untrusted"));
-  }
-  let err=normalize_transport(InstalledAdapter::AgentsSdkJsonl,&[json!({"type":"start","model":"fixture","cwd":"/fixture"}),json!({"type":"error","error_type":"MaxTurnsExceeded","limits":f["defaults"]})],"fixture").unwrap_err();
-  assert_eq!(serde_json::to_value(err).unwrap()["details"]["nativeFailure"]["kind"],"max-turns");
-  let d=sdk_native_failure(&json!({"error_type":"secret","elapsed_seconds":-1,"limits":{"maxTurns":20,"timeoutSeconds":180,"toolTimeoutSeconds":30,"maxOutputTokens":12000,"extra":"secret"}}));
-  assert_eq!(d,json!({"kind":"execution"}));
- }
+    use super::*;
+    #[test]
+    fn native_failure_is_closed_and_validated() {
+        let f: Value = serde_json::from_str(include_str!(
+            "../../../../shared/fixtures/adapters/sdk-native-limits.json"
+        ))
+        .unwrap();
+        for case in f["errorCases"].as_array().unwrap() {
+            let record = json!({"error_type":case["error_type"],"limits":f["defaults"],"elapsed_seconds":1.5});
+            let d = sdk_native_failure(&record);
+            assert_eq!(d["kind"], case["kind"]);
+            assert_eq!(d["limits"], f["defaults"]);
+            assert_eq!(d["elapsedSeconds"], 1.5);
+            assert!(!d.to_string().contains("Untrusted"));
+        }
+        let err = normalize_transport(
+            InstalledAdapter::AgentsSdkJsonl,
+            &[
+                json!({"type":"start","model":"fixture","cwd":"/fixture"}),
+                json!({"type":"error","error_type":"MaxTurnsExceeded","limits":f["defaults"]}),
+            ],
+            "fixture",
+        )
+        .unwrap_err();
+        assert_eq!(
+            serde_json::to_value(err).unwrap()["details"]["nativeFailure"]["kind"],
+            "max-turns"
+        );
+        let d = sdk_native_failure(
+            &json!({"error_type":"secret","elapsed_seconds":-1,"limits":{"maxTurns":20,"timeoutSeconds":180,"toolTimeoutSeconds":30,"maxOutputTokens":12000,"extra":"secret"}}),
+        );
+        assert_eq!(d, json!({"kind":"execution"}));
+    }
 }
 
 #[cfg(test)]
 mod prime_child_outer_tests {
- use super::*;
- #[test]
- fn prime_child_telemetry_reaches_typed_admission() {
-  let protocol=InstalledAdapter::PrimeRpc.protocol();
-  assert!(protocol.allowed_events.contains("rlm_child_update"));
-  assert!(protocol.allowed_events.contains("session_action_update"));
-  assert_ne!(protocol.terminal_event,"rlm_child_update");
-  assert!(!InstalledAdapter::OmpRpc.protocol().allowed_events.contains("rlm_child_update"));
- }
+    use super::*;
+    #[test]
+    fn prime_child_telemetry_reaches_typed_admission() {
+        let protocol = InstalledAdapter::PrimeRpc.protocol();
+        assert!(protocol.allowed_events.contains("rlm_child_update"));
+        assert!(protocol.allowed_events.contains("session_action_update"));
+        assert_ne!(protocol.terminal_event, "rlm_child_update");
+        assert!(
+            !InstalledAdapter::OmpRpc
+                .protocol()
+                .allowed_events
+                .contains("rlm_child_update")
+        );
+    }
 }

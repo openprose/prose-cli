@@ -1,0 +1,76 @@
+{
+  "id": "program-show-different-program",
+  "feature": "programs",
+  "operation": "program.show",
+  "description": "A response naming a different revision than the pinned one is SERVICE_PROTOCOL_INVALID.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "program",
+    "show",
+    "alice/demo@fedcba9876543210"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/p/alice/demo@fedcba9876543210",
+        "requestHeaders": {
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          },
+          "User-Agent": {
+            "pattern": "^prose-cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"
+          },
+          "Accept": "application/json",
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "status": 200,
+        "body": {
+          "program": {
+            "owner": "alice",
+            "slug": "demo",
+            "visibility": "private",
+            "content": "---\nname: demo\nkind: function\n---\n\n### Returns\n\n- `text`: exactly `ok`\n",
+            "rev": 1,
+            "rev_id": "0123456789abcdef",
+            "commit_id": "1111111111111111",
+            "parent_commit_id": null,
+            "updated_at": 1790212199320
+          },
+          "is_owner": true
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "schema": "openprose.service-operation/1",
+      "operation": "program.show",
+      "interaction": "program.read",
+      "result": null,
+      "problem": {
+        "schema": "openprose.runner-error/1",
+        "code": "SERVICE_PROTOCOL_INVALID",
+        "boundary": "protocol",
+        "message": "The OpenProse service returned an invalid response.",
+        "action": "Retry later and report the sanitized error code if it persists.",
+        "exitCode": 10,
+        "retryable": false,
+        "details": {
+          "reason": "the service returned a different program"
+        }
+      }
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

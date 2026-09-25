@@ -1,0 +1,62 @@
+{
+  "id": "program-save-slug-letter-case-hint",
+  "feature": "programs",
+  "operation": "program.save",
+  "description": "An upper-case slug is INVOCATION_INVALID before any request and names the lower-case slug; the reason describes the slug in words, not as a regex.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "program",
+    "save",
+    "Demo",
+    "demo.prose.md"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "program.save",
+      "operation": "program.save",
+      "problem": {
+        "action": "Pass demo: `prose --output json cli program save demo demo.prose.md`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "<SLUG> \"Demo\" must be a program slug in your own account: lowercase letters, digits and hyphens, at most 64 characters (OWNER/SLUG is accepted when OWNER is you); pass \"demo\"",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "program",
+            "save",
+            "demo",
+            "demo.prose.md"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ],
+  "files": [
+    {
+      "path": "demo.prose.md",
+      "content": "---\nname: demo\nkind: function\n---\n\n### Returns\n\n- `text`: exactly `ok`\n"
+    }
+  ]
+}

@@ -1,0 +1,65 @@
+{
+  "id": "wallet-redeem-extra-argument-with-code-file",
+  "feature": "wallet",
+  "operation": "wallet.redeem",
+  "description": "With --code-file given, an extra argument is still never echoed; the suggestion drops it.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "wallet",
+    "redeem",
+    "--code-file",
+    "code.txt",
+    "EXTRA-SECRET-VALUE",
+    "--yes"
+  ],
+  "files": [
+    {
+      "path": "code.txt",
+      "content": "EXAMPLE-CODE\n"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "wallet.redeem",
+      "operation": "wallet.redeem",
+      "problem": {
+        "action": "Remove the extra argument: `prose --output json cli wallet redeem --code-file code.txt --yes`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "`cli wallet redeem` never takes the code as an argument, so the argument was not echoed; it reads --code-file, a file or - for standard input",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "wallet",
+            "redeem",
+            "--code-file",
+            "code.txt",
+            "--yes"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "EXTRA-SECRET-VALUE"
+  ]
+}

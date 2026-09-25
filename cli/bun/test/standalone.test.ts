@@ -137,7 +137,7 @@ describe("standalone executable", () => {
   }, SERIAL_BUILD_IDENTITY_TEST_TIMEOUT_MS);
 
   test("does not auto-load cwd .env or bunfig.toml", async () => {
-    const child = Bun.spawn([binary, "--output=json", "run"], {
+    const child = Bun.spawn([binary, "--output=json", "run", "example.prose.md"], {
       cwd: hostileCwd,
       env: { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "" },
       stdout: "pipe",

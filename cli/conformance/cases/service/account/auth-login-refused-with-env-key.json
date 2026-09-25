@@ -1,0 +1,47 @@
+{
+  "id": "auth-login-refused-with-env-key",
+  "feature": "account",
+  "operation": "auth.login",
+  "description": "Login is refused (INVOCATION_INVALID) while OPENPROSE_API_KEY is set, because the variable would still win. Ported from the account corpus.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "auth",
+    "login"
+  ],
+  "fixture": {
+    "credential": null,
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "environment": {
+    "OPENPROSE_API_KEY": "rr_test_44444444444444444444444444444444"
+  },
+  "stdout": {
+    "json": {
+      "interaction": "auth.device_flow",
+      "operation": "auth.login",
+      "problem": {
+        "action": "Keep using OPENPROSE_API_KEY and check it with `prose --output json cli auth status`, or unset OPENPROSE_API_KEY and run `prose --output json cli auth login`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "credentialSource": "environment",
+          "credentialVariable": "OPENPROSE_API_KEY",
+          "reason": "OPENPROSE_API_KEY is set, and a non-empty OPENPROSE_API_KEY takes precedence over a stored key, so `cli auth login` would not change the key commands use"
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "stderr": {
+    "empty": true
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "id": "job-delete-traversal-refused",
+  "feature": "jobs",
+  "operation": "job.delete",
+  "description": "A path-like JOB_ID such as `..` (which a URL normalizer would fold into another route) is refused before any request instead of reaching a 404 that would read as already_absent.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "job",
+    "delete",
+    "..",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "job.delete",
+      "operation": "job.delete",
+      "problem": {
+        "action": "List your jobs with `prose --output json cli job list` and pass one of their ids.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "JOB_ID \"..\" is not a job id: job ids are lowercase UUIDs (8-4-4-4-12 hex digits) as `prose --output json cli job list` prints them; nothing was sent",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "job",
+            "list"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

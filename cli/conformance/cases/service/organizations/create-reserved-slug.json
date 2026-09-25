@@ -1,0 +1,52 @@
+{
+  "id": "create-reserved-slug",
+  "feature": "organizations",
+  "operation": "org.create",
+  "description": "A reserved slug is refused locally; no corrected argv is invented.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "org",
+    "create",
+    "default",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "organizations.manage",
+      "operation": "org.create",
+      "problem": {
+        "action": "Correct the value named in Detail; `prose --output json cli org create --help` shows the accepted syntax.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "organization slug \"default\" is reserved; slugs are global and permanent",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "org",
+            "create",
+            "--help"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

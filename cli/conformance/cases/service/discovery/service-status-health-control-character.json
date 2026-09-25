@@ -1,0 +1,83 @@
+{
+  "id": "service-status-health-control-character",
+  "feature": "discovery",
+  "operation": "service.status",
+  "description": "A control character in a projected string (status) is refused (SERVICE_PROTOCOL_INVALID), never echoed.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "service",
+    "status"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/health",
+        "requestHeaders": {
+          "Authorization": {
+            "present": false
+          },
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          }
+        },
+        "status": 200,
+        "body": {
+          "status": "o\u001bk",
+          "environments": {
+            "default": "builtin",
+            "available": [
+              "builtin",
+              "linux"
+            ]
+          },
+          "models": [
+            "model-sol",
+            "model-luna"
+          ],
+          "default_model": "model-sol",
+          "version": "9.9.9-extra",
+          "capabilities": {
+            "web:search": {
+              "available": true,
+              "tool": "web_search"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "health.read",
+      "operation": "service.status",
+      "problem": {
+        "action": "Retry later and report the sanitized error code if it persists.",
+        "boundary": "protocol",
+        "code": "SERVICE_PROTOCOL_INVALID",
+        "details": {
+          "reason": "unexpected service status response: status"
+        },
+        "exitCode": 10,
+        "message": "The OpenProse service returned an invalid response.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "li\u001bnux",
+    "9.9.9-extra",
+    "web_search"
+  ]
+}

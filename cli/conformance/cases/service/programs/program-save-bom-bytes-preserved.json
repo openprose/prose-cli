@@ -1,0 +1,53 @@
+{
+  "id": "program-save-bom-bytes-preserved",
+  "feature": "programs",
+  "operation": "program.save",
+  "description": "A leading UTF-8 byte-order mark is program content: it is sent unchanged (both ports).",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "program",
+    "save",
+    "demo",
+    "demo.prose.md",
+    "--preview"
+  ],
+  "files": [
+    {
+      "path": "demo.prose.md",
+      "content": "﻿---\nname: demo\n---\n\nreturn ok\n"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "program.save",
+      "operation": "program.save",
+      "problem": null,
+      "result": {
+        "plannedRequest": {
+          "bodyBytes": 52,
+          "bodySha256": "e822af6aa7035272b12d6a110624b33a94cb63a3f7c8aa4ae64a8bb30ff41fed",
+          "description": "Save a new revision of a program; a new program is private.",
+          "effect": "write",
+          "method": "PUT",
+          "operation": "program.save"
+        },
+        "preview": true
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

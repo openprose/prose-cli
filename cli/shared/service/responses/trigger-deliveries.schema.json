@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.openprose.org/cli/v1/service/responses/trigger-deliveries.schema.json",
+  "title": "service response acceptance: GET /triggers/{id}/deliveries",
+  "x-probed": true,
+  "type": "object",
+  "required": [
+    "deliveries"
+  ],
+  "properties": {
+    "deliveries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "receivedAt",
+          "outcome",
+          "testOnly"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "receivedAt": {
+            "type": "integer"
+          },
+          "outcome": {
+            "type": "string"
+          },
+          "testOnly": {
+            "type": "boolean"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "id": "alias-option-offset-number",
+  "feature": "framework",
+  "operation": "wallet.events",
+  "description": "`--offset 20` on `cli wallet events` is dropped; the Action names result.nextBefore.",
+  "argv": [
+    "cli",
+    "wallet",
+    "events",
+    "--offset",
+    "20"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: Unknown option.\nDetail: unknown option --offset for `cli wallet events`; pages are cursors, not numbers: --before takes the result.nextBefore of the previous page\nAction: List the first page with `prose cli wallet events`, then pass its result.nextBefore to --before for the next page.\n"
+  }
+}

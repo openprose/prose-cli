@@ -112,9 +112,9 @@ Build/test toolchains were prepared separately in temporary directories.
 
 ## Current local handoff
 
-[Retained validation](validation/imp-014/README.md) records passing suites,
-corrected failures, exact tool versions and limitations. The complete local
-rehearsal passes on macOS arm64. `rehearse_npm_identity.py PACKAGE --out FRESH`
+The retained validation logs for this work were removed from the repository
+because they recorded local machine paths. The complete local rehearsal passes
+on macOS arm64. `rehearse_npm_identity.py PACKAGE --out FRESH`
 then repackages the verified Bun archive under the preferred npm identity,
 installs the exact local tarball pair with scripts and registry access disabled,
 and verifies the launched version. The Actions workflow includes that step.

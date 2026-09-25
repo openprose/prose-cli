@@ -1,0 +1,47 @@
+{
+  "id": "no-cli-stop-trailing-json",
+  "feature": "framework",
+  "operation": "run.cancel",
+  "description": "`prose stop RUN_ID --json`: a trailing --json prints the envelope, and the suggestion is `prose cli run cancel RUN_ID --json`.",
+  "argv": [
+    "stop",
+    "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+    "--json"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": null,
+      "operation": "cli",
+      "problem": {
+        "action": "Use `cli run cancel`: `prose cli run cancel run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c --json`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "`stop` is not a command; did you mean `prose cli run cancel run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c --json`? A run in progress is cancelled with `cli run cancel RUN_ID`; a job's future runs stop with `cli job delete JOB_ID`. Nothing was forwarded or sent. To pass these words to the OpenProse language instead, put `--` before them",
+          "suggestedArgv": [
+            "cli",
+            "run",
+            "cancel",
+            "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+            "--json"
+          ]
+        },
+        "exitCode": 2,
+        "message": "Unknown command.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

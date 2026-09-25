@@ -15,6 +15,7 @@
     "build": "bun --no-env-file --config=./config/empty-bunfig.toml run ./scripts/image-bundle.ts build",
     "build:test": "bun --no-env-file --config=./config/empty-bunfig.toml run ./scripts/image-bundle.ts build-test",
     "build:release": "bun --no-env-file --config=./config/empty-bunfig.toml run ./scripts/image-bundle.ts build --require-release-eligible",
+    "build:dev": "bun --no-env-file --config=./config/empty-bunfig.toml run ./scripts/image-bundle.ts build --dev-endpoint --outfile dist/prose-dev",
     "check": "bun run typecheck && bun run test && bun run build"
   },
   "dependencies": {

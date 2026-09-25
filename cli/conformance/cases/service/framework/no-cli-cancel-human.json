@@ -1,0 +1,24 @@
+{
+  "id": "no-cli-cancel-human",
+  "feature": "framework",
+  "operation": "run.cancel",
+  "description": "`prose cancel` (no `cli`) exits 2 with `cli run cancel --help`; nothing is forwarded or billed.",
+  "argv": [
+    "cancel"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: Unknown command.\nDetail: `cancel` is not a command; did you mean `prose cli run cancel --help`? A run in progress is cancelled with `cli run cancel RUN_ID`; a job's future runs stop with `cli job delete JOB_ID`. Nothing was forwarded or sent. To pass these words to the OpenProse language instead, put `--` before them\nAction: Use `cli run cancel RUN_ID`; `prose cli run cancel --help` shows its arguments.\n"
+  }
+}

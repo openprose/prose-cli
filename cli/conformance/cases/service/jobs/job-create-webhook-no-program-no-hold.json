@@ -1,0 +1,55 @@
+{
+  "id": "job-create-webhook-no-program-no-hold",
+  "feature": "jobs",
+  "operation": "job.create",
+  "description": "A webhook with no program starts no runs: the plan's effect is write and no hold is quoted (no GET /run/quote).",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "job",
+    "create",
+    "--spec-file",
+    "spec.json",
+    "--preview"
+  ],
+  "files": [
+    {
+      "path": "spec.json",
+      "content": "{\"type\": \"webhook\", \"name\": \"hook\", \"delivery_mode\": \"test\"}"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "job.deploy",
+      "operation": "job.create",
+      "problem": null,
+      "result": {
+        "plannedRequest": {
+          "bodyBytes": 60,
+          "bodySha256": "7c76961c659609da273d3f622c4eb6545f3cb88915737f756ce90f704eab402d",
+          "description": "Create a job from a JSON spec.",
+          "effect": "write",
+          "method": "POST",
+          "operation": "job.create",
+          "summary": {
+            "delivery_mode": "test",
+            "name": "hook",
+            "type": "webhook"
+          }
+        },
+        "preview": true
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

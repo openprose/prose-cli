@@ -1,0 +1,27 @@
+{
+  "id": "alias-run-delete",
+  "feature": "framework",
+  "operation": "program.delete",
+  "description": "`cli run delete RUN_ID` explains that runs cannot be deleted and points to `cli program delete` and `cli job delete`.",
+  "argv": [
+    "cli",
+    "run",
+    "delete",
+    "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: Unknown command.\nDetail: unknown command `cli run delete`; did you mean `cli program delete --help`? runs cannot be deleted; a saved program is deleted with `cli program delete SLUG` and a job with `cli job delete JOB_ID`, and a run in progress is cancelled with `cli run cancel RUN_ID`\nAction: Runs cannot be deleted; a job is deleted with `cli job delete JOB_ID`. Use `cli program delete`: `prose cli program delete --help`.\n"
+  }
+}

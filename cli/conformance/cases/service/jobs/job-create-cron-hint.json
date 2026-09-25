@@ -1,0 +1,62 @@
+{
+  "id": "job-create-cron-hint",
+  "feature": "jobs",
+  "operation": "job.create",
+  "description": "A `cron` key in a schedule spec is refused with the interval_seconds hint (3600 = hourly).",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "job",
+    "create",
+    "--spec-file",
+    "spec.json",
+    "--preview"
+  ],
+  "files": [
+    {
+      "path": "spec.json",
+      "content": "{\"type\": \"schedule\", \"program_ref\": \"exowner1/jobs-example@0123456789abcdef\", \"cron\": \"0 * * * *\"}\n"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "job.deploy",
+      "operation": "job.create",
+      "problem": {
+        "action": "Correct the value named in Detail; `prose --output json cli job create --help` shows the accepted syntax.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "unknown key cron; a schedule job runs every interval_seconds seconds (3600 = hourly, 86400 = daily), not on a cron expression",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "job",
+            "create",
+            "--help"
+          ],
+          "violations": [
+            "unknown key cron; a schedule job runs every interval_seconds seconds (3600 = hourly, 86400 = daily), not on a cron expression"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}
