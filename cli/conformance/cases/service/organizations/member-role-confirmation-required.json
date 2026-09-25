@@ -1,0 +1,81 @@
+{
+  "id": "member-role-confirmation-required",
+  "feature": "organizations",
+  "operation": "org.member.role",
+  "description": "`org member role` without --yes sends nothing and exits 2 with the exact planned request (every organization mutation is confirm-class).",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "org",
+    "member",
+    "role",
+    "acme-research",
+    "cus_ExampleInvitee1",
+    "reader"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "organizations.manage",
+      "operation": "org.member.role",
+      "problem": {
+        "action": "Rerun the same command with --yes to confirm, or with --preview to see what it would do without sending anything.",
+        "boundary": "invocation",
+        "code": "CONFIRMATION_REQUIRED",
+        "details": {
+          "confirmArgv": [
+            "--output",
+            "json",
+            "cli",
+            "org",
+            "member",
+            "role",
+            "acme-research",
+            "cus_ExampleInvitee1",
+            "reader",
+            "--yes"
+          ],
+          "plannedRequest": {
+            "bodyBytes": 17,
+            "bodySha256": "2f2520d0c63f77525f1f0289687fe6285a07b8dc4f6a072654689592bf875c43",
+            "description": "Change a member's role.",
+            "effect": "write",
+            "method": "PATCH",
+            "operation": "org.member.role",
+            "summary": {
+              "role": "reader"
+            }
+          },
+          "previewArgv": [
+            "--output",
+            "json",
+            "cli",
+            "org",
+            "member",
+            "role",
+            "acme-research",
+            "cus_ExampleInvitee1",
+            "reader",
+            "--preview"
+          ],
+          "reason": "--yes is required because it changes what the member may do in the organization, effective now"
+        },
+        "exitCode": 2,
+        "message": "This service operation requires explicit confirmation.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

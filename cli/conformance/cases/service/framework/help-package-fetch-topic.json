@@ -1,0 +1,23 @@
+{
+  "id": "help-package-fetch-topic",
+  "feature": "framework",
+  "operation": "package.fetch",
+  "description": "`cli package fetch ORG/NAME@VERSION -h` prints its topic and fetches nothing.",
+  "argv": [
+    "cli",
+    "package",
+    "fetch",
+    "acme/tool@1.0.0",
+    "-h"
+  ],
+  "fixture": {
+    "exchanges": []
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "Usage: prose [GLOBAL OPTIONS] cli package fetch <ORG>/<NAME>@<VERSION> --output-dir <FRESH_DIR> [--sha256 <DIGEST>] [--json]\n\nFetch one exact version, verify canonical bytes and receipt hashes, then create a\nfresh directory. It never overwrites an existing directory. A target without its\nreceipt after an interruption is incomplete; there is no automatic resume.\n\nArguments:\n  ORG/NAME@VERSION            Exact package version.\n\nOptions:\n  --output-dir FRESH_DIR      Directory to create; it must not exist. Required.\n  --sha256 DIGEST             Expected package digest.\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli package fetch acme/tool@1.0.0 --output-dir tool --json\n\nOutput: openprose.package-operation/1 (--json).\nExit codes: 0 success; 2 invalid invocation or configuration; 10 service, credential or registry error; 24 interrupted.\n"
+  },
+  "stderr": {
+    "text": ""
+  }
+}

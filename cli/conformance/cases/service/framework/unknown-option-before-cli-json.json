@@ -1,0 +1,50 @@
+{
+  "id": "unknown-option-before-cli-json",
+  "feature": "framework",
+  "operation": "service.status",
+  "description": "An unknown option with an inline value before `cli` is rejected in JSON with the argv that drops it; later global options are kept.",
+  "argv": [
+    "--colour=always",
+    "--output",
+    "json",
+    "cli",
+    "service",
+    "status"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "health.read",
+      "operation": "service.status",
+      "problem": {
+        "action": "Remove the unknown option: `prose --output json cli service status`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "unknown option --colour before `cli`",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "service",
+            "status"
+          ]
+        },
+        "exitCode": 2,
+        "message": "Unknown option.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

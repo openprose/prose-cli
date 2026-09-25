@@ -1,0 +1,63 @@
+{
+  "id": "org-list-rejected-env-key",
+  "feature": "organizations",
+  "operation": "org.list",
+  "description": "org list with a rejected environment key: credentialProblem rejected and the replace-or-unset Action.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "org",
+    "list"
+  ],
+  "environment": {
+    "OPENPROSE_API_KEY": "rr_test_0123456789abcdef0123456789abcdef"
+  },
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/organizations",
+        "status": 403,
+        "body": {
+          "error": "Invalid API key."
+        },
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "schema": "openprose.service-operation/1",
+      "operation": "org.list",
+      "interaction": "organizations.manage",
+      "result": null,
+      "problem": {
+        "action": "Replace or unset OPENPROSE_API_KEY, then retry.",
+        "boundary": "authentication",
+        "code": "SERVICE_AUTH_REQUIRED",
+        "details": {
+          "credentialProblem": "rejected",
+          "credentialSource": "environment",
+          "credentialVariable": "OPENPROSE_API_KEY",
+          "reason": "the service rejected the API key in OPENPROSE_API_KEY (unknown or revoked); replace or unset OPENPROSE_API_KEY: an environment key takes precedence over `prose --output json cli auth login`"
+        },
+        "exitCode": 10,
+        "message": "OpenProse service authentication is required.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      }
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

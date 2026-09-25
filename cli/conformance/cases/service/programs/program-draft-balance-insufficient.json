@@ -1,0 +1,72 @@
+{
+  "id": "program-draft-balance-insufficient",
+  "feature": "programs",
+  "operation": "program.draft",
+  "description": "A 402 wallet_exhausted is SERVICE_BALANCE_INSUFFICIENT.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "program",
+    "draft",
+    "write a haiku about rain",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/write",
+        "requestHeaders": {
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          },
+          "User-Agent": {
+            "pattern": "^prose-cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"
+          },
+          "Accept": "text/event-stream",
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef",
+          "Content-Type": "application/json"
+        },
+        "expectedBody": {
+          "request": "write a haiku about rain"
+        },
+        "status": 402,
+        "body": {
+          "error": "Insufficient balance.",
+          "code": "wallet_exhausted"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "schema": "openprose.service-operation/1",
+      "operation": "program.draft",
+      "interaction": "write.author",
+      "result": null,
+      "problem": {
+        "schema": "openprose.runner-error/1",
+        "code": "SERVICE_BALANCE_INSUFFICIENT",
+        "boundary": "hosted-service",
+        "message": "The OpenProse wallet balance is insufficient for this operation.",
+        "action": "Add credit with the `cli wallet topup` or `cli wallet redeem` runner operation, then retry.",
+        "exitCode": 10,
+        "retryable": false,
+        "details": {
+          "serviceStatus": 402,
+          "serviceCode": "wallet_exhausted"
+        }
+      }
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

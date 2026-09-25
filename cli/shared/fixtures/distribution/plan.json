@@ -4,7 +4,7 @@
   "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   "qualification": {
     "status": "development",
-    "evidence": "https://github.com/openprose/openprose-expedition/tree/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/example"
+    "evidence": "https://github.com/openprose/example-evidence/tree/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/example"
   },
   "artifacts": [
     {"name":"bun.tar.gz","sha256":"1111111111111111111111111111111111111111111111111111111111111111","size":100,"implementation":"bun","platform":"darwin-arm64","kind":"standalone"},

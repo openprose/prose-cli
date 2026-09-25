@@ -1,0 +1,29 @@
+{
+  "schema": "openprose.human-dry-run-template/1",
+  "template": "shared/fixtures/human/dry-run.v1.txt",
+  "rules": "Each template line is one output line. A {name} placeholder takes a value already made terminal-safe by the renderer (native limits and native configuration are canonical JSON). A line starting with ? is printed without the ? when every placeholder in it has a value, and omitted otherwise. A line starting with * repeats once per item of its single list placeholder (none for an empty list). Every printed line ends with a line feed.",
+  "cases": [
+    {
+      "id": "blocked-with-repair",
+      "values": {
+        "cwd": "/work", "harness": "openprose", "transport": "hosted", "adapter": "openprose/hosted",
+        "placement": "unavailable", "strictness": "unsupported", "isolation": "unsupported",
+        "authCategory": "openprose-account", "authReadiness": "unknown", "billingOwner": "openprose",
+        "imageVersion": "sentinel-v1", "imageSha256": "abc", "readiness": "blocked",
+        "blockingCode": "HOSTED_UNAVAILABLE", "repairDetails": ["Detected version: 1", "Repair: fix"], "action": "Do it."
+      },
+      "rendered": "Dry run; no model started.\nWorking directory: /work\nHarness: openprose\nTransport: hosted\nAdapter: openprose/hosted\nPrompt placement: unavailable (unsupported)\nIsolation: unsupported\nAuth: openprose-account (unknown)\nBilling owner: openprose\nImage: sentinel-v1 (abc)\nReadiness: blocked\nBlocking problem: HOSTED_UNAVAILABLE\nDetected version: 1\nRepair: fix\nAction: Do it.\n"
+    },
+    {
+      "id": "ready-with-native-limits",
+      "values": {
+        "cwd": "/work", "harness": "agents-sdk", "transport": "sdk", "adapter": "agents-sdk/sdk",
+        "placement": "system", "strictness": "strict", "isolation": "none",
+        "authCategory": "api-key", "authReadiness": "ready", "billingOwner": "user-provider",
+        "imageVersion": "v1", "imageSha256": "def", "readiness": "ready",
+        "nativeLimits": "{\"maxTurns\":3}", "repairDetails": []
+      },
+      "rendered": "Dry run; no model started.\nWorking directory: /work\nHarness: agents-sdk\nTransport: sdk\nAdapter: agents-sdk/sdk\nPrompt placement: system (strict)\nIsolation: none\nAuth: api-key (ready)\nBilling owner: user-provider\nImage: v1 (def)\nReadiness: ready\nNative limits: {\"maxTurns\":3}\n"
+    }
+  ]
+}

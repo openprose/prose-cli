@@ -1,0 +1,48 @@
+{
+  "id": "no-cli-bare-run-suggests-submit",
+  "feature": "framework",
+  "operation": "run.submit",
+  "description": "A bare `prose run` is never forwarded to the language or the hosted path: it exits 2 and suggests `cli run submit --help`, the hosted way to run a program.",
+  "argv": [
+    "--output",
+    "json",
+    "run"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": null,
+      "operation": "cli",
+      "problem": {
+        "action": "Use `cli run submit`: `prose --output json cli run submit --help`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "`run` alone runs nothing here: hosted runs are `prose cli run submit FILE`; did you mean `prose --output json cli run submit --help`? Nothing was forwarded or sent. To pass these words to the OpenProse language instead, put `--` before them",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "submit",
+            "--help"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

@@ -119,6 +119,46 @@ OPENPROSE_REQUIRE_RELEASE_IMAGE=1 \
 cargo build --release --locked -p prose-cli
 ```
 
+## Developer endpoint build (OpenProse developers only)
+
+Public builds talk only to the production OpenProse service; the service
+origin is compiled in and no variable, option or configuration changes it.
+OpenProse developers who need another deployment build with the
+`dev-endpoint` cargo feature, which is off by default and never part of a
+published build:
+
+```sh
+cargo build --release --locked -p prose-cli --features dev-endpoint
+```
+
+Only this build reads `OPENPROSE_API_URL`, an https origin such as
+`https://host.example` (no path, query or credentials), and sends every
+service command there. The key still comes from `OPENPROSE_API_KEY` or
+`prose cli auth login`, but a login stores it under a credential-store entry
+scoped to that origin (`org.openprose.cli.custom-<first 16 hex digits of the
+origin's SHA-256>`), so it never replaces the production key. Human output
+names the endpoint (`OpenProse (custom endpoint <origin>)`) and JSON reports
+`"environment": "custom"`; run journals live under `custom-<digest>` beside
+`production`. The Bun port's dev build follows the same contract. Exercise the
+feature with:
+
+```sh
+cargo test --workspace --all-targets --features prose-cli/test-seams,prose-cli/dev-endpoint --locked --offline
+```
+
+The `rust-clippy-dev-endpoint`, `rust-tests-dev-endpoint` and
+`rust-build-dev-endpoint` gates in `cli/ci/run_local.py` lint and test the
+feature and build the developer binary itself (without the test seams).
+
+A release binary built on your own machine embeds the build paths of its
+source and of Cargo's registry, which include your home directory. Remap them
+before you share a locally built binary, as the `public-surface` gate does:
+
+```sh
+RUSTFLAGS="--remap-path-prefix=$(cd ../.. && pwd -P)=/openprose-source --remap-path-prefix=${CARGO_HOME:-$HOME/.cargo}=/cargo-home" \
+  cargo build --release --locked -p prose-cli --bin prose
+```
+
 The optional [native workspace profile](../../docs/native-profiles.md) exposes Claude’s ordinary workspace tools, including native delegation, with separate explicit directory access and tool permission rules. Existing defaults remain unchanged.
 
 Generic SDK budgets and their separate inner/outer deadlines are documented in [SDK execution budgets](../../docs/sdk-budgets.md).

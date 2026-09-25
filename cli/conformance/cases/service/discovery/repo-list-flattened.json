@@ -1,0 +1,110 @@
+{
+  "id": "repo-list-flattened",
+  "feature": "discovery",
+  "operation": "repo.list",
+  "description": "Flattens installations into repositories sorted by full_name then id, keeps one entry per id and drops owner metadata.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "repo",
+    "list"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/repos",
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef",
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          },
+          "Accept": "application/json"
+        },
+        "status": 200,
+        "body": {
+          "installations": [
+            {
+              "owner": "zeta-org",
+              "owner_type": "Organization",
+              "repos": [
+                {
+                  "id": 30,
+                  "name": "tools",
+                  "full_name": "zeta-org/tools",
+                  "private": true,
+                  "default_branch": "trunk"
+                },
+                {
+                  "id": 10,
+                  "name": "site",
+                  "full_name": "alpha/site",
+                  "private": false,
+                  "default_branch": "main"
+                }
+              ]
+            },
+            {
+              "owner": "alpha",
+              "owner_type": "User",
+              "repos": [
+                {
+                  "id": 10,
+                  "name": "site",
+                  "full_name": "alpha/site",
+                  "private": false,
+                  "default_branch": "main"
+                },
+                {
+                  "id": 20,
+                  "name": "notes",
+                  "full_name": "alpha/notes",
+                  "private": true
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "schema": "openprose.service-operation/1",
+      "operation": "repo.list",
+      "interaction": "repos.list",
+      "result": {
+        "repositories": [
+          {
+            "id": 20,
+            "name": "notes",
+            "full_name": "alpha/notes",
+            "private": true
+          },
+          {
+            "id": 10,
+            "name": "site",
+            "full_name": "alpha/site",
+            "private": false,
+            "default_branch": "main"
+          },
+          {
+            "id": 30,
+            "name": "tools",
+            "full_name": "zeta-org/tools",
+            "private": true,
+            "default_branch": "trunk"
+          }
+        ]
+      },
+      "problem": null
+    }
+  }
+}

@@ -1,0 +1,57 @@
+{
+  "id": "verb-synonym-org-member-rm",
+  "feature": "framework",
+  "operation": "org.member.remove",
+  "description": "Synonyms work in nested groups: `org member rm` suggests `org member remove`, and --yes is kept but nothing runs.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "org",
+    "member",
+    "rm",
+    "acme",
+    "acct_1",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": null,
+      "operation": "cli",
+      "problem": {
+        "action": "Use `cli org member remove`: `prose --output json cli org member remove acme acct_1 --yes`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "unknown command `cli org member rm`; did you mean `cli org member remove`? Commands: list, remove, role",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "org",
+            "member",
+            "remove",
+            "acme",
+            "acct_1",
+            "--yes"
+          ]
+        },
+        "exitCode": 2,
+        "message": "Unknown command.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

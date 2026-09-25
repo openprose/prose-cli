@@ -1,0 +1,85 @@
+{
+  "id": "contract-example-show-not-viewable-no-web-url",
+  "feature": "discovery",
+  "operation": "example.show",
+  "description": "An example whose source is not a private-example route is EXAMPLE_NOT_VIEWABLE (2, not retryable); details.webUrl is present only for an https address.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "example",
+    "show",
+    "agent-native"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/examples/private",
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef",
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          },
+          "Accept": "application/json"
+        },
+        "status": 200,
+        "body": {
+          "examples": [
+            {
+              "id": "private-example",
+              "label": "Private example",
+              "source": "/examples/private/private-example"
+            },
+            {
+              "id": "private-agent-browser",
+              "label": "Persona Website Feedback",
+              "source": "/examples/private/private-agent-browser"
+            },
+            {
+              "id": "agent-native",
+              "label": "Agent-native",
+              "source": "/docs/agent-native.prose.md"
+            },
+            {
+              "id": "agent-native-change",
+              "label": "Agent-native change",
+              "source": "https://examples.example.org/examples/agent-native-change.prose.md"
+            },
+            {
+              "id": "slack-hello",
+              "label": "Slack hello",
+              "source": "/examples/private/slack-hello"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "examples.private",
+      "operation": "example.show",
+      "problem": {
+        "action": "Read the example on the web at details.webUrl when it is present, or pick an example that the `cli example list` runner operation does not mark viewOnWeb.",
+        "boundary": "invocation",
+        "code": "EXAMPLE_NOT_VIEWABLE",
+        "details": {
+          "reason": "example \"agent-native\" is published outside the OpenProse service, so its source cannot be shown here; view it on the web"
+        },
+        "exitCode": 2,
+        "message": "This example is published outside the OpenProse service and cannot be shown here.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

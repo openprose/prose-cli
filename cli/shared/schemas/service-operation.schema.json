@@ -1,0 +1,333 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.openprose.org/cli/v1/service-operation.schema.json",
+  "title": "OpenProse service operation result v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "operation",
+    "interaction",
+    "result",
+    "problem"
+  ],
+  "properties": {
+    "schema": {
+      "const": "openprose.service-operation/1"
+    },
+    "operation": {
+      "description": "CLI operation id from shared/service/operations.v1.json, or the literal `cli` when an invocation error rejected an argv that names no operation.",
+      "type": "string",
+      "pattern": "^[a-z]+(?:\\.[a-z][a-z-]*)*$"
+    },
+    "interaction": {
+      "description": "Primary service catalog interaction id, or null for local operations.",
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "pattern": "^[a-z_]+\\.[a-z_]+$"
+        }
+      ]
+    },
+    "result": {
+      "description": "Closed per-operation projection named by the manifest, or null on failure.",
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object"
+        }
+      ]
+    },
+    "problem": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "runner-error.schema.json"
+        }
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "problem": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "problem"
+        ]
+      },
+      "then": {
+        "properties": {
+          "result": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "problem": {
+            "type": "null"
+          }
+        },
+        "required": [
+          "problem"
+        ]
+      },
+      "then": {
+        "properties": {
+          "result": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "operation": {
+            "const": "cli"
+          }
+        },
+        "required": [
+          "operation"
+        ]
+      },
+      "then": {
+        "required": [
+          "problem"
+        ],
+        "properties": {
+          "interaction": {
+            "type": "null"
+          },
+          "result": {
+            "type": "null"
+          },
+          "problem": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "enum": [
+                  "INVOCATION_INVALID",
+                  "CONFIRMATION_REQUIRED"
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "plannedRequest": {
+      "description": "What a confirm-class operation would do: its method, a description in words, the body by digest only, and the non-secret `summary` of the caller's inputs. The service route and query are never shown.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operation",
+        "method",
+        "description",
+        "bodySha256",
+        "bodyBytes",
+        "effect"
+      ],
+      "properties": {
+        "operation": {
+          "type": "string",
+          "maxLength": 64,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+        },
+        "method": {
+          "enum": [
+            "GET",
+            "POST",
+            "PUT",
+            "PATCH",
+            "DELETE"
+          ]
+        },
+        "description": {
+          "description": "What the request does: the first sentence of the operation's summary.",
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 512,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+        },
+        "bodySha256": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          ]
+        },
+        "bodyBytes": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "integer",
+              "minimum": 0
+            }
+          ]
+        },
+        "effect": {
+          "enum": [
+            "read",
+            "write",
+            "money",
+            "outward",
+            "destructive"
+          ]
+        },
+        "quote": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "hold"
+          ],
+          "properties": {
+            "hold": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "hold_usd",
+                "hold_cents",
+                "ttl_seconds"
+              ],
+              "properties": {
+                "hold_usd": {
+                  "type": "string",
+                  "pattern": "^-?[0-9]+\\.[0-9]{2}$"
+                },
+                "hold_cents": {
+                  "description": "hold_usd in whole cents.",
+                  "type": "integer"
+                },
+                "ttl_seconds": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            }
+          }
+        },
+        "summary": {
+          "description": "Non-secret fields of the JSON body, as listed by the manifest's confirmation.summaryFields (body key -> field). Omitted when the body has none of them. Secrets, program text and input values never appear.",
+          "type": "object",
+          "additionalProperties": false,
+          "minProperties": 1,
+          "properties": {
+            "type": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+            },
+            "slug": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+            },
+            "programRef": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+            },
+            "model": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+            },
+            "reasoning_effort": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+            },
+            "inputKeys": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+              }
+            },
+            "interval_seconds": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            "delivery_mode": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+            },
+            "visibility": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+            },
+            "role": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+            },
+            "amount_cents": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            }
+          }
+        },
+        "owner": {
+          "description": "Present when the command named OWNER/SLUG for an own-scope program verb (program save|visibility|delete, result publish|unpublish) and OWNER was confirmed as the caller from the caller's own revisions of SLUG. An OWNER that cannot be confirmed is refused (INVOCATION_INVALID, exit 2) before any plan exists, so `verified` is always true; a bare SLUG plan has no owner.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "handle",
+            "verified"
+          ],
+          "properties": {
+            "handle": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9-]{0,38}$"
+            },
+            "verified": {
+              "const": true
+            }
+          }
+        }
+      }
+    }
+  }
+}

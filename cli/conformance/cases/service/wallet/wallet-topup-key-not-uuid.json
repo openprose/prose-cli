@@ -1,0 +1,56 @@
+{
+  "id": "wallet-topup-key-not-uuid",
+  "feature": "wallet",
+  "operation": "wallet.topup",
+  "description": "An uppercase or non-UUID --idempotency-key is INVOCATION_INVALID.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "wallet",
+    "topup",
+    "--amount-cents",
+    "500",
+    "--idempotency-key",
+    "123E4567-E89B-42D3-A456-426614174000",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [],
+    "ids": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "wallet.topup",
+      "operation": "wallet.topup",
+      "problem": {
+        "action": "Correct the value named in Detail; `prose --output json cli wallet topup --help` shows the accepted syntax.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "--idempotency-key must be a lowercase UUID such as 123e4567-e89b-42d3-a456-426614174000 (reuse the idempotencyKey of an earlier top-up); got \"123E4567-E89B-42D3-A456-426614174000\"",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "wallet",
+            "topup",
+            "--help"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

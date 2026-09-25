@@ -1,0 +1,34 @@
+{
+  "id": "auth-logout-signed-out",
+  "feature": "account",
+  "operation": "auth.logout",
+  "description": "Logout while signed out succeeds (idempotent). Ported from the account corpus.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "auth",
+    "logout"
+  ],
+  "fixture": {
+    "credential": null,
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "schema": "openprose.service-operation/1",
+      "operation": "auth.logout",
+      "interaction": null,
+      "result": {
+        "authenticated": false,
+        "credentialSource": "none"
+      },
+      "problem": null
+    }
+  },
+  "stderr": {
+    "empty": true
+  }
+}

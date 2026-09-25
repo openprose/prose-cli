@@ -67,15 +67,25 @@ impl SupervisorFailure {
         }
     }
 
+    #[must_use]
     pub fn transport_diagnostic(&self) -> Option<Value> {
-        if let Some(value) = &self.transport_diagnostic { return Some(value.clone()); }
-        if !matches!(self.kind, FailureKind::ProtocolMalformed | FailureKind::ProtocolTruncated) { return None; }
+        if let Some(value) = &self.transport_diagnostic {
+            return Some(value.clone());
+        }
+        if !matches!(
+            self.kind,
+            FailureKind::ProtocolMalformed | FailureKind::ProtocolTruncated
+        ) {
+            return None;
+        }
         let reason = match self.message.as_str() {
             "harness emitted a malformed JSONL record" => "invalid-json",
             "harness emitted a non-object JSONL record" => "non-object-record",
             "harness emitted an empty structured record" => "empty-record",
             "harness structured output exceeded a fixed record limit" => "record-byte-limit",
-            "harness structured output exceeded a fixed transport limit" => "aggregate-stdout-limit",
+            "harness structured output exceeded a fixed transport limit" => {
+                "aggregate-stdout-limit"
+            }
             "harness stream ended in the middle of a structured record" => "truncated-record",
             _ => "lifecycle-rejection",
         };
@@ -95,8 +105,15 @@ impl SupervisorFailure {
         self
     }
 
-    pub(crate) fn with_byte_diagnostic(mut self, record: bool, observed: usize, limit: usize) -> Self {
-        self.transport_diagnostic = Some(serde_json::json!({"schema":"openprose.transport-diagnostic/1","reason":if record {"record-byte-limit"} else {"aggregate-stdout-limit"},"observedBytes":observed.min(u32::MAX as usize),"limitBytes":limit.min(u32::MAX as usize),"saturated":observed > u32::MAX as usize || limit > u32::MAX as usize}));
+    pub(crate) fn with_byte_diagnostic(
+        mut self,
+        record: bool,
+        observed: usize,
+        limit: usize,
+    ) -> Self {
+        self.transport_diagnostic = Some(
+            serde_json::json!({"schema":"openprose.transport-diagnostic/1","reason":if record {"record-byte-limit"} else {"aggregate-stdout-limit"},"observedBytes":observed.min(u32::MAX as usize),"limitBytes":limit.min(u32::MAX as usize),"saturated":observed > u32::MAX as usize || limit > u32::MAX as usize}),
+        );
         self
     }
 
@@ -379,7 +396,13 @@ pub struct ProcessOutcome {
 /// validate a record before deriving any user-visible projection from it.
 pub trait RecordObserver {
     /// Evidence-only hook; receiving a value never admits it. Unix transport only.
-    fn observe_parsed(&mut self, _record: &Value) -> Result<(), SupervisorFailure> { Ok(()) }
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`SupervisorFailure`] when the observer refuses the record.
+    fn observe_parsed(&mut self, _record: &Value) -> Result<(), SupervisorFailure> {
+        Ok(())
+    }
 
     /// Observes a single admitted record.
     ///
@@ -399,7 +422,9 @@ pub trait RecordObserver {
     }
 
     /// Close staged stdin after its acknowledgement.
-    fn close_stdin_requested(&self) -> bool { false }
+    fn close_stdin_requested(&self) -> bool {
+        false
+    }
 
     /// Replaces the just-observed record before the supervisor retains it.
     /// `None` preserves the admitted record byte-for-byte.
@@ -437,21 +462,28 @@ impl ProtocolState {
         protocol: &JsonlProtocol,
     ) -> Result<(), SupervisorFailure> {
         if std::str::from_utf8(bytes).is_err() {
-            let mut error=SupervisorFailure::new(FailureKind::ProtocolMalformed,"harness emitted invalid UTF-8 structured output");
-            error.transport_diagnostic=Some(serde_json::json!({"schema":"openprose.transport-diagnostic/1","reason":"invalid-utf8","observedBytes":bytes.len().min(u32::MAX as usize)}));
+            let mut error = SupervisorFailure::new(
+                FailureKind::ProtocolMalformed,
+                "harness emitted invalid UTF-8 structured output",
+            );
+            error.transport_diagnostic = Some(
+                serde_json::json!({"schema":"openprose.transport-diagnostic/1","reason":"invalid-utf8","observedBytes":bytes.len().min(u32::MAX as usize)}),
+            );
             return Err(error);
         }
         let value: Value = serde_json::from_slice(bytes).map_err(|_| {
             SupervisorFailure::new(
                 FailureKind::ProtocolMalformed,
                 "harness emitted a malformed JSONL record",
-            ).with_observed_diagnostic("invalid-json", bytes.len())
+            )
+            .with_observed_diagnostic("invalid-json", bytes.len())
         })?;
         let object = value.as_object().ok_or_else(|| {
             SupervisorFailure::new(
                 FailureKind::ProtocolMalformed,
                 "harness emitted a non-object JSONL record",
-            ).with_observed_diagnostic("non-object-record", bytes.len())
+            )
+            .with_observed_diagnostic("non-object-record", bytes.len())
         })?;
         if let Some(expected_schema) = protocol.schema.as_deref() {
             if object.get("schema").and_then(Value::as_str) != Some(expected_schema) {
@@ -467,7 +499,10 @@ impl ProtocolState {
                 "harness emitted a record without an event type",
             )
         })?;
-        if self.terminal.is_some() && !protocol.terminal_is_candidate && !protocol.allowed_after_terminal_events.contains(event_type) {
+        if self.terminal.is_some()
+            && !protocol.terminal_is_candidate
+            && !protocol.allowed_after_terminal_events.contains(event_type)
+        {
             return Err(SupervisorFailure::new(
                 FailureKind::ProtocolMalformed,
                 "harness emitted a record after its terminal record",
@@ -491,7 +526,9 @@ impl ProtocolState {
                 ));
             }
             self.started = true;
-        } else if event_type == protocol.start_event && !protocol.allowed_events.contains(event_type) {
+        } else if event_type == protocol.start_event
+            && !protocol.allowed_events.contains(event_type)
+        {
             return Err(SupervisorFailure::new(
                 FailureKind::ProtocolMalformed,
                 "harness emitted a duplicate session-start record",
@@ -578,7 +615,8 @@ impl HarnessJsonlAssembler {
             Err(SupervisorFailure::new(
                 FailureKind::ProtocolTruncated,
                 "harness stream ended in the middle of a structured record",
-            ).with_observed_diagnostic("truncated-record", self.record.len()))
+            )
+            .with_observed_diagnostic("truncated-record", self.record.len()))
         }
     }
 }
@@ -900,10 +938,15 @@ fn supervise_direct(
                             Ok(None) => {}
                             Err(error) => failure = Some(error),
                         }
-                        if observer.close_stdin_requested() { if let Some(writer)=stdin_writer.as_ref() {writer.request_close();} }
+                        if observer.close_stdin_requested() {
+                            if let Some(writer) = stdin_writer.as_ref() {
+                                writer.request_close();
+                            }
+                        }
                     }
                 }
-                if failure.is_none() && state.terminal.is_some() && !protocol.terminal_is_candidate {
+                if failure.is_none() && state.terminal.is_some() && !protocol.terminal_is_candidate
+                {
                     if let Some(writer) = stdin_writer.as_ref() {
                         writer.request_close();
                     }
@@ -1017,7 +1060,7 @@ fn supervise_direct(
     if !readers_settled || !stdin_settled {
         let _ = platform::terminate_original_process_group(&mut child, spec.termination_grace);
         return Err(SupervisorFailure {
-                transport_diagnostic: None,
+            transport_diagnostic: None,
             kind: FailureKind::CleanupFailed,
             message: "harness pipe cleanup could not be verified".to_owned(),
             stderr: diagnostic,
@@ -1032,7 +1075,7 @@ fn supervise_direct(
     if !platform::original_process_group_is_empty(&child) {
         let _ = platform::terminate_original_process_group(&mut child, spec.termination_grace);
         return Err(SupervisorFailure {
-                transport_diagnostic: None,
+            transport_diagnostic: None,
             kind: FailureKind::CleanupFailed,
             message: "original process group remained after harness exit".to_owned(),
             stderr: diagnostic,
@@ -1046,7 +1089,7 @@ fn supervise_direct(
     }
     if !stdin_ok {
         return Err(SupervisorFailure {
-                transport_diagnostic: None,
+            transport_diagnostic: None,
             kind: FailureKind::HarnessFailed,
             message: "adapter input could not be delivered to the harness".to_owned(),
             stderr: diagnostic,
@@ -1060,7 +1103,7 @@ fn supervise_direct(
     }
     let Some(terminal_envelope) = state.terminal else {
         return Err(SupervisorFailure {
-                transport_diagnostic: None,
+            transport_diagnostic: None,
             kind: FailureKind::ProtocolTruncated,
             message: "harness stream ended without its required terminal record".to_owned(),
             stderr: diagnostic,
@@ -1074,7 +1117,7 @@ fn supervise_direct(
     };
     if !status.success() {
         return Err(SupervisorFailure {
-                transport_diagnostic: None,
+            transport_diagnostic: None,
             kind: FailureKind::HarnessFailed,
             message: "harness exited unsuccessfully after a terminal record".to_owned(),
             stderr: diagnostic,
@@ -1230,7 +1273,12 @@ fn settle_readers_with_diagnostics(
         && Instant::now() < natural_deadline
     {
         if drain_diagnostics(receiver, stderr_bytes, maximum_stderr_bytes) == 0 {
-            wait_for_diagnostic(receiver, stderr_bytes, maximum_stderr_bytes, natural_deadline);
+            wait_for_diagnostic(
+                receiver,
+                stderr_bytes,
+                maximum_stderr_bytes,
+                natural_deadline,
+            );
         } else {
             thread::yield_now();
         }
@@ -2001,11 +2049,21 @@ fn handle_message(
         ReaderMessage::StdoutTruncated { observed } => Err(SupervisorFailure::new(
             FailureKind::ProtocolTruncated,
             "harness stream ended in the middle of a structured record",
-        ).with_observed_diagnostic("truncated-record", observed)),
-        ReaderMessage::StdoutLimit { record, observed, limit } => Err(SupervisorFailure::new(
+        )
+        .with_observed_diagnostic("truncated-record", observed)),
+        ReaderMessage::StdoutLimit {
+            record,
+            observed,
+            limit,
+        } => Err(SupervisorFailure::new(
             FailureKind::ProtocolMalformed,
-            if record { "harness structured output exceeded a fixed record limit" } else { "harness structured output exceeded a fixed transport limit" },
-        ).with_byte_diagnostic(record, observed, limit)),
+            if record {
+                "harness structured output exceeded a fixed record limit"
+            } else {
+                "harness structured output exceeded a fixed transport limit"
+            },
+        )
+        .with_byte_diagnostic(record, observed, limit)),
         ReaderMessage::StdoutIo => Err(SupervisorFailure::new(
             FailureKind::ProtocolTruncated,
             "harness structured output could not be read to completion",
@@ -2037,7 +2095,9 @@ fn wait_for_diagnostic(
     maximum: usize,
     deadline: Instant,
 ) {
-    let timeout = deadline.saturating_duration_since(Instant::now()).min(Duration::from_millis(1));
+    let timeout = deadline
+        .saturating_duration_since(Instant::now())
+        .min(Duration::from_millis(1));
     if let Ok(ReaderMessage::Stderr(bytes)) = receiver.recv_timeout(timeout) {
         let remaining = maximum.saturating_sub(stderr.len());
         stderr.extend_from_slice(&bytes[..bytes.len().min(remaining)]);
@@ -2188,20 +2248,45 @@ mod tests {
 
     #[test]
     fn diagnostic_reasons_are_closed_and_payload_free() {
-        let cases: Value=serde_json::from_str(include_str!("../../../../shared/fixtures/transport-diagnostics.json")).unwrap();
-        let mut state=ProtocolState::default();
-        let input=cases.as_array().unwrap().iter().find(|x|x["name"]=="json").unwrap()["input"].as_str().unwrap().trim();
-        let error=state.accept(input.as_bytes(),&JsonlProtocol::fake_harness()).unwrap_err();
-        let diagnostic=error.transport_diagnostic().unwrap();
-        assert_eq!(diagnostic["reason"],"invalid-json");
+        let cases: Value = serde_json::from_str(include_str!(
+            "../../../../shared/fixtures/transport-diagnostics.json"
+        ))
+        .unwrap();
+        let mut state = ProtocolState::default();
+        let input = cases
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|x| x["name"] == "json")
+            .unwrap()["input"]
+            .as_str()
+            .unwrap()
+            .trim();
+        let error = state
+            .accept(input.as_bytes(), &JsonlProtocol::fake_harness())
+            .unwrap_err();
+        let diagnostic = error.transport_diagnostic().unwrap();
+        assert_eq!(diagnostic["reason"], "invalid-json");
         assert!(!diagnostic.to_string().contains("secret-invalid"));
-        let error=state.accept(&[255],&JsonlProtocol::fake_harness()).unwrap_err();
-        assert_eq!(error.transport_diagnostic().unwrap()["reason"],"invalid-utf8");
-        let error=SupervisorFailure::new(FailureKind::ProtocolMalformed,"untrusted raw payload");
-        assert_eq!(error.transport_diagnostic().unwrap()["reason"],"lifecycle-rejection");
-        let error=SupervisorFailure::new(FailureKind::ProtocolMalformed,"limit").with_byte_diagnostic(false,usize::MAX,8);
-        assert_eq!(error.transport_diagnostic().unwrap()["observedBytes"],u32::MAX);
-        assert_eq!(error.transport_diagnostic().unwrap()["saturated"],true);
+        let error = state
+            .accept(&[255], &JsonlProtocol::fake_harness())
+            .unwrap_err();
+        assert_eq!(
+            error.transport_diagnostic().unwrap()["reason"],
+            "invalid-utf8"
+        );
+        let error = SupervisorFailure::new(FailureKind::ProtocolMalformed, "untrusted raw payload");
+        assert_eq!(
+            error.transport_diagnostic().unwrap()["reason"],
+            "lifecycle-rejection"
+        );
+        let error = SupervisorFailure::new(FailureKind::ProtocolMalformed, "limit")
+            .with_byte_diagnostic(false, usize::MAX, 8);
+        assert_eq!(
+            error.transport_diagnostic().unwrap()["observedBytes"],
+            u32::MAX
+        );
+        assert_eq!(error.transport_diagnostic().unwrap()["saturated"], true);
     }
 
     #[test]
@@ -2278,19 +2363,42 @@ mod tests {
     fn parsed_capture_retains_rejected_record_without_admission() {
         struct Capture(Vec<Value>);
         impl RecordObserver for Capture {
-            fn observe_parsed(&mut self, record:&Value)->Result<(),SupervisorFailure>{self.0.push(record.clone());Ok(())}
-            fn observe(&mut self,_:&Value)->Result<(),SupervisorFailure>{Ok(())}
+            fn observe_parsed(&mut self, record: &Value) -> Result<(), SupervisorFailure> {
+                self.0.push(record.clone());
+                Ok(())
+            }
+            fn observe(&mut self, _: &Value) -> Result<(), SupervisorFailure> {
+                Ok(())
+            }
         }
-        let protocol=JsonlProtocol::installed("ready","done",["message"]);
-        let mut state=ProtocolState::default();
-        let mut capture=Capture(vec![]);
-        let mut stderr=vec![];let mut stdout_eof=false;let mut stderr_eof=false;
-        for bytes in [br#"{"type":"ready"}"#.to_vec(),br#"{"type":"unexpected","text":"fixture-secret"}"#.to_vec()] {
-            let result=handle_message(ReaderMessage::Record(bytes),&protocol,&mut state,&mut stderr,&mut stdout_eof,&mut stderr_eof,&mut Some(&mut capture));
-            if capture.0.len()==2 {assert_eq!(result.unwrap_err().kind,FailureKind::ProtocolMalformed);}
-            else {result.unwrap();}
+        let protocol = JsonlProtocol::installed("ready", "done", ["message"]);
+        let mut state = ProtocolState::default();
+        let mut capture = Capture(vec![]);
+        let mut stderr = vec![];
+        let mut stdout_eof = false;
+        let mut stderr_eof = false;
+        for bytes in [
+            br#"{"type":"ready"}"#.to_vec(),
+            br#"{"type":"unexpected","text":"fixture-secret"}"#.to_vec(),
+        ] {
+            let result = handle_message(
+                ReaderMessage::Record(bytes),
+                &protocol,
+                &mut state,
+                &mut stderr,
+                &mut stdout_eof,
+                &mut stderr_eof,
+                &mut Some(&mut capture),
+            );
+            if capture.0.len() == 2 {
+                assert_eq!(result.unwrap_err().kind, FailureKind::ProtocolMalformed);
+            } else {
+                result.unwrap();
+            }
         }
-        assert_eq!(capture.0.len(),2);assert_eq!(state.records.len(),1);assert!(state.terminal.is_none());
+        assert_eq!(capture.0.len(), 2);
+        assert_eq!(state.records.len(), 1);
+        assert!(state.terminal.is_none());
     }
 
     #[test]
@@ -2351,8 +2459,15 @@ mod tests {
     fn explicitly_allowed_start_type_can_carry_later_nonterminal_records() {
         let protocol = JsonlProtocol::installed("system", "result", ["system", "assistant"]);
         let mut state = ProtocolState::default();
-        state.accept(br#"{"type":"system","subtype":"init"}"#, &protocol).unwrap();
-        state.accept(br#"{"type":"system","subtype":"thinking_tokens"}"#, &protocol).unwrap();
+        state
+            .accept(br#"{"type":"system","subtype":"init"}"#, &protocol)
+            .unwrap();
+        state
+            .accept(
+                br#"{"type":"system","subtype":"thinking_tokens"}"#,
+                &protocol,
+            )
+            .unwrap();
         assert!(state.terminal.is_none());
         state.accept(br#"{"type":"result"}"#, &protocol).unwrap();
         assert!(state.terminal.is_some());
@@ -2469,17 +2584,40 @@ mod tests {
 
 #[cfg(test)]
 mod candidate_terminal_tests {
- use super::*;
- #[test]
- fn candidate_requires_fresh_native_record_and_preserves_legacy(){
-  let records:Vec<Value>=serde_json::from_str(include_str!("../../../../shared/fixtures/adapters/claude-native-turns.json")).unwrap();
-  let mut protocol=JsonlProtocol::installed("system","result",["system","assistant"]);protocol.terminal_is_candidate=true;
-  let mut state=ProtocolState::default();for r in &records{state.accept(&serde_json::to_vec(r).unwrap(),&protocol).unwrap();}
-  assert!(state.terminal.is_some());assert_eq!(state.records.len(),3);
-  state.accept(br#"{"type":"assistant"}"#,&protocol).unwrap();assert!(state.terminal.is_some()); // Candidate evidence retained; adapter validates freshness after exit.
-  state.accept(&serde_json::to_vec(&records[2]).unwrap(),&protocol).unwrap();assert!(state.terminal.is_some());
-  protocol.terminal_is_candidate=false;let mut state=ProtocolState::default();
-  for r in &records[..2]{state.accept(&serde_json::to_vec(r).unwrap(),&protocol).unwrap();}
-  assert!(state.accept(&serde_json::to_vec(&records[2]).unwrap(),&protocol).is_err());
- }
+    use super::*;
+    #[test]
+    fn candidate_requires_fresh_native_record_and_preserves_legacy() {
+        let records: Vec<Value> = serde_json::from_str(include_str!(
+            "../../../../shared/fixtures/adapters/claude-native-turns.json"
+        ))
+        .unwrap();
+        let mut protocol = JsonlProtocol::installed("system", "result", ["system", "assistant"]);
+        protocol.terminal_is_candidate = true;
+        let mut state = ProtocolState::default();
+        for r in &records {
+            state
+                .accept(&serde_json::to_vec(r).unwrap(), &protocol)
+                .unwrap();
+        }
+        assert!(state.terminal.is_some());
+        assert_eq!(state.records.len(), 3);
+        state.accept(br#"{"type":"assistant"}"#, &protocol).unwrap();
+        assert!(state.terminal.is_some()); // Candidate evidence retained; adapter validates freshness after exit.
+        state
+            .accept(&serde_json::to_vec(&records[2]).unwrap(), &protocol)
+            .unwrap();
+        assert!(state.terminal.is_some());
+        protocol.terminal_is_candidate = false;
+        let mut state = ProtocolState::default();
+        for r in &records[..2] {
+            state
+                .accept(&serde_json::to_vec(r).unwrap(), &protocol)
+                .unwrap();
+        }
+        assert!(
+            state
+                .accept(&serde_json::to_vec(&records[2]).unwrap(), &protocol)
+                .is_err()
+        );
+    }
 }

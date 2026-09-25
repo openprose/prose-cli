@@ -1,0 +1,43 @@
+{
+  "id": "model-list-human",
+  "feature": "discovery",
+  "operation": "model.list",
+  "description": "Human `model list` prints one model per line, marks the default and ends with a `Next:` command.",
+  "argv": [
+    "cli",
+    "model",
+    "list"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/models",
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef",
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          },
+          "Accept": "application/json"
+        },
+        "status": 200,
+        "body": {
+          "models": [
+            "model-sol",
+            "model-luna"
+          ],
+          "default_model": "model-sol"
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "model-sol (default)\nmodel-luna\nNext: prose cli run quote\n"
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "id": "model-list-no-key",
+  "feature": "discovery",
+  "operation": "model.list",
+  "description": "model list needs a key (no /health fallback): without one it sends nothing and names the variable.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "model",
+    "list"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "models.list",
+      "operation": "model.list",
+      "problem": {
+        "action": "Set OPENPROSE_API_KEY or run `prose --output json cli auth login`, then retry.",
+        "boundary": "authentication",
+        "code": "SERVICE_AUTH_REQUIRED",
+        "details": {
+          "credentialProblem": "missing",
+          "credentialSource": "none",
+          "credentialVariable": "OPENPROSE_API_KEY",
+          "reason": "no API key for OpenProse: set OPENPROSE_API_KEY or run `prose --output json cli auth login`"
+        },
+        "exitCode": 10,
+        "message": "OpenProse service authentication is required.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

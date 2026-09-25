@@ -1,0 +1,48 @@
+{
+  "id": "no-cli-job-list-json",
+  "feature": "framework",
+  "operation": "job.list",
+  "description": "`prose --output json job list` keeps the global and inserts `cli` in details.suggestedArgv.",
+  "argv": [
+    "--output",
+    "json",
+    "job",
+    "list"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": null,
+      "operation": "cli",
+      "problem": {
+        "action": "Insert cli before the service command: `prose --output json cli job list`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "`job list` is a service command; did you mean `prose --output json cli job list`? Nothing was forwarded or sent. To pass these words to the OpenProse language instead, put `--` before them",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "job",
+            "list"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

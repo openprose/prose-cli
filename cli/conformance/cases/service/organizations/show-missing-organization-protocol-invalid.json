@@ -1,0 +1,58 @@
+{
+  "id": "show-missing-organization-protocol-invalid",
+  "feature": "organizations",
+  "operation": "org.show",
+  "description": "A success body without an organization object is SERVICE_PROTOCOL_INVALID.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "org",
+    "show",
+    "acme-research"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/organizations/acme-research",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          },
+          "Accept": "application/json"
+        },
+        "status": 200,
+        "body": {
+          "organizations": []
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "organizations.manage",
+      "operation": "org.show",
+      "problem": {
+        "action": "Retry later and report the sanitized error code if it persists.",
+        "boundary": "protocol",
+        "code": "SERVICE_PROTOCOL_INVALID",
+        "exitCode": 10,
+        "message": "The OpenProse service returned an invalid response.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1",
+        "details": {
+          "reason": "the service response has a missing or invalid organization"
+        }
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

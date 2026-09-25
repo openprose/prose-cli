@@ -1,0 +1,70 @@
+{
+  "id": "result-show-output-file-exists",
+  "feature": "results",
+  "operation": "result.show",
+  "description": "An existing --output-file is refused before any request and left untouched.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "result",
+    "show",
+    "Owner/demo",
+    "AbCdEf012_-x",
+    "--raw",
+    "--output-file",
+    "result.json"
+  ],
+  "files": [
+    {
+      "path": "result.json",
+      "content": "keep me\n"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "results.read_public",
+      "operation": "result.show",
+      "problem": {
+        "action": "Correct the value named in Detail; `prose --output json cli result show --help` shows the accepted syntax.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "output file \"result.json\" already exists; choose a new path",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "result",
+            "show",
+            "--help"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "expectFiles": [
+    {
+      "path": "result.json",
+      "content": "keep me\n"
+    }
+  ],
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

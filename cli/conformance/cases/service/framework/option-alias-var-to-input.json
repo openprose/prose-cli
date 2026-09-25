@@ -1,0 +1,61 @@
+{
+  "id": "option-alias-var-to-input",
+  "feature": "framework",
+  "operation": "run.submit",
+  "description": "`--var K=V` suggests `--input K=V`, keeping the value.",
+  "argv": [
+    "cli",
+    "run",
+    "submit",
+    "hello.prose.md",
+    "--var",
+    "topic=cats",
+    "--preview",
+    "--json"
+  ],
+  "files": [
+    {
+      "path": "hello.prose.md",
+      "content": "# Hello\n\nSay hello.\n"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "run.submit",
+      "operation": "run.submit",
+      "problem": {
+        "action": "Replace --var with --input: `prose cli run submit hello.prose.md --input topic=cats --preview --json`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "unknown option --var for `cli run submit`; did you mean --input?",
+          "suggestedArgv": [
+            "cli",
+            "run",
+            "submit",
+            "hello.prose.md",
+            "--input",
+            "topic=cats",
+            "--preview",
+            "--json"
+          ]
+        },
+        "exitCode": 2,
+        "message": "Unknown option.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

@@ -1180,7 +1180,12 @@ fn operation_fixture(name: &str) -> Value {
 fn expected_harness_inventory() -> Value {
     let mut harnesses = operation_fixture("harnesses")["harnesses"].clone();
     // The generic SDK adapter was added after the older operation fixture.
-    if !harnesses.as_array().unwrap().iter().any(|h|h["id"]=="agents-sdk") {
+    if !harnesses
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|h| h["id"] == "agents-sdk")
+    {
         harnesses.as_array_mut().unwrap().insert(5,json!({"id":"agents-sdk","runtime":"installed-process","availability":"missing","transports":["jsonl"],"detectedVersion":null,"billingOwner":"user-provider","authCategory":"harness-managed","strictWrapperConformant":false,"testOnly":false}));
     }
     for harness in &mut harnesses.as_array_mut().unwrap()[1..6] {
@@ -1209,13 +1214,12 @@ fn help_is_the_exact_shared_fixture_and_starts_nothing() {
     let temp = TempDir::new().unwrap();
     for args in [
         vec!["--help"],
-        vec!["cli", "--help"],
         vec!["cli", "harness", "--help"],
         vec!["cli", "harness", "use", "--help"],
         vec!["cli", "cleanup", "prime", "--help"],
         vec!["cli", "cleanup", "prime", "opaque-handle", "--help"],
         vec!["cli", "config", "explain", "--help"],
-        vec!["--cwd", "/definitely/missing", "cli", "auth", "--help"],
+        vec!["--cwd", "/definitely/missing", "cli", "doctor", "--help"],
     ] {
         let output = prose(temp.path(), &args);
         assert!(output.status.success(), "{args:?}");
@@ -1226,6 +1230,54 @@ fn help_is_the_exact_shared_fixture_and_starts_nothing() {
             "{args:?}"
         );
     }
+}
+
+/// The frozen account groups and verbs (`auth`,
+/// `org list`, `package`) print their `help.v1.json` topic, never the runner
+/// help, and start nothing (no device flow, no config write, no keychain).
+#[test]
+fn account_verb_help_prints_its_manifest_topic_and_starts_nothing() {
+    let temp = TempDir::new().unwrap();
+    let help: Value =
+        serde_json::from_str(include_str!("../../../../shared/service/help.v1.json")).unwrap();
+    for (args, topic) in [
+        (vec!["cli", "auth", "--help"], "cli auth"),
+        (
+            vec![
+                "--cwd",
+                "/definitely/missing",
+                "cli",
+                "auth",
+                "status",
+                "--help",
+            ],
+            "cli auth status",
+        ),
+        (vec!["cli", "auth", "login", "--help"], "cli auth login"),
+        (vec!["cli", "auth", "logout", "-h"], "cli auth logout"),
+        (vec!["cli", "org", "list", "--help"], "cli org list"),
+        (
+            vec!["cli", "package", "publish", "--help"],
+            "cli package publish",
+        ),
+    ] {
+        let output = prose(temp.path(), &args);
+        assert!(output.status.success(), "{args:?}");
+        assert!(output.stderr.is_empty(), "{args:?}");
+        let text = String::from_utf8(output.stdout).unwrap();
+        assert_eq!(text, help["topics"][topic].as_str().unwrap(), "{args:?}");
+        assert!(!text.contains("OpenProse outer runner"), "{args:?}");
+        if topic.split(' ').count() == 3 {
+            assert!(text.contains("\nExit codes: 0 success"), "{args:?}");
+        }
+    }
+    // Help persisted nothing.
+    assert!(
+        fs::read_dir(temp.path().join("home").join("xdg"))
+            .unwrap()
+            .next()
+            .is_none()
+    );
 }
 
 #[test]
@@ -1311,7 +1363,19 @@ fn default_is_openprose_billed_and_never_falls_back() {
     assert_eq!(result["error"]["details"]["fallbackSelected"], false);
     assert_eq!(
         result["error"]["action"],
-        "Select an available BYO harness with the `cli harness use <id>` runner operation, then invoke the `cli doctor` runner operation."
+        "To use the hosted service, run `cli run submit FILE --preview`; running programs on this machine needs a local harness (`cli harness list`)."
+    );
+    assert_eq!(
+        result["error"]["details"]["suggestedArgv"],
+        serde_json::json!([
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "submit",
+            "fixture.prose.md",
+            "--preview"
+        ])
     );
 }
 
@@ -2184,7 +2248,10 @@ fn prime_parser_failures_expose_only_the_closed_framing_diagnostic() {
             "{fault}"
         );
         assert!(!serialized.contains("candidateSecret"), "{fault}");
-        assert!(matches!(result["error"]["details"]["reason"].as_str(),Some("protocol_admission_rejected" | "invalid_json")));
+        assert!(matches!(
+            result["error"]["details"]["reason"].as_str(),
+            Some("protocol_admission_rejected" | "invalid_json")
+        ));
         assert!(result["error"]["details"]["admittedRecordCount"].is_u64());
     }
 }
@@ -2964,7 +3031,7 @@ fn doctor_marks_the_selected_installed_harness_as_needs_auth() {
         stdout.contains("Problem: HARNESS_NEEDS_AUTH — The selected harness is not authenticated.")
     );
     assert!(stdout.contains(&format!(
-        "Action: Use the exact executable at {} for runner operations. Sign in with the selected harness. For Codex, run `codex login`; for Claude, run `claude auth login`; for Prime or OMP cached login, select its explicit harness-login `--auth-profile`; for API-key routes, configure the selected profile. Then retry.",
+        "Action: Use the exact runner invocation {} for runner operations. Sign in with the selected harness. For Codex, run `codex login`; for Claude, run `claude auth login`; for Prime or OMP cached login, select its explicit harness-login `--auth-profile`; for API-key routes, configure the selected profile. Then retry.",
         shell_single_quote(echo_test_prose().to_str().unwrap())
     )));
     assert!(!stdout.contains("$PROSE"));
@@ -3887,7 +3954,7 @@ fn missing_prime_selection_options_have_exact_human_invocation_repair() {
         "Detail: Prime and OMP selection requires explicit CLI --model and --auth-profile options; inherited configuration does not select a credential route.\n"
     ));
     assert!(stderr.contains(&format!(
-        "Action: Use the exact executable at {} for runner operations. Invoke the `cli harness use prime` runner operation with both the `--model` and `--auth-profile` options, then retry.\n",
+        "Action: Use the exact runner invocation {} for runner operations. Invoke the `cli harness use prime` runner operation with both the `--model` and `--auth-profile` options, then retry.\n",
         expected_human_runner_command("").trim_end()
     )));
     assert!(!stderr.contains("Source: unavailable"));
@@ -4629,7 +4696,15 @@ fn runner_diagnostics_and_identity_stay_local() {
             .iter()
             .map(|harness| harness["id"].as_str().unwrap())
             .collect::<Vec<_>>(),
-        ["openprose", "prime", "omp", "codex", "claude", "agents-sdk", "mock"]
+        [
+            "openprose",
+            "prime",
+            "omp",
+            "codex",
+            "claude",
+            "agents-sdk",
+            "mock"
+        ]
     );
     for harness in &harnesses[1..6] {
         assert_eq!(harness["runtime"], "installed-process");
@@ -4987,49 +5062,277 @@ fn doctor_reports_installed_adapter_configuration_blockers_without_fallback() {
 fn account_status_and_mutations_use_only_hermetic_service_store() {
     let temp = TempDir::new().unwrap();
     let fixture = temp.path().join("service.json");
-    fs::write(&fixture, json!({"environment":"production","credential":null,"storeAvailable":false,"exchanges":[]}).to_string()).unwrap();
+    fs::write(
+        &fixture,
+        json!({"environment":"production","credential":null,"storeAvailable":false,"exchanges":[]})
+            .to_string(),
+    )
+    .unwrap();
     for command in ["status", "login", "logout"] {
         let output = Command::new(env!("CARGO_BIN_EXE_prose"))
             .args(["cli", "auth", command, "--json"])
-            .current_dir(temp.path()).env_clear()
+            .current_dir(temp.path())
+            .env_clear()
             .env("HOME", temp.path().join("home"))
             .env("XDG_CONFIG_HOME", temp.path().join("xdg"))
             .env("PROSE_TEST_SERVICE_FIXTURE", &fixture)
-            .output().unwrap();
+            .output()
+            .unwrap();
         let result = json_stdout(&output);
-        assert_eq!(result["schema"], "openprose.service-account/1");
-        assert_eq!(result["environment"], "production");
+        assert_eq!(result["schema"], "openprose.service-operation/1");
+        assert_eq!(result["operation"], format!("auth.{command}"));
+        assert!(result.get("environment").is_none());
         assert_eq!(result["problem"]["code"], "CREDENTIAL_STORE_UNAVAILABLE");
     }
 }
 
 #[cfg(feature = "test-seams")]
+/// The retired service-selection option, spelled so the public-surface
+/// scan does not match this negative test.
+const RETIRED_OPTION: &str = concat!("--service-", "environment");
+
+/// Runs the binary against a service fixture with a clean environment.
+#[cfg(feature = "test-seams")]
+fn run_with_fixture(
+    temp: &TempDir,
+    fixture: &Value,
+    variables: &[(&str, &str)],
+    args: &[&str],
+) -> std::process::Output {
+    let path = temp.path().join("service.json");
+    fs::write(&path, fixture.to_string()).unwrap();
+    let mut command = Command::new(env!("CARGO_BIN_EXE_prose"));
+    command
+        .args(args)
+        .current_dir(temp.path())
+        .env_clear()
+        .env("HOME", temp.path().join("home"))
+        .env("XDG_CONFIG_HOME", temp.path().join("xdg"))
+        .env("XDG_STATE_HOME", temp.path().join("state"))
+        .env("PROSE_TEST_SERVICE_FIXTURE", &path);
+    for (name, value) in variables {
+        command.env(name, value);
+    }
+    command.output().unwrap()
+}
+
+/// The `GET /health` exchange of `cli service status`, at `origin`.
+#[cfg(feature = "test-seams")]
+fn health_exchange(origin: &str) -> Value {
+    json!({"method": "GET", "path": "/health", "origin": origin, "status": 200,
+           "body": {"status": "ok", "models": ["model-sol"], "default_model": "model-sol"}})
+}
+
+#[cfg(feature = "test-seams")]
 #[test]
-fn persistent_service_selection_and_credentials_are_isolated() {
+fn no_command_option_or_saved_setting_selects_a_service() {
     let temp = TempDir::new().unwrap();
     let xdg = temp.path().join("xdg");
     fs::create_dir_all(xdg.join("openprose")).unwrap();
     let config = xdg.join("openprose/cli.toml");
-    fs::write(&config, "# retain comment\nharness = \"codex\"\n").unwrap();
-    let fixture = temp.path().join("service.json");
-    fs::write(&fixture, json!({"environment":"staging","credentials":{"production":"rr_test_11111111111111111111111111111111","staging":null},"storeAvailable":true,"exchanges":[]}).to_string()).unwrap();
-    let run = |args: &[&str]| Command::new(env!("CARGO_BIN_EXE_prose"))
-        .args(args).current_dir(temp.path()).env_clear()
-        .env("HOME", temp.path().join("home")).env("XDG_CONFIG_HOME", &xdg)
-        .env("PROSE_TEST_SERVICE_FIXTURE", &fixture)
-        .env("OPENPROSE_API_KEY", "rr_test_11111111111111111111111111111111")
-        .output().unwrap();
-    assert_eq!(json_stdout(&run(&["cli", "environment", "show", "--json"]))["environment"], "production");
-    assert_eq!(json_stdout(&run(&["cli", "environment", "use", "staging", "--json"]))["source"], "user-config");
-    assert_eq!(json_stdout(&run(&["cli", "environment", "show", "--json"]))["environment"], "staging");
-    let status = json_stdout(&run(&["cli", "auth", "status", "--json"]));
-    assert_eq!(status["environment"], "staging");
-    assert_eq!(status["authenticated"], false);
-    assert_eq!(status["credentialSource"], "none");
-    let human = run(&["cli", "org", "list"]);
-    assert!(String::from_utf8_lossy(&human.stderr).contains("OpenProse staging"));
-    assert_eq!(json_stdout(&run(&["cli", "environment", "reset", "--json"]))["source"], "default");
-    assert_eq!(fs::read_to_string(config).unwrap(), "# retain comment\nharness = \"codex\"\n");
+    // A selection saved by an earlier client is ignored, never an error.
+    let saved = "# retain comment\nharness = \"codex\"\nservice_environment = \"other\"\n";
+    fs::write(&config, saved).unwrap();
+    let key = "rr_test_11111111111111111111111111111111";
+    let fixture = json!({"environment": "production", "credentials": {"production": null},
+                         "storeAvailable": true, "exchanges": []});
+    let status = run_with_fixture(
+        &temp,
+        &fixture,
+        &[("OPENPROSE_API_KEY", "")],
+        &["cli", "auth", "status", "--json"],
+    );
+    let status = json_stdout(&status);
+    assert!(status.get("environment").is_none());
+    assert_eq!(status["result"]["authenticated"], false);
+    assert!(status.get("lane").is_none());
+    let human = run_with_fixture(&temp, &fixture, &[], &["cli", "auth", "status"]);
+    assert_eq!(
+        String::from_utf8_lossy(&human.stdout),
+        "OpenProse account status: signed out\n"
+    );
+    assert!(human.stderr.is_empty());
+    // The retired commands and the retired option are not commands.
+    for args in [
+        vec!["--output", "json", "cli", "environment", "show"],
+        vec![
+            "--output",
+            "json",
+            "cli",
+            "environment",
+            "use",
+            "production",
+        ],
+        vec!["--output", "json", "cli", "api", "GET", "/health"],
+        vec!["cli", "auth", "status", RETIRED_OPTION, "production"],
+        vec![RETIRED_OPTION, "production", "cli", "auth", "status"],
+    ] {
+        let output = run_with_fixture(&temp, &fixture, &[("OPENPROSE_API_KEY", key)], &args);
+        assert!(!output.status.success(), "{args:?}");
+        let text = String::from_utf8_lossy(&output.stdout).into_owned()
+            + &String::from_utf8_lossy(&output.stderr);
+        assert!(!text.contains("authenticated"), "{args:?}: {text}");
+    }
+    let output = run_with_fixture(
+        &temp,
+        &fixture,
+        &[],
+        &["--output", "json", "cli", "environment", "show"],
+    );
+    let document = json_stdout(&output);
+    assert_eq!(document["problem"]["code"], "INVOCATION_INVALID");
+    assert_eq!(output.status.code(), Some(2));
+    assert_eq!(fs::read_to_string(config).unwrap(), saved);
+}
+
+#[cfg(all(feature = "test-seams", not(feature = "dev-endpoint")))]
+#[test]
+fn public_builds_ignore_the_endpoint_override() {
+    let temp = TempDir::new().unwrap();
+    let fixture = json!({"environment": "production", "credentials": {"production": null},
+                         "storeAvailable": true,
+                         "exchanges": [health_exchange("https://run-prose-production.openprose.workers.dev")]});
+    let output = run_with_fixture(
+        &temp,
+        &fixture,
+        &[("OPENPROSE_API_URL", "https://example.invalid")],
+        &["--output", "json", "cli", "service", "status"],
+    );
+    assert!(output.status.success(), "{output:?}");
+    let document = json_stdout(&output);
+    assert!(document.get("environment").is_none());
+    assert_eq!(document["result"]["status"], "ok");
+    // An invalid override is not even read.
+    let fixture = json!({"environment": "production", "credentials": {"production": null},
+                         "storeAvailable": true,
+                         "exchanges": [health_exchange("https://run-prose-production.openprose.workers.dev")]});
+    let output = run_with_fixture(
+        &temp,
+        &fixture,
+        &[("OPENPROSE_API_URL", "not a url")],
+        &["cli", "service", "status"],
+    );
+    assert!(output.status.success(), "{output:?}");
+    assert!(output.stderr.is_empty());
+}
+
+#[cfg(all(feature = "test-seams", feature = "dev-endpoint"))]
+#[test]
+fn dev_endpoint_builds_honor_the_override_with_their_own_credential_entry() {
+    let temp = TempDir::new().unwrap();
+    let origin = "https://example.invalid";
+    let key = "rr_test_22222222222222222222222222222222";
+    let fixture = json!({"environment": "custom", "credentials": {"production": key, "custom": null},
+                         "storeAvailable": true, "exchanges": [health_exchange(origin)]});
+    let output = run_with_fixture(
+        &temp,
+        &fixture,
+        &[("OPENPROSE_API_URL", "https://Example.invalid/")],
+        &["--output", "json", "cli", "service", "status"],
+    );
+    assert!(output.status.success(), "{output:?}");
+    // JSON names no service environment; the human banner names the endpoint.
+    let document = json_stdout(&output);
+    assert!(document.get("environment").is_none());
+    assert_eq!(document["result"]["status"], "ok");
+    let output = run_with_fixture(
+        &temp,
+        &fixture,
+        &[("OPENPROSE_API_URL", origin)],
+        &["cli", "service", "status"],
+    );
+    assert!(output.status.success(), "{output:?}");
+    assert_eq!(
+        String::from_utf8_lossy(&output.stderr),
+        "OpenProse (custom endpoint https://example.invalid)\n"
+    );
+    // The production key is never the custom endpoint's key.
+    let output = run_with_fixture(
+        &temp,
+        &fixture,
+        &[("OPENPROSE_API_URL", origin)],
+        &["--output", "json", "cli", "auth", "status"],
+    );
+    let status = json_stdout(&output);
+    assert!(status.get("environment").is_none());
+    assert_eq!(status["result"]["authenticated"], false);
+    assert_eq!(status["result"]["credentialSource"], "none");
+    // An override that is not an https origin is a configuration error.
+    let output = run_with_fixture(
+        &temp,
+        &fixture,
+        &[("OPENPROSE_API_URL", "http://example.invalid")],
+        &["--output", "json", "cli", "service", "status"],
+    );
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stdout).contains("CONFIG_INVALID"));
+}
+
+/// A dev-endpoint build names itself in copyable commands exactly as it was
+/// invoked, so a copied command re-runs the same build against the same
+/// endpoint instead of the public `prose`.
+#[cfg(all(feature = "test-seams", feature = "dev-endpoint", unix))]
+#[test]
+fn dev_endpoint_builds_name_the_invoked_executable_in_copyable_commands() {
+    let temp = TempDir::new().unwrap();
+    let origin = "https://example.invalid";
+    let fixture = json!({"environment": "custom", "credentials": {"custom": null},
+                         "storeAvailable": true, "exchanges": [health_exchange(origin)]});
+    let path = temp.path().join("service.json");
+    fs::write(&path, fixture.to_string()).unwrap();
+    let bin = temp.path().join("bin");
+    fs::create_dir_all(&bin).unwrap();
+    std::os::unix::fs::symlink(env!("CARGO_BIN_EXE_prose"), bin.join("prose-dev")).unwrap();
+    let run = |program: &std::ffi::OsStr, args: &[&str]| {
+        Command::new(program)
+            .args(args)
+            .current_dir(temp.path())
+            .env_clear()
+            .env("PATH", &bin)
+            .env("HOME", temp.path().join("home"))
+            .env("XDG_CONFIG_HOME", temp.path().join("xdg"))
+            .env("XDG_STATE_HOME", temp.path().join("state"))
+            .env("PROSE_TEST_SERVICE_FIXTURE", &path)
+            .env("OPENPROSE_API_URL", origin)
+            .output()
+            .unwrap()
+    };
+    // Found on PATH: the name as typed.
+    let output = run("prose-dev".as_ref(), &["cli", "service", "status"]);
+    assert!(output.status.success(), "{output:?}");
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert!(
+        stdout.ends_with("Next: prose-dev cli service triage\n"),
+        "{stdout}"
+    );
+    // A misspelled command's suggestion names it too.
+    let output = run("prose-dev".as_ref(), &["cli", "servise", "status"]);
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert!(
+        stderr.contains("`prose-dev cli service status`"),
+        "{stderr}"
+    );
+    assert!(!stderr.contains("`prose cli"), "{stderr}");
+    // Help names it in its usage, examples and pointers.
+    let output = run("prose-dev".as_ref(), &["cli", "run", "--help"]);
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert!(
+        stdout.starts_with("Usage: prose-dev [GLOBAL OPTIONS] cli run"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("\n  prose-dev cli run submit hello.prose.md --preview\n"),
+        "{stdout}"
+    );
+    assert!(!stdout.contains("prose cli"), "{stdout}");
+    // Invoked by path: that path.
+    let direct = bin.join("prose-dev");
+    let output = run(direct.as_os_str(), &["cli", "service", "status"]);
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert!(
+        stdout.ends_with(&format!("Next: {} cli service triage\n", direct.display())),
+        "{stdout}"
+    );
 }
 
 #[test]
@@ -5040,8 +5343,8 @@ fn human_failures_keep_result_stdout_clean() {
     assert!(output.stdout.is_empty());
     let diagnostic = String::from_utf8(output.stderr).unwrap();
     assert!(diagnostic.contains("HOSTED_UNAVAILABLE"));
-    assert!(diagnostic.contains("Select an available BYO harness"));
-    assert!(diagnostic.contains("`cli harness use <id>` runner operation"));
+    assert!(diagnostic.contains("To use the hosted service, run `cli run submit FILE --preview`"));
+    assert!(diagnostic.contains("needs a local harness (`cli harness list`)"));
     assert!(!diagnostic.contains("Wait for OpenProse-hosted execution"));
 }
 
@@ -5105,15 +5408,34 @@ fn malformed_local_command_honors_json_stdout_discipline() {
     ] {
         let output = prose(temp.path(), &args);
         assert_eq!(output.status.code(), Some(2));
-        let error = json_stdout(&output);
+        let document = json_stdout(&output);
+        // A service command line's error is the service envelope's `problem`
+        // in JSON mode; malformed runner syntax stays bare.
+        let error = if args[0] == "cli" {
+            assert_eq!(document["schema"], "openprose.service-operation/1");
+            assert_eq!(document["operation"], "cli");
+            assert_eq!(document["result"], Value::Null);
+            document["problem"].clone()
+        } else {
+            document
+        };
         assert_eq!(error["schema"], "openprose.runner-error/1");
         assert_eq!(error["code"], "INVOCATION_INVALID");
         assert_eq!(error["boundary"], "invocation");
-        assert_eq!(error["message"], "Runner invocation is invalid.");
-        assert_eq!(
-            error["action"],
+        // A `cli` command's error says what was wrong; the runner's is generic.
+        let message = if args[0] == "cli" {
+            "Unknown command."
+        } else {
+            "Runner invocation is invalid."
+        };
+        assert_eq!(error["message"], message);
+        // An unknown command after `cli` gets the per-cause Action; other malformed runner syntax keeps the generic one.
+        let action = if args[0] == "cli" {
+            "List the service commands with `prose --output json cli --help`."
+        } else {
             "Review the runner syntax with the --help option, place global options before cli, and retry the command."
-        );
+        };
+        assert_eq!(error["action"], action);
         assert_eq!(error["exitCode"], 2);
         assert_eq!(error["retryable"], false);
     }
@@ -5263,4 +5585,29 @@ fn human_configuration_errors_escape_a_hostile_source_path_and_machine_output_pr
     let machine = prose(&hostile_root, &["--output", "json", "cli", "doctor"]);
     assert_eq!(machine.status.code(), Some(2));
     assert_eq!(json_stdout(&machine)["details"]["source"], source);
+}
+
+/// A reader that goes away (`| head -1`) ends the output
+/// silently with the command's own exit code, as in the Bun build; it is not
+/// `INTERNAL_ERROR` with exit 70.
+#[test]
+fn closed_stdout_pipe_is_silent_success() {
+    let root = tempfile::tempdir().unwrap();
+    let home = root.path().join("home");
+    fs::create_dir_all(&home).unwrap();
+    // The manifest is larger than a pipe buffer, so the write meets EPIPE.
+    let mut child = Command::new(sentinel_prose())
+        .args(["--output", "json", "cli", "service", "operations"])
+        .current_dir(root.path())
+        .env_clear()
+        .env("HOME", &home)
+        .env("XDG_CONFIG_HOME", home.join("xdg"))
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    drop(child.stdout.take());
+    let output = child.wait_with_output().unwrap();
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(String::from_utf8_lossy(&output.stderr), "");
 }

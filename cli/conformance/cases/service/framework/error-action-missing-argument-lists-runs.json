@@ -1,0 +1,26 @@
+{
+  "id": "error-action-missing-argument-lists-runs",
+  "feature": "framework",
+  "operation": "run.show",
+  "description": "A missing <RUN_ID> gets its own Action: the run listing in the invocation's environment, not the generic runner syntax advice.",
+  "argv": [
+    "cli",
+    "run",
+    "show"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: That command isn't quite right.\nDetail: missing argument <RUN_ID> for `cli run show`\nAction: Pass <RUN_ID>; list runs with `prose cli run list`.\n"
+  }
+}

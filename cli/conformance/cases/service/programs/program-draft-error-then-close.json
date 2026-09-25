@@ -1,0 +1,89 @@
+{
+  "id": "program-draft-error-then-close",
+  "feature": "programs",
+  "operation": "program.draft",
+  "description": "An error event followed by end of stream (no run_complete) is terminal: HOSTED_RUN_FAILED with the sanitized message.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "program",
+    "draft",
+    "write a haiku about rain",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/write",
+        "requestHeaders": {
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          },
+          "User-Agent": {
+            "pattern": "^prose-cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"
+          },
+          "Accept": "text/event-stream",
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef",
+          "Content-Type": "application/json"
+        },
+        "expectedBody": {
+          "request": "write a haiku about rain"
+        },
+        "status": 200,
+        "sse": {
+          "frames": [
+            {
+              "event": "status",
+              "data": {
+                "type": "status",
+                "status": "running",
+                "run_id": "run_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "message": "reactor model-luna"
+              }
+            },
+            {
+              "event": "error",
+              "data": {
+                "type": "error",
+                "message": "Model\nfailed"
+              }
+            }
+          ],
+          "end": "close"
+        }
+      }
+    ]
+  },
+  "exitCode": 22,
+  "stdout": {
+    "json": {
+      "interaction": "write.author",
+      "operation": "program.draft",
+      "problem": {
+        "action": "Inspect the run with the `cli run show` runner operation, correct the program or inputs, then submit again.",
+        "boundary": "hosted-service",
+        "code": "HOSTED_RUN_FAILED",
+        "details": {
+          "reason": "the hosted writer reported an error: The run failed on the service.",
+          "runId": "run_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "exitCode": 22,
+        "message": "The hosted run finished without completing successfully.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

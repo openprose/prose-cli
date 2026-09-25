@@ -1,0 +1,42 @@
+{
+  "id": "job-contract-attach-human",
+  "feature": "jobs",
+  "operation": "job.contract.attach",
+  "description": "Human attach says what changed and how to list the contracts.",
+  "argv": [
+    "cli",
+    "job",
+    "contract",
+    "attach",
+    "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10",
+    "exowner1/jobs-example@0123456789abcdef",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/triggers/3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10/contracts",
+        "status": 201,
+        "body": {
+          "bound": "exowner1/jobs-example@0123456789abcdef"
+        },
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "Attached exowner1/jobs-example@0123456789abcdef to job 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10.\nList the job's contracts with `cli job contract list 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10`.\n"
+  },
+  "stderr": {
+    "text": ""
+  }
+}

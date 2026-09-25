@@ -1,0 +1,40 @@
+{
+  "id": "job-delete-already-absent-human",
+  "feature": "jobs",
+  "operation": "job.delete",
+  "description": "Human form of an idempotent confirmed delete: says the job was already absent and exits 0.",
+  "argv": [
+    "cli",
+    "job",
+    "delete",
+    "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "DELETE",
+        "path": "/triggers/3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10",
+        "status": 404,
+        "body": {
+          "error": "Not found"
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "Job 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10 was already absent; nothing was deleted.\n"
+  },
+  "stderr": {
+    "text": ""
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

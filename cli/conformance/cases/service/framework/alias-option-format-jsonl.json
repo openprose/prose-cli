@@ -1,0 +1,49 @@
+{
+  "id": "alias-option-format-jsonl",
+  "feature": "framework",
+  "operation": "run.list",
+  "description": "`--format jsonl` after the command path suggests `--output jsonl` and prints the error as a JSON envelope.",
+  "argv": [
+    "cli",
+    "run",
+    "list",
+    "--format",
+    "jsonl"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "runs.list",
+      "operation": "run.list",
+      "problem": {
+        "action": "Replace --format with --output: `prose cli run list --output jsonl`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "unknown option --format for `cli run list`; did you mean --output?",
+          "suggestedArgv": [
+            "cli",
+            "run",
+            "list",
+            "--output",
+            "jsonl"
+          ]
+        },
+        "exitCode": 2,
+        "message": "Unknown option.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

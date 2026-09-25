@@ -1,0 +1,62 @@
+{
+  "id": "cancel-truncated-id-suggests-journal-run",
+  "feature": "runs",
+  "operation": "run.cancel",
+  "description": "A run id shorter than 64 hex digits is truncated: INVOCATION_INVALID before any request, and the one run in this machine's journal it is a prefix of is the correction (details.suggestedArgv).",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "cancel",
+    "run_4f1c2d3e",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [],
+    "journal": [
+      {
+        "session": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f",
+        "runId": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+        "createdAt": "2026-09-24T00:59:00.000Z",
+        "lastSequence": 3,
+        "sourceSha256": null
+      }
+    ]
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "run.cancel",
+      "operation": "run.cancel",
+      "problem": {
+        "action": "Use the full run id run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c: `prose --output json cli run cancel run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c --yes`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "run id \"run_4f1c2d3e\" looks truncated; a full run id has 64 hex digits",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "cancel",
+            "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+            "--yes"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

@@ -1,0 +1,74 @@
+{
+  "id": "wallet-topup-insecure-url",
+  "feature": "wallet",
+  "operation": "wallet.topup",
+  "description": "A non-https Checkout URL is SERVICE_PROTOCOL_INVALID carrying the key.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "wallet",
+    "topup",
+    "--amount-cents",
+    "500",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/wallet/topup",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          },
+          "Idempotency-Key": "6f1c2b3a-4d5e-4f60-8a7b-9c0d1e2f3a4b",
+          "Content-Type": "application/json"
+        },
+        "expectedBody": {
+          "amount_cents": 500
+        },
+        "status": 200,
+        "body": {
+          "checkout_url": "http://checkout.example/pay",
+          "session_id": "cs_test_a1b2c3",
+          "amount": {
+            "credits_cents": 500,
+            "fee_cents": 60,
+            "total_cents": 560
+          }
+        }
+      }
+    ],
+    "ids": [
+      "6f1c2b3a-4d5e-4f60-8a7b-9c0d1e2f3a4b"
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "wallet.topup",
+      "operation": "wallet.topup",
+      "problem": {
+        "action": "Retry later and report the sanitized error code if it persists.",
+        "boundary": "protocol",
+        "code": "SERVICE_PROTOCOL_INVALID",
+        "details": {
+          "idempotencyKey": "6f1c2b3a-4d5e-4f60-8a7b-9c0d1e2f3a4b",
+          "reason": "unexpected wallet response: checkout_url"
+        },
+        "exitCode": 10,
+        "message": "The OpenProse service returned an invalid response.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

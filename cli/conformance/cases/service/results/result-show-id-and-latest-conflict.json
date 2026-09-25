@@ -1,0 +1,56 @@
+{
+  "id": "result-show-id-and-latest-conflict",
+  "feature": "results",
+  "operation": "result.show",
+  "description": "A publication id and --latest together are refused.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "result",
+    "show",
+    "Owner/demo",
+    "AbCdEf012_-x",
+    "--latest"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "results.read_public",
+      "operation": "result.show",
+      "problem": {
+        "action": "Correct the value named in Detail; `prose --output json cli result show --help` shows the accepted syntax.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "give either <PUBLICATION_ID> or --latest, not both",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "result",
+            "show",
+            "--help"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

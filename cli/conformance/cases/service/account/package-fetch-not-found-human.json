@@ -1,0 +1,38 @@
+{
+  "id": "package-fetch-not-found-human",
+  "feature": "account",
+  "operation": "package.fetch",
+  "description": "Human form of a registry 404: the first line names the environment, then Detail and an Action quoting `cli package list ORG`.",
+  "argv": [
+    "cli",
+    "package",
+    "fetch",
+    "acme-research/tool@1.2.0",
+    "--output-dir",
+    "out"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/registry/v1/organizations/acme-research/packages/tool/versions/1.2.0",
+        "status": 404,
+        "body": {
+          "error": "Not found"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "text": ""
+  },
+  "stderr": {
+    "text": "OpenProse: SERVICE_RESOURCE_NOT_FOUND: The requested OpenProse service resource was not found.\nDetail: package acme-research/tool@1.2.0 was not found; the version does not exist, or this key cannot read it\nAction: Run `prose cli package list acme-research` to find the right package, then retry with it.\n"
+  }
+}

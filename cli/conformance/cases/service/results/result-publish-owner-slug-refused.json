@@ -1,0 +1,89 @@
+{
+  "id": "result-publish-owner-slug-refused",
+  "feature": "results",
+  "operation": "result.publish",
+  "description": "publish OWNER/SLUG for another owner is refused after the revisions check, with the bare slug to pass.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "result",
+    "publish",
+    "Owner/demo",
+    "--run",
+    "run_abc123abc123abc123abc123abc123abc123abc123abc123abc123abc123abc1",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/programs/demo/revisions",
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "status": 200,
+        "body": {
+          "revisions": [
+            {
+              "owner": "alice",
+              "slug": "demo",
+              "rev": 2,
+              "rev_id": "fedcba9876543210",
+              "commit_id": "2222222222222222",
+              "parent_commit_id": "1111111111111111",
+              "updated_at": 1790212299320,
+              "message": "second"
+            },
+            {
+              "owner": "alice",
+              "slug": "demo",
+              "rev": 1,
+              "rev_id": "0123456789abcdef",
+              "commit_id": "1111111111111111",
+              "parent_commit_id": null,
+              "updated_at": 1790212199320
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "results.publish",
+      "operation": "result.publish",
+      "problem": {
+        "action": "Correct the value named in Detail; `prose --output json cli result publish --help` shows the accepted syntax.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "OWNER \"Owner\" is not you: your program \"demo\" is alice/demo, and <SLUG> names a program in your own account; pass \"demo\"",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "result",
+            "publish",
+            "--help"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

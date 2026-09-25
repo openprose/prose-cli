@@ -9,6 +9,9 @@ repository.workspace = true
 [features]
 default = []
 test-seams = []
+# Developer builds only: the service origin can be overridden at runtime.
+# Never part of a public build.
+dev-endpoint = []
 
 [dependencies]
 ureq = { version = "=2.12.1", default-features = false, features = ["tls"] }
@@ -18,7 +21,7 @@ serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
 toml.workspace = true
-uuid.workspace = true
+uuid = { workspace = true, features = ["v4"] }
 
 [target.'cfg(unix)'.dependencies]
 rustix = { workspace = true, features = ["event", "net", "fs"] }

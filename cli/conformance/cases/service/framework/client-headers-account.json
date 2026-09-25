@@ -1,0 +1,53 @@
+{
+  "id": "client-headers-account",
+  "feature": "framework",
+  "operation": "auth.status",
+  "description": "Account requests carry the same client identity headers.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "auth",
+    "status"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/organizations",
+        "status": 200,
+        "requestHeaders": {
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          },
+          "User-Agent": {
+            "pattern": "^prose-cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"
+          },
+          "Accept": "application/json",
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "body": {
+          "organizations": []
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "schema": "openprose.service-operation/1",
+      "operation": "auth.status",
+      "interaction": "cli.auth_status",
+      "result": {
+        "authenticated": true,
+        "credentialSource": "store"
+      },
+      "problem": null
+    }
+  }
+}

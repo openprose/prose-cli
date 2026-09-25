@@ -1,0 +1,67 @@
+{
+  "id": "auth-login-denied",
+  "feature": "account",
+  "operation": "auth.login",
+  "description": "Device flow: a denied authorization is DEVICE_AUTH_FAILED and nothing is stored. Ported from the account corpus.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "auth",
+    "login"
+  ],
+  "fixture": {
+    "credential": null,
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/auth/device",
+        "status": 200,
+        "body": {
+          "device_code": "fixture-device-secret",
+          "user_code": "ABCD-EFGH",
+          "verification_uri": "https://github.com/login/device",
+          "expires_in": 60,
+          "interval": 1
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/auth/device/poll",
+        "status": 400,
+        "body": {
+          "status": "error",
+          "error": "access_denied"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "schema": "openprose.service-operation/1",
+      "operation": "auth.login",
+      "interaction": "auth.device_flow",
+      "result": null,
+      "problem": {
+        "action": "Run login again and authorize the displayed code.",
+        "boundary": "authentication",
+        "code": "DEVICE_AUTH_FAILED",
+        "exitCode": 10,
+        "message": "Device authorization failed.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1",
+        "details": {
+          "reason": "the device authorization was denied; nothing was stored"
+        }
+      }
+    }
+  },
+  "stderr": {
+    "text": "Go to https://github.com/login/device and enter code: ABCD-EFGH\n"
+  },
+  "forbid": [
+    "fixture-device-secret"
+  ]
+}

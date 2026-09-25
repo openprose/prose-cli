@@ -1,0 +1,78 @@
+{
+  "id": "help-org-list-topic",
+  "feature": "framework",
+  "operation": "org.list",
+  "description": "`--output json cli org list --help` prints its own topic, not the runner help, as the envelope's result: {help, operations} with the org.list record.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "org",
+    "list",
+    "--help"
+  ],
+  "fixture": {
+    "exchanges": []
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "organizations.manage",
+      "operation": "org.list",
+      "problem": null,
+      "result": {
+        "help": "Usage: prose [GLOBAL OPTIONS] cli org list [--json]\n\nList the organizations this account belongs to: id, slug, name and role. The\nfirst call can create the account's default organization. Human output is one\n`SLUG  ROLE  NAME` line per organization (`-` without a role). Global options\nmay also follow the command. Other organization commands: `prose cli org --help`.\n\nArguments: none.\n\nOptions:\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli org list --json\n\nGlobal options:\n  --output human|json|jsonl   Output mode; the same as the PROSE_OUTPUT setting.\n\nCredentials:\n  OPENPROSE_API_KEY           API key; a non-empty value wins over the stored key.\n\nDevice flow: `cli auth login` prints a one-time code and https://github.com/login/device\non stderr, never the key, and never opens a browser. A person approves the code\nthere within 15 minutes. An agent without a person sets the variable instead.\n\nOutput: openprose.organization-list/1 (--json).\nExit codes: 0 success; 2 invalid invocation or configuration; 10 service or credential error; 24 interrupted.\n",
+        "operations": [
+          {
+            "arguments": [],
+            "command": [
+              "cli",
+              "org",
+              "list"
+            ],
+            "confirm": false,
+            "contract": "account/1",
+            "effect": "read",
+            "examples": [
+              "prose cli org list --json"
+            ],
+            "exitCodes": [
+              {
+                "exit": 0,
+                "meaning": "success"
+              },
+              {
+                "exit": 2,
+                "meaning": "invalid invocation or configuration"
+              },
+              {
+                "exit": 10,
+                "meaning": "service or credential error"
+              },
+              {
+                "codes": [
+                  "CANCELLED"
+                ],
+                "exit": 24,
+                "meaning": "interrupted"
+              }
+            ],
+            "feature": "organizations",
+            "id": "org.list",
+            "mutation": false,
+            "options": [],
+            "output": {
+              "paged": false,
+              "records": "organizations",
+              "schema": "organization-list.schema.json",
+              "stream": false
+            },
+            "preview": false,
+            "summary": "List the organizations this account belongs to."
+          }
+        ]
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

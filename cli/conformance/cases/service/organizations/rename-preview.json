@@ -1,0 +1,47 @@
+{
+  "id": "rename-preview",
+  "feature": "organizations",
+  "operation": "org.rename",
+  "description": "`org rename` with --preview returns the plan, exits 0 and sends nothing.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "org",
+    "rename",
+    "acme-research",
+    "Acme Labs",
+    "--preview"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "organizations.manage",
+      "operation": "org.rename",
+      "problem": null,
+      "result": {
+        "plannedRequest": {
+          "bodyBytes": 20,
+          "bodySha256": "c93ded6449b25d27ad5fa31829bbd0a7dca183ae9118acc05d0c0fcc426e896d",
+          "description": "Change an organization's display name.",
+          "effect": "write",
+          "method": "PATCH",
+          "operation": "org.rename",
+          "summary": {
+            "name": "Acme Labs"
+          }
+        },
+        "preview": true
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

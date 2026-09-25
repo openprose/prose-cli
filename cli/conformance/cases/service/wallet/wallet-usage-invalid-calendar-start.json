@@ -1,0 +1,56 @@
+{
+  "id": "wallet-usage-invalid-calendar-start",
+  "feature": "wallet",
+  "operation": "wallet.usage",
+  "description": "--start 2026-02-30 is not a calendar date: INVOCATION_INVALID, sends nothing (the server would answer 500).",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "wallet",
+    "usage",
+    "--start",
+    "2026-02-30"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [],
+    "clock": {
+      "start": "2026-09-23T12:00:00.000Z",
+      "stepMs": 0
+    }
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "wallet.usage",
+      "operation": "wallet.usage",
+      "problem": {
+        "action": "Correct the value named in Detail; `prose --output json cli wallet usage --help` shows the accepted syntax.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "--start must be a calendar date as YYYY-MM-DD, got \"2026-02-30\"",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "wallet",
+            "usage",
+            "--help"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

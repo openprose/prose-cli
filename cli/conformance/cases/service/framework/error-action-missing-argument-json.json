@@ -1,0 +1,49 @@
+{
+  "id": "error-action-missing-argument-json",
+  "feature": "framework",
+  "operation": "run.show",
+  "description": "In JSON the missing-argument Action and details.suggestedArgv keep --output.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "show"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "run.read",
+      "operation": "run.show",
+      "problem": {
+        "action": "Pass <RUN_ID>; list runs with `prose --output json cli run list`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "missing argument <RUN_ID> for `cli run show`",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "list"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

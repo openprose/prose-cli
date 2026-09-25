@@ -1,0 +1,81 @@
+{
+  "id": "member-role-not-found",
+  "feature": "organizations",
+  "operation": "org.member.role",
+  "description": "member_not_found (404) on a member route gains details.reason naming the member list, so an agent can tell it from organization_not_found.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "org",
+    "member",
+    "role",
+    "acme-research",
+    "cus_Nobody",
+    "reader",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "PATCH",
+        "path": "/organizations/acme-research/members/cus_Nobody",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          },
+          "Accept": "application/json",
+          "Content-Type": "application/json"
+        },
+        "status": 404,
+        "body": {
+          "error": "Member not found",
+          "code": "member_not_found"
+        },
+        "expectedBody": {
+          "role": "reader"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "organizations.manage",
+      "operation": "org.member.role",
+      "problem": {
+        "action": "Run `prose --output json cli org member list acme-research` to find the right member, then retry with it.",
+        "boundary": "hosted-service",
+        "code": "SERVICE_RESOURCE_NOT_FOUND",
+        "details": {
+          "reason": "ORG exists but has no such member; run `prose --output json cli org member list ORG` and pass a member number it prints",
+          "resource": {
+            "id": "cus_Nobody",
+            "kind": "member"
+          },
+          "serviceStatus": 404,
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "org",
+            "member",
+            "list",
+            "acme-research"
+          ]
+        },
+        "exitCode": 10,
+        "message": "The requested OpenProse service resource was not found.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

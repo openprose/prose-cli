@@ -1,0 +1,70 @@
+{
+  "id": "run-cancel-no-session-live",
+  "feature": "runs",
+  "operation": "run.cancel",
+  "description": "Cancelling a live run (no ended record: GET /runs/{id} is 404) from a machine with no live session for it is INVOCATION_INVALID whose Action names the submitting machine's journal or --session UUID, not the generic 'Correct the value named in Detail'.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "cancel",
+    "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/runs/run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+        "requestHeaders": {
+          "Authorization": {
+            "pattern": "^Bearer rr_test_[0-9a-f]{32}$"
+          }
+        },
+        "status": 404,
+        "body": {
+          "error": "Run not found"
+        }
+      }
+    ]
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "run.cancel",
+      "operation": "run.cancel",
+      "problem": {
+        "action": "Cancel the run from the machine that submitted it (its run journal holds the live session) or pass that session with --session UUID; nothing was cancelled. Once it ends, read its outcome with `prose --output json cli run show run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c has no ended record yet: it is still running (a run's record is written when it ends) or it does not exist, and this machine's run journal has no live session for it. A run's live session is kept in the run journal of the machine that submitted it: cancel it there, or pass --session UUID; once the run ends, `prose --output json cli run show run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c` reads its outcome",
+          "runId": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "show",
+            "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

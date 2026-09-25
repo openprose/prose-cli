@@ -1,0 +1,28 @@
+{
+  "id": "create-bad-slug-human",
+  "feature": "organizations",
+  "operation": "org.create",
+  "description": "Human form of the local slug refusal.",
+  "argv": [
+    "cli",
+    "org",
+    "create",
+    "Acme Research",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: That command isn't quite right.\nDetail: organization slug \"Acme Research\" must be 1-63 lowercase letters, digits or interior hyphens; slugs are global and permanent\nAction: Choose a slug that fits the rule, for example `prose cli org create acme-research --yes`.\n"
+  }
+}

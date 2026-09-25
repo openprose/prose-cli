@@ -1,0 +1,54 @@
+{
+  "id": "program-show-invalid-reference",
+  "feature": "programs",
+  "operation": "program.show",
+  "description": "A malformed reference is INVOCATION_INVALID before any request (a bare lowercase SLUG is valid: your own program).",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "program",
+    "show",
+    "Alice/demo@abc"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "program.read",
+      "operation": "program.show",
+      "problem": {
+        "action": "Correct the value named in Detail; `prose --output json cli program show --help` shows the accepted syntax.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "program reference \"Alice/demo@abc\" must be OWNER/SLUG[@REV]: an owner handle, a lowercase slug and, after @, the 16-hex-digit rev_id",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "program",
+            "show",
+            "--help"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

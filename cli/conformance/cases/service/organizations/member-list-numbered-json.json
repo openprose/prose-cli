@@ -1,0 +1,83 @@
+{
+  "id": "member-list-numbered-json",
+  "feature": "organizations",
+  "operation": "org.member.list",
+  "description": "`org member list --json` numbers members (`member N`) by when they joined, keeps a handle, and drops account and organization ids.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "org",
+    "member",
+    "list",
+    "acme-research"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/organizations/acme-research/members",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          },
+          "Accept": "application/json"
+        },
+        "status": 200,
+        "body": {
+          "members": [
+            {
+              "organization_id": "5b0e7c1a-3f2d-4e8b-9a61-2c4d8e0f1a23",
+              "account_id": "cus_ExampleInvitee1",
+              "role": "developer",
+              "created_at": 1790099999000
+            },
+            {
+              "organization_id": "5b0e7c1a-3f2d-4e8b-9a61-2c4d8e0f1a23",
+              "account_id": "cus_ExampleAdmin01",
+              "role": "admin",
+              "created_at": 1790012915257,
+              "handle": "exadmin"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "organizations.manage",
+      "operation": "org.member.list",
+      "problem": null,
+      "result": {
+        "members": [
+          {
+            "created_at": 1790012915257,
+            "created_at_iso": "2026-09-21T17:48:35.257Z",
+            "handle": "exadmin",
+            "member": "member 1",
+            "role": "admin"
+          },
+          {
+            "created_at": 1790099999000,
+            "created_at_iso": "2026-09-22T17:59:59.000Z",
+            "member": "member 2",
+            "role": "developer"
+          }
+        ]
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "cus_ExampleInvitee1",
+    "cus_ExampleAdmin01",
+    "5b0e7c1a-3f2d-4e8b-9a61-2c4d8e0f1a23"
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "id": "program-draft-preview-human",
+  "feature": "programs",
+  "operation": "program.draft",
+  "description": "Human draft preview: Summary and the flat Hold line.",
+  "argv": [
+    "cli",
+    "program",
+    "draft",
+    "write a haiku about rain",
+    "--preview"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/run/quote",
+        "requestHeaders": {
+          "Authorization": {
+            "present": false
+          }
+        },
+        "status": 200,
+        "body": {
+          "hold": {
+            "hold_usd": "1.02",
+            "ttl_seconds": 900
+          },
+          "pricing_policy_id": "pricing-policy.sha256.f114eadc02b7550e58f12c49996382b04f867cb774ac295506806f599ef1e3cd",
+          "note": "Unused hold is released when the run settles."
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "Preview: Draft a program from a sentence with the hosted writer.\nEffect: starts a paid run\nHold: $1.02 (set aside from the wallet while the run is live; not its price)\nNothing was changed.\n"
+  },
+  "stderr": {
+    "text": ""
+  }
+}

@@ -1,0 +1,101 @@
+{
+  "id": "submit-session-409-duplicate-ambiguous",
+  "feature": "runs",
+  "operation": "run.submit",
+  "description": "With --session, the deployed duplicate-session 409 (no run id) is RUN_SUBMISSION_AMBIGUOUS (22): the session has a run the service does not name.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "submit",
+    "p.prose.md",
+    "--yes",
+    "--session",
+    "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d"
+  ],
+  "files": [
+    {
+      "path": "p.prose.md",
+      "content": "---\nname: hello\nkind: function\n---\n\nReply with the word ok.\n"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "clock": {
+      "start": "2026-09-24T01:00:00.000Z",
+      "stepMs": 0
+    },
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/run",
+        "query": {
+          "live": "1",
+          "session": "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d"
+        },
+        "requestHeaders": {
+          "X-Session-Id": "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+          "Accept": "text/event-stream",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "expectedBody": {
+          "content": "---\nname: hello\nkind: function\n---\n\nReply with the word ok.\n"
+        },
+        "status": 409,
+        "body": {
+          "error": "This session already has a run. Reconnect instead of submitting it again."
+        }
+      }
+    ]
+  },
+  "exitCode": 22,
+  "stdout": {
+    "json": {
+      "interaction": "run.submit",
+      "operation": "run.submit",
+      "problem": {
+        "action": "List recent runs with the `cli run list` runner operation before submitting again; the local run journal keeps details.session.",
+        "boundary": "protocol",
+        "code": "RUN_SUBMISSION_AMBIGUOUS",
+        "details": {
+          "reason": "the service reports that this session already has a run but did not name it; the submission was not repeated. Check `prose --output json cli run list --limit 5` before submitting again, or recover the run with `prose --output json cli run submit p.prose.md --yes --session 0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d --detach`: the same session never starts a second run; the local run journal keeps the session",
+          "resumeArgv": [
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "submit",
+            "p.prose.md",
+            "--yes",
+            "--session",
+            "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+            "--detach"
+          ],
+          "serviceStatus": 409,
+          "session": "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "list",
+            "--limit",
+            "5"
+          ]
+        },
+        "exitCode": 22,
+        "message": "The run submission could not be confirmed and was not repeated.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

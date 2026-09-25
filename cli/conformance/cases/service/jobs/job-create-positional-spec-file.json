@@ -1,0 +1,60 @@
+{
+  "id": "job-create-positional-spec-file",
+  "feature": "jobs",
+  "operation": "job.create",
+  "description": "`job create spec.json` names an existing file, so the argument fills the one missing required option: `--spec-file spec.json`.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "job",
+    "create",
+    "spec.json",
+    "--yes"
+  ],
+  "files": [
+    {
+      "path": "spec.json",
+      "content": "{\"type\": \"webhook\", \"name\": \"hook\"}"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "job.deploy",
+      "operation": "job.create",
+      "problem": {
+        "action": "Pass it as --spec-file: `prose --output json cli job create --spec-file spec.json --yes`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "unexpected argument \"spec.json\" for `cli job create`; did you mean --spec-file spec.json? --spec-file: Job spec: a JSON object of at most 64 KiB (see above), or - for standard input.",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "job",
+            "create",
+            "--spec-file",
+            "spec.json",
+            "--yes"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

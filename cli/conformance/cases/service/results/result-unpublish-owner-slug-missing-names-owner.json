@@ -1,0 +1,96 @@
+{
+  "id": "result-unpublish-owner-slug-missing-names-owner",
+  "feature": "results",
+  "operation": "result.unpublish",
+  "description": "When the publication is missing, the listing hint names the confirmed owner instead of an OWNER placeholder.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "result",
+    "unpublish",
+    "alice/demo",
+    "AbCdEf012_-x",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/programs/demo/revisions",
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "status": 200,
+        "body": {
+          "revisions": [
+            {
+              "owner": "alice",
+              "slug": "demo",
+              "rev": 2,
+              "rev_id": "fedcba9876543210",
+              "commit_id": "2222222222222222",
+              "parent_commit_id": "1111111111111111",
+              "updated_at": 1790212299320,
+              "message": "second"
+            },
+            {
+              "owner": "alice",
+              "slug": "demo",
+              "rev": 1,
+              "rev_id": "0123456789abcdef",
+              "commit_id": "1111111111111111",
+              "parent_commit_id": null,
+              "updated_at": 1790212199320
+            }
+          ]
+        }
+      },
+      {
+        "method": "DELETE",
+        "path": "/programs/demo/results/AbCdEf012_-x",
+        "status": 404,
+        "body": {
+          "error": "Not found"
+        },
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "results.unpublish",
+      "operation": "result.unpublish",
+      "problem": {
+        "action": "Check the publication identifier named in Detail, then retry with the right one.",
+        "boundary": "hosted-service",
+        "code": "SERVICE_RESOURCE_NOT_FOUND",
+        "details": {
+          "reason": "no publication AbCdEf012_-x on your program \"demo\"; list them with `prose --output json cli result list alice/demo`",
+          "resource": {
+            "id": "AbCdEf012_-x",
+            "kind": "publication"
+          },
+          "serviceStatus": 404
+        },
+        "exitCode": 10,
+        "message": "The requested OpenProse service resource was not found.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

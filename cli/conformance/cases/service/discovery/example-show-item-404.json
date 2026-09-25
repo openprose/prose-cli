@@ -1,0 +1,110 @@
+{
+  "id": "example-show-item-404",
+  "feature": "discovery",
+  "operation": "example.show",
+  "description": "A plain-text 404 for the source is SERVICE_RESOURCE_NOT_FOUND.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "example",
+    "show",
+    "slack-hello"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/examples/private",
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef",
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          },
+          "Accept": "application/json"
+        },
+        "status": 200,
+        "body": {
+          "examples": [
+            {
+              "id": "private-example",
+              "label": "Private example",
+              "source": "/examples/private/private-example"
+            },
+            {
+              "id": "private-agent-browser",
+              "label": "Persona Website Feedback",
+              "source": "/examples/private/private-agent-browser"
+            },
+            {
+              "id": "agent-native",
+              "label": "Agent-native",
+              "source": "https://examples.example.org/examples/agent-native.prose.md"
+            },
+            {
+              "id": "agent-native-change",
+              "label": "Agent-native change",
+              "source": "https://examples.example.org/examples/agent-native-change.prose.md"
+            },
+            {
+              "id": "slack-hello",
+              "label": "Slack hello",
+              "source": "/examples/private/slack-hello"
+            }
+          ]
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/examples/private/slack-hello",
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef",
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          },
+          "Accept": "application/json"
+        },
+        "status": 404,
+        "bodyText": "Not found"
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "schema": "openprose.service-operation/1",
+      "operation": "example.show",
+      "interaction": "examples.private",
+      "result": null,
+      "problem": {
+        "schema": "openprose.runner-error/1",
+        "code": "SERVICE_RESOURCE_NOT_FOUND",
+        "boundary": "hosted-service",
+        "exitCode": 10,
+        "retryable": false,
+        "message": "The requested OpenProse service resource was not found.",
+        "action": "Run `prose --output json cli example list` to find the right example, then retry with it.",
+        "details": {
+          "serviceStatus": 404,
+          "reason": "example slack-hello was not found",
+          "resource": {
+            "id": "slack-hello",
+            "kind": "example"
+          },
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "example",
+            "list"
+          ]
+        }
+      }
+    }
+  }
+}

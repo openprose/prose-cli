@@ -1,0 +1,63 @@
+{
+  "id": "package-fetch-service-unavailable",
+  "feature": "account",
+  "operation": "package.fetch",
+  "description": "A registry 503 on fetch is SERVICE_UNAVAILABLE with details.serviceStatus; the error body is never read or echoed, and nothing is created.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "package",
+    "fetch",
+    "acme-research/tool@1.2.0",
+    "--output-dir",
+    "out"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/registry/v1/organizations/acme-research/packages/tool/versions/1.2.0",
+        "status": 503,
+        "body": {
+          "error": "fixture-secret-must-not-escape"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "schema": "openprose.service-operation/1",
+      "operation": "package.fetch",
+      "interaction": "registry.gateway",
+      "result": null,
+      "problem": {
+        "action": "Check your network connection and retry later.",
+        "boundary": "hosted-service",
+        "code": "SERVICE_UNAVAILABLE",
+        "details": {
+          "serviceStatus": 503
+        },
+        "exitCode": 10,
+        "message": "The OpenProse service is unavailable.",
+        "retryable": true,
+        "schema": "openprose.runner-error/1"
+      }
+    }
+  },
+  "expectFiles": [
+    {
+      "path": "out",
+      "absent": true
+    }
+  ],
+  "forbid": [
+    "fixture-secret-must-not-escape"
+  ]
+}

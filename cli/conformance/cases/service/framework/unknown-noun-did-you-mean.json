@@ -1,0 +1,44 @@
+{
+  "id": "unknown-noun-did-you-mean",
+  "feature": "framework",
+  "operation": "wallet.balance",
+  "description": "An unknown noun near a manifest noun is suggested.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "walet",
+    "balance"
+  ],
+  "fixture": {
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": null,
+      "operation": "cli",
+      "problem": {
+        "action": "Use `cli wallet balance`: `prose --output json cli wallet balance`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "unknown command `cli walet`; did you mean `cli wallet`? Commands: auth, cleanup, config, doctor, example, harness, job, model, org, package, program, repo, result, run, service, wallet",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "wallet",
+            "balance"
+          ]
+        },
+        "exitCode": 2,
+        "message": "Unknown command.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

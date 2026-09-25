@@ -1,0 +1,33 @@
+{
+  "id": "invite-preview-human",
+  "feature": "organizations",
+  "operation": "org.invite",
+  "description": "Human --preview of `org invite` names the organization, account and expiry as labeled lines (no raw request body).",
+  "argv": [
+    "cli",
+    "org",
+    "invite",
+    "acme-research",
+    "cus_ExampleInvitee1",
+    "--role",
+    "developer",
+    "--expires-in",
+    "3600",
+    "--preview"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "Preview: Invite an account.\nOrganization: acme-research\nAccount: cus_ExampleInvitee1\nExpires in: 1h\nSummary: role developer\nEffect: creates an invitation to the organization\nNothing was changed.\n"
+  },
+  "stderr": {
+    "text": ""
+  }
+}

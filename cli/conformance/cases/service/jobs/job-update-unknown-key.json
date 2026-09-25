@@ -1,0 +1,63 @@
+{
+  "id": "job-update-unknown-key",
+  "feature": "jobs",
+  "operation": "job.update",
+  "description": "job update checks its closed key set locally with the nearest key.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "job",
+    "update",
+    "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10",
+    "--spec-file",
+    "spec.json",
+    "--yes"
+  ],
+  "files": [
+    {
+      "path": "spec.json",
+      "content": "{\"nmae\": \"hook\"}"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "job.update",
+      "operation": "job.update",
+      "problem": {
+        "action": "Correct the value named in Detail; `prose --output json cli job update --help` shows the accepted syntax.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "unknown key nmae; did you mean name?",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "job",
+            "update",
+            "--help"
+          ],
+          "violations": [
+            "unknown key nmae; did you mean name?"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

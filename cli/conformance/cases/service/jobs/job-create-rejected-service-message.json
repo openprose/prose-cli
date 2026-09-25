@@ -1,0 +1,63 @@
+{
+  "id": "job-create-rejected-service-message",
+  "feature": "jobs",
+  "operation": "job.create",
+  "description": "A 400 carries the sanitized service message so the agent can fix the spec.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "job",
+    "create",
+    "--spec-file",
+    "spec.json",
+    "--yes"
+  ],
+  "files": [
+    {
+      "path": "spec.json",
+      "content": "{\"type\":\"webhook\",\"extra\":1}"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/triggers",
+        "status": 400,
+        "body": {
+          "error": "program_ref is required"
+        },
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "job.deploy",
+      "operation": "job.create",
+      "problem": {
+        "action": "Retry later and report the sanitized error code if it persists.",
+        "boundary": "protocol",
+        "code": "SERVICE_PROTOCOL_INVALID",
+        "details": {
+          "reason": "test fixture: 1 exchange(s) were not requested"
+        },
+        "exitCode": 10,
+        "message": "The OpenProse service returned an invalid response.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

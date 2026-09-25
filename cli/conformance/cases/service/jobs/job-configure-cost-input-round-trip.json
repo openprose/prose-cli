@@ -1,0 +1,192 @@
+{
+  "id": "job-configure-cost-input-round-trip",
+  "feature": "jobs",
+  "operation": "job.configure",
+  "description": "Cost-named inputs merged back from input_entries are sent (with revision_token as the service's configuration token) and come back as input_entries ordered by UTF-8 bytes: nothing is lost across show -> configure -> show.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "job",
+    "configure",
+    "7b2e4d19-6a3c-4e85-b1f0-9c4d8e2a6b73",
+    "--config-file",
+    "config.json",
+    "--yes"
+  ],
+  "files": [
+    {
+      "path": "config.json",
+      "content": "{\"interval_seconds\": 3600, \"configuration_revision\": 3, \"revision_token\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"bindings\": [{\"program_ref\": \"exowner1/jobs-example@0123456789abcdef\", \"run_configuration\": {\"model\": \"model-luna\", \"inputs\": {\"topic\": \"weekly\", \"max_cost\": \"5\", \"Cost_Center\": \"cc-1\"}}}]}"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "PUT",
+        "path": "/triggers/7b2e4d19-6a3c-4e85-b1f0-9c4d8e2a6b73/configuration",
+        "status": 202,
+        "body": {
+          "trigger": {
+            "id": "7b2e4d19-6a3c-4e85-b1f0-9c4d8e2a6b73",
+            "type": "schedule",
+            "name": null,
+            "internalRef": "opaque-1",
+            "url": null,
+            "intervalSeconds": 3600,
+            "mode": null,
+            "repositoryId": null,
+            "repositoryFullName": null,
+            "repositoryBranch": null,
+            "contextRepositoryId": 1000001,
+            "contextRepositoryFullName": "exowner1/example-repo",
+            "contextRepositoryBranch": "main",
+            "createdAt": 1788438667830,
+            "adopted": false
+          },
+          "status": {
+            "configured": true,
+            "active": true,
+            "intervalSeconds": 86400,
+            "configurationRevision": 4,
+            "nextFireAt": 1790253069281,
+            "lastFiredAt": null,
+            "lastRunId": null,
+            "lastError": null,
+            "counts": {
+              "pending": 0,
+              "completed": 2,
+              "cost_units": 9
+            },
+            "configurationToken": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "contracts": [
+              {
+                "programRef": "exowner1/jobs-example@0123456789abcdef",
+                "programSlug": "jobs-example",
+                "enabled": true,
+                "model": "model-luna",
+                "contextRepositoryFullName": "exowner1/example-repo",
+                "contextRepositoryBranch": "main",
+                "runConfiguration": {
+                  "model": "model-luna",
+                  "inputs": {
+                    "topic": "weekly",
+                    "max_cost": "5",
+                    "Cost_Center": "cc-1"
+                  }
+                }
+              }
+            ],
+            "programRef": "exowner1/jobs-example@0123456789abcdef",
+            "programSlug": "jobs-example",
+            "model": "model-luna",
+            "contextRepository": {
+              "id": 1000001,
+              "owner": "exowner1",
+              "name": "example-repo"
+            }
+          }
+        },
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "expectedBody": {
+          "interval_seconds": 3600,
+          "configuration_revision": 3,
+          "bindings": [
+            {
+              "program_ref": "exowner1/jobs-example@0123456789abcdef",
+              "run_configuration": {
+                "model": "model-luna",
+                "inputs": {
+                  "topic": "weekly",
+                  "max_cost": "5",
+                  "Cost_Center": "cc-1"
+                }
+              }
+            }
+          ],
+          "configuration_token": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "job.update",
+      "operation": "job.configure",
+      "problem": null,
+      "result": {
+        "job": {
+          "context_repository_branch": "main",
+          "context_repository_full_name": "exowner1/example-repo",
+          "created_at": 1788438667830,
+          "created_at_iso": "2026-09-03T12:31:07.830Z",
+          "id": "7b2e4d19-6a3c-4e85-b1f0-9c4d8e2a6b73",
+          "interval_seconds": 3600,
+          "mode": null,
+          "name": null,
+          "repository_branch": null,
+          "repository_full_name": null,
+          "repository_id": null,
+          "type": "schedule",
+          "url": null
+        },
+        "status": {
+          "active": true,
+          "configuration_revision": 4,
+          "configured": true,
+          "contracts": [
+            {
+              "context_repository_branch": "main",
+              "context_repository_full_name": "exowner1/example-repo",
+              "enabled": true,
+              "model": "model-luna",
+              "program_ref": "exowner1/jobs-example@0123456789abcdef",
+              "program_slug": "jobs-example",
+              "run_configuration": {
+                "input_entries": [
+                  {
+                    "name": "Cost_Center",
+                    "value": "cc-1"
+                  },
+                  {
+                    "name": "max_cost",
+                    "value": "5"
+                  }
+                ],
+                "inputs": {
+                  "topic": "weekly"
+                },
+                "model": "model-luna"
+              }
+            }
+          ],
+          "counts": {
+            "awaiting_billing": 0,
+            "cancelled": 0,
+            "completed": 2,
+            "failed": 0,
+            "queued": 0,
+            "running": 0
+          },
+          "interval_seconds": 86400,
+          "last_error": null,
+          "last_fired_at": null,
+          "last_fired_at_iso": null,
+          "last_run_id": null,
+          "next_fire_at": 1790253069281,
+          "next_fire_at_iso": "2026-09-24T12:31:09.281Z",
+          "revision_token": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

@@ -1,0 +1,73 @@
+{
+  "id": "member-list-default-alias-hint",
+  "feature": "organizations",
+  "operation": "org.member.list",
+  "description": "The service resolves `default` only for GET /organizations/default; a not-found for ORG `default` elsewhere teaches the fix in details.reason.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "org",
+    "member",
+    "list",
+    "default"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/organizations/default/members",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          },
+          "Accept": "application/json"
+        },
+        "status": 404,
+        "body": {
+          "error": "Organization not found",
+          "code": "organization_not_found"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "organizations.manage",
+      "operation": "org.member.list",
+      "problem": {
+        "action": "Run `prose --output json cli org list` to find the right organization, then retry with it.",
+        "boundary": "hosted-service",
+        "code": "SERVICE_RESOURCE_NOT_FOUND",
+        "details": {
+          "reason": "ORG `default` is accepted only by `cli org show`; run `prose --output json cli org show default` and pass the slug it prints",
+          "serviceCode": "organization_not_found",
+          "serviceStatus": 404,
+          "resource": {
+            "id": "default",
+            "kind": "organization"
+          },
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "org",
+            "list"
+          ]
+        },
+        "exitCode": 10,
+        "message": "The requested OpenProse service resource was not found.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

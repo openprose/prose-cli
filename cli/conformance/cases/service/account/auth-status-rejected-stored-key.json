@@ -1,0 +1,60 @@
+{
+  "id": "auth-status-rejected-stored-key",
+  "feature": "account",
+  "operation": "auth.status",
+  "description": "A stored key the service rejects keeps credentialSource os-credential-store in the report (store in the problem) and the Action renews it with login or names the variable.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "auth",
+    "status"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_fedcba9876543210fedcba9876543210"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/organizations",
+        "status": 401,
+        "body": {
+          "error": "Unauthorized"
+        },
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_fedcba9876543210fedcba9876543210"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "schema": "openprose.service-operation/1",
+      "operation": "auth.status",
+      "interaction": "cli.auth_status",
+      "result": null,
+      "problem": {
+        "action": "Run `prose --output json cli auth login` again, or set OPENPROSE_API_KEY, then retry.",
+        "boundary": "authentication",
+        "code": "SERVICE_AUTH_REQUIRED",
+        "details": {
+          "credentialProblem": "rejected",
+          "credentialSource": "store",
+          "credentialVariable": "OPENPROSE_API_KEY",
+          "reason": "the service rejected the API key stored for OpenProse (unknown or revoked); run `prose --output json cli auth login` again"
+        },
+        "exitCode": 10,
+        "message": "OpenProse service authentication is required.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      }
+    }
+  },
+  "forbid": [
+    "rr_test_fedcba9876543210fedcba9876543210"
+  ]
+}

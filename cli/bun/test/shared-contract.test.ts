@@ -25,6 +25,11 @@ for (const name of [
   "native-output-limits",
   "native-failure",
   "runner-error",
+  // runner-error's `details.planned` is `service-operation.schema.json#/$defs/plannedRequest`
+  //; without it Ajv throws "can't resolve reference" and no test in this file runs.
+  // cli/shared/tests/test_service_contract.py (BunSchemaRegistrationTest) keeps this list
+  // closed under `$ref` in the shared-contracts gate.
+  "service-operation",
   "runner-invocation",
   "runner-result",
   "normalized-event",
@@ -151,7 +156,8 @@ describe("shared runner contracts", () => {
       runnerExitCode: 10,
       error: {
         code: "HOSTED_UNAVAILABLE",
-        action: "Select an available BYO harness with the `cli harness use <id>` runner operation, then invoke the `cli doctor` runner operation.",
+        action: "To use the hosted service, run `cli run submit FILE --preview`; running programs on this machine needs a local harness (`cli harness list`).",
+        details: { suggestedArgv: ["--output", "json", "cli", "run", "submit", "fixture.prose.md", "--preview"] },
       },
     });
     expect(io.invocations).toHaveLength(0);
@@ -173,7 +179,7 @@ describe("shared runner contracts", () => {
 
   test("failure JSONL is exactly one schema-valid terminal event", async () => {
     const io = fixture();
-    expect(await runCli(["--output=jsonl", "run"], io.deps)).toBe(10);
+    expect(await runCli(["--output=jsonl", "run", "example.prose.md"], io.deps)).toBe(10);
     const records = io.stdout().trimEnd().split("\n").map((line) => JSON.parse(line));
     expect(records).toHaveLength(1);
     expectValid(validateEvent, records[0]);

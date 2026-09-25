@@ -1,0 +1,28 @@
+{
+  "id": "alias-option-timeout-inline-watch",
+  "feature": "framework",
+  "operation": "run.watch",
+  "description": "`--timeout=90` on `cli run watch` suggests `--wait=90s`.",
+  "argv": [
+    "cli",
+    "run",
+    "watch",
+    "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+    "--timeout=90"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: Unknown option.\nDetail: unknown option --timeout for `cli run watch`; did you mean --wait? --wait takes a duration with a unit, so 90 is 90s\nAction: Use --wait 90s: `prose cli run watch run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c --wait=90s`.\n"
+  }
+}

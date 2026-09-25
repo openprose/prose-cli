@@ -1,0 +1,84 @@
+{
+  "id": "program-save-stdin",
+  "feature": "programs",
+  "operation": "program.save",
+  "description": "FILE `-` reads the program from standard input.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "program",
+    "save",
+    "demo",
+    "-"
+  ],
+  "stdin": "---\nname: demo\nkind: function\n---\n\n### Returns\n\n- `text`: exactly `ok`\n",
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "PUT",
+        "path": "/programs/demo",
+        "requestHeaders": {
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          },
+          "User-Agent": {
+            "pattern": "^prose-cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"
+          },
+          "Accept": "application/json",
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "status": 200,
+        "expectedBody": {
+          "content": "---\nname: demo\nkind: function\n---\n\n### Returns\n\n- `text`: exactly `ok`\n"
+        },
+        "body": {
+          "program": {
+            "owner": "alice",
+            "slug": "demo",
+            "visibility": "private",
+            "content": "---\nname: demo\nkind: function\n---\n\n### Returns\n\n- `text`: exactly `ok`\n",
+            "rev": 1,
+            "rev_id": "0123456789abcdef",
+            "commit_id": "1111111111111111",
+            "parent_commit_id": null,
+            "updated_at": 1790212199320
+          },
+          "url": "/p/alice/demo"
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "program.save",
+      "operation": "program.save",
+      "problem": null,
+      "result": {
+        "program": {
+          "commit_id": "1111111111111111",
+          "owner": "alice",
+          "parent_commit_id": null,
+          "ref": "alice/demo@0123456789abcdef",
+          "rev": 1,
+          "rev_id": "0123456789abcdef",
+          "slug": "demo",
+          "updated_at": 1790212199320,
+          "updated_at_iso": "2026-09-24T01:09:59.320Z",
+          "visibility": "private"
+        },
+        "url": "https://run-prose-production.openprose.workers.dev/p/alice/demo"
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

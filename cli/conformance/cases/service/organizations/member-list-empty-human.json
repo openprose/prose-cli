@@ -1,0 +1,40 @@
+{
+  "id": "member-list-empty-human",
+  "feature": "organizations",
+  "operation": "org.member.list",
+  "description": "An empty human `org member list` says `No members in ORG.`.",
+  "argv": [
+    "cli",
+    "org",
+    "member",
+    "list",
+    "acme-research"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/organizations/acme-research/members",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          },
+          "Accept": "application/json"
+        },
+        "status": 200,
+        "body": {
+          "members": []
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "No members in acme-research.\n"
+  }
+}

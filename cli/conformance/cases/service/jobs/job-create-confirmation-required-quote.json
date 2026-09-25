@@ -1,0 +1,109 @@
+{
+  "id": "job-create-confirmation-required-quote",
+  "feature": "jobs",
+  "operation": "job.create",
+  "description": "Without --yes, job create reads the anonymous quote and exits 2 with the plan (body digest of the exact spec bytes) and the hold; nothing is created.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "job",
+    "create",
+    "--spec-file",
+    "spec.json"
+  ],
+  "files": [
+    {
+      "path": "spec.json",
+      "content": "{\"type\": \"schedule\", \"program_ref\": \"exowner1/jobs-example@0123456789abcdef\", \"interval_seconds\": 86400}\n"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/run/quote",
+        "status": 200,
+        "body": {
+          "hold": {
+            "hold_usd": "1.02",
+            "ttl_seconds": 900
+          },
+          "pricing_policy_id": "pricing-policy.sha256.f114eadc02b7550e58f12c49996382b04f867cb774ac295506806f599ef1e3cd",
+          "note": "Unused hold is released when the run settles."
+        },
+        "requestHeaders": {
+          "Authorization": {
+            "present": false
+          }
+        }
+      }
+    ]
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "job.deploy",
+      "operation": "job.create",
+      "problem": {
+        "action": "Rerun the same command with --yes to confirm, or with --preview to see what it would do without sending anything.",
+        "boundary": "invocation",
+        "code": "CONFIRMATION_REQUIRED",
+        "details": {
+          "confirmArgv": [
+            "--output",
+            "json",
+            "cli",
+            "job",
+            "create",
+            "--spec-file",
+            "spec.json",
+            "--yes"
+          ],
+          "plannedRequest": {
+            "bodyBytes": 105,
+            "bodySha256": "08638838b9eca285b3ce1c2e02ed8169948c59a68bab1d981cb829b9b902479e",
+            "description": "Create a job from a JSON spec.",
+            "effect": "money",
+            "method": "POST",
+            "operation": "job.create",
+            "quote": {
+              "hold": {
+                "hold_cents": 102,
+                "hold_usd": "1.02",
+                "ttl_seconds": 900
+              }
+            },
+            "summary": {
+              "interval_seconds": 86400,
+              "programRef": "exowner1/jobs-example@0123456789abcdef",
+              "type": "schedule"
+            }
+          },
+          "previewArgv": [
+            "--output",
+            "json",
+            "cli",
+            "job",
+            "create",
+            "--spec-file",
+            "spec.json",
+            "--preview"
+          ],
+          "reason": "--yes is required because the job starts paid runs on its own schedule or events until it is deleted (a webhook with no program starts none until one is attached)"
+        },
+        "exitCode": 2,
+        "message": "This service operation requires explicit confirmation.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

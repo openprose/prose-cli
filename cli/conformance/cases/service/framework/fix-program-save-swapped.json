@@ -1,0 +1,61 @@
+{
+  "id": "fix-program-save-swapped",
+  "feature": "framework",
+  "operation": "program.save",
+  "description": "`cli program save FILE SLUG` (swapped) suggests `cli program save SLUG FILE`.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "program",
+    "save",
+    "hello.prose.md",
+    "hello",
+    "--preview"
+  ],
+  "files": [
+    {
+      "path": "hello.prose.md",
+      "content": "# Hello\n\nSay hello.\n"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "program.save",
+      "operation": "program.save",
+      "problem": {
+        "action": "Pass the slug before the file: `prose --output json cli program save hello hello.prose.md --preview`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "the arguments of `cli program save` are swapped: \"hello.prose.md\" is the program file, which comes after the slug \"hello\": `cli program save <SLUG> <FILE>`",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "program",
+            "save",
+            "hello",
+            "hello.prose.md",
+            "--preview"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

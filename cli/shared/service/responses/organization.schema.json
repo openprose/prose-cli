@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.openprose.org/cli/v1/service/responses/organization.schema.json",
+  "title": "service response acceptance: GET /organizations/{name}",
+  "x-probed": false,
+  "type": "object",
+  "required": [
+    "organization"
+  ],
+  "properties": {
+    "organization": {
+      "type": "object",
+      "required": [
+        "id",
+        "slug",
+        "name"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "slug": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

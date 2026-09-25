@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.openprose.org/cli/v1/service/responses/result-read.schema.json",
+  "title": "service response acceptance: GET /p/{owner}/{slug}/results/{publication_id}",
+  "x-probed": false,
+  "type": "object",
+  "required": [
+    "publication",
+    "manifest"
+  ],
+  "properties": {
+    "publication": {
+      "type": "object",
+      "required": [
+        "id",
+        "published_at",
+        "run_id",
+        "program_ref",
+        "created_at",
+        "model",
+        "status"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "published_at": {
+          "type": "string"
+        },
+        "run_id": {
+          "type": "string"
+        },
+        "program_ref": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        }
+      }
+    },
+    "manifest": {
+      "type": "object",
+      "required": [
+        "run_id",
+        "status",
+        "files"
+      ],
+      "properties": {
+        "run_id": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "raw_url": {
+      "type": "string"
+    }
+  }
+}

@@ -1,0 +1,67 @@
+{
+  "id": "result-publish-provenance-mismatch",
+  "feature": "results",
+  "operation": "result.publish",
+  "description": "A run of another program is a 409 program_ref_mismatch with a corrective reason.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "result",
+    "publish",
+    "demo",
+    "--run",
+    "run_abc123abc123abc123abc123abc123abc123abc123abc123abc123abc123abc1",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/programs/demo/results",
+        "status": 409,
+        "expectedBody": {
+          "run_id": "run_abc123abc123abc123abc123abc123abc123abc123abc123abc123abc123abc1"
+        },
+        "body": {
+          "error": "Run provenance does not match this contract.",
+          "code": "program_ref_mismatch"
+        },
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "results.publish",
+      "operation": "result.publish",
+      "problem": {
+        "action": "Read the current state of the resource, reconcile the change, then retry.",
+        "boundary": "hosted-service",
+        "code": "SERVICE_WRITE_CONFLICT",
+        "details": {
+          "reason": "run run_abc123abc123abc123abc123abc123abc123abc123abc123abc123abc123abc1 was not run from a saved revision of program \"demo\"; publish a run started with `prose --output json cli run submit --from demo`",
+          "serviceMessage": "Run provenance does not match this contract.",
+          "serviceStatus": 409
+        },
+        "exitCode": 10,
+        "message": "The OpenProse service reported a conflicting write.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

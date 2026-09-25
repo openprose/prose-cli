@@ -1,0 +1,72 @@
+{
+  "id": "program-delete-owner-preview-verified",
+  "feature": "programs",
+  "operation": "program.delete",
+  "description": "--preview of OWNER/SLUG whose OWNER is confirmed as the caller says so: plannedRequest.owner is {handle, verified: true}. Nothing is deleted.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "program",
+    "delete",
+    "Alice/demo",
+    "--preview"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/programs/demo/revisions",
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "status": 200,
+        "body": {
+          "revisions": [
+            {
+              "owner": "alice",
+              "slug": "demo",
+              "rev": 1,
+              "rev_id": "0123456789abcdef",
+              "commit_id": "1111111111111111",
+              "parent_commit_id": null,
+              "updated_at": 1790212199320
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "program.delete",
+      "operation": "program.delete",
+      "problem": null,
+      "result": {
+        "plannedRequest": {
+          "bodyBytes": null,
+          "bodySha256": null,
+          "description": "Delete a saved program and its revisions.",
+          "effect": "destructive",
+          "method": "DELETE",
+          "operation": "program.delete",
+          "owner": {
+            "handle": "alice",
+            "verified": true
+          }
+        },
+        "preview": true
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

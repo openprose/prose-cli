@@ -1,0 +1,154 @@
+{
+  "id": "program-list-with-content-unknown-fields",
+  "feature": "programs",
+  "operation": "program.list",
+  "description": "`--with-content` includes each program's text; a program whose text has control characters is listed without content (read it with `program show --output-file`). Every service record also carries internal fields (runtime, contract, version, adoption, driver, configuration token, reactor, call id, showable, price policy, organization id, an internal path): the output is unchanged and names none of them.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "program",
+    "list",
+    "--with-content"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/programs",
+        "requestHeaders": {
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          },
+          "User-Agent": {
+            "pattern": "^prose-cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"
+          },
+          "Accept": "application/json",
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "status": 200,
+        "body": {
+          "programs": [
+            {
+              "owner": "alice",
+              "slug": "older",
+              "visibility": "private",
+              "content": "---\nname: demo\nkind: function\n---\n\n### Returns\n\n- `text`: exactly `ok`\n",
+              "rev": 1,
+              "rev_id": "0123456789abcdef",
+              "commit_id": "1111111111111111",
+              "parent_commit_id": null,
+              "updated_at": 1790212199320,
+              "runtime": "x-internal-runtime",
+              "contract": "x-internal-contract",
+              "version": "x-internal-version",
+              "adopted": true,
+              "driver": "x-internal-driver",
+              "configurationToken": "x-internal-configuration-token",
+              "reactor": "x-internal-reactor",
+              "call_id": "x-internal-call",
+              "showable": true,
+              "pricing_policy_id": "x-internal-pricing-policy",
+              "organization_id": "x-internal-organization",
+              "internal_path": "/internal/x-internal-path/state.json"
+            },
+            {
+              "owner": "alice",
+              "slug": "bell",
+              "visibility": "private",
+              "content": "ring\u0007\n",
+              "rev": 1,
+              "rev_id": "0123456789abcdef",
+              "commit_id": "1111111111111111",
+              "parent_commit_id": null,
+              "updated_at": 1790212199320,
+              "runtime": "x-internal-runtime",
+              "contract": "x-internal-contract",
+              "version": "x-internal-version",
+              "adopted": true,
+              "driver": "x-internal-driver",
+              "configurationToken": "x-internal-configuration-token",
+              "reactor": "x-internal-reactor",
+              "call_id": "x-internal-call",
+              "showable": true,
+              "pricing_policy_id": "x-internal-pricing-policy",
+              "organization_id": "x-internal-organization",
+              "internal_path": "/internal/x-internal-path/state.json"
+            }
+          ],
+          "runtime": "x-internal-runtime",
+          "contract": "x-internal-contract",
+          "version": "x-internal-version",
+          "adopted": true,
+          "driver": "x-internal-driver",
+          "configurationToken": "x-internal-configuration-token",
+          "reactor": "x-internal-reactor",
+          "call_id": "x-internal-call",
+          "showable": true,
+          "pricing_policy_id": "x-internal-pricing-policy",
+          "organization_id": "x-internal-organization",
+          "internal_path": "/internal/x-internal-path/state.json"
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "programs.list",
+      "operation": "program.list",
+      "problem": null,
+      "result": {
+        "programs": [
+          {
+            "commit_id": "1111111111111111",
+            "content": "---\nname: demo\nkind: function\n---\n\n### Returns\n\n- `text`: exactly `ok`\n",
+            "owner": "alice",
+            "parent_commit_id": null,
+            "ref": "alice/older@0123456789abcdef",
+            "rev": 1,
+            "rev_id": "0123456789abcdef",
+            "slug": "older",
+            "updated_at": 1790212199320,
+            "updated_at_iso": "2026-09-24T01:09:59.320Z",
+            "visibility": "private"
+          },
+          {
+            "commit_id": "1111111111111111",
+            "owner": "alice",
+            "parent_commit_id": null,
+            "ref": "alice/bell@0123456789abcdef",
+            "rev": 1,
+            "rev_id": "0123456789abcdef",
+            "slug": "bell",
+            "updated_at": 1790212199320,
+            "updated_at_iso": "2026-09-24T01:09:59.320Z",
+            "visibility": "private"
+          }
+        ]
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef",
+    "x-internal-",
+    "/internal/",
+    "\"adopted\"",
+    "\"driver\"",
+    "\"showable\"",
+    "\"call_id\"",
+    "\"pricing_policy_id\"",
+    "\"organization_id\"",
+    "\"configurationToken\"",
+    "\"runtime\"",
+    "\"contract\"",
+    "\"reactor\"",
+    "\"internal_path\""
+  ]
+}

@@ -1,7 +1,7 @@
 {
   "schema": "openprose.weave-host-fixture/1",
   "status": "proposed-not-released",
-  "contract": "cli/protocol/decisions/imp026-weave-host.md",
+  "contract": "cli/protocol/decisions/weave-host.md",
   "harness": {
     "description": "Declarative self-contained bridge corpus, not runner-case/1. Independent root-owned harness must expand tokens and construct real fake executables. Missing host stdout/stderr defaults empty; missing host exit defaults0. Cases are not claimed executed by this fixture. Token expansion also applies inside raw binding JSON strings before writing UTF-8 bytes.",
     "tokens": {
@@ -1078,7 +1078,7 @@
         "spawned": false,
         "bindingOpened": false,
         "exitCode": 0,
-        "stdoutContains": "--host-binding",
+        "stdoutHex": "55736167653a2070726f736520636c69207765617665202d2d686f73742d62696e64696e672041425320636865636b7c7374617475737c7374657020434f4e4649470a2020202020202070726f736520636c69207765617665202d2d686f73742d62696e64696e672041425320736572766520434f4e464947202d2d706f6c6c2d6d73204e202d2d6d61782d7374657073204e0a2020202020202070726f736520636c69207765617665202d2d686f73742d62696e64696e672041425320736574746c6520434f4e464947202d2d62696e64696e672056414c5545202d2d617474656d70742056414c5545202d2d6f7574636f6d6520636f6d706c657465647c6e6f742d6170706c696564202d2d726563656970742056414c55450a",
         "stderrHex": ""
       }
     },

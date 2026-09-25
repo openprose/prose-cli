@@ -1,0 +1,86 @@
+{
+  "id": "model-list-json-unknown-fields",
+  "feature": "discovery",
+  "operation": "model.list",
+  "description": "Reads authenticated /models only (includes model-astra, which /health omits) and reports exactly the models it lists plus default_model. Every service record also carries internal fields (runtime, contract, version, adoption, driver, configuration token, reactor, call id, showable, price policy, organization id, an internal path): the output is unchanged and names none of them.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "model",
+    "list"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/models",
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef",
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          },
+          "Accept": "application/json"
+        },
+        "status": 200,
+        "body": {
+          "models": [
+            "model-astra",
+            "model-sol",
+            "model-luna"
+          ],
+          "default_model": "model-sol",
+          "runtime": "x-internal-runtime",
+          "contract": "x-internal-contract",
+          "version": "x-internal-version",
+          "adopted": true,
+          "driver": "x-internal-driver",
+          "configurationToken": "x-internal-configuration-token",
+          "reactor": "x-internal-reactor",
+          "call_id": "x-internal-call",
+          "showable": true,
+          "pricing_policy_id": "x-internal-pricing-policy",
+          "organization_id": "x-internal-organization",
+          "internal_path": "/internal/x-internal-path/state.json"
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "models.list",
+      "operation": "model.list",
+      "problem": null,
+      "result": {
+        "default_model": "model-sol",
+        "models": [
+          "model-astra",
+          "model-sol",
+          "model-luna"
+        ]
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "x-internal-",
+    "/internal/",
+    "\"adopted\"",
+    "\"driver\"",
+    "\"showable\"",
+    "\"call_id\"",
+    "\"pricing_policy_id\"",
+    "\"organization_id\"",
+    "\"configurationToken\"",
+    "\"runtime\"",
+    "\"contract\"",
+    "\"reactor\"",
+    "\"internal_path\""
+  ]
+}

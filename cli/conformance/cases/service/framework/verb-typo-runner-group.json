@@ -1,0 +1,43 @@
+{
+  "id": "verb-typo-runner-group",
+  "feature": "framework",
+  "operation": "service.status",
+  "description": "Runner groups outside the manifest get the same did-you-mean: `harness lst` suggests `harness list`.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "harness",
+    "lst"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "action": "Use `cli harness list`: `prose --output json cli harness list`.",
+      "boundary": "invocation",
+      "code": "INVOCATION_INVALID",
+      "details": {
+        "reason": "unknown command `cli harness lst`; did you mean `cli harness list`? Commands: list, use",
+        "suggestedArgv": [
+          "--output",
+          "json",
+          "cli",
+          "harness",
+          "list"
+        ]
+      },
+      "exitCode": 2,
+      "message": "Runner invocation is invalid.",
+      "retryable": false,
+      "schema": "openprose.runner-error/1"
+    }
+  }
+}

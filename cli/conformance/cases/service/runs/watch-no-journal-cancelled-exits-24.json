@@ -1,0 +1,80 @@
+{
+  "id": "watch-no-journal-cancelled-exits-24",
+  "feature": "runs",
+  "operation": "run.watch",
+  "description": "A record status of cancelled is HOSTED_RUN_CANCELLED (24).",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "watch",
+    "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/runs/run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+        "requestHeaders": {
+          "Authorization": {
+            "pattern": "^Bearer rr_test_[0-9a-f]{32}$"
+          }
+        },
+        "status": 200,
+        "body": {
+          "run_id": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+          "created_at": "2026-09-24T01:00:00.000Z",
+          "status": "cancelled",
+          "model": "model-luna",
+          "environment": {
+            "id": "builtin",
+            "version": "1.0.0",
+            "runtime_contract": 1
+          },
+          "price_cents": 2,
+          "environment_price_cents": 1,
+          "billing_status": "settled",
+          "customer_id": "cus_ExampleOwner01",
+          "usage": {
+            "input_tokens": 89195,
+            "output_tokens": 262
+          },
+          "files": [],
+          "has_patch": false,
+          "session_files": [],
+          "file_urls": {}
+        }
+      }
+    ]
+  },
+  "exitCode": 24,
+  "stdout": {
+    "json": {
+      "interaction": "run.observe",
+      "operation": "run.watch",
+      "problem": {
+        "action": "Read the cancelled run with the `cli run show` runner operation using details.runId; submit again only to start a new run.",
+        "boundary": "hosted-service",
+        "code": "HOSTED_RUN_CANCELLED",
+        "details": {
+          "files": [],
+          "reason": "the run was cancelled on the service (from its record; this machine has no live session to replay); read it with `prose --output json cli run show run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c`",
+          "runId": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+          "source": "record"
+        },
+        "exitCode": 24,
+        "message": "The hosted run was cancelled on the service and will not continue.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "id": "no-cli-cron-json",
+  "feature": "framework",
+  "operation": "job.create",
+  "description": "`prose --output json cron` prints the INVOCATION_INVALID envelope whose suggestedArgv is `cli job create --help`: cron expressions are not supported.",
+  "argv": [
+    "--output",
+    "json",
+    "cron"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": null,
+      "operation": "cli",
+      "problem": {
+        "action": "A schedule job runs every interval_seconds seconds, not on a cron expression. Use `cli job create`, then add --spec-file FILE; `prose --output json cli job create --help` shows the options of `cli job create`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "`cron` is not a command; did you mean `prose --output json cli job create --help`? A schedule is a job of type schedule created from a JSON spec; it runs every interval_seconds seconds (86400 = daily), not on a cron expression. Nothing was forwarded or sent. To pass these words to the OpenProse language instead, put `--` before them",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "job",
+            "create",
+            "--help"
+          ]
+        },
+        "exitCode": 2,
+        "message": "Unknown command.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

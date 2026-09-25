@@ -1,0 +1,55 @@
+{
+  "id": "repos-403-auth-required",
+  "feature": "framework",
+  "operation": "repo.list",
+  "description": "The /repos override is for 401 only; 403 falls through to SERVICE_AUTH_REQUIRED.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "repo",
+    "list"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/repos",
+        "status": 403,
+        "body": {
+          "error": "Invalid API key."
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "repos.list",
+      "operation": "repo.list",
+      "problem": {
+        "action": "Run `prose --output json cli auth login` again, or set OPENPROSE_API_KEY, then retry.",
+        "boundary": "authentication",
+        "code": "SERVICE_AUTH_REQUIRED",
+        "details": {
+          "credentialProblem": "rejected",
+          "credentialSource": "store",
+          "credentialVariable": "OPENPROSE_API_KEY",
+          "reason": "the service rejected the API key stored for OpenProse (unknown or revoked); run `prose --output json cli auth login` again",
+          "serviceStatus": 403
+        },
+        "exitCode": 10,
+        "message": "OpenProse service authentication is required.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

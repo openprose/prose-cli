@@ -1,3 +1,4 @@
+import weaveHelp from "../../../shared/fixtures/weave-help.txt" with { type: "text" };
 import { constants, openSync, readSync, fstatSync, closeSync, statSync } from "node:fs";
 import { realpath, access } from "node:fs/promises";
 import { createHash } from "node:crypto";
@@ -5,7 +6,8 @@ import { dirname, isAbsolute } from "node:path";
 import { constants as osConstants } from "node:os";
 import type { GlobalFlags } from "./types";
 
-export const WEAVE_HELP = "Usage: prose cli weave --host-binding ABS check|status|step CONFIG\n       prose cli weave --host-binding ABS serve CONFIG --poll-ms N --max-steps N\n       prose cli weave --host-binding ABS settle CONFIG --binding VALUE --attempt VALUE --outcome completed|not-applied --receipt VALUE\n";
+/** `prose cli weave --help`, byte for byte the same in both ports. */
+export const WEAVE_HELP: string = weaveHelp;
 type Failure = "INVOCATION_INVALID" | "BINDING_INVALID" | "UNSUPPORTED_PLATFORM" | "START_FAILED" | "TIMEOUT" | "OUTPUT_LIMIT" | "IO_FAILED" | "CANCELLED";
 interface Dependencies {
   env: Readonly<Record<string,string|undefined>>;

@@ -1,0 +1,59 @@
+{
+  "id": "org-list-json",
+  "feature": "organizations",
+  "operation": "org.list",
+  "description": "`org list` projects id, slug, name and role from GET /organizations. Ported from the account corpus.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "org",
+    "list"
+  ],
+  "fixture": {
+    "credential": "rr_test_11111111111111111111111111111111",
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/organizations",
+        "status": 200,
+        "body": {
+          "organizations": [
+            {
+              "id": "org-fixture",
+              "slug": "fixture",
+              "name": "Fixture",
+              "role": "admin"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "schema": "openprose.service-operation/1",
+      "operation": "org.list",
+      "interaction": "organizations.manage",
+      "result": {
+        "organizations": [
+          {
+            "id": "org-fixture",
+            "name": "Fixture",
+            "role": "admin",
+            "slug": "fixture"
+          }
+        ]
+      },
+      "problem": null
+    }
+  },
+  "stderr": {
+    "empty": true
+  },
+  "forbid": [
+    "rr_test_11111111111111111111111111111111"
+  ]
+}

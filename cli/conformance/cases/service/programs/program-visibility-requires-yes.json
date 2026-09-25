@@ -1,0 +1,78 @@
+{
+  "id": "program-visibility-requires-yes",
+  "feature": "programs",
+  "operation": "program.visibility",
+  "description": "Making a program public is an outward effect: without --yes it exits 2 with the planned request and sends nothing.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "program",
+    "visibility",
+    "demo",
+    "public"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "program.set_visibility",
+      "operation": "program.visibility",
+      "problem": {
+        "action": "Rerun the same command with --yes to confirm, or with --preview to see what it would do without sending anything.",
+        "boundary": "invocation",
+        "code": "CONFIRMATION_REQUIRED",
+        "details": {
+          "confirmArgv": [
+            "--output",
+            "json",
+            "cli",
+            "program",
+            "visibility",
+            "demo",
+            "public",
+            "--yes"
+          ],
+          "plannedRequest": {
+            "bodyBytes": 23,
+            "bodySha256": "b608e9b07c18727de02e851421550faa562591d5377b0c0286199373f39f83da",
+            "description": "Make a program public or private.",
+            "effect": "outward",
+            "method": "PUT",
+            "operation": "program.visibility",
+            "summary": {
+              "visibility": "public"
+            }
+          },
+          "previewArgv": [
+            "--output",
+            "json",
+            "cli",
+            "program",
+            "visibility",
+            "demo",
+            "public",
+            "--preview"
+          ],
+          "reason": "--yes is required because it changes who can read the program; public makes it readable by anyone"
+        },
+        "exitCode": 2,
+        "message": "This service operation requires explicit confirmation.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

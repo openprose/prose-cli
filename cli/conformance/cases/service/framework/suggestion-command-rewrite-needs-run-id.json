@@ -1,0 +1,50 @@
+{
+  "id": "suggestion-command-rewrite-needs-run-id",
+  "feature": "framework",
+  "operation": "run.show",
+  "description": "A rewrite without the target's required RUN_ID suggests the target's help, not an argv missing RUN_ID.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "result"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": null,
+      "operation": "cli",
+      "problem": {
+        "action": "Use `cli run show RUN_ID --file outputs/result.json`; `prose --output json cli run show --help` shows its arguments.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "unknown command `cli run result`; did you mean `cli run show RUN_ID --file outputs/result.json`? a run's result is its outputs/result.json file",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "show",
+            "--help"
+          ]
+        },
+        "exitCode": 2,
+        "message": "Unknown command.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

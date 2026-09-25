@@ -10,7 +10,7 @@ SQLite results use multiset semantics: row order is ignored, duplicate rows reta
 
 Run `python3 -m unittest discover -s experiments/weave -p 'test_*.py' -v` from the repository root. Cases are specified in CASES.md. Tests use fresh local state and fake assessment/action; they establish no model reliability. The final reread detects tested races, but cannot make a remote world atomic or eliminate a change after return. No exactly-once guarantee is claimed.
 
-Research evidence belongs to openprose-expedition under imp-017-weave; user-authorized campaign ends September 18 at 08:00 Eastern. No release or foundation promotion follows automatically.
+Research evidence is kept outside this repository; the user-authorized campaign ends September 18 at 08:00 Eastern. No release or foundation promotion follows automatically.
 
 Interrupted actions can be settled through `FileHost.settle(binding, attempt, outcome, receipt)`. The trusted host must establish `completed` or `not-applied` independently; unresolved effects remain pending. The method matches the recorded binding and attempt, atomically stores the last settlement reference, clears pending, and invalidates cached satisfaction. It neither invokes work nor replenishes attempts. The next `step` observes and assesses normally. A classifier score alone is not a settlement receipt. Receipt authenticity and an append-only audit history remain host responsibilities; the checkpoint retains only the latest settlement. This interface is an experimental local primitive, not distributed recovery or exactly-once execution.
 

@@ -1,0 +1,21 @@
+{
+  "id": "help-package-group-topic",
+  "feature": "framework",
+  "operation": "package.list",
+  "description": "`cli package --help` prints the package group topic, not the whole runner help.",
+  "argv": [
+    "cli",
+    "package",
+    "--help"
+  ],
+  "fixture": {
+    "exchanges": []
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "Usage: prose [GLOBAL OPTIONS] cli package <COMMAND> [ARGUMENTS] [OPTIONS]\n\nRegistry package commands (no source execution). Packages are files published\nto an organization's registry namespace; they are not OpenProse service programs\n(see `cli program`).\n\nCommands:\n  fetch                       Download one exact package version into a fresh directory, verifying its hashes.\n  list                        List an organization's public packages, one page at a time.\n  publish                     Publish a file or a package directory as ORG/NAME@VERSION (private by default).\n  withdraw                    Remove a version from discovery; pinned retrieval keeps working.\n\nExamples:\n  prose cli package fetch acme/tool@1.0.0 --output-dir tool --json\n  prose cli package list acme --json\n  prose cli package publish my-package --organization acme --name tool --version 1.0.0 --json\n  prose cli package withdraw acme/tool@1.0.0 --json\n\nGlobal options:\n  --output human|json|jsonl   Output mode; the same as the PROSE_OUTPUT setting.\n\nRun `prose cli package <COMMAND> --help` for details. Output: openprose.service-operation/1 (--json).\n"
+  },
+  "stderr": {
+    "text": ""
+  }
+}

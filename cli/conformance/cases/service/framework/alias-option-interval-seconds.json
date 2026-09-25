@@ -1,0 +1,30 @@
+{
+  "id": "alias-option-interval-seconds",
+  "feature": "framework",
+  "operation": "job.create",
+  "description": "`--interval 3600` becomes interval_seconds 3600 in the suggested schedule spec.",
+  "argv": [
+    "cli",
+    "job",
+    "create",
+    "--interval",
+    "3600",
+    "--program",
+    "demo"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: Unknown option.\nDetail: unknown option --interval for `cli job create`; a schedule job's interval is interval_seconds (3600 = hourly, 86400 = daily), set in the --spec-file JSON object\nAction: Create a schedule job from a JSON spec on standard input, previewing it first: `printf '%s\\\\n' '{\"interval_seconds\":3600,\"program_ref\":\"demo\",\"type\":\"schedule\"}' | prose cli job create --spec-file - --preview`.\n"
+  }
+}

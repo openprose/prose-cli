@@ -1,0 +1,86 @@
+{
+  "id": "result-show-not-found-removes-file",
+  "feature": "results",
+  "operation": "result.show",
+  "description": "A missing publication is SERVICE_RESOURCE_NOT_FOUND and the pre-created output file is removed.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "result",
+    "show",
+    "Owner/demo",
+    "AbCdEf012_-x",
+    "--raw",
+    "--output-file",
+    "result.json"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/p/Owner/demo/results/AbCdEf012_-x",
+        "status": 404,
+        "body": {
+          "error": "Not found"
+        },
+        "requestHeaders": {
+          "Authorization": {
+            "present": false
+          },
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          }
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "results.read_public",
+      "operation": "result.show",
+      "problem": {
+        "action": "Run `prose --output json cli result list Owner/demo` to find the right result, then retry with it.",
+        "boundary": "hosted-service",
+        "code": "SERVICE_RESOURCE_NOT_FOUND",
+        "details": {
+          "reason": "no publication AbCdEf012_-x of Owner/demo; list them with `prose --output json cli result list Owner/demo`",
+          "serviceStatus": 404,
+          "resource": {
+            "id": "Owner/demo",
+            "kind": "result"
+          },
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "result",
+            "list",
+            "Owner/demo"
+          ]
+        },
+        "exitCode": 10,
+        "message": "The requested OpenProse service resource was not found.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "expectFiles": [
+    {
+      "path": "result.json",
+      "absent": true
+    }
+  ],
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

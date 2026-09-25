@@ -1,0 +1,18 @@
+Dry run; no model started.
+Working directory: {cwd}
+Harness: {harness}
+Transport: {transport}
+Adapter: {adapter}
+Prompt placement: {placement} ({strictness})
+Isolation: {isolation}
+Auth: {authCategory} ({authReadiness})
+Billing owner: {billingOwner}
+Image: {imageVersion} ({imageSha256})
+Readiness: {readiness}
+?Native limits: {nativeLimits}
+?Native output limits: {nativeOutputLimits}
+?Native profile: {nativeProfile} (requested; observed tools unavailable in dry run)
+?Native configuration: {nativeConfiguration}
+?Blocking problem: {blockingCode}
+*{repairDetails}
+?Action: {action}

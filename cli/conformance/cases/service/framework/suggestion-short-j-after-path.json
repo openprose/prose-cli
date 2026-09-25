@@ -1,0 +1,51 @@
+{
+  "id": "suggestion-short-j-after-path",
+  "feature": "framework",
+  "operation": "run.list",
+  "description": "`-j` after the command path maps to --json (optionAliases) and the suggestion parses.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "list",
+    "-j"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "runs.list",
+      "operation": "run.list",
+      "problem": {
+        "action": "Replace -j with --json: `prose --output json cli run list --json`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "unknown option -j for `cli run list`; did you mean --json?",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "list",
+            "--json"
+          ]
+        },
+        "exitCode": 2,
+        "message": "Unknown option.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

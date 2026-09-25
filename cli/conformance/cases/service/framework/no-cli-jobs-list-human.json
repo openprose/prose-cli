@@ -1,0 +1,25 @@
+{
+  "id": "no-cli-jobs-list-human",
+  "feature": "framework",
+  "operation": "job.list",
+  "description": "Human `prose jobs list` suggests `prose cli job list`.",
+  "argv": [
+    "jobs",
+    "list"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: Unknown command.\nDetail: `jobs list` is not a command; did you mean `prose cli job list`? Nothing was forwarded or sent. To pass these words to the OpenProse language instead, put `--` before them\nAction: Use `cli job list`: `prose cli job list`.\n"
+  }
+}

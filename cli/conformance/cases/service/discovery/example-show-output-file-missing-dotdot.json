@@ -1,0 +1,59 @@
+{
+  "id": "example-show-output-file-missing-dotdot",
+  "feature": "discovery",
+  "operation": "example.show",
+  "description": "Paths are resolved by the OS, never lexically: missing/../x.md has a missing directory in both ports.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "example",
+    "show",
+    "private-example",
+    "--output-file",
+    "missing/../x.md"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "examples.private",
+      "operation": "example.show",
+      "problem": {
+        "action": "Correct the value named in Detail; `prose --output json cli example show --help` shows the accepted syntax.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "the directory for output file \"missing/../x.md\" does not exist",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "example",
+            "show",
+            "--help"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "expectFiles": [
+    {
+      "path": "x.md",
+      "absent": true
+    }
+  ]
+}

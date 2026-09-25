@@ -1,0 +1,26 @@
+{
+  "id": "no-cli-run-submit-human",
+  "feature": "framework",
+  "operation": "run.submit",
+  "description": "`prose run submit FILE` without `cli` exits 2 with the exact `prose cli run submit FILE`; nothing is forwarded or billed.",
+  "argv": [
+    "run",
+    "submit",
+    "hello.prose"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: That command isn't quite right.\nDetail: `run submit` is a service command; did you mean `prose cli run submit hello.prose`? Nothing was forwarded or sent. To pass these words to the OpenProse language instead, put `--` before them\nAction: Insert cli before the service command: `prose cli run submit hello.prose`.\n"
+  }
+}

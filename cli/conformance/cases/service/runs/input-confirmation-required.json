@@ -1,0 +1,87 @@
+{
+  "id": "input-confirmation-required",
+  "feature": "runs",
+  "operation": "run.input",
+  "description": "run input without --yes exits 2 with the plan and sends nothing.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "input",
+    "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+    "Stop after this step.",
+    "--id",
+    "9d8c7b6a-5f4e-4d3c-8b2a-1f0e9d8c7b6a"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "journal": [
+      {
+        "session": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f",
+        "runId": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+        "createdAt": "2026-09-24T00:59:00.000Z",
+        "lastSequence": 3,
+        "sourceSha256": null
+      }
+    ],
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "run.steer",
+      "operation": "run.input",
+      "problem": {
+        "action": "Rerun the same command with --yes to confirm, or with --preview to see what it would do without sending anything.",
+        "boundary": "invocation",
+        "code": "CONFIRMATION_REQUIRED",
+        "details": {
+          "confirmArgv": [
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "input",
+            "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+            "Stop after this step.",
+            "--id",
+            "9d8c7b6a-5f4e-4d3c-8b2a-1f0e9d8c7b6a",
+            "--yes"
+          ],
+          "plannedRequest": {
+            "bodyBytes": 76,
+            "bodySha256": "41a6999cb190a0534da7d16ea20105ac127dd4c4ab88bb81f68292723c2a21e3",
+            "description": "Send an instruction to a live run.",
+            "effect": "write",
+            "method": "POST",
+            "operation": "run.input"
+          },
+          "previewArgv": [
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "input",
+            "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+            "Stop after this step.",
+            "--id",
+            "9d8c7b6a-5f4e-4d3c-8b2a-1f0e9d8c7b6a",
+            "--preview"
+          ],
+          "reason": "--yes is required because the live run acts on the instruction as soon as it arrives, and it cannot be taken back"
+        },
+        "exitCode": 2,
+        "message": "This service operation requires explicit confirmation.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

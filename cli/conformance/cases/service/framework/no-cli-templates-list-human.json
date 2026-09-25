@@ -1,0 +1,25 @@
+{
+  "id": "no-cli-templates-list-human",
+  "feature": "framework",
+  "operation": "example.list",
+  "description": "`prose templates list` (no `cli`) suggests `prose cli example list`.",
+  "argv": [
+    "templates",
+    "list"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: Unknown command.\nDetail: `templates list` is not a command; did you mean `prose cli example list`? Nothing was forwarded or sent. To pass these words to the OpenProse language instead, put `--` before them\nAction: Use `cli example list`: `prose cli example list`.\n"
+  }
+}

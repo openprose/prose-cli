@@ -1,0 +1,52 @@
+{
+  "id": "package-withdraw-unknown-option",
+  "feature": "account",
+  "operation": "package.withdraw",
+  "description": "An option the package command does not take is named with the options it does take.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "package",
+    "withdraw",
+    "acme-research/tool@1.2.0",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "registry.gateway",
+      "operation": "package.withdraw",
+      "problem": {
+        "action": "Correct the value named in Detail; `prose --output json cli package withdraw --help` shows the accepted syntax.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "package withdraw does not take --yes; it takes no options",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "package",
+            "withdraw",
+            "--help"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "schema": "openprose.json-output/1",
+  "summary": "The JSON both ports print: compact, object keys in UTF-16 code-unit order, numbers in ECMAScript Number::toString form, strings escaped as JSON.stringify escapes them. `input` is JSON text parsed by the port, `output` the exact line it prints.",
+  "cases": [
+    {
+      "id": "integral-floats",
+      "input": "[100.0,-5.0,0.0,-0.0]",
+      "output": "[100,-5,0,0]"
+    },
+    {
+      "id": "fractions",
+      "input": "[0.1,0.30000000000000004,1.5,-2.25]",
+      "output": "[0.1,0.30000000000000004,1.5,-2.25]"
+    },
+    {
+      "id": "large-and-small",
+      "input": "[1e16,1e21,1.5e300,123456789012345680000,1e-6,1e-7,5e-324]",
+      "output": "[10000000000000000,1e+21,1.5e+300,123456789012345680000,0.000001,1e-7,5e-324]"
+    },
+    {
+      "id": "integers",
+      "input": "[0,-1,9007199254740991,-9007199254740991]",
+      "output": "[0,-1,9007199254740991,-9007199254740991]"
+    },
+    {
+      "id": "utf16-key-order",
+      "input": "{\"\\uffff\":1,\"\\ud83d\\ude00\":2,\"a\":3,\"B\":4}",
+      "output": "{\"B\":4,\"a\":3,\"😀\":2,\"￿\":1}"
+    },
+    {
+      "id": "string-escapes",
+      "input": "[\"a\\u0000b\\u001fc\\u007f\\u2028\"]",
+      "output": "[\"a\\u0000b\\u001fc \"]"
+    }
+  ]
+}

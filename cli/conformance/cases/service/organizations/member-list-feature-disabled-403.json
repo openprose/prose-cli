@@ -1,0 +1,66 @@
+{
+  "id": "member-list-feature-disabled-403",
+  "feature": "organizations",
+  "operation": "org.member.list",
+  "description": "feature_disabled at 403 is SERVICE_FEATURE_DISABLED.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "org",
+    "member",
+    "list",
+    "acme-research"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/organizations/acme-research/members",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          },
+          "Accept": "application/json"
+        },
+        "status": 403,
+        "body": {
+          "error": "organization registry is off",
+          "code": "feature_disabled",
+          "feature": "example_feature"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "organizations.manage",
+      "operation": "org.member.list",
+      "problem": {
+        "action": "Check your plan or organization, or contact OpenProse support.",
+        "boundary": "hosted-service",
+        "code": "SERVICE_FEATURE_DISABLED",
+        "exitCode": 10,
+        "message": "This capability is not available for this account.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1",
+        "details": {
+          "serviceCode": "feature_disabled",
+          "serviceStatus": 403
+        }
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "example_feature",
+    "organization registry is off"
+  ]
+}

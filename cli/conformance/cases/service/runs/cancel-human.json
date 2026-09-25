@@ -1,0 +1,68 @@
+{
+  "id": "cancel-human",
+  "feature": "runs",
+  "operation": "run.cancel",
+  "description": "Human cancel shows available and reserved balance and says the hold stays until the service settles.",
+  "argv": [
+    "cli",
+    "run",
+    "cancel",
+    "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "journal": [
+      {
+        "session": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f",
+        "runId": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+        "createdAt": "2026-09-24T00:59:00.000Z",
+        "lastSequence": 3,
+        "sourceSha256": null
+      }
+    ],
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/run/run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c/cancel",
+        "query": {
+          "session": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f"
+        },
+        "status": 200,
+        "body": {
+          "status": "cancelling"
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/wallet/balance",
+        "status": 200,
+        "body": {
+          "customer_id": "cus_example",
+          "balance": {
+            "available_cents": 3129,
+            "available_dollars": "31.29",
+            "available_nanos": 31290000000,
+            "posted_cents": 3231,
+            "posted_dollars": "32.31",
+            "posted_nanos": 32310000000,
+            "reserved_cents": 102,
+            "reserved_dollars": "1.02",
+            "reserved_nanos": 1020000000
+          }
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "Cancel requested for run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c (status: cancelling).\nWallet: available $31.29, reserved $1.02, balance $32.31.\nA reserved hold stays until the service settles the run. Watch the run finish with: prose cli run watch run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c\n"
+  },
+  "stderr": {
+    "text": ""
+  }
+}

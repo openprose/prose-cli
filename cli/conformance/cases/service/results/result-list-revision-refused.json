@@ -1,0 +1,54 @@
+{
+  "id": "result-list-revision-refused",
+  "feature": "results",
+  "operation": "result.list",
+  "description": "Results belong to the program, not a revision: OWNER/SLUG@REV is refused with the corrected argument.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "result",
+    "list",
+    "Owner/demo@0123456789abcdef"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "results.list_public",
+      "operation": "result.list",
+      "problem": {
+        "action": "Correct the value named in Detail; `prose --output json cli result list --help` shows the accepted syntax.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "results belong to a program, not a revision; pass \"Owner/demo\" without @REV",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "result",
+            "list",
+            "--help"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

@@ -1,0 +1,64 @@
+{
+  "id": "wallet-balance-projection",
+  "feature": "wallet",
+  "operation": "wallet.balance",
+  "description": "Balance projection keeps available, posted and reserved in cents and dollars; customer_id and *_nanos are dropped.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "wallet",
+    "balance"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/wallet/balance",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          }
+        },
+        "status": 200,
+        "body": {
+          "customer_id": "cus_ExampleOwner01",
+          "balance": {
+            "available_cents": 3235,
+            "available_dollars": "32.35",
+            "available_nanos": 32350000000,
+            "posted_cents": 3337,
+            "posted_dollars": "33.37",
+            "reserved_cents": 102,
+            "reserved_dollars": "1.02",
+            "reserved_nanos": 1020000000
+          }
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "wallet.balance",
+      "operation": "wallet.balance",
+      "problem": null,
+      "result": {
+        "balance": {
+          "available_cents": 3235,
+          "available_dollars": "32.35",
+          "posted_cents": 3337,
+          "posted_dollars": "33.37",
+          "reserved_cents": 102,
+          "reserved_dollars": "1.02"
+        }
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

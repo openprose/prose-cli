@@ -1,0 +1,169 @@
+{
+  "id": "show-failed-run-error-sanitized-unknown-fields",
+  "feature": "run-records",
+  "operation": "run.show",
+  "description": "A failed run's error text keeps its words with control characters turned into spaces. Every service record also carries internal fields (runtime, contract, version, adoption, driver, configuration token, reactor, call id, showable, price policy, organization id, an internal path): the output is unchanged and names none of them.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "show",
+    "run_5e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f68"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/runs/run_5e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f68",
+        "requestHeaders": {
+          "Authorization": {
+            "pattern": "^Bearer rr_test_[0-9a-f]{32}$"
+          }
+        },
+        "status": 200,
+        "body": {
+          "run_id": "run_5e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f68",
+          "created_at": "2026-09-23T20:29:47.788Z",
+          "status": "error",
+          "model": "model-sol",
+          "environment": {
+            "id": "builtin",
+            "version": "1.0.0",
+            "runtime_contract": 1,
+            "runtime": "x-internal-runtime",
+            "contract": "x-internal-contract",
+            "adopted": true,
+            "driver": "x-internal-driver",
+            "configurationToken": "x-internal-configuration-token",
+            "reactor": "x-internal-reactor",
+            "call_id": "x-internal-call",
+            "showable": true,
+            "pricing_policy_id": "x-internal-pricing-policy",
+            "organization_id": "x-internal-organization",
+            "internal_path": "/internal/x-internal-path/state.json"
+          },
+          "price_cents": 4,
+          "environment_price_cents": 1,
+          "billing_status": "settled",
+          "program_ref": "openprose/prose-write@840170241e030597",
+          "customer_id": "cus_ExampleOwner01",
+          "usage": {
+            "input_tokens": 103123,
+            "output_tokens": 836,
+            "cache_read_input_tokens": 5,
+            "runtime": "x-internal-runtime",
+            "contract": "x-internal-contract",
+            "version": "x-internal-version",
+            "adopted": true,
+            "driver": "x-internal-driver",
+            "configurationToken": "x-internal-configuration-token",
+            "reactor": "x-internal-reactor",
+            "call_id": "x-internal-call",
+            "showable": true,
+            "pricing_policy_id": "x-internal-pricing-policy",
+            "organization_id": "x-internal-organization",
+            "internal_path": "/internal/x-internal-path/state.json"
+          },
+          "files": [],
+          "has_patch": false,
+          "session_files": [],
+          "file_urls": {
+            "runtime": "x-internal-runtime",
+            "contract": "x-internal-contract",
+            "version": "x-internal-version",
+            "adopted": true,
+            "driver": "x-internal-driver",
+            "configurationToken": "x-internal-configuration-token",
+            "reactor": "x-internal-reactor",
+            "call_id": "x-internal-call",
+            "showable": true,
+            "pricing_policy_id": "x-internal-pricing-policy",
+            "organization_id": "x-internal-organization",
+            "internal_path": "/internal/x-internal-path/state.json"
+          },
+          "spec_commit": "0123abcd",
+          "browser_live_view": {
+            "status": "ended",
+            "runtime": "x-internal-runtime",
+            "contract": "x-internal-contract",
+            "version": "x-internal-version",
+            "adopted": true,
+            "driver": "x-internal-driver",
+            "configurationToken": "x-internal-configuration-token",
+            "reactor": "x-internal-reactor",
+            "call_id": "x-internal-call",
+            "showable": true,
+            "pricing_policy_id": "x-internal-pricing-policy",
+            "organization_id": "x-internal-organization",
+            "internal_path": "/internal/x-internal-path/state.json"
+          },
+          "error": "Model call failed:\n\tretry later\u0007",
+          "runtime": "x-internal-runtime",
+          "contract": "x-internal-contract",
+          "version": "x-internal-version",
+          "adopted": true,
+          "driver": "x-internal-driver",
+          "configurationToken": "x-internal-configuration-token",
+          "reactor": "x-internal-reactor",
+          "call_id": "x-internal-call",
+          "showable": true,
+          "pricing_policy_id": "x-internal-pricing-policy",
+          "organization_id": "x-internal-organization",
+          "internal_path": "/internal/x-internal-path/state.json"
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "run.read",
+      "operation": "run.show",
+      "problem": null,
+      "result": {
+        "run": {
+          "billing_status": "settled",
+          "created_at": "2026-09-23T20:29:47.788Z",
+          "environment": "builtin",
+          "environment_price_cents": 1,
+          "error": "A model call failed.",
+          "files": [],
+          "has_patch": false,
+          "model": "model-sol",
+          "price_cents": 4,
+          "program_ref": "openprose/prose-write@840170241e030597",
+          "run_id": "run_5e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f68",
+          "session_files": [],
+          "status": "error",
+          "usage": {
+            "input_tokens": 103123,
+            "output_tokens": 836
+          }
+        },
+        "runId": "run_5e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f68"
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "x-internal-",
+    "/internal/",
+    "\"adopted\"",
+    "\"driver\"",
+    "\"showable\"",
+    "\"call_id\"",
+    "\"pricing_policy_id\"",
+    "\"organization_id\"",
+    "\"configurationToken\"",
+    "\"runtime\"",
+    "\"contract\"",
+    "\"reactor\"",
+    "\"internal_path\""
+  ]
+}

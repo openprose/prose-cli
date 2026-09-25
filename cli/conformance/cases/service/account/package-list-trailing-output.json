@@ -1,0 +1,45 @@
+{
+  "id": "package-list-trailing-output",
+  "feature": "account",
+  "operation": "package.list",
+  "description": "`--output` after `cli package list OWNER` is honored.",
+  "argv": [
+    "cli",
+    "package",
+    "list",
+    "acme-research",
+    "--output",
+    "json"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/registry/v1/organizations/acme-research/packages",
+        "status": 200,
+        "body": {
+          "packages": [],
+          "nextCursor": null
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "schema": "openprose.service-operation/1",
+      "operation": "package.list",
+      "interaction": "registry.gateway",
+      "result": {
+        "nextCursor": null,
+        "packages": []
+      },
+      "problem": null
+    }
+  }
+}

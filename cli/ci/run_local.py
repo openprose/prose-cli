@@ -349,6 +349,68 @@ def gates() -> tuple[Gate, ...]:
                 "--offline",
             ),
         ),
+        # The OpenProse developer endpoint build (cargo feature dev-endpoint)
+        # is never part of a public build; lint and test it here so it cannot
+        # rot unnoticed. It shares the test-seam feature so the integration
+        # tests can drive it through the fixture transport.
+        Gate(
+            "rust-clippy-dev-endpoint",
+            CLI_ROOT / "rust",
+            (
+                "cargo",
+                "clippy",
+                "--workspace",
+                "--all-targets",
+                "--features",
+                "prose-cli/test-seams,prose-cli/dev-endpoint",
+                "--locked",
+                "--offline",
+                "--",
+                "-D",
+                "warnings",
+            ),
+            quick=False,
+            timeout_seconds=HEAVY_GATE_TIMEOUT_SECONDS,
+        ),
+        Gate(
+            "rust-tests-dev-endpoint",
+            CLI_ROOT / "rust",
+            (
+                "cargo",
+                "test",
+                "--workspace",
+                "--all-targets",
+                "--features",
+                "prose-cli/test-seams,prose-cli/dev-endpoint",
+                "--locked",
+                "--offline",
+            ),
+            quick=False,
+            timeout_seconds=HEAVY_GATE_TIMEOUT_SECONDS,
+        ),
+        # The developer endpoint binary exactly as a developer builds it
+        # (without the test seams), in its own target directory so it can
+        # never be mistaken for, or overwrite, a public build.
+        Gate(
+            "rust-build-dev-endpoint",
+            CLI_ROOT / "rust",
+            (
+                "cargo",
+                "build",
+                "--locked",
+                "--offline",
+                "-p",
+                "prose-cli",
+                "--bin",
+                "prose",
+                "--features",
+                "dev-endpoint",
+                "--target-dir",
+                "target/openprose-dev-endpoint",
+            ),
+            quick=False,
+            timeout_seconds=HEAVY_GATE_TIMEOUT_SECONDS,
+        ),
         # The lifecycle driver intentionally builds a test-seam Rust candidate and
         # then an ordinary candidate into Cargo's conventional output path. Run it
         # before the ordinary product build below so an already-fresh no-feature
@@ -393,38 +455,41 @@ def gates() -> tuple[Gate, ...]:
             REPOSITORY_ROOT,
             (python, "cli/conformance/runner/run.py", "--build", "--phase", "7"),
         ),
-        Gate(
-            "staging-service-corpus",
-            REPOSITORY_ROOT,
-            (python, "cli/conformance/runner/staging_service.py", "--validate"),
-        ),
-        Gate("staging-service-rust-build", CLI_ROOT / "rust",
+        # Hosted service operations and the account and
+        # registry commands, against the production service only. Each
+        # product's test-seam build precedes the gates that run it.
+        Gate("service-operations-corpus", REPOSITORY_ROOT,
+             (python, "cli/conformance/runner/service_operations.py", "--validate")),
+        Gate("service-coverage", REPOSITORY_ROOT,
+             (python, "cli/conformance/runner/service_coverage.py", "--strict")),
+        Gate("service-help", REPOSITORY_ROOT, (python, "cli/ci/render_service_help.py", "--check")),
+        Gate("service-operations-rust-build", CLI_ROOT / "rust",
              ("cargo", "build", "--locked", "--features", "test-seams", "--bin", "prose")),
-        Gate(
-            "staging-service-rust",
-            REPOSITORY_ROOT,
-            (python, "cli/conformance/runner/staging_service.py", "--",
-             str(CLI_ROOT / "rust" / "target" / "debug" / "prose")),
-        ),
-        Gate("staging-service-bun-build", CLI_ROOT / "bun", ("bun", "run", "build:test")),
-        Gate(
-            "staging-service-bun",
-            REPOSITORY_ROOT,
-            (python, "cli/conformance/runner/staging_service.py", "--",
-             str(CLI_ROOT / "bun" / "dist" / "prose-test")),
-        ),
-        Gate("service-environment-rust", REPOSITORY_ROOT,
-             (python, "cli/conformance/runner/service_environment.py", "--",
+        Gate("service-operations-rust", REPOSITORY_ROOT,
+             (python, "cli/conformance/runner/service_operations.py", "--all", "--",
               str(CLI_ROOT / "rust" / "target" / "debug" / "prose"))),
-        Gate("service-environment-bun", REPOSITORY_ROOT,
-             (python, "cli/conformance/runner/service_environment.py", "--",
-              str(CLI_ROOT / "bun" / "dist" / "prose-test"))),
         Gate("registry-service-rust", REPOSITORY_ROOT,
              (python, "cli/conformance/runner/registry_service.py", "--",
               str(CLI_ROOT / "rust" / "target" / "debug" / "prose"))),
+        Gate("service-operations-bun-build", CLI_ROOT / "bun", ("bun", "run", "build:test")),
+        Gate("service-operations-bun", REPOSITORY_ROOT,
+             (python, "cli/conformance/runner/service_operations.py", "--all", "--",
+              str(CLI_ROOT / "bun" / "dist" / "prose-test"))),
         Gate("registry-service-bun", REPOSITORY_ROOT,
              (python, "cli/conformance/runner/registry_service.py", "--",
               str(CLI_ROOT / "bun" / "dist" / "prose-test"))),
+        # prose-cli is a public user client: no internal service detail or
+        # developer-only surface in tracked files (quick), nor in either
+        # port's release help or the release Rust binary strings (full).
+        Gate("public-surface-files", REPOSITORY_ROOT,
+             (python, "cli/ci/check_public_surface.py")),
+        Gate(
+            "public-surface",
+            REPOSITORY_ROOT,
+            (python, "cli/ci/check_public_surface.py", "--build-release"),
+            quick=False,
+            timeout_seconds=HEAVY_GATE_TIMEOUT_SECONDS,
+        ),
         Gate(
             "conformance-host",
             REPOSITORY_ROOT,

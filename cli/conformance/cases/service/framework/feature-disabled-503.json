@@ -1,0 +1,58 @@
+{
+  "id": "feature-disabled-503",
+  "feature": "framework",
+  "operation": "repo.list",
+  "description": "feature_disabled at HTTP 503 is SERVICE_FEATURE_DISABLED (body code before status); the feature name and the server message are never echoed.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "repo",
+    "list"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/repos",
+        "status": 503,
+        "body": {
+          "error": "GitHub repositories are disabled.",
+          "code": "feature_disabled",
+          "feature": "example_feature"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "repos.list",
+      "operation": "repo.list",
+      "problem": {
+        "action": "Check your plan or organization, or contact OpenProse support.",
+        "boundary": "hosted-service",
+        "code": "SERVICE_FEATURE_DISABLED",
+        "details": {
+          "serviceCode": "feature_disabled",
+          "serviceStatus": 503
+        },
+        "exitCode": 10,
+        "message": "This capability is not available for this account.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "example_feature",
+    "GitHub repositories are disabled."
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "id": "flag-before-cli-yes",
+  "feature": "framework",
+  "operation": "run.cancel",
+  "description": "`--yes` before `cli` confirms nothing and is not forwarded: the human error names the command with `--yes` after the command path.",
+  "argv": [
+    "--yes",
+    "cli",
+    "run",
+    "cancel",
+    "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: That command isn't quite right.\nDetail: `--yes` belongs after the command path, not before `cli`; nothing was forwarded or sent\nAction: Move --yes after the command path: `prose cli run cancel run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c --yes`.\n"
+  },
+  "suggestedArgvReaches": true
+}

@@ -1,0 +1,150 @@
+{
+  "id": "watch-wait-deadline-exits-21",
+  "feature": "runs",
+  "operation": "run.watch",
+  "description": "Reaching --wait while watching detaches with SERVICE_WATCH_DEADLINE (21) and resumeArgv from the last sequence; nothing is cancelled.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "watch",
+    "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+    "--after",
+    "3",
+    "--wait",
+    "20m"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "journal": [
+      {
+        "session": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f",
+        "runId": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+        "createdAt": "2026-09-24T00:59:00.000Z",
+        "lastSequence": 3,
+        "sourceSha256": null
+      }
+    ],
+    "clock": {
+      "start": "2026-09-24T01:00:00.000Z",
+      "stepMs": 600000
+    },
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/run/run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c/events",
+        "query": {
+          "after": "3",
+          "session": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f"
+        },
+        "requestHeaders": {
+          "Accept": "text/event-stream",
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "status": 200,
+        "sse": {
+          "frames": [
+            {
+              "id": "4",
+              "event": "text_chunk",
+              "data": {
+                "type": "text_chunk",
+                "run_id": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+                "sequence": 4,
+                "at": "2026-09-24T01:00:01.000Z",
+                "text": "a"
+              }
+            },
+            {
+              "id": "5",
+              "event": "text_chunk",
+              "data": {
+                "type": "text_chunk",
+                "run_id": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+                "sequence": 5,
+                "at": "2026-09-24T01:00:01.000Z",
+                "text": "b"
+              }
+            },
+            {
+              "id": "6",
+              "event": "text_chunk",
+              "data": {
+                "type": "text_chunk",
+                "run_id": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+                "sequence": 6,
+                "at": "2026-09-24T01:00:01.000Z",
+                "text": "c"
+              }
+            },
+            {
+              "id": "7",
+              "event": "text_chunk",
+              "data": {
+                "type": "text_chunk",
+                "run_id": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+                "sequence": 7,
+                "at": "2026-09-24T01:00:01.000Z",
+                "text": "d"
+              }
+            }
+          ],
+          "end": "close"
+        }
+      }
+    ]
+  },
+  "exitCode": 21,
+  "stdout": {
+    "json": {
+      "interaction": "run.observe",
+      "operation": "run.watch",
+      "problem": {
+        "action": "Resume with the `cli run watch` runner operation using details.resumeArgv (details.runId and details.afterSequence); never submit the run again to resume it.",
+        "boundary": "hosted-service",
+        "code": "SERVICE_WATCH_DEADLINE",
+        "details": {
+          "afterSequence": 5,
+          "cancelArgv": [
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "cancel",
+            "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+            "--session",
+            "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f",
+            "--yes"
+          ],
+          "reason": "the --wait deadline passed; the run continues. Resume with `prose --output json cli run watch run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c --after 5 --session 5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f`",
+          "resumable": true,
+          "resumeArgv": [
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "watch",
+            "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+            "--after",
+            "5",
+            "--session",
+            "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f"
+          ],
+          "runId": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+          "session": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f"
+        },
+        "exitCode": 21,
+        "message": "The watch deadline elapsed before the hosted run finished; the run continues.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

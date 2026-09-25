@@ -1,0 +1,68 @@
+{
+  "id": "member-role-last-admin",
+  "feature": "organizations",
+  "operation": "org.member.role",
+  "description": "Demoting the last admin is 409 last_admin: SERVICE_WRITE_CONFLICT with the message (last_admin is not an allowlisted serviceCode, so it is dropped).",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "org",
+    "member",
+    "role",
+    "acme-research",
+    "cus_ExampleAdmin01",
+    "developer",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "PATCH",
+        "path": "/organizations/acme-research/members/cus_ExampleAdmin01",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          },
+          "Accept": "application/json",
+          "Content-Type": "application/json"
+        },
+        "status": 409,
+        "body": {
+          "error": "Cannot remove or demote the last organization admin",
+          "code": "last_admin"
+        },
+        "expectedBody": {
+          "role": "developer"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "organizations.manage",
+      "operation": "org.member.role",
+      "problem": {
+        "action": "Read the current state of the resource, reconcile the change, then retry.",
+        "boundary": "hosted-service",
+        "code": "SERVICE_WRITE_CONFLICT",
+        "exitCode": 10,
+        "message": "The OpenProse service reported a conflicting write.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1",
+        "details": {
+          "serviceMessage": "Cannot remove or demote the last organization admin",
+          "serviceStatus": 409
+        }
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "id": "help-program-draft-topic",
+  "feature": "framework",
+  "operation": "program.draft",
+  "description": "`cli program draft --help` lists the 22 and 24 exits its corpus cases emit.",
+  "argv": [
+    "cli",
+    "program",
+    "draft",
+    "--help"
+  ],
+  "fixture": {
+    "exchanges": []
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "Usage: prose [GLOBAL OPTIONS] cli program draft <SENTENCE> [OPTIONS]\n\nDraft a program from a sentence with the hosted writer. This is paid: it reserves the same hold as a run (see `cli run quote`), and --preview shows it.\n\nArguments:\n  SENTENCE                    What the program should do.\n\nOptions:\n  --current FILE              Existing program to revise.\n  --model MODEL               Hosted model id. Default: the service's default_model (`cli model list`).\n  --output-file FILE          Write the bytes to FILE, which must not exist, instead of including them in the result.\n  --yes                       Confirm this operation; required because it starts a paid writer run: a hold is reserved from the wallet now and the run's price is charged when it settles.\n  --preview                   Print the planned request of a mutation and send nothing.\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli program draft 'write a haiku about rain' --output-file haiku.prose.md --yes\n\nOutput: openprose.service-operation/1 (--json).\nExit codes: 0 success; 2 invalid invocation, configuration or CONFIRMATION_REQUIRED; 10 service or credential error; 22 the writer run failed; 24 interrupted (details.runId names the draft run, which continues).\n"
+  },
+  "stderr": {
+    "text": ""
+  }
+}

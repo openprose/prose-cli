@@ -1,0 +1,34 @@
+{
+  "id": "no-cli-status-file-forwards",
+  "feature": "framework",
+  "operation": "service.status",
+  "description": "A file named `status` makes `prose status` the language command: it is forwarded, and the HOSTED_UNAVAILABLE Action also names `prose cli service triage`.",
+  "files": [
+    {
+      "path": "status",
+      "content": ""
+    }
+  ],
+  "argv": [
+    "status"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 10,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "contains": [
+      "HOSTED_UNAVAILABLE",
+      "To use the hosted service, run `prose cli service triage`; running programs on this machine needs a local harness"
+    ]
+  },
+  "languageForwarded": true
+}

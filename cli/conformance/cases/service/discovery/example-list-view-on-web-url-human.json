@@ -1,0 +1,70 @@
+{
+  "id": "example-list-view-on-web-url-human",
+  "feature": "discovery",
+  "operation": "example.list",
+  "description": "Human `example list` prints the web URL of an example viewed on the web.",
+  "argv": [
+    "cli",
+    "example",
+    "list"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/examples/private",
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef",
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          },
+          "Accept": "application/json"
+        },
+        "status": 200,
+        "body": {
+          "examples": [
+            {
+              "id": "private-example",
+              "label": "Private example",
+              "source": "/examples/private/private-example"
+            },
+            {
+              "id": "private-agent-browser",
+              "label": "Persona Website Feedback",
+              "source": "/examples/private/private-agent-browser"
+            },
+            {
+              "id": "agent-native",
+              "label": "Agent-native",
+              "source": "https://examples.example.org/examples/agent-native.prose.md",
+              "web_url": "https://openprose.ai/examples/agent-native"
+            },
+            {
+              "id": "agent-native-change",
+              "label": "Agent-native change",
+              "source": "https://examples.example.org/examples/agent-native-change.prose.md",
+              "web_url": "https://openprose.ai/examples/agent-native-change"
+            },
+            {
+              "id": "slack-hello",
+              "label": "Slack hello",
+              "source": "/examples/private/slack-hello"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "private-example: Private example\nprivate-agent-browser: Persona Website Feedback\nagent-native: Agent-native (view on the web: https://openprose.ai/examples/agent-native)\nagent-native-change: Agent-native change (view on the web: https://openprose.ai/examples/agent-native-change)\nslack-hello: Slack hello\n"
+  },
+  "stderr": {
+    "text": ""
+  }
+}

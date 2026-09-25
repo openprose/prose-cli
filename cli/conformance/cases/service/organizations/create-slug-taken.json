@@ -1,0 +1,66 @@
+{
+  "id": "create-slug-taken",
+  "feature": "organizations",
+  "operation": "org.create",
+  "description": "slug_taken (409) is SERVICE_WRITE_CONFLICT with the sanitized service message.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "org",
+    "create",
+    "acme-research",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/organizations",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          },
+          "Accept": "application/json",
+          "Content-Type": "application/json"
+        },
+        "status": 409,
+        "body": {
+          "error": "Organization slug is already taken",
+          "code": "slug_taken"
+        },
+        "expectedBody": {
+          "slug": "acme-research"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "organizations.manage",
+      "operation": "org.create",
+      "problem": {
+        "action": "Read the current state of the resource, reconcile the change, then retry.",
+        "boundary": "hosted-service",
+        "code": "SERVICE_WRITE_CONFLICT",
+        "exitCode": 10,
+        "message": "The OpenProse service reported a conflicting write.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1",
+        "details": {
+          "serviceCode": "slug_taken",
+          "serviceMessage": "Organization slug is already taken",
+          "serviceStatus": 409
+        }
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

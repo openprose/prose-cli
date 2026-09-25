@@ -1,0 +1,58 @@
+{
+  "id": "job-update-name-option-spec-stdin",
+  "feature": "jobs",
+  "operation": "job.update",
+  "description": "`job update --name x` points at --spec-file - with the equivalent JSON in details.suggestedStdin.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "job",
+    "update",
+    "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10",
+    "--name",
+    "nightly hook",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "job.update",
+      "operation": "job.update",
+      "problem": {
+        "action": "Pass the settings as JSON on standard input: `printf '%s\\n' '{\"name\":\"nightly hook\"}' | prose --output json cli job update 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10 --spec-file - --yes`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "unknown option --name for `cli job update`; --name is a key of the --spec-file JSON object: {\"name\":\"nightly hook\"}",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "job",
+            "update",
+            "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10",
+            "--spec-file",
+            "-",
+            "--yes"
+          ],
+          "suggestedStdin": "{\"name\":\"nightly hook\"}\n"
+        },
+        "exitCode": 2,
+        "message": "Unknown option.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

@@ -14,7 +14,7 @@ parser.add_argument('--rust',required=True,type=Path)
 args=parser.parse_args()
 results=[]
 for implementation,binary in [('bun',args.bun.resolve()),('rust',args.rust.resolve())]:
-    with tempfile.TemporaryDirectory(prefix='imp008-process-') as temporary:
+    with tempfile.TemporaryDirectory(prefix='kernel-startup-process-') as temporary:
         root=Path(temporary)
         executable=root/'codex'
         observation=root/'observation.json'
@@ -35,7 +35,7 @@ assert image and image not in json.dumps(task)
 assert args.index(selected[0])>args.index('exec')
 assert args[args.index('--model')+1]=='fixture-model'
 assert args[args.index('--sandbox')+1]=='workspace-write'
-Path('''+repr(str(observation))+''').write_text(json.dumps({'image_bytes':len(image.encode()),'task':task,'placement':'developer','mode':os.environ.get('IMP008_CASE','success')}))
+Path('''+repr(str(observation))+''').write_text(json.dumps({'image_bytes':len(image.encode()),'task':task,'placement':'developer','mode':os.environ.get('KERNEL_STARTUP_CASE','success')}))
 case=Path('case.txt').read_text()
 if case=='failure': sys.exit(7)
 if case=='timeout':

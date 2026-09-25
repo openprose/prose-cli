@@ -1,0 +1,43 @@
+{
+  "id": "missing-verb-lists-commands",
+  "feature": "framework",
+  "operation": "run.list",
+  "description": "A bare noun lists its commands instead of guessing.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run"
+  ],
+  "fixture": {
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": null,
+      "operation": "cli",
+      "problem": {
+        "action": "Choose one of the `cli run` commands; `prose --output json cli run --help` describes them.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "`cli run` needs a command: cancel, download, input, list, quote, share, show, submit, watch",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "--help"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

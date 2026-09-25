@@ -1,0 +1,28 @@
+{
+  "id": "alias-account-auth-login-double-dash-json",
+  "feature": "framework",
+  "operation": "auth.login",
+  "description": "`cli auth login -- --json`: `--json` after `--` is an argument, so the grammar error is human.",
+  "argv": [
+    "cli",
+    "auth",
+    "login",
+    "--",
+    "--json"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: That command isn't quite right.\nDetail: missing or invalid arguments for `cli auth login`\nAction: `prose cli auth login --help` shows the syntax.\n"
+  }
+}

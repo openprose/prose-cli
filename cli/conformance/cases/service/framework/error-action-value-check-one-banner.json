@@ -1,0 +1,28 @@
+{
+  "id": "error-action-value-check-one-banner",
+  "feature": "framework",
+  "operation": "run.list",
+  "description": "A handler value check prints the environment label once (no separate banner line) and points at the operation's help in the same environment.",
+  "argv": [
+    "cli",
+    "run",
+    "list",
+    "--limit",
+    "abc"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: That command isn't quite right.\nDetail: --limit \"abc\" is invalid; use a whole number from 1 to 200\nAction: Correct the value named in Detail; `prose cli run list --help` shows the accepted syntax.\n"
+  }
+}

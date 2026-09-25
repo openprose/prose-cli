@@ -1,0 +1,43 @@
+{
+  "id": "package-unknown-command",
+  "feature": "account",
+  "operation": "package.list",
+  "description": "An unknown package command is a bare INVOCATION_INVALID naming the four commands.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "package",
+    "frob",
+    "acme-research"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": null,
+      "operation": "cli",
+      "problem": {
+        "action": "Run `prose cli package --help` to see the package commands.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "unknown package command \"frob\"; the commands are publish, fetch, list and withdraw"
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

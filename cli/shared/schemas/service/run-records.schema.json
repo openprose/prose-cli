@@ -1,0 +1,316 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.openprose.org/cli/v1/service/run-records.schema.json",
+  "title": "OpenProse service run record results",
+  "description": "Closed per-operation result projections. Referenced from shared/service/operations.v1.json by $defs name; no property name may match /cost/i.",
+  "$defs": {
+    "runSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "run_id",
+        "created_at",
+        "status",
+        "model"
+      ],
+      "properties": {
+        "run_id": {
+          "$ref": "common.schema.json#/$defs/runId"
+        },
+        "created_at": {
+          "$ref": "common.schema.json#/$defs/timestamp"
+        },
+        "status": {
+          "type": "string",
+          "maxLength": 32,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+        },
+        "model": {
+          "$ref": "common.schema.json#/$defs/modelId"
+        },
+        "environment": {
+          "$ref": "common.schema.json#/$defs/environmentProvenance"
+        },
+        "price_cents": {
+          "$ref": "common.schema.json#/$defs/cents"
+        },
+        "environment_price_cents": {
+          "$ref": "common.schema.json#/$defs/cents"
+        },
+        "billing_status": {
+          "description": "The run's billing state: `settled` (final), `settling` (charged, not settled yet) or `unknown` (any other service state).",
+          "enum": [
+            "settled",
+            "settling",
+            "unknown"
+          ]
+        },
+        "program_ref": {
+          "$ref": "common.schema.json#/$defs/programRef"
+        },
+        "repositories": {
+          "type": "array",
+          "items": {
+            "$ref": "common.schema.json#/$defs/repository"
+          },
+          "maxItems": 16
+        },
+        "cancelled": {
+          "description": "Present (true) only when the run was cancelled: its status is cancelled, or its owner stopped it (the service records that as status error with the stop reason). `cli run watch` of such a run exits 24.",
+          "const": true
+        }
+      }
+    },
+    "runList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "runs"
+      ],
+      "properties": {
+        "runs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/runSummary"
+          },
+          "maxItems": 200
+        },
+        "nextBefore": {
+          "description": "Opaque cursor for the next page, or null on the last page. Pass it unchanged to `--before`; its content is not part of the contract and may change without notice.",
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "maxLength": 512,
+              "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+            }
+          ]
+        }
+      }
+    },
+    "runManifest": {
+      "description": "Run manifest; signed `file_urls` and `customer_id` are always dropped.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "run_id",
+        "created_at",
+        "status",
+        "model",
+        "files",
+        "has_patch"
+      ],
+      "properties": {
+        "run_id": {
+          "$ref": "common.schema.json#/$defs/runId"
+        },
+        "created_at": {
+          "$ref": "common.schema.json#/$defs/timestamp"
+        },
+        "status": {
+          "type": "string",
+          "maxLength": 32,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+        },
+        "model": {
+          "$ref": "common.schema.json#/$defs/modelId"
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "$ref": "common.schema.json#/$defs/relativePath"
+          },
+          "maxItems": 10000
+        },
+        "has_patch": {
+          "type": "boolean"
+        },
+        "environment": {
+          "$ref": "common.schema.json#/$defs/environmentProvenance"
+        },
+        "price_cents": {
+          "$ref": "common.schema.json#/$defs/cents"
+        },
+        "environment_price_cents": {
+          "$ref": "common.schema.json#/$defs/cents"
+        },
+        "billing_status": {
+          "description": "The run's billing state: `settled` (final), `settling` (charged, not settled yet) or `unknown` (any other service state).",
+          "enum": [
+            "settled",
+            "settling",
+            "unknown"
+          ]
+        },
+        "program_ref": {
+          "$ref": "common.schema.json#/$defs/programRef"
+        },
+        "repositories": {
+          "type": "array",
+          "items": {
+            "$ref": "common.schema.json#/$defs/repository"
+          },
+          "maxItems": 16
+        },
+        "usage": {
+          "$ref": "common.schema.json#/$defs/usage"
+        },
+        "session_files": {
+          "type": "array",
+          "items": {
+            "$ref": "common.schema.json#/$defs/relativePath"
+          },
+          "maxItems": 10000
+        },
+        "error": {
+          "type": "string",
+          "maxLength": 4096,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+        },
+        "output": {
+          "$ref": "common.schema.json#/$defs/commitOutput"
+        },
+        "cancelled": {
+          "description": "Present (true) only when the run was cancelled: its status is cancelled, or its owner stopped it (the service records that as status error with the stop reason). `cli run watch` of such a run exits 24.",
+          "const": true
+        }
+      }
+    },
+    "runFile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "runId",
+        "path",
+        "file"
+      ],
+      "properties": {
+        "runId": {
+          "$ref": "common.schema.json#/$defs/runId"
+        },
+        "path": {
+          "$ref": "common.schema.json#/$defs/relativePath"
+        },
+        "file": {
+          "$ref": "common.schema.json#/$defs/writtenFile"
+        }
+      }
+    },
+    "runShow": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "runId",
+            "run"
+          ],
+          "properties": {
+            "runId": {
+              "$ref": "common.schema.json#/$defs/runId"
+            },
+            "run": {
+              "$ref": "#/$defs/runManifest"
+            }
+          }
+        },
+        {
+          "$ref": "#/$defs/runFile"
+        }
+      ]
+    },
+    "runDownload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "runId",
+        "outputDir",
+        "fileCount",
+        "totalBytes",
+        "files",
+        "marker"
+      ],
+      "properties": {
+        "runId": {
+          "$ref": "common.schema.json#/$defs/runId"
+        },
+        "outputDir": {
+          "description": "The --output-dir the files were written to, as given.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+        },
+        "fileCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "totalBytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "bytes",
+              "sha256"
+            ],
+            "properties": {
+              "path": {
+                "$ref": "common.schema.json#/$defs/relativePath"
+              },
+              "bytes": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "sha256": {
+                "$ref": "common.schema.json#/$defs/sha256"
+              }
+            }
+          },
+          "maxItems": 10000
+        },
+        "marker": {
+          "description": "The download record written last into outputDir: the result and the run manifest. Its presence means the download completed.",
+          "const": ".prose-run-manifest.json"
+        }
+      }
+    },
+    "runShare": {
+      "description": "Provisional: the share response was not probed on the hosted service. The URL appears only in this result.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "runId",
+        "url"
+      ],
+      "properties": {
+        "runId": {
+          "$ref": "common.schema.json#/$defs/runId"
+        },
+        "url": {
+          "type": "string",
+          "maxLength": 2048,
+          "pattern": "^https://[^\\s]+$"
+        },
+        "expires_at": {
+          "type": "string",
+          "maxLength": 40,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+        },
+        "expiresAt": {
+          "description": "The same expiry as expires_at (ISO 8601, UTC); human output prints it as `Expires:`.",
+          "type": "string",
+          "maxLength": 40,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.openprose.org/cli/v1/service/responses/run-manifest.schema.json",
+  "title": "service response acceptance: GET /runs/{id}",
+  "x-probed": true,
+  "type": "object",
+  "required": [
+    "run_id",
+    "created_at",
+    "status",
+    "model",
+    "files",
+    "has_patch"
+  ],
+  "properties": {
+    "run_id": {
+      "type": "string"
+    },
+    "created_at": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string"
+    },
+    "model": {
+      "type": "string"
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "has_patch": {
+      "type": "boolean"
+    },
+    "environment": {
+      "type": "object",
+      "required": [
+        "id",
+        "version",
+        "runtime_contract"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "runtime_contract": {
+          "type": "integer"
+        }
+      }
+    },
+    "price_cents": {
+      "type": "integer"
+    },
+    "environment_price_cents": {
+      "type": "integer"
+    },
+    "billing_status": {
+      "type": "string"
+    },
+    "program_ref": {
+      "type": "string"
+    },
+    "repositories": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "usage": {
+      "type": "object",
+      "required": [
+        "input_tokens",
+        "output_tokens"
+      ],
+      "properties": {
+        "input_tokens": {
+          "type": "integer"
+        },
+        "output_tokens": {
+          "type": "integer"
+        }
+      }
+    },
+    "session_files": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "error": {
+      "type": "string"
+    },
+    "file_urls": {
+      "type": "object"
+    }
+  }
+}

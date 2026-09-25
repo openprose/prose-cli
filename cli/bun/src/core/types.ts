@@ -9,7 +9,6 @@ export interface ValueSource {
 }
 
 export interface GlobalFlags {
-  serviceEnvironment?: "production" | "staging";
   harness?: string;
   transport?: string;
   cwd?: string;
@@ -64,9 +63,6 @@ export interface EffectiveConfiguration {
 
 export type RunnerOperation =
   | "package"
-  | "environment-show"
-  | "environment-use"
-  | "environment-reset"
   | "doctor"
   | "harness-list"
   | "harness-use"
@@ -82,7 +78,9 @@ export type ParsedEntrypoint =
   | { kind: "help"; global: GlobalFlags }
   | { kind: "version"; global: GlobalFlags }
   | { kind: "operation"; global: GlobalFlags; operation: RunnerOperation; json: boolean; value?: string; packageCommand?: import("./package-args").PackageCommand }
-  | { kind: "language"; global: GlobalFlags; argv: string[] };
+  | { kind: "service"; global: GlobalFlags; command: import("./service/manifest").ServiceCommand }
+  /** `redirect`: the words also name a service command; rejected unless an operand exists on disk, else a HOSTED_UNAVAILABLE hint. */
+  | { kind: "language"; global: GlobalFlags; argv: string[]; redirect?: import("./service/manifest").CliRedirect };
 
 export interface TaskEnvelope {
   schema: string;
@@ -137,6 +135,22 @@ export type RunnerErrorCode =
   | "CREDENTIAL_STORE_UNAVAILABLE"
   | "DEVICE_AUTH_FAILED"
   | "DEVICE_AUTH_EXPIRED"
+  | "CONFIRMATION_REQUIRED"
+  | "SERVICE_REQUEST_REJECTED"
+  | "SERVICE_RESOURCE_NOT_FOUND"
+  | "SERVICE_FEATURE_DISABLED"
+  | "SERVICE_BALANCE_INSUFFICIENT"
+  | "SERVICE_PREMIUM_MODEL_LOCKED"
+  | "SERVICE_ACCOUNT_SUSPENDED"
+  | "SERVICE_WRITE_CONFLICT"
+  | "GITHUB_LINK_REQUIRED"
+  | "SERVICE_RESPONSE_TOO_LARGE"
+  | "SERVICE_WATCH_DEADLINE"
+  | "HOSTED_RUN_FAILED"
+  | "RUN_SUBMISSION_AMBIGUOUS"
+  | "HOSTED_RUN_DETACHED"
+  | "HOSTED_RUN_CANCELLED"
+  | "EXAMPLE_NOT_VIEWABLE"
   | "INTERNAL_ERROR";
 
 export type RunnerBoundary =

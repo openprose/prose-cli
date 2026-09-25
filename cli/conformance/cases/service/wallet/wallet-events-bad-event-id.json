@@ -1,0 +1,70 @@
+{
+  "id": "wallet-events-bad-event-id",
+  "feature": "wallet",
+  "operation": "wallet.events",
+  "description": "An event id with a control character is SERVICE_PROTOCOL_INVALID (identifiers are never rewritten).",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "wallet",
+    "events"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/wallet/events",
+        "query": {
+          "limit": "20"
+        },
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          }
+        },
+        "status": 200,
+        "body": {
+          "events": [
+            {
+              "id": "charge:\u00071",
+              "type": "credit",
+              "occurred_at": "2026-09-23T20:31:42.174Z",
+              "description": "Credit code",
+              "amount_cents": 500,
+              "balance_after_cents": 3339,
+              "ref": null
+            }
+          ],
+          "next_before": null
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "wallet.events",
+      "operation": "wallet.events",
+      "problem": {
+        "action": "Retry later and report the sanitized error code if it persists.",
+        "boundary": "protocol",
+        "code": "SERVICE_PROTOCOL_INVALID",
+        "details": {
+          "reason": "unexpected wallet response: events[].id"
+        },
+        "exitCode": 10,
+        "message": "The OpenProse service returned an invalid response.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

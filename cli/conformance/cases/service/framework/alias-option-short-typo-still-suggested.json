@@ -1,0 +1,27 @@
+{
+  "id": "alias-option-short-typo-still-suggested",
+  "feature": "framework",
+  "operation": "run.list",
+  "description": "A one-edit typo of a short option name is still suggested: `--jsn` -> `--json`.",
+  "argv": [
+    "cli",
+    "run",
+    "list",
+    "--jsn"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: Unknown option.\nDetail: unknown option --jsn for `cli run list`; did you mean --json?\nAction: Replace --jsn with --json: `prose cli run list --json`.\n"
+  }
+}

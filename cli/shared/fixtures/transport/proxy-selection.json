@@ -1,0 +1,199 @@
+{
+  "schema": "openprose.proxy-selection/1",
+  "summary": "Which proxy both ports use for a service URL, from the environment (the Bun build's fetch semantics, which the Rust build implements): https_proxy then HTTPS_PROXY for https, http_proxy then HTTP_PROXY for http, the first non-empty one winning and \"\" or '' meaning none; ALL_PROXY and SOCKS are never used. no_proxy then NO_PROXY (the first non-empty one) is a comma list: entries are trimmed, * bypasses every host, one leading dot is ignored, and an entry matches its host and every subdomain, ignoring case. A proxy that cannot be used fails closed with SERVICE_UNAVAILABLE. `proxied` true means the request goes to http://127.0.0.1:{PORT}.",
+  "cases": [
+    {
+      "id": "uppercase-https-proxy",
+      "url": "https://example.invalid/x",
+      "environment": {
+        "HTTPS_PROXY": "http://127.0.0.1:{PORT}"
+      },
+      "proxied": true
+    },
+    {
+      "id": "lowercase-https-proxy",
+      "url": "https://example.invalid/x",
+      "environment": {
+        "https_proxy": "http://127.0.0.1:{PORT}"
+      },
+      "proxied": true
+    },
+    {
+      "id": "lowercase-wins",
+      "url": "https://example.invalid/x",
+      "environment": {
+        "https_proxy": "http://127.0.0.1:{PORT}",
+        "HTTPS_PROXY": "http://127.0.0.1:9"
+      },
+      "proxied": true
+    },
+    {
+      "id": "empty-lowercase-falls-through",
+      "url": "https://example.invalid/x",
+      "environment": {
+        "https_proxy": "",
+        "HTTPS_PROXY": "http://127.0.0.1:{PORT}"
+      },
+      "proxied": true
+    },
+    {
+      "id": "quoted-empty-means-none",
+      "url": "https://example.invalid/x",
+      "environment": {
+        "HTTPS_PROXY": "\"\""
+      },
+      "proxied": false
+    },
+    {
+      "id": "http-proxy-not-for-https",
+      "url": "https://example.invalid/x",
+      "environment": {
+        "HTTP_PROXY": "http://127.0.0.1:{PORT}"
+      },
+      "proxied": false
+    },
+    {
+      "id": "all-proxy-ignored",
+      "url": "https://example.invalid/x",
+      "environment": {
+        "ALL_PROXY": "http://127.0.0.1:{PORT}"
+      },
+      "proxied": false
+    },
+    {
+      "id": "http-proxy-for-http",
+      "url": "http://example.invalid/x",
+      "environment": {
+        "HTTP_PROXY": "http://127.0.0.1:{PORT}"
+      },
+      "proxied": true
+    },
+    {
+      "id": "https-proxy-not-for-http",
+      "url": "http://example.invalid/x",
+      "environment": {
+        "HTTPS_PROXY": "http://127.0.0.1:{PORT}"
+      },
+      "proxied": false
+    },
+    {
+      "id": "no-proxy-exact",
+      "url": "https://example.invalid/x",
+      "environment": {
+        "HTTPS_PROXY": "http://127.0.0.1:{PORT}",
+        "NO_PROXY": "example.invalid"
+      },
+      "proxied": false
+    },
+    {
+      "id": "no-proxy-parent-domain",
+      "url": "https://example.invalid/x",
+      "environment": {
+        "HTTPS_PROXY": "http://127.0.0.1:{PORT}",
+        "NO_PROXY": "invalid"
+      },
+      "proxied": false
+    },
+    {
+      "id": "no-proxy-leading-dot",
+      "url": "https://example.invalid/x",
+      "environment": {
+        "HTTPS_PROXY": "http://127.0.0.1:{PORT}",
+        "NO_PROXY": ".invalid"
+      },
+      "proxied": false
+    },
+    {
+      "id": "no-proxy-label-boundary",
+      "url": "https://example.invalid/x",
+      "environment": {
+        "HTTPS_PROXY": "http://127.0.0.1:{PORT}",
+        "NO_PROXY": "ample.invalid"
+      },
+      "proxied": true
+    },
+    {
+      "id": "no-proxy-case-insensitive",
+      "url": "https://example.invalid/x",
+      "environment": {
+        "HTTPS_PROXY": "http://127.0.0.1:{PORT}",
+        "NO_PROXY": "EXAMPLE.invalid"
+      },
+      "proxied": false
+    },
+    {
+      "id": "no-proxy-star",
+      "url": "https://example.invalid/x",
+      "environment": {
+        "HTTPS_PROXY": "http://127.0.0.1:{PORT}",
+        "NO_PROXY": "*"
+      },
+      "proxied": false
+    },
+    {
+      "id": "no-proxy-star-glob-is-literal",
+      "url": "https://example.invalid/x",
+      "environment": {
+        "HTTPS_PROXY": "http://127.0.0.1:{PORT}",
+        "NO_PROXY": "a.com, *.invalid"
+      },
+      "proxied": true
+    },
+    {
+      "id": "no-proxy-trimmed",
+      "url": "https://example.invalid/x",
+      "environment": {
+        "HTTPS_PROXY": "http://127.0.0.1:{PORT}",
+        "NO_PROXY": " other.com , example.invalid "
+      },
+      "proxied": false
+    },
+    {
+      "id": "no-proxy-empty-entry-is-not-a-wildcard",
+      "url": "https://example.invalid/x",
+      "environment": {
+        "HTTPS_PROXY": "http://127.0.0.1:{PORT}",
+        "NO_PROXY": "other.com,"
+      },
+      "proxied": true
+    },
+    {
+      "id": "no-proxy-port-does-not-match",
+      "url": "https://example.invalid/x",
+      "environment": {
+        "HTTPS_PROXY": "http://127.0.0.1:{PORT}",
+        "NO_PROXY": "example.invalid:443"
+      },
+      "proxied": true
+    },
+    {
+      "id": "no-proxy-lowercase-wins",
+      "url": "https://example.invalid/x",
+      "environment": {
+        "HTTPS_PROXY": "http://127.0.0.1:{PORT}",
+        "no_proxy": "other.com",
+        "NO_PROXY": "example.invalid"
+      },
+      "proxied": true
+    },
+    {
+      "id": "no-proxy-empty-lowercase-falls-through",
+      "url": "https://example.invalid/x",
+      "environment": {
+        "HTTPS_PROXY": "http://127.0.0.1:{PORT}",
+        "no_proxy": "",
+        "NO_PROXY": "example.invalid"
+      },
+      "proxied": false
+    },
+    {
+      "id": "no-proxy-space-list-is-one-entry",
+      "url": "https://example.invalid/x",
+      "environment": {
+        "HTTPS_PROXY": "http://127.0.0.1:{PORT}",
+        "NO_PROXY": "a.com *"
+      },
+      "proxied": true
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "id": "package-publish-missing-organization",
+  "feature": "account",
+  "operation": "package.publish",
+  "description": "A publish without --organization names the missing required option.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "package",
+    "publish",
+    "tool.prose",
+    "--name",
+    "tool",
+    "--version",
+    "1.2.0"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "registry.gateway",
+      "operation": "package.publish",
+      "problem": {
+        "action": "Correct the value named in Detail; `prose --output json cli package publish --help` shows the accepted syntax.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "package publish needs --organization ORG",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "package",
+            "publish",
+            "--help"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

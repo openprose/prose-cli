@@ -1,0 +1,69 @@
+{
+  "id": "default-confirmation-required",
+  "feature": "organizations",
+  "operation": "org.default",
+  "description": "`org default` without --yes sends nothing and exits 2 with the exact planned request (every organization mutation is confirm-class).",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "org",
+    "default",
+    "acme-research"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "organizations.manage",
+      "operation": "org.default",
+      "problem": {
+        "action": "Rerun the same command with --yes to confirm, or with --preview to see what it would do without sending anything.",
+        "boundary": "invocation",
+        "code": "CONFIRMATION_REQUIRED",
+        "details": {
+          "confirmArgv": [
+            "--output",
+            "json",
+            "cli",
+            "org",
+            "default",
+            "acme-research",
+            "--yes"
+          ],
+          "plannedRequest": {
+            "bodyBytes": 32,
+            "bodySha256": "ba87a167d46f5292faef91447418084023d187cab875bb9121b16844930fa23c",
+            "description": "Choose this account's default organization.",
+            "effect": "write",
+            "method": "PUT",
+            "operation": "org.default"
+          },
+          "previewArgv": [
+            "--output",
+            "json",
+            "cli",
+            "org",
+            "default",
+            "acme-research",
+            "--preview"
+          ],
+          "reason": "--yes is required because it changes the organization this account's commands use by default"
+        },
+        "exitCode": 2,
+        "message": "This service operation requires explicit confirmation.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

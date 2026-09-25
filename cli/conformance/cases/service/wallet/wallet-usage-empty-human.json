@@ -1,0 +1,45 @@
+{
+  "id": "wallet-usage-empty-human",
+  "feature": "wallet",
+  "operation": "wallet.usage",
+  "description": "Human `wallet usage` with no daily rows prints dollars and says `No runs in this period.`.",
+  "argv": [
+    "cli",
+    "wallet",
+    "usage"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/wallet/usage",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          }
+        },
+        "status": 200,
+        "body": {
+          "period": {
+            "start": "2026-09-01",
+            "end": "2026-09-03"
+          },
+          "total_runs": 0,
+          "total_input_tokens": 0,
+          "total_output_tokens": 0,
+          "total_price_cents": 0,
+          "daily": []
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "Period: 2026-09-01 to 2026-09-03\nRuns: 0\nInput tokens: 0\nOutput tokens: 0\nTotal price: $0.00\nNo runs in this period.\n"
+  }
+}

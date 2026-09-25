@@ -25,6 +25,6 @@
     "stderr": { "kind": "empty" },
     "startedHarness": false,
     "errorCode": "HOSTED_UNAVAILABLE",
-    "errorAction": "Select an available BYO harness with the `cli harness use <id>` runner operation, then invoke the `cli doctor` runner operation."
+    "errorAction": "To use the hosted service, run `cli run submit FILE --preview`; running programs on this machine needs a local harness (`cli harness list`)."
   }
 }

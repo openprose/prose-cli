@@ -1,0 +1,53 @@
+{
+  "id": "wallet-redeem-missing-file",
+  "feature": "wallet",
+  "operation": "wallet.redeem",
+  "description": "A missing code file is INVOCATION_INVALID.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "wallet",
+    "redeem",
+    "--code-file",
+    "nope.txt",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "wallet.redeem",
+      "operation": "wallet.redeem",
+      "problem": {
+        "action": "Correct the value named in Detail; `prose --output json cli wallet redeem --help` shows the accepted syntax.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "--code-file \"nope.txt\" is not a readable file",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "wallet",
+            "redeem",
+            "--help"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

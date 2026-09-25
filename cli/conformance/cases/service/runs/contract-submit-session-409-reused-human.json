@@ -1,0 +1,74 @@
+{
+  "id": "contract-submit-session-409-reused-human",
+  "feature": "runs",
+  "operation": "run.submit",
+  "description": "Human mode: `--session S` of a session the service already has a run for prints that run and the commands that follow it; nothing is submitted again.",
+  "argv": [
+    "cli",
+    "run",
+    "submit",
+    "p.prose.md",
+    "--yes",
+    "--session",
+    "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f"
+  ],
+  "files": [
+    {
+      "path": "p.prose.md",
+      "content": "---\nname: hello\nkind: function\n---\n\nReply with the word ok.\n"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/run",
+        "query": {
+          "live": "1",
+          "session": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f"
+        },
+        "requestHeaders": {
+          "X-Session-Id": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f",
+          "Accept": "text/event-stream",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "status": 409,
+        "responseHeaders": {
+          "X-Run-Id": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c"
+        },
+        "body": {
+          "error": "This session already has a run."
+        }
+      }
+    ],
+    "ids": [
+      "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f"
+    ],
+    "clock": {
+      "start": "2026-09-24T01:00:00.000Z",
+      "stepMs": 0
+    },
+    "journal": [
+      {
+        "session": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f",
+        "runId": null,
+        "createdAt": "2026-09-24T00:59:00.000Z",
+        "lastSequence": 0,
+        "sourceSha256": null
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "Session 5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f already has run run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c; nothing was submitted again.\nFollow it with: prose cli run watch run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c --after 0 --session 5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f\nRead it with: prose cli run show run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c\n"
+  },
+  "stderr": {
+    "text": ""
+  }
+}

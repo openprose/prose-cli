@@ -1,0 +1,351 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.openprose.org/cli/v1/service/programs.schema.json",
+  "title": "OpenProse service program results",
+  "description": "Closed per-operation result projections. Referenced from shared/service/operations.v1.json by $defs name; no property name may match /cost/i.",
+  "$defs": {
+    "programMeta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "owner",
+        "slug",
+        "visibility",
+        "rev",
+        "rev_id",
+        "ref",
+        "commit_id",
+        "parent_commit_id",
+        "updated_at"
+      ],
+      "properties": {
+        "owner": {
+          "$ref": "common.schema.json#/$defs/handle"
+        },
+        "slug": {
+          "$ref": "common.schema.json#/$defs/slug"
+        },
+        "visibility": {
+          "enum": [
+            "public",
+            "private"
+          ]
+        },
+        "rev": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "rev_id": {
+          "$ref": "common.schema.json#/$defs/revId"
+        },
+        "ref": {
+          "$ref": "common.schema.json#/$defs/programRef",
+          "description": "OWNER/SLUG@rev_id, the pinned reference `run submit --from` and `job contract attach` take."
+        },
+        "commit_id": {
+          "$ref": "common.schema.json#/$defs/commitId"
+        },
+        "parent_commit_id": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "common.schema.json#/$defs/commitId"
+            }
+          ]
+        },
+        "updated_at": {
+          "$ref": "common.schema.json#/$defs/epochMs"
+        },
+        "updated_at_iso": {
+          "description": "`updated_at` as an RFC 3339 UTC time (null when `updated_at` is null).",
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "common.schema.json#/$defs/timestamp"
+            }
+          ]
+        },
+        "message": {
+          "type": "string",
+          "maxLength": 1024,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+        }
+      }
+    },
+    "program": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "owner",
+        "slug",
+        "visibility",
+        "rev",
+        "rev_id",
+        "ref",
+        "commit_id",
+        "parent_commit_id",
+        "updated_at"
+      ],
+      "properties": {
+        "owner": {
+          "$ref": "common.schema.json#/$defs/handle"
+        },
+        "slug": {
+          "$ref": "common.schema.json#/$defs/slug"
+        },
+        "visibility": {
+          "enum": [
+            "public",
+            "private"
+          ]
+        },
+        "rev": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "rev_id": {
+          "$ref": "common.schema.json#/$defs/revId"
+        },
+        "ref": {
+          "$ref": "common.schema.json#/$defs/programRef",
+          "description": "OWNER/SLUG@rev_id, the pinned reference `run submit --from` and `job contract attach` take."
+        },
+        "commit_id": {
+          "$ref": "common.schema.json#/$defs/commitId"
+        },
+        "parent_commit_id": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "common.schema.json#/$defs/commitId"
+            }
+          ]
+        },
+        "updated_at": {
+          "$ref": "common.schema.json#/$defs/epochMs"
+        },
+        "updated_at_iso": {
+          "description": "`updated_at` as an RFC 3339 UTC time (null when `updated_at` is null).",
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "common.schema.json#/$defs/timestamp"
+            }
+          ]
+        },
+        "message": {
+          "type": "string",
+          "maxLength": 1024,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+        },
+        "content": {
+          "$ref": "common.schema.json#/$defs/text"
+        }
+      }
+    },
+    "programList": {
+      "description": "`content` is present only with --with-content. Platform programs are not listed.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "programs"
+      ],
+      "properties": {
+        "programs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/program"
+          },
+          "maxItems": 1000
+        }
+      }
+    },
+    "programShow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "program",
+        "is_owner",
+        "file"
+      ],
+      "properties": {
+        "program": {
+          "$ref": "#/$defs/programMeta"
+        },
+        "is_owner": {
+          "type": "boolean"
+        },
+        "file": {
+          "$ref": "common.schema.json#/$defs/writtenFile"
+        }
+      }
+    },
+    "programSave": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "program",
+        "url"
+      ],
+      "properties": {
+        "program": {
+          "$ref": "#/$defs/programMeta"
+        },
+        "url": {
+          "type": "string",
+          "pattern": "^https://[^\\s/]+/p/[^\\s]+$",
+          "maxLength": 256,
+          "description": "The absolute URL of the saved program."
+        }
+      }
+    },
+    "programVisibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "program"
+      ],
+      "properties": {
+        "program": {
+          "$ref": "#/$defs/programMeta"
+        }
+      }
+    },
+    "programDelete": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "slug",
+        "deleted"
+      ],
+      "properties": {
+        "slug": {
+          "$ref": "common.schema.json#/$defs/slug"
+        },
+        "deleted": {
+          "const": true
+        },
+        "alreadyAbsent": {
+          "description": "Present (true) when the confirmed DELETE answered 404: the resource was already gone, so the goal state holds and the command exits 0.",
+          "const": true
+        }
+      }
+    },
+    "programRevisions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "revisions"
+      ],
+      "properties": {
+        "revisions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "owner",
+              "slug",
+              "rev",
+              "rev_id",
+              "ref",
+              "commit_id",
+              "parent_commit_id",
+              "updated_at"
+            ],
+            "properties": {
+              "owner": {
+                "$ref": "common.schema.json#/$defs/handle"
+              },
+              "slug": {
+                "$ref": "common.schema.json#/$defs/slug"
+              },
+              "rev": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "rev_id": {
+                "$ref": "common.schema.json#/$defs/revId"
+              },
+              "ref": {
+                "$ref": "common.schema.json#/$defs/programRef",
+                "description": "OWNER/SLUG@rev_id, the pinned reference `run submit --from` and `job contract attach` take."
+              },
+              "commit_id": {
+                "$ref": "common.schema.json#/$defs/commitId"
+              },
+              "parent_commit_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "common.schema.json#/$defs/commitId"
+                  }
+                ]
+              },
+              "updated_at": {
+                "$ref": "common.schema.json#/$defs/epochMs"
+              },
+              "updated_at_iso": {
+                "description": "`updated_at` as an RFC 3339 UTC time (null when `updated_at` is null).",
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "common.schema.json#/$defs/timestamp"
+                  }
+                ]
+              },
+              "message": {
+                "type": "string",
+                "maxLength": 1024,
+                "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+              }
+            }
+          },
+          "maxItems": 1000
+        }
+      }
+    },
+    "programDraft": {
+      "description": "Result of program draft (POST /write read as a stream). `file` is the decoded .prose.md program; runId and the billing fields are copied verbatim from the service's run_complete event when present (server-provided prices only).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "file"
+      ],
+      "properties": {
+        "file": {
+          "$ref": "common.schema.json#/$defs/writtenFile"
+        },
+        "runId": {
+          "$ref": "common.schema.json#/$defs/runId"
+        },
+        "price_cents": {
+          "$ref": "common.schema.json#/$defs/cents"
+        },
+        "environment_price_cents": {
+          "$ref": "common.schema.json#/$defs/cents"
+        },
+        "billing_status": {
+          "description": "The run's billing state: `settled` (final), `settling` (charged, not settled yet) or `unknown` (any other service state).",
+          "enum": [
+            "settled",
+            "settling",
+            "unknown"
+          ]
+        }
+      }
+    }
+  }
+}

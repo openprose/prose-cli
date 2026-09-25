@@ -1,0 +1,49 @@
+{
+  "id": "submit-known-session-reuses-run-human",
+  "feature": "runs",
+  "operation": "run.submit",
+  "description": "Human output of a reused session names the run, how to follow it (with --session) and how to read it.",
+  "argv": [
+    "cli",
+    "run",
+    "submit",
+    "p.prose.md",
+    "--yes",
+    "--session",
+    "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d"
+  ],
+  "files": [
+    {
+      "path": "p.prose.md",
+      "content": "---\nname: hello\nkind: function\n---\n\nReply with the word ok.\n"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "clock": {
+      "start": "2026-09-24T01:00:00.000Z",
+      "stepMs": 0
+    },
+    "exchanges": [],
+    "journal": [
+      {
+        "session": "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+        "runId": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+        "createdAt": "2026-09-24T00:59:00.000Z",
+        "lastSequence": 3,
+        "sourceSha256": null
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "Session 0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d already has run run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c, submitted earlier from this machine; nothing was submitted again.\nFollow it with: prose cli run watch run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c --after 3 --session 0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d\nRead it with: prose cli run show run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c\n"
+  },
+  "stderr": {
+    "text": ""
+  }
+}

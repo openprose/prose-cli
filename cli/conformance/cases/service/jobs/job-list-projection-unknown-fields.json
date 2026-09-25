@@ -1,0 +1,285 @@
+{
+  "id": "job-list-projection-unknown-fields",
+  "feature": "jobs",
+  "operation": "job.list",
+  "description": "`job list` keeps the public snake_case job fields, drops internal references, adoption, context repository ids and details and type receiver and driver details, and keeps the limit as max_jobs and job_limit. Every service record also carries internal fields (runtime, contract, version, adoption, driver, configuration token, reactor, call id, showable, price policy, organization id, an internal path): the output is unchanged and names none of them.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "job",
+    "list"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/triggers",
+        "status": 200,
+        "body": {
+          "triggers": [
+            {
+              "id": "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10",
+              "type": "webhook",
+              "name": "test-slack",
+              "internalRef": "opaque-1",
+              "url": null,
+              "intervalSeconds": null,
+              "mode": null,
+              "repositoryId": null,
+              "repositoryFullName": null,
+              "repositoryBranch": null,
+              "contextRepositoryId": null,
+              "contextRepositoryFullName": null,
+              "contextRepositoryBranch": null,
+              "createdAt": 1790212421024,
+              "adopted": false,
+              "contextRepository": null,
+              "contracts": [
+                {
+                  "programRef": "exowner1/slack-hello@97ddf3a447f534a7",
+                  "programSlug": "slack-hello",
+                  "enabled": true,
+                  "model": "model-luna",
+                  "contextRepositoryFullName": null,
+                  "contextRepositoryBranch": null,
+                  "runtime": "x-internal-runtime",
+                  "contract": "x-internal-contract",
+                  "version": "x-internal-version",
+                  "adopted": true,
+                  "driver": "x-internal-driver",
+                  "configurationToken": "x-internal-configuration-token",
+                  "reactor": "x-internal-reactor",
+                  "call_id": "x-internal-call",
+                  "showable": true,
+                  "pricing_policy_id": "x-internal-pricing-policy",
+                  "organization_id": "x-internal-organization",
+                  "internal_path": "/internal/x-internal-path/state.json"
+                }
+              ],
+              "programRef": "exowner1/slack-hello@97ddf3a447f534a7",
+              "programSlug": "slack-hello",
+              "model": "model-luna",
+              "lastRunId": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+              "lastError": null,
+              "nextFireAt": null,
+              "lastEventAt": 1789504569023,
+              "runtime": "x-internal-runtime",
+              "contract": "x-internal-contract",
+              "version": "x-internal-version",
+              "driver": "x-internal-driver",
+              "configurationToken": "x-internal-configuration-token",
+              "reactor": "x-internal-reactor",
+              "call_id": "x-internal-call",
+              "showable": true,
+              "pricing_policy_id": "x-internal-pricing-policy",
+              "organization_id": "x-internal-organization",
+              "internal_path": "/internal/x-internal-path/state.json"
+            }
+          ],
+          "max_triggers": 5,
+          "trigger_limit": {
+            "kind": "unlimited",
+            "runtime": "x-internal-runtime",
+            "contract": "x-internal-contract",
+            "version": "x-internal-version",
+            "adopted": true,
+            "driver": "x-internal-driver",
+            "configurationToken": "x-internal-configuration-token",
+            "reactor": "x-internal-reactor",
+            "call_id": "x-internal-call",
+            "showable": true,
+            "pricing_policy_id": "x-internal-pricing-policy",
+            "organization_id": "x-internal-organization",
+            "internal_path": "/internal/x-internal-path/state.json"
+          },
+          "types": [
+            {
+              "id": "schedule",
+              "label": "On a schedule",
+              "description": "Runs a contract on a recurring timer.",
+              "config_fields": [
+                "interval_seconds",
+                "program_ref"
+              ],
+              "emits": [
+                "fired_at"
+              ],
+              "driver": "scheduled",
+              "runtime": "x-internal-runtime",
+              "contract": "x-internal-contract",
+              "version": "x-internal-version",
+              "adopted": true,
+              "configurationToken": "x-internal-configuration-token",
+              "reactor": "x-internal-reactor",
+              "call_id": "x-internal-call",
+              "showable": true,
+              "pricing_policy_id": "x-internal-pricing-policy",
+              "organization_id": "x-internal-organization",
+              "internal_path": "/internal/x-internal-path/state.json"
+            },
+            {
+              "id": "webhook",
+              "label": "Webhook",
+              "description": "Receives events from your code.",
+              "config_fields": [
+                "program_ref"
+              ],
+              "emits": [
+                "webhook_payload_json"
+              ],
+              "driver": "webhook",
+              "webhook": {
+                "receivers": [
+                  {
+                    "id": "slack",
+                    "runtime": "x-internal-runtime",
+                    "contract": "x-internal-contract",
+                    "version": "x-internal-version",
+                    "adopted": true,
+                    "driver": "x-internal-driver",
+                    "configurationToken": "x-internal-configuration-token",
+                    "reactor": "x-internal-reactor",
+                    "call_id": "x-internal-call",
+                    "showable": true,
+                    "pricing_policy_id": "x-internal-pricing-policy",
+                    "organization_id": "x-internal-organization",
+                    "internal_path": "/internal/x-internal-path/state.json"
+                  }
+                ],
+                "runtime": "x-internal-runtime",
+                "contract": "x-internal-contract",
+                "version": "x-internal-version",
+                "adopted": true,
+                "driver": "x-internal-driver",
+                "configurationToken": "x-internal-configuration-token",
+                "reactor": "x-internal-reactor",
+                "call_id": "x-internal-call",
+                "showable": true,
+                "pricing_policy_id": "x-internal-pricing-policy",
+                "organization_id": "x-internal-organization",
+                "internal_path": "/internal/x-internal-path/state.json"
+              },
+              "runtime": "x-internal-runtime",
+              "contract": "x-internal-contract",
+              "version": "x-internal-version",
+              "adopted": true,
+              "configurationToken": "x-internal-configuration-token",
+              "reactor": "x-internal-reactor",
+              "call_id": "x-internal-call",
+              "showable": true,
+              "pricing_policy_id": "x-internal-pricing-policy",
+              "organization_id": "x-internal-organization",
+              "internal_path": "/internal/x-internal-path/state.json"
+            }
+          ],
+          "runtime": "x-internal-runtime",
+          "contract": "x-internal-contract",
+          "version": "x-internal-version",
+          "adopted": true,
+          "driver": "x-internal-driver",
+          "configurationToken": "x-internal-configuration-token",
+          "reactor": "x-internal-reactor",
+          "call_id": "x-internal-call",
+          "showable": true,
+          "pricing_policy_id": "x-internal-pricing-policy",
+          "organization_id": "x-internal-organization",
+          "internal_path": "/internal/x-internal-path/state.json"
+        },
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "job.list",
+      "operation": "job.list",
+      "problem": null,
+      "result": {
+        "job_limit": {
+          "kind": "unlimited"
+        },
+        "jobs": [
+          {
+            "context_repository_branch": null,
+            "context_repository_full_name": null,
+            "contracts": [
+              {
+                "context_repository_branch": null,
+                "context_repository_full_name": null,
+                "enabled": true,
+                "model": "model-luna",
+                "program_ref": "exowner1/slack-hello@97ddf3a447f534a7",
+                "program_slug": "slack-hello"
+              }
+            ],
+            "created_at": 1790212421024,
+            "created_at_iso": "2026-09-24T01:13:41.024Z",
+            "id": "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10",
+            "interval_seconds": null,
+            "last_error": null,
+            "last_event_at": 1789504569023,
+            "last_event_at_iso": "2026-09-15T20:36:09.023Z",
+            "last_run_id": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+            "mode": null,
+            "model": "model-luna",
+            "name": "test-slack",
+            "next_fire_at": null,
+            "next_fire_at_iso": null,
+            "program_ref": "exowner1/slack-hello@97ddf3a447f534a7",
+            "program_slug": "slack-hello",
+            "repository_branch": null,
+            "repository_full_name": null,
+            "repository_id": null,
+            "type": "webhook",
+            "url": null
+          }
+        ],
+        "max_jobs": 5,
+        "types": [
+          {
+            "config_fields": [
+              "interval_seconds",
+              "program_ref"
+            ],
+            "description": "Runs a contract on a recurring timer.",
+            "id": "schedule",
+            "label": "On a schedule"
+          },
+          {
+            "config_fields": [
+              "program_ref"
+            ],
+            "description": "Receives events from your code.",
+            "id": "webhook",
+            "label": "Webhook"
+          }
+        ]
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "x-internal-",
+    "/internal/",
+    "\"adopted\"",
+    "\"driver\"",
+    "\"showable\"",
+    "\"call_id\"",
+    "\"pricing_policy_id\"",
+    "\"organization_id\"",
+    "\"configurationToken\"",
+    "\"runtime\"",
+    "\"contract\"",
+    "\"reactor\"",
+    "\"internal_path\""
+  ]
+}

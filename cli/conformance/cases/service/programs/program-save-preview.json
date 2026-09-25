@@ -1,0 +1,55 @@
+{
+  "id": "program-save-preview",
+  "feature": "programs",
+  "operation": "program.save",
+  "description": "`--preview` prints the planned PUT (body digest) and sends nothing.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "program",
+    "save",
+    "demo",
+    "demo.prose.md",
+    "--message",
+    "first",
+    "--preview"
+  ],
+  "files": [
+    {
+      "path": "demo.prose.md",
+      "content": "---\nname: demo\nkind: function\n---\n\n### Returns\n\n- `text`: exactly `ok`\n"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "program.save",
+      "operation": "program.save",
+      "problem": null,
+      "result": {
+        "plannedRequest": {
+          "bodyBytes": 111,
+          "bodySha256": "2faa8beec3c629b6ecd643739c32095c53ee1febadcf3857ef4a639c2e745452",
+          "description": "Save a new revision of a program; a new program is private.",
+          "effect": "write",
+          "method": "PUT",
+          "operation": "program.save"
+        },
+        "preview": true
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

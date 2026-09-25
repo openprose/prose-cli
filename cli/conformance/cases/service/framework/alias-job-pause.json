@@ -1,0 +1,27 @@
+{
+  "id": "alias-job-pause",
+  "feature": "framework",
+  "operation": "job.delete",
+  "description": "`cli job pause JOB_ID` gets the `cli job stop` explanation: deleting a job stops its future runs; there is no pause.",
+  "argv": [
+    "cli",
+    "job",
+    "pause",
+    "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: Unknown command.\nDetail: unknown command `cli job pause`; did you mean `cli job delete JOB_ID`? deleting a job stops its future runs; there is no pause; a run in progress is cancelled with `cli run cancel RUN_ID --yes`\nAction: Use `cli job delete`: `prose cli job delete 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10`.\n"
+  }
+}

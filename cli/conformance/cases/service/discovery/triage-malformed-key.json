@@ -1,0 +1,116 @@
+{
+  "id": "triage-malformed-key",
+  "feature": "discovery",
+  "operation": "service.triage",
+  "description": "A malformed OPENPROSE_API_KEY is a credential problem (state malformed, source environment), not an exit: account sections are skipped and the variable is the next step. The value is never echoed.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "service",
+    "triage"
+  ],
+  "environment": {
+    "OPENPROSE_API_KEY": "rr_live_notatestkey"
+  },
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/health",
+        "requestHeaders": {
+          "Authorization": {
+            "present": false
+          },
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          }
+        },
+        "status": 200,
+        "body": {
+          "status": "ok",
+          "environments": {
+            "default": "builtin",
+            "available": [
+              "builtin",
+              "linux"
+            ]
+          },
+          "models": [
+            "model-sol",
+            "model-luna"
+          ],
+          "default_model": "model-sol",
+          "version": "9.9.9-extra",
+          "capabilities": {
+            "web:search": {
+              "available": true,
+              "tool": "web_search"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "health.read",
+      "operation": "service.triage",
+      "problem": null,
+      "result": {
+        "credential": {
+          "problem": {
+            "action": "Replace or unset OPENPROSE_API_KEY, then retry.",
+            "boundary": "authentication",
+            "code": "SERVICE_AUTH_REQUIRED",
+            "details": {
+              "credentialProblem": "malformed",
+              "credentialSource": "environment",
+              "credentialVariable": "OPENPROSE_API_KEY",
+              "reason": "the OPENPROSE_API_KEY value starts with rr_live_, which is not an OpenProse API key (an OpenProse API key is rr_test, an underscore and 32 lowercase hex digits); replace or unset OPENPROSE_API_KEY"
+            },
+            "exitCode": 10,
+            "message": "OpenProse service authentication is required.",
+            "retryable": false,
+            "schema": "openprose.runner-error/1"
+          },
+          "source": "environment",
+          "state": "malformed",
+          "variable": "OPENPROSE_API_KEY"
+        },
+        "health": {
+          "default_model": "model-sol",
+          "models": [
+            "model-sol",
+            "model-luna"
+          ],
+          "problem": null,
+          "status": "ok"
+        },
+        "jobs": null,
+        "nextCommands": [
+          {
+            "argv": null,
+            "env": "OPENPROSE_API_KEY",
+            "why": "the OPENPROSE_API_KEY value starts with rr_live_, which is not an OpenProse API key (an OpenProse API key is rr_test, an underscore and 32 lowercase hex digits); replace or unset OPENPROSE_API_KEY"
+          }
+        ],
+        "organization": null,
+        "runs": null,
+        "wallet": null
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "rr_live_notatestkey",
+    "9.9.9-extra",
+    "web_search"
+  ]
+}

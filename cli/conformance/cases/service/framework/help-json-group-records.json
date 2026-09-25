@@ -1,0 +1,862 @@
+{
+  "id": "help-json-group-records",
+  "feature": "framework",
+  "operation": "service.operations",
+  "description": "`--output json cli run --help` prints the group's help and every run command's manifest record, as service.operations.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "--help"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": null,
+      "operation": "service.operations",
+      "problem": null,
+      "result": {
+        "help": "Usage: prose [GLOBAL OPTIONS] cli run <COMMAND> [ARGUMENTS] [OPTIONS]\n\nCommands:\n  submit                      Run a program on the hosted service and stream it until it finishes, detaches or the deadline passes.\n  watch                       Replay and follow a live run's events from a sequence number.\n  show                        Show a run manifest (status, files, price), or one output file with --file.\n  list                        List runs, newest first, one page at a time.\n  cancel                      Cancel a live run, then report the wallet's available and reserved balance.\n  download                    Download every file listed in a run manifest into a new directory (./RUN_ID unless --output-dir).\n  input                       Send an instruction to a live run.\n  quote                       Report the hold a run reserves: money set aside from the wallet while the run is live.\n  share                       Create a public link to a run's outputs.\n\nExamples:\n  prose cli run submit hello.prose.md --preview\n  prose cli run watch run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c --json\n  prose cli run show run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c --json\n  prose cli run list --limit 10 --json\n  prose cli run cancel run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c --preview\n  prose cli run download run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c\n  prose cli run input run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c 'Also write a haiku.' --yes\n  prose cli run quote --json\n  prose cli run share run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c --yes\n\nGlobal options:\n  --output human|json|jsonl   Output mode; the same as the PROSE_OUTPUT setting.\n\nRun `prose cli run <COMMAND> --help` for details. `prose cli service operations --json` prints every command as JSON.\n",
+        "operations": [
+          {
+            "arguments": [
+              {
+                "description": "Program file, or - for standard input, as `cli run submit` takes it. Accepted so a quote names the same command as `cli run submit`; the hold does not depend on it.",
+                "name": "FILE",
+                "required": false,
+                "variadic": false
+              }
+            ],
+            "command": [
+              "cli",
+              "run",
+              "quote"
+            ],
+            "confirm": false,
+            "contract": "service/1",
+            "effect": "read",
+            "examples": [
+              "prose cli run quote --json",
+              "prose cli run quote hello.prose.md --input topic=cats --json"
+            ],
+            "exitCodes": [
+              {
+                "exit": 0,
+                "meaning": "success"
+              },
+              {
+                "exit": 2,
+                "meaning": "invalid invocation or configuration"
+              },
+              {
+                "exit": 10,
+                "meaning": "service or credential error"
+              },
+              {
+                "codes": [
+                  "CANCELLED"
+                ],
+                "exit": 24,
+                "meaning": "interrupted"
+              }
+            ],
+            "feature": "runs",
+            "id": "run.quote",
+            "mutation": false,
+            "options": [
+              {
+                "description": "Run a saved program; a bare SLUG is your own program. @REV is a rev_id, or @N (@revN) for revision N of your own program; without @REV the latest revision is pinned. Accepted so a quote names the same command as `cli run submit`; the hold does not depend on it.",
+                "name": "--from",
+                "repeatable": false,
+                "required": false,
+                "value": "[OWNER/]SLUG[@REV]"
+              },
+              {
+                "description": "Program input; @FILE reads UTF-8 text of at most 1 MiB. Accepted so a quote names the same command as `cli run submit`; the hold does not depend on it.",
+                "name": "--input",
+                "repeatable": true,
+                "required": false,
+                "value": "KEY=VALUE|KEY=@FILE"
+              },
+              {
+                "description": "JSON object of string inputs. Accepted so a quote names the same command as `cli run submit`; the hold does not depend on it.",
+                "name": "--inputs-file",
+                "repeatable": false,
+                "required": false,
+                "value": "FILE"
+              },
+              {
+                "default": "the service's default_model (`cli model list`)",
+                "description": "Hosted model id (see `cli model list`). Accepted so a quote names the same command as `cli run submit`; the hold does not depend on it.",
+                "name": "--model",
+                "repeatable": false,
+                "required": false,
+                "value": "MODEL"
+              },
+              {
+                "choices": [
+                  "minimal",
+                  "low",
+                  "medium",
+                  "high",
+                  "xhigh"
+                ],
+                "description": "Reasoning effort supported by the model. Accepted so a quote names the same command as `cli run submit`; the hold does not depend on it.",
+                "name": "--reasoning-effort",
+                "repeatable": false,
+                "required": false,
+                "value": "EFFORT"
+              },
+              {
+                "default": "the service's default environment",
+                "description": "Execution environment offered by the service (for example builtin or linux).",
+                "name": "--environment",
+                "repeatable": false,
+                "required": false,
+                "value": "ENV"
+              },
+              {
+                "default": "the service's default runtime",
+                "description": "Runtime offered by the service. Accepted so a quote names the same command as `cli run submit`; the hold does not depend on it.",
+                "name": "--runtime",
+                "repeatable": false,
+                "required": false,
+                "value": "RUNTIME"
+              },
+              {
+                "description": "Read-only repository context. Accepted so a quote names the same command as `cli run submit`; the hold does not depend on it.",
+                "name": "--repo",
+                "repeatable": true,
+                "required": false,
+                "value": "OWNER/NAME[@BRANCH]"
+              },
+              {
+                "description": "Writable repository that receives the run's commit. Accepted so a quote names the same command as `cli run submit`; the hold does not depend on it.",
+                "name": "--commit-output",
+                "repeatable": false,
+                "required": false,
+                "value": "OWNER/NAME[@BRANCH]"
+              }
+            ],
+            "output": {
+              "paged": false,
+              "schema": "service/runs.schema.json#/$defs/quote",
+              "stream": false
+            },
+            "preview": false,
+            "summary": "Report the hold a run reserves: money set aside from the wallet while the run is live. It is not the price. The environment is checked first.\nThe hold is flat, the same for every program and model, and what the run does not use is released when it settles. A run's price is known only after it settles (`cli run show RUN_ID`, price_cents). The program, inputs and model `cli run submit` takes are accepted, so you can quote the exact command you will submit."
+          },
+          {
+            "arguments": [
+              {
+                "description": "Program file, or - for standard input. Omit when --from is given.",
+                "name": "FILE",
+                "required": false,
+                "variadic": false
+              }
+            ],
+            "command": [
+              "cli",
+              "run",
+              "submit"
+            ],
+            "confirm": true,
+            "confirmReason": "it starts a paid run: a hold (money set aside from the wallet, not the price) is reserved now, and the run's price is charged when it settles",
+            "contract": "service/1",
+            "effect": "money",
+            "examples": [
+              "prose cli run submit hello.prose.md --preview",
+              "prose cli run submit hello.prose.md --yes",
+              "prose cli run submit --from exowner1/hello --input topic=rain --yes --detach --json"
+            ],
+            "exitCodes": [
+              {
+                "exit": 0,
+                "meaning": "success"
+              },
+              {
+                "exit": 2,
+                "meaning": "invalid invocation, configuration or CONFIRMATION_REQUIRED"
+              },
+              {
+                "exit": 10,
+                "meaning": "service or credential error"
+              },
+              {
+                "codes": [
+                  "HOSTED_RUN_DETACHED",
+                  "SERVICE_WATCH_DEADLINE"
+                ],
+                "exit": 21,
+                "meaning": "deadline or detached: the run id is known and the run continues (resume with details.resumeArgv)"
+              },
+              {
+                "codes": [
+                  "HOSTED_RUN_FAILED",
+                  "RUN_SUBMISSION_AMBIGUOUS"
+                ],
+                "exit": 22,
+                "meaning": "run failed, or submission ambiguous (recover with details.resumeArgv: the same session with --detach, never a new run)"
+              },
+              {
+                "codes": [
+                  "HOSTED_RUN_CANCELLED"
+                ],
+                "exit": 24,
+                "meaning": "cancelled on the service"
+              }
+            ],
+            "feature": "runs",
+            "id": "run.submit",
+            "mutation": true,
+            "options": [
+              {
+                "description": "Run a saved program; a bare SLUG is your own program. @REV is a rev_id, or @N (@revN) for revision N of your own program; without @REV the latest revision is pinned.",
+                "name": "--from",
+                "repeatable": false,
+                "required": false,
+                "value": "[OWNER/]SLUG[@REV]"
+              },
+              {
+                "description": "Program input; @FILE reads UTF-8 text of at most 1 MiB. It overrides the same key from --inputs-file.",
+                "name": "--input",
+                "repeatable": true,
+                "required": false,
+                "value": "KEY=VALUE|KEY=@FILE"
+              },
+              {
+                "description": "JSON object of string inputs; an --input of the same key wins.",
+                "name": "--inputs-file",
+                "repeatable": false,
+                "required": false,
+                "value": "FILE"
+              },
+              {
+                "default": "the service's default_model (`cli model list`)",
+                "description": "Hosted model id (see `cli model list`).",
+                "name": "--model",
+                "repeatable": false,
+                "required": false,
+                "value": "MODEL"
+              },
+              {
+                "choices": [
+                  "minimal",
+                  "low",
+                  "medium",
+                  "high",
+                  "xhigh"
+                ],
+                "description": "Reasoning effort supported by the model.",
+                "name": "--reasoning-effort",
+                "repeatable": false,
+                "required": false,
+                "value": "EFFORT"
+              },
+              {
+                "default": "the service's default environment",
+                "description": "Where the run executes (for example builtin: file tools only; linux: a shell without network access). Web access is through the browser:interact tool.",
+                "name": "--environment",
+                "repeatable": false,
+                "required": false,
+                "value": "ENV"
+              },
+              {
+                "default": "the service's default runtime",
+                "description": "Runtime offered by the service.",
+                "name": "--runtime",
+                "repeatable": false,
+                "required": false,
+                "value": "RUNTIME"
+              },
+              {
+                "description": "Read-only repository context.",
+                "name": "--repo",
+                "repeatable": true,
+                "required": false,
+                "value": "OWNER/NAME[@BRANCH]"
+              },
+              {
+                "description": "Writable repository that receives the run's commit.",
+                "name": "--commit-output",
+                "repeatable": false,
+                "required": false,
+                "value": "OWNER/NAME[@BRANCH]"
+              },
+              {
+                "description": "Return as soon as the run id is known.",
+                "name": "--detach",
+                "repeatable": false,
+                "required": false,
+                "value": null
+              },
+              {
+                "default": "30m",
+                "description": "Stop following after this long and exit 21 (for example 90s, 10m, 2h; maximum 6h). The run continues.",
+                "name": "--wait",
+                "repeatable": false,
+                "required": false,
+                "value": "DURATION"
+              },
+              {
+                "description": "Use this session UUID instead of a new one (recovery only).",
+                "name": "--session",
+                "repeatable": false,
+                "required": false,
+                "value": "UUID"
+              }
+            ],
+            "output": {
+              "paged": false,
+              "schema": "service/runs.schema.json#/$defs/runStream",
+              "stream": true
+            },
+            "preview": true,
+            "summary": "Run a program on the hosted service and stream it until it finishes, detaches or the deadline passes.\nInputs: --input KEY=VALUE overrides the same key from --inputs-file.\nA --wait shorter than the run exits 21 with details.resumeArgv: the run continues, and that command follows it again. Never submit again to resume; that starts a second paid run."
+          },
+          {
+            "arguments": [
+              {
+                "description": "Run id (run_ and 64 hex digits), or latest for your newest run.",
+                "name": "RUN_ID",
+                "required": true,
+                "variadic": false
+              }
+            ],
+            "command": [
+              "cli",
+              "run",
+              "watch"
+            ],
+            "confirm": false,
+            "contract": "service/1",
+            "effect": "read",
+            "examples": [
+              "prose cli run watch run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c --json",
+              "prose cli run watch run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c --wait 10m"
+            ],
+            "exitCodes": [
+              {
+                "exit": 0,
+                "meaning": "success"
+              },
+              {
+                "exit": 2,
+                "meaning": "invalid invocation or configuration, or a truncated run id"
+              },
+              {
+                "exit": 10,
+                "meaning": "service or credential error, or no run with this id (SERVICE_RESOURCE_NOT_FOUND)"
+              },
+              {
+                "codes": [
+                  "HOSTED_RUN_DETACHED",
+                  "SERVICE_WATCH_DEADLINE"
+                ],
+                "exit": 21,
+                "meaning": "deadline or detached: the run continues (resume with details.resumeArgv)"
+              },
+              {
+                "codes": [
+                  "HOSTED_RUN_FAILED"
+                ],
+                "exit": 22,
+                "meaning": "run failed"
+              },
+              {
+                "codes": [
+                  "HOSTED_RUN_CANCELLED"
+                ],
+                "exit": 24,
+                "meaning": "cancelled on the service"
+              }
+            ],
+            "feature": "runs",
+            "id": "run.watch",
+            "mutation": false,
+            "notFound": {
+              "hint": "or the live session used is not this run's; pass the run's --session UUID from the machine that submitted it",
+              "id": "{RUN_ID}",
+              "list": [
+                "run",
+                "list"
+              ],
+              "resource": "run"
+            },
+            "options": [
+              {
+                "default": "0",
+                "description": "Replay events after this sequence number.",
+                "name": "--after",
+                "repeatable": false,
+                "required": false,
+                "value": "N"
+              },
+              {
+                "default": "30m",
+                "description": "Stop following after this long and exit 21 (for example 90s, 10m, 2h; maximum 6h). The run continues.",
+                "name": "--wait",
+                "repeatable": false,
+                "required": false,
+                "value": "DURATION"
+              },
+              {
+                "description": "Live session to use instead of the one recorded in the local run journal.",
+                "name": "--session",
+                "repeatable": false,
+                "required": false,
+                "value": "UUID"
+              }
+            ],
+            "output": {
+              "paged": false,
+              "schema": "service/runs.schema.json#/$defs/runStream",
+              "stream": true
+            },
+            "preview": false,
+            "summary": "Replay and follow a live run's events from a sequence number. Without a live session on this machine, an ended run's outcome is read from its record."
+          },
+          {
+            "arguments": [
+              {
+                "description": "Run id (run_...).",
+                "name": "RUN_ID",
+                "required": true,
+                "variadic": false
+              },
+              {
+                "description": "Instruction text, 1 to 4000 characters.",
+                "name": "TEXT",
+                "required": true,
+                "variadic": false
+              }
+            ],
+            "command": [
+              "cli",
+              "run",
+              "input"
+            ],
+            "confirm": true,
+            "confirmReason": "the live run acts on the instruction as soon as it arrives, and it cannot be taken back",
+            "contract": "service/1",
+            "effect": "write",
+            "examples": [
+              "prose cli run input run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c 'Also write a haiku.' --yes"
+            ],
+            "exitCodes": [
+              {
+                "exit": 0,
+                "meaning": "success"
+              },
+              {
+                "exit": 2,
+                "meaning": "invalid invocation, configuration or CONFIRMATION_REQUIRED"
+              },
+              {
+                "exit": 10,
+                "meaning": "service or credential error"
+              },
+              {
+                "codes": [
+                  "CANCELLED"
+                ],
+                "exit": 24,
+                "meaning": "interrupted"
+              }
+            ],
+            "feature": "runs",
+            "id": "run.input",
+            "mutation": true,
+            "notFound": {
+              "hint": "or the live session used is not this run's; pass the run's --session UUID from the machine that submitted it",
+              "id": "{RUN_ID}",
+              "list": [
+                "run",
+                "list"
+              ],
+              "resource": "run"
+            },
+            "options": [
+              {
+                "description": "Instruction id to reuse when retrying; a new UUID is minted otherwise.",
+                "name": "--id",
+                "repeatable": false,
+                "required": false,
+                "value": "UUID"
+              },
+              {
+                "description": "Live session to use instead of the one recorded in the local run journal.",
+                "name": "--session",
+                "repeatable": false,
+                "required": false,
+                "value": "UUID"
+              }
+            ],
+            "output": {
+              "paged": false,
+              "schema": "service/runs.schema.json#/$defs/runInput",
+              "stream": false
+            },
+            "preview": true,
+            "summary": "Send an instruction to a live run. The instruction id makes retries idempotent. Without a live session on this machine the run record is read first: an ended run is refused as SERVICE_WRITE_CONFLICT (not retryable)."
+          },
+          {
+            "arguments": [
+              {
+                "description": "Run id (run_...).",
+                "name": "RUN_ID",
+                "required": true,
+                "variadic": false
+              }
+            ],
+            "command": [
+              "cli",
+              "run",
+              "cancel"
+            ],
+            "confirm": true,
+            "confirmReason": "it stops the live run now; unfinished work is lost and the run cannot be resumed",
+            "contract": "service/1",
+            "effect": "write",
+            "examples": [
+              "prose cli run cancel run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c --preview",
+              "prose cli run cancel run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c --yes"
+            ],
+            "exitCodes": [
+              {
+                "exit": 0,
+                "meaning": "success"
+              },
+              {
+                "exit": 2,
+                "meaning": "invalid invocation, configuration or CONFIRMATION_REQUIRED"
+              },
+              {
+                "exit": 10,
+                "meaning": "service or credential error"
+              },
+              {
+                "codes": [
+                  "CANCELLED"
+                ],
+                "exit": 24,
+                "meaning": "interrupted"
+              }
+            ],
+            "feature": "runs",
+            "id": "run.cancel",
+            "mutation": true,
+            "notFound": {
+              "id": "{RUN_ID}",
+              "list": [
+                "run",
+                "list"
+              ],
+              "resource": "run"
+            },
+            "options": [
+              {
+                "description": "Live session to use instead of the one recorded in the local run journal.",
+                "name": "--session",
+                "repeatable": false,
+                "required": false,
+                "value": "UUID"
+              }
+            ],
+            "output": {
+              "paged": false,
+              "schema": "service/runs.schema.json#/$defs/runCancel",
+              "stream": false
+            },
+            "preview": true,
+            "summary": "Cancel a live run, then report the wallet's available and reserved balance. A run that already ended is reported as already_ended (exit 0), also when it was started on another machine."
+          },
+          {
+            "arguments": [],
+            "command": [
+              "cli",
+              "run",
+              "list"
+            ],
+            "confirm": false,
+            "contract": "service/1",
+            "effect": "read",
+            "examples": [
+              "prose cli run list --limit 10 --json"
+            ],
+            "exitCodes": [
+              {
+                "exit": 0,
+                "meaning": "success"
+              },
+              {
+                "exit": 2,
+                "meaning": "invalid invocation or configuration"
+              },
+              {
+                "exit": 10,
+                "meaning": "service or credential error"
+              },
+              {
+                "codes": [
+                  "CANCELLED"
+                ],
+                "exit": 24,
+                "meaning": "interrupted"
+              }
+            ],
+            "feature": "run-records",
+            "id": "run.list",
+            "mutation": false,
+            "options": [
+              {
+                "default": "20",
+                "description": "Page size, 1 to 200.",
+                "name": "--limit",
+                "repeatable": false,
+                "required": false,
+                "value": "N"
+              },
+              {
+                "description": "Opaque cursor from a previous result's nextBefore.",
+                "name": "--before",
+                "repeatable": false,
+                "required": false,
+                "value": "CURSOR"
+              }
+            ],
+            "output": {
+              "paged": true,
+              "records": "runs",
+              "schema": "service/run-records.schema.json#/$defs/runList",
+              "stream": false
+            },
+            "preview": false,
+            "summary": "List runs, newest first, one page at a time."
+          },
+          {
+            "arguments": [
+              {
+                "description": "Run id (run_ and 64 hex digits), or latest for your newest run.",
+                "name": "RUN_ID",
+                "required": true,
+                "variadic": false
+              }
+            ],
+            "command": [
+              "cli",
+              "run",
+              "show"
+            ],
+            "confirm": false,
+            "contract": "service/1",
+            "effect": "read",
+            "examples": [
+              "prose cli run show run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c --json",
+              "prose cli run show run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c --file outputs/result.json",
+              "prose cli run show latest --json"
+            ],
+            "exitCodes": [
+              {
+                "exit": 0,
+                "meaning": "success"
+              },
+              {
+                "exit": 2,
+                "meaning": "invalid invocation or configuration"
+              },
+              {
+                "exit": 10,
+                "meaning": "service or credential error, or no such run or --file (SERVICE_RESOURCE_NOT_FOUND)"
+              },
+              {
+                "codes": [
+                  "CANCELLED"
+                ],
+                "exit": 24,
+                "meaning": "interrupted"
+              }
+            ],
+            "feature": "run-records",
+            "id": "run.show",
+            "mutation": false,
+            "notFound": {
+              "id": "{RUN_ID}",
+              "list": [
+                "run",
+                "list"
+              ],
+              "resource": "run"
+            },
+            "options": [
+              {
+                "description": "Output file path exactly as listed in the manifest.",
+                "name": "--file",
+                "repeatable": false,
+                "required": false,
+                "value": "PATH"
+              },
+              {
+                "description": "Write the bytes to FILE, which must not exist, instead of including them in the result.",
+                "name": "--output-file",
+                "repeatable": false,
+                "required": false,
+                "value": "FILE"
+              }
+            ],
+            "output": {
+              "paged": false,
+              "schema": "service/run-records.schema.json#/$defs/runShow",
+              "stream": false
+            },
+            "preview": false,
+            "summary": "Show a run manifest (status, files, price), or one output file with --file. Signed file URLs are never printed.\nThe manifest has no final response text. Read the run's outputs with `cli run show RUN_ID --file outputs/result.json` or `cli run download RUN_ID --output-dir DIR`; replay the stream, whose terminal event carries the response, with `cli run watch RUN_ID --after 0` (runs submitted from this machine, or pass --session)."
+          },
+          {
+            "arguments": [
+              {
+                "description": "Run id (run_ and 64 hex digits), or latest for your newest run.",
+                "name": "RUN_ID",
+                "required": true,
+                "variadic": false
+              }
+            ],
+            "command": [
+              "cli",
+              "run",
+              "download"
+            ],
+            "confirm": false,
+            "contract": "service/1",
+            "effect": "read",
+            "examples": [
+              "prose cli run download run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+              "prose cli run download run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c --output-dir run-output"
+            ],
+            "exitCodes": [
+              {
+                "exit": 0,
+                "meaning": "success"
+              },
+              {
+                "exit": 2,
+                "meaning": "invalid invocation or configuration"
+              },
+              {
+                "exit": 10,
+                "meaning": "service or credential error"
+              },
+              {
+                "codes": [
+                  "CANCELLED"
+                ],
+                "exit": 24,
+                "meaning": "interrupted"
+              }
+            ],
+            "feature": "run-records",
+            "id": "run.download",
+            "mutation": false,
+            "notFound": {
+              "id": "{RUN_ID}",
+              "list": [
+                "run",
+                "list"
+              ],
+              "resource": "run"
+            },
+            "options": [
+              {
+                "default": "./RUN_ID",
+                "description": "Destination directory; it must not exist.",
+                "name": "--output-dir",
+                "repeatable": false,
+                "required": false,
+                "value": "DIR"
+              }
+            ],
+            "output": {
+              "paged": false,
+              "schema": "service/run-records.schema.json#/$defs/runDownload",
+              "stream": false
+            },
+            "preview": false,
+            "summary": "Download every file listed in a run manifest into a new directory (./RUN_ID unless --output-dir)."
+          },
+          {
+            "arguments": [
+              {
+                "description": "Run id (run_ and 64 hex digits), or latest for your newest run.",
+                "name": "RUN_ID",
+                "required": true,
+                "variadic": false
+              }
+            ],
+            "command": [
+              "cli",
+              "run",
+              "share"
+            ],
+            "confirm": true,
+            "confirmReason": "it creates a public link to the run's outputs that anyone who has it can open for 24 hours, and it cannot be revoked",
+            "contract": "service/1",
+            "effect": "outward",
+            "examples": [
+              "prose cli run share run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c --yes"
+            ],
+            "exitCodes": [
+              {
+                "exit": 0,
+                "meaning": "success"
+              },
+              {
+                "exit": 2,
+                "meaning": "invalid invocation, configuration or CONFIRMATION_REQUIRED"
+              },
+              {
+                "exit": 10,
+                "meaning": "service or credential error"
+              },
+              {
+                "codes": [
+                  "CANCELLED"
+                ],
+                "exit": 24,
+                "meaning": "interrupted"
+              }
+            ],
+            "feature": "run-records",
+            "id": "run.share",
+            "mutation": true,
+            "notFound": {
+              "id": "{RUN_ID}",
+              "list": [
+                "run",
+                "list"
+              ],
+              "resource": "run"
+            },
+            "options": [],
+            "output": {
+              "paged": false,
+              "schema": "service/run-records.schema.json#/$defs/runShare",
+              "stream": false
+            },
+            "preview": true,
+            "summary": "Create a public link to a run's outputs. Anyone with the link can open it for 24 hours, and it cannot be revoked.\nTo give specific people access instead, invite them to your organization (`cli org invite`)."
+          }
+        ]
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

@@ -1,0 +1,78 @@
+{
+  "id": "cancel-confirmation-required",
+  "feature": "runs",
+  "operation": "run.cancel",
+  "description": "run cancel without --yes exits 2 and never cancels.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "cancel",
+    "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "journal": [
+      {
+        "session": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f",
+        "runId": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+        "createdAt": "2026-09-24T00:59:00.000Z",
+        "lastSequence": 3,
+        "sourceSha256": null
+      }
+    ],
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "run.cancel",
+      "operation": "run.cancel",
+      "problem": {
+        "action": "Rerun the same command with --yes to confirm, or with --preview to see what it would do without sending anything.",
+        "boundary": "invocation",
+        "code": "CONFIRMATION_REQUIRED",
+        "details": {
+          "confirmArgv": [
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "cancel",
+            "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+            "--yes"
+          ],
+          "plannedRequest": {
+            "bodyBytes": null,
+            "bodySha256": null,
+            "description": "Cancel a live run, then report the wallet's available and reserved balance.",
+            "effect": "write",
+            "method": "POST",
+            "operation": "run.cancel"
+          },
+          "previewArgv": [
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "cancel",
+            "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+            "--preview"
+          ],
+          "reason": "--yes is required because it stops the live run now; unfinished work is lost and the run cannot be resumed"
+        },
+        "exitCode": 2,
+        "message": "This service operation requires explicit confirmation.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

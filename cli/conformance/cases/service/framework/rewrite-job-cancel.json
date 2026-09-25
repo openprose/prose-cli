@@ -1,0 +1,51 @@
+{
+  "id": "rewrite-job-cancel",
+  "feature": "framework",
+  "operation": "job.delete",
+  "description": "`cli job cancel JOB_ID` suggests `cli job delete JOB_ID` and says what deleting does.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "job",
+    "cancel",
+    "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": null,
+      "operation": "cli",
+      "problem": {
+        "action": "Use `cli job delete`: `prose --output json cli job delete 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "unknown command `cli job cancel`; did you mean `cli job delete JOB_ID`? deleting a job stops its future runs; there is no pause; a run in progress is cancelled with `cli run cancel RUN_ID --yes`",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "job",
+            "delete",
+            "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10"
+          ]
+        },
+        "exitCode": 2,
+        "message": "Unknown command.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

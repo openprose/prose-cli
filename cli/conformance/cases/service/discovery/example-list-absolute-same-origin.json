@@ -1,0 +1,100 @@
+{
+  "id": "example-list-absolute-same-origin",
+  "feature": "discovery",
+  "operation": "example.list",
+  "description": "An absolute source on exactly the selected origin is normalized to its path; look-alike hosts, other paths and dot segments become null.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "example",
+    "list"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/examples/private",
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef",
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          },
+          "Accept": "application/json"
+        },
+        "status": 200,
+        "body": {
+          "examples": [
+            {
+              "id": "a",
+              "label": "A",
+              "source": "https://run-prose-production.openprose.workers.dev/examples/private/a"
+            },
+            {
+              "id": "b",
+              "label": "B",
+              "source": "https://run-prose-production.openprose.workers.dev.evil.example/examples/private/b"
+            },
+            {
+              "id": "c",
+              "label": "C",
+              "source": "/examples/public/c.prose.md"
+            },
+            {
+              "id": "d",
+              "label": "D",
+              "source": "/examples/private/.."
+            },
+            {
+              "id": "e",
+              "label": "E",
+              "source": "//evil.example/examples/private/e"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "examples.private",
+      "operation": "example.list",
+      "problem": null,
+      "result": {
+        "examples": [
+          {
+            "id": "a",
+            "label": "A"
+          },
+          {
+            "id": "b",
+            "label": "B",
+            "viewOnWeb": true
+          },
+          {
+            "id": "c",
+            "label": "C",
+            "viewOnWeb": true
+          },
+          {
+            "id": "d",
+            "label": "D",
+            "viewOnWeb": true
+          },
+          {
+            "id": "e",
+            "label": "E",
+            "viewOnWeb": true
+          }
+        ]
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

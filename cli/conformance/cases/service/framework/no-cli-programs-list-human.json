@@ -1,0 +1,25 @@
+{
+  "id": "no-cli-programs-list-human",
+  "feature": "framework",
+  "operation": "program.list",
+  "description": "Human `prose programs list` suggests `prose cli program list`.",
+  "argv": [
+    "programs",
+    "list"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: Unknown command.\nDetail: `programs list` is not a command; did you mean `prose cli program list`? Nothing was forwarded or sent. To pass these words to the OpenProse language instead, put `--` before them\nAction: Use `cli program list`: `prose cli program list`.\n"
+  }
+}

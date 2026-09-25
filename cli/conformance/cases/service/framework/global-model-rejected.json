@@ -1,0 +1,44 @@
+{
+  "id": "global-model-rejected",
+  "feature": "framework",
+  "operation": "wallet.balance",
+  "description": "The runner-global --model is INVOCATION_INVALID before a service operation.",
+  "argv": [
+    "--model",
+    "model-luna",
+    "cli",
+    "wallet",
+    "balance",
+    "--json"
+  ],
+  "fixture": {
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "wallet.balance",
+      "operation": "wallet.balance",
+      "problem": {
+        "action": "Drop --model; this command takes no model: `prose cli wallet balance --json`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "the runner option --model does not apply to service operations; pass --model after the command, for example `cli run submit --model MODEL`",
+          "suggestedArgv": [
+            "cli",
+            "wallet",
+            "balance",
+            "--json"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

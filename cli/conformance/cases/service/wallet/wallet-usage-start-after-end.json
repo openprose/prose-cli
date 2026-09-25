@@ -1,0 +1,57 @@
+{
+  "id": "wallet-usage-start-after-end",
+  "feature": "wallet",
+  "operation": "wallet.usage",
+  "description": "--start after --end is INVOCATION_INVALID naming the fix.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "wallet",
+    "usage",
+    "--start",
+    "2026-09-05",
+    "--end",
+    "2026-09-01"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "wallet.usage",
+      "operation": "wallet.usage",
+      "problem": {
+        "action": "Use the corrected dates: `prose --output json cli wallet usage --start 2026-09-01 --end 2026-09-05`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "--start 2026-09-05 is after --end 2026-09-01; swap them",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "wallet",
+            "usage",
+            "--start",
+            "2026-09-01",
+            "--end",
+            "2026-09-05"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

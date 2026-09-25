@@ -1,0 +1,129 @@
+{
+  "id": "model-list-catalog-json",
+  "feature": "discovery",
+  "operation": "model.list",
+  "description": "`catalog` is projected through an allowlist (id, status, tier, summary, successor): internal entry fields are dropped, a deprecated model is never shown, an entry without a valid model id is skipped, an unknown status is kept, and an invalid tier or summary is left out.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "model",
+    "list"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/models",
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef",
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          },
+          "Accept": "application/json"
+        },
+        "status": 200,
+        "body": {
+          "models": [
+            "model-sol",
+            "model-luna"
+          ],
+          "default_model": "model-sol",
+          "catalog": [
+            {
+              "id": "model-astra",
+              "status": "paid_top_up",
+              "tier": "premium",
+              "summary": "Most capable model for hard, long tasks. Higher rate per run. Unlocks with any wallet top-up.",
+              "price_multiplier": "x-internal-price",
+              "provider": "x-internal-provider"
+            },
+            {
+              "id": "model-sol",
+              "status": "available"
+            },
+            {
+              "id": "model-luna",
+              "status": "available"
+            },
+            {
+              "id": "model-nova-old",
+              "status": "deprecated",
+              "successor": "model-sol"
+            },
+            {
+              "id": "model-sol-legacy",
+              "status": "hidden",
+              "successor": "model-sol"
+            },
+            {
+              "id": "Not A Model",
+              "status": "available"
+            },
+            {
+              "id": "model-comet",
+              "status": "future_status",
+              "tier": "Bad Tier",
+              "summary": "line\u0007bell"
+            },
+            "model-string-entry"
+          ]
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "schema": "openprose.service-operation/1",
+      "operation": "model.list",
+      "interaction": "models.list",
+      "problem": null,
+      "result": {
+        "models": [
+          "model-sol",
+          "model-luna"
+        ],
+        "default_model": "model-sol",
+        "catalog": [
+          {
+            "id": "model-astra",
+            "status": "paid_top_up",
+            "tier": "premium",
+            "summary": "Most capable model for hard, long tasks. Higher rate per run. Unlocks with any wallet top-up."
+          },
+          {
+            "id": "model-sol",
+            "status": "available"
+          },
+          {
+            "id": "model-luna",
+            "status": "available"
+          },
+          {
+            "id": "model-sol-legacy",
+            "status": "hidden",
+            "successor": "model-sol"
+          },
+          {
+            "id": "model-comet",
+            "status": "future_status"
+          }
+        ]
+      }
+    }
+  },
+  "forbid": [
+    "x-internal-",
+    "price_multiplier",
+    "provider",
+    "model-nova-old",
+    "deprecated",
+    "model-string-entry"
+  ]
+}

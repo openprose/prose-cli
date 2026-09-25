@@ -1,0 +1,71 @@
+{
+  "id": "download-existing-destination-refused",
+  "feature": "run-records",
+  "operation": "run.download",
+  "description": "An existing --output-dir is refused (exit 2) before any request and left untouched.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "download",
+    "run_5e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f68",
+    "--output-dir",
+    "out"
+  ],
+  "files": [
+    {
+      "path": "out/keep.txt",
+      "content": "keep\n"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "run.read",
+      "operation": "run.download",
+      "problem": {
+        "action": "Download into the new directory out-2: `prose --output json cli run download run_5e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f68 --output-dir out-2`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "output directory \"out\" already exists; choose a new directory",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "download",
+            "run_5e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f68",
+            "--output-dir",
+            "out-2"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "expectFiles": [
+    {
+      "path": "out/keep.txt",
+      "content": "keep\n"
+    },
+    {
+      "path": "out/.prose-run-manifest.json",
+      "absent": true
+    }
+  ]
+}

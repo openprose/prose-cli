@@ -1,0 +1,26 @@
+{
+  "id": "auth-status-signed-out-human",
+  "feature": "account",
+  "operation": "auth.status",
+  "description": "Human auth status without any key is the one status line `OpenProse account status: signed out` on stdout, the banner on stderr, exit 0 (both products byte-identical).",
+  "argv": [
+    "cli",
+    "auth",
+    "status"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "OpenProse account status: signed out\n"
+  },
+  "stderr": {
+    "text": ""
+  }
+}

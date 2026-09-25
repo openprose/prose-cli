@@ -1,0 +1,82 @@
+{
+  "id": "job-show-webhook-human-next",
+  "feature": "jobs",
+  "operation": "job.show",
+  "description": "Human webhook `job show` prints ISO times, the absolute endpoint URL and `Next:` commands for deliveries and contracts.",
+  "argv": [
+    "cli",
+    "job",
+    "show",
+    "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/triggers/3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10",
+        "status": 200,
+        "body": {
+          "trigger": {
+            "id": "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10",
+            "type": "webhook",
+            "name": null,
+            "internalRef": "opaque-1",
+            "url": null,
+            "intervalSeconds": null,
+            "mode": null,
+            "repositoryId": null,
+            "repositoryFullName": null,
+            "repositoryBranch": null,
+            "contextRepositoryId": null,
+            "contextRepositoryFullName": null,
+            "contextRepositoryBranch": null,
+            "createdAt": 1790212421024,
+            "adopted": false
+          },
+          "status": {
+            "configured": true,
+            "active": true,
+            "receiver": {
+              "profile": "openprose"
+            },
+            "receiverSecretConfigured": false,
+            "reply": null,
+            "replySecretConfigured": false,
+            "replies": [],
+            "replyDeliveries": [],
+            "deliveryMode": "test",
+            "secretRotatedAt": 1790212422203,
+            "lastEventAt": null,
+            "lastRunId": null,
+            "lastError": null,
+            "counts": {
+              "pending": 0,
+              "pending_funds": 0,
+              "claimed": 0,
+              "completed": 0,
+              "failed": 0,
+              "billing_pending": 0,
+              "ambiguous": 0
+            }
+          },
+          "endpoint": "/webhooks/triggers/3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10"
+        },
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "Job 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10 (webhook)\n  created: 2026-09-24T01:13:41.024Z\n  active: true\n  delivery mode: test\n  secret rotated: 2026-09-24T01:13:42.203Z\n  runs: none yet\n  endpoint URL: https://run-prose-production.openprose.workers.dev/webhooks/triggers/3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10\nNext: prose cli job deliveries 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10\nNext: prose cli job contract list 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10\n"
+  },
+  "forbid": [
+    "secret-path-token"
+  ]
+}

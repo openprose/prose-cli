@@ -1,0 +1,101 @@
+{
+  "id": "show-file-binary",
+  "feature": "run-records",
+  "operation": "run.show",
+  "description": "Non-text bytes are reported by size and digest without content.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "show",
+    "run_5e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f68",
+    "--file",
+    "image.png"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/runs/run_5e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f68",
+        "requestHeaders": {
+          "Authorization": {
+            "pattern": "^Bearer rr_test_[0-9a-f]{32}$"
+          }
+        },
+        "status": 200,
+        "body": {
+          "run_id": "run_5e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f68",
+          "created_at": "2026-09-23T20:29:47.788Z",
+          "status": "completed",
+          "model": "model-sol",
+          "environment": {
+            "id": "builtin",
+            "version": "1.0.0",
+            "runtime_contract": 1
+          },
+          "price_cents": 4,
+          "environment_price_cents": 1,
+          "billing_status": "settled",
+          "program_ref": "openprose/prose-write@840170241e030597",
+          "customer_id": "cus_ExampleOwner01",
+          "usage": {
+            "input_tokens": 103123,
+            "output_tokens": 836,
+            "cache_read_input_tokens": 5
+          },
+          "files": [
+            "image.png"
+          ],
+          "has_patch": false,
+          "session_files": [],
+          "file_urls": {
+            "image.png": "https://run-prose-production.openprose.workers.dev/runs/run_5e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f68/files/image.png?tok=SIGNEDTOKEN&exp=1790298569"
+          },
+          "spec_commit": "0123abcd",
+          "browser_live_view": {
+            "status": "ended"
+          }
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/runs/run_5e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f68/files/image.png",
+        "requestHeaders": {
+          "Authorization": {
+            "pattern": "^Bearer rr_test_[0-9a-f]{32}$"
+          }
+        },
+        "status": 200,
+        "responseHeaders": {
+          "Content-Type": "image/png"
+        },
+        "bodyBase64": "iVBORwD/"
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "run.read",
+      "operation": "run.show",
+      "problem": null,
+      "result": {
+        "file": {
+          "bytes": 6,
+          "contentType": "image/png",
+          "sha256": "ffdb519b788f33bddc8647611c3a24cc5e1a9ef5780c1f6f828a637c309ad8f1",
+          "written": false
+        },
+        "path": "image.png",
+        "runId": "run_5e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f68"
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

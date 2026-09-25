@@ -1,0 +1,39 @@
+{
+  "id": "show-run-not-found-human",
+  "feature": "run-records",
+  "operation": "run.show",
+  "description": "Human form of a run 404: Detail names the run id and the environment; the Action quotes `cli run list`.",
+  "argv": [
+    "cli",
+    "run",
+    "show",
+    "run_5e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f68"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/runs/run_5e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f68",
+        "status": 404,
+        "body": {
+          "error": "Not found"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "text": ""
+  },
+  "stderr": {
+    "text": "OpenProse: SERVICE_RESOURCE_NOT_FOUND: The requested OpenProse service resource was not found.\nDetail: run run_5e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f68 was not found\nAction: Run `prose cli run list` to find the right run, then retry with it.\n"
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

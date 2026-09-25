@@ -1,0 +1,49 @@
+{
+  "id": "create-preview",
+  "feature": "organizations",
+  "operation": "org.create",
+  "description": "`org create` with --preview returns the plan, exits 0 and sends nothing.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "org",
+    "create",
+    "acme-research",
+    "--name",
+    "Acme Research",
+    "--preview"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "organizations.manage",
+      "operation": "org.create",
+      "problem": null,
+      "result": {
+        "plannedRequest": {
+          "bodyBytes": 47,
+          "bodySha256": "738711924a44a50369830c1c4f44ff211584e8c135605bffeb591f3afe9653d7",
+          "description": "Create an organization.",
+          "effect": "write",
+          "method": "POST",
+          "operation": "org.create",
+          "summary": {
+            "name": "Acme Research",
+            "slug": "acme-research"
+          }
+        },
+        "preview": true
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

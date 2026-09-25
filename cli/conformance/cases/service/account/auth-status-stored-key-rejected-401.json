@@ -1,0 +1,58 @@
+{
+  "id": "auth-status-stored-key-rejected-401",
+  "feature": "account",
+  "operation": "auth.status",
+  "description": "A stored key the service rejects (401) is SERVICE_AUTH_REQUIRED; the service body is never echoed. Ported from the account corpus.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "auth",
+    "status"
+  ],
+  "fixture": {
+    "credential": "rr_test_11111111111111111111111111111111",
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/organizations",
+        "status": 401,
+        "body": {
+          "error": "fixture-secret-must-not-escape"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "schema": "openprose.service-operation/1",
+      "operation": "auth.status",
+      "interaction": "cli.auth_status",
+      "result": null,
+      "problem": {
+        "action": "Run `prose --output json cli auth login` again, or set OPENPROSE_API_KEY, then retry.",
+        "boundary": "authentication",
+        "code": "SERVICE_AUTH_REQUIRED",
+        "details": {
+          "credentialProblem": "rejected",
+          "credentialSource": "store",
+          "credentialVariable": "OPENPROSE_API_KEY",
+          "reason": "the service rejected the API key stored for OpenProse (unknown or revoked); run `prose --output json cli auth login` again"
+        },
+        "exitCode": 10,
+        "message": "OpenProse service authentication is required.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      }
+    }
+  },
+  "stderr": {
+    "empty": true
+  },
+  "forbid": [
+    "rr_test_11111111111111111111111111111111",
+    "fixture-secret-must-not-escape"
+  ]
+}

@@ -1,0 +1,54 @@
+{
+  "id": "wallet-topup-amount-not-integer",
+  "feature": "wallet",
+  "operation": "wallet.topup",
+  "description": "--amount-cents 5.00 is INVOCATION_INVALID (cents, not dollars) and sends nothing.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "wallet",
+    "topup",
+    "--amount-cents",
+    "5.00",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [],
+    "ids": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "wallet.topup",
+      "operation": "wallet.topup",
+      "problem": {
+        "action": "Correct the value named in Detail; `prose --output json cli wallet topup --help` shows the accepted syntax.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "--amount-cents must be a positive whole number of cents, for example 500 for $5.00; got \"5.00\"",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "wallet",
+            "topup",
+            "--help"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "id": "confirmation-required-human",
+  "feature": "framework",
+  "operation": "program.delete",
+  "description": "Human CONFIRMATION_REQUIRED names the planned request and the exact commands to confirm or preview.",
+  "argv": [
+    "cli",
+    "program",
+    "delete",
+    "demo"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: CONFIRMATION_REQUIRED: This service operation requires explicit confirmation.\nDetail: --yes is required because it deletes the program and every revision permanently; it cannot be undone\nPlanned: Delete a saved program and its revisions.\nConfirm with: prose cli program delete demo --yes\nPreview with: prose cli program delete demo --preview\nAction: Rerun the same command with --yes to confirm, or with --preview to see what it would do without sending anything.\n"
+  }
+}

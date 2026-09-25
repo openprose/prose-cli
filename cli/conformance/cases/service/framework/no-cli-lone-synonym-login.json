@@ -1,0 +1,24 @@
+{
+  "id": "no-cli-lone-synonym-login",
+  "feature": "framework",
+  "operation": "auth.login",
+  "description": "A lone nounSynonyms word that names one command (`login`) is rejected with `prose cli auth login`; nothing is sent.",
+  "argv": [
+    "login"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: Unknown command.\nDetail: `login` is not a command; did you mean `prose cli auth login`? Nothing was forwarded or sent. To pass these words to the OpenProse language instead, put `--` before them\nAction: Use `cli auth login`: `prose cli auth login`.\n"
+  }
+}

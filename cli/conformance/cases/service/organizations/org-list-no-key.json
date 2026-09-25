@@ -1,0 +1,45 @@
+{
+  "id": "org-list-no-key",
+  "feature": "organizations",
+  "operation": "org.list",
+  "description": "`org list` without any key sends nothing and names OPENPROSE_API_KEY (SERVICE_AUTH_REQUIRED). Ported from the account corpus.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "org",
+    "list"
+  ],
+  "fixture": {
+    "credential": null,
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "schema": "openprose.service-operation/1",
+      "operation": "org.list",
+      "interaction": "organizations.manage",
+      "result": null,
+      "problem": {
+        "action": "Set OPENPROSE_API_KEY or run `prose --output json cli auth login`, then retry.",
+        "boundary": "authentication",
+        "code": "SERVICE_AUTH_REQUIRED",
+        "details": {
+          "credentialProblem": "missing",
+          "credentialSource": "none",
+          "credentialVariable": "OPENPROSE_API_KEY",
+          "reason": "no API key for OpenProse: set OPENPROSE_API_KEY or run `prose --output json cli auth login`"
+        },
+        "exitCode": 10,
+        "message": "OpenProse service authentication is required.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      }
+    }
+  },
+  "stderr": {
+    "empty": true
+  }
+}

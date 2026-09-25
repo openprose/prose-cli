@@ -1,0 +1,49 @@
+{
+  "id": "option-removal-status-suggests-jq",
+  "feature": "framework",
+  "operation": "run.list",
+  "description": "`cli run list --status S` has no service filter yet: the option and its value are dropped and the reason shows the jq filter.",
+  "argv": [
+    "cli",
+    "run",
+    "list",
+    "--status",
+    "running",
+    "--json"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "runs.list",
+      "operation": "run.list",
+      "problem": {
+        "action": "Drop --status: `prose cli run list --json`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "unknown option --status for `cli run list`; `cli run list` has no status filter; filter its JSON instead: prose cli run list --json | jq '.result.runs[] | select(.status == \"running\")'",
+          "suggestedArgv": [
+            "cli",
+            "run",
+            "list",
+            "--json"
+          ]
+        },
+        "exitCode": 2,
+        "message": "Unknown option.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

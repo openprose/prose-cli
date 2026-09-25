@@ -142,8 +142,8 @@
       "boundary": "hosted-service",
       "exitCode": 10,
       "retryable": false,
-      "message": "OpenProse-billed execution is not available in this build.",
-      "action": "Select an available BYO harness with the `cli harness use <id>` runner operation, then invoke the `cli doctor` runner operation."
+      "message": "Programs run here only with a local harness; hosted runs use `prose cli run submit`.",
+      "action": "To use the hosted service, run `cli run submit FILE --preview`; running programs on this machine needs a local harness (`cli harness list`)."
     },
     {
       "code": "HOSTED_AUTH_REQUIRED",
@@ -175,7 +175,7 @@
       "exitCode": 10,
       "retryable": true,
       "message": "The OpenProse service is unavailable.",
-      "action": "Check the selected service environment and retry later."
+      "action": "Check your network connection and retry later."
     },
     {
       "code": "SERVICE_AUTH_REQUIRED",
@@ -183,7 +183,7 @@
       "exitCode": 10,
       "retryable": false,
       "message": "OpenProse service authentication is required.",
-      "action": "Run cli auth login for the selected service environment, then retry."
+      "action": "Run cli auth login, then retry."
     },
     {
       "code": "SERVICE_PROTOCOL_INVALID",
@@ -207,7 +207,7 @@
       "exitCode": 10,
       "retryable": false,
       "message": "Device authorization failed.",
-      "action": "Run login again for the selected service environment and authorize the displayed code."
+      "action": "Run login again and authorize the displayed code."
     },
     {
       "code": "DEVICE_AUTH_EXPIRED",
@@ -215,7 +215,135 @@
       "exitCode": 10,
       "retryable": true,
       "message": "Device authorization expired.",
-      "action": "Run login again for the selected service environment to obtain a new code."
+      "action": "Run login again to obtain a new code."
+    },
+    {
+      "code": "CONFIRMATION_REQUIRED",
+      "boundary": "invocation",
+      "exitCode": 2,
+      "retryable": false,
+      "message": "This service operation requires explicit confirmation.",
+      "action": "Rerun the same command with --yes to confirm, or with --preview to see what it would do without sending anything."
+    },
+    {
+      "code": "SERVICE_REQUEST_REJECTED",
+      "boundary": "hosted-service",
+      "exitCode": 10,
+      "retryable": false,
+      "message": "The OpenProse service rejected the request.",
+      "action": "Correct the request using whichever of details.reason, details.serviceMessage and details.serviceCode are present, then retry."
+    },
+    {
+      "code": "SERVICE_RESOURCE_NOT_FOUND",
+      "boundary": "hosted-service",
+      "exitCode": 10,
+      "retryable": false,
+      "message": "The requested OpenProse service resource was not found.",
+      "action": "Check the identifier, then retry."
+    },
+    {
+      "code": "SERVICE_FEATURE_DISABLED",
+      "boundary": "hosted-service",
+      "exitCode": 10,
+      "retryable": false,
+      "message": "This capability is not available for this account.",
+      "action": "Check your plan or organization, or contact OpenProse support."
+    },
+    {
+      "code": "SERVICE_BALANCE_INSUFFICIENT",
+      "boundary": "hosted-service",
+      "exitCode": 10,
+      "retryable": false,
+      "message": "The OpenProse wallet balance is insufficient for this operation.",
+      "action": "Add credit with the `cli wallet topup` or `cli wallet redeem` runner operation, then retry."
+    },
+    {
+      "code": "SERVICE_PREMIUM_MODEL_LOCKED",
+      "boundary": "hosted-service",
+      "exitCode": 10,
+      "retryable": false,
+      "message": "This model is a premium model that unlocks with any wallet top-up.",
+      "action": "Top up the wallet with any amount using the `cli wallet topup` runner operation, then retry."
+    },
+    {
+      "code": "SERVICE_ACCOUNT_SUSPENDED",
+      "boundary": "authentication",
+      "exitCode": 10,
+      "retryable": false,
+      "message": "The OpenProse account is suspended.",
+      "action": "Contact OpenProse support; retrying will not succeed."
+    },
+    {
+      "code": "SERVICE_WRITE_CONFLICT",
+      "boundary": "hosted-service",
+      "exitCode": 10,
+      "retryable": false,
+      "message": "The OpenProse service reported a conflicting write.",
+      "action": "Read the current state of the resource, reconcile the change, then retry."
+    },
+    {
+      "code": "GITHUB_LINK_REQUIRED",
+      "boundary": "authentication",
+      "exitCode": 10,
+      "retryable": false,
+      "message": "This operation needs a linked GitHub account on the OpenProse account.",
+      "action": "Link or reconnect GitHub for this account in the OpenProse web app, then retry; the API key itself is valid."
+    },
+    {
+      "code": "SERVICE_RESPONSE_TOO_LARGE",
+      "boundary": "protocol",
+      "exitCode": 10,
+      "retryable": false,
+      "message": "The OpenProse service response exceeded the client limit.",
+      "action": "Narrow the request, for example with --limit or a more specific identifier, then retry."
+    },
+    {
+      "code": "SERVICE_WATCH_DEADLINE",
+      "boundary": "hosted-service",
+      "exitCode": 21,
+      "retryable": false,
+      "message": "The watch deadline elapsed before the hosted run finished; the run continues.",
+      "action": "Resume with the `cli run watch` runner operation using details.resumeArgv (details.runId and details.afterSequence); never submit the run again to resume it."
+    },
+    {
+      "code": "HOSTED_RUN_FAILED",
+      "boundary": "hosted-service",
+      "exitCode": 22,
+      "retryable": false,
+      "message": "The hosted run finished without completing successfully.",
+      "action": "Inspect the run with the `cli run show` runner operation, correct the program or inputs, then submit again."
+    },
+    {
+      "code": "RUN_SUBMISSION_AMBIGUOUS",
+      "boundary": "protocol",
+      "exitCode": 22,
+      "retryable": false,
+      "message": "The run submission could not be confirmed and was not repeated.",
+      "action": "List recent runs with the `cli run list` runner operation before submitting again; the local run journal keeps details.session."
+    },
+    {
+      "code": "HOSTED_RUN_DETACHED",
+      "boundary": "hosted-service",
+      "exitCode": 21,
+      "retryable": false,
+      "message": "The client stopped following the hosted run before its outcome arrived; the run was not cancelled.",
+      "action": "Resume with the `cli run watch` runner operation using details.resumeArgv (details.runId and details.afterSequence); never submit the run again to resume it."
+    },
+    {
+      "code": "HOSTED_RUN_CANCELLED",
+      "boundary": "hosted-service",
+      "exitCode": 24,
+      "retryable": false,
+      "message": "The hosted run was cancelled on the service and will not continue.",
+      "action": "Read the cancelled run with the `cli run show` runner operation using details.runId; submit again only to start a new run."
+    },
+    {
+      "code": "EXAMPLE_NOT_VIEWABLE",
+      "boundary": "invocation",
+      "exitCode": 2,
+      "retryable": false,
+      "message": "This example is published outside the OpenProse service and cannot be shown here.",
+      "action": "Read the example on the web at details.webUrl when it is present, or pick an example that the `cli example list` runner operation does not mark viewOnWeb."
     }
   ]
 }

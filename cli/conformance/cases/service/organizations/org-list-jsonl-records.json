@@ -1,0 +1,61 @@
+{
+  "id": "org-list-jsonl-records",
+  "feature": "organizations",
+  "operation": "org.list",
+  "description": "`--output jsonl cli org list` prints one service-record/1 line per organization, then the service-page/1 trailer.",
+  "argv": [
+    "--output",
+    "jsonl",
+    "cli",
+    "org",
+    "list"
+  ],
+  "fixture": {
+    "credential": "rr_test_11111111111111111111111111111111",
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/organizations",
+        "status": 200,
+        "body": {
+          "organizations": [
+            {
+              "id": "org-fixture",
+              "slug": "fixture",
+              "name": "Fixture",
+              "role": "admin"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "jsonl": [
+      {
+        "collection": "organizations",
+        "index": 0,
+        "operation": "org.list",
+        "record": {
+          "id": "org-fixture",
+          "name": "Fixture",
+          "role": "admin",
+          "slug": "fixture"
+        },
+        "schema": "openprose.service-record/1"
+      },
+      {
+        "collection": "organizations",
+        "count": 1,
+        "exitCode": 0,
+        "interaction": "organizations.manage",
+        "meta": {},
+        "nextBefore": null,
+        "operation": "org.list",
+        "schema": "openprose.service-page/1"
+      }
+    ]
+  }
+}

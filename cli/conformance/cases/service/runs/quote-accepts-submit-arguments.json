@@ -1,0 +1,81 @@
+{
+  "id": "quote-accepts-submit-arguments",
+  "feature": "runs",
+  "operation": "run.quote",
+  "description": "Quote takes the program, inputs and model `cli run submit` takes, so the quoted command is the one to submit; the hold does not depend on them.",
+  "argv": [
+    "cli",
+    "run",
+    "quote",
+    "hello.prose.md",
+    "--input",
+    "topic=cats",
+    "--model",
+    "model-sol"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/health",
+        "status": 200,
+        "body": {
+          "status": "ok",
+          "environments": {
+            "default": "builtin",
+            "available": [
+              "builtin",
+              "linux"
+            ]
+          },
+          "models": [
+            "model-luna",
+            "model-sol"
+          ],
+          "default_model": "model-luna",
+          "version": "9.9.9-extra",
+          "capabilities": {
+            "web:search": {
+              "available": true,
+              "tool": "web_search"
+            }
+          }
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/run/quote",
+        "requestHeaders": {
+          "Authorization": {
+            "present": false
+          }
+        },
+        "status": 200,
+        "body": {
+          "hold": {
+            "hold_usd": "1.02",
+            "ttl_seconds": 900
+          },
+          "pricing_policy_id": "pricing-policy.sha256.f114eadc02b7550e58f12c49996382b04f867cb774ac295506806f599ef1e3cd",
+          "note": "Unused hold is released when the run settles."
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "Environment: builtin\nHold: $1.02, set aside from the wallet while a run is live; not its price. The same for every program and model; released within 900 s when unused\nPrice: known only after a run settles; read it with `prose cli run show RUN_ID`\nNote: Unused hold is released when the run settles.\n"
+  },
+  "stderr": {
+    "text": ""
+  },
+  "forbid": [
+    "9.9.9-extra",
+    "web_search"
+  ]
+}

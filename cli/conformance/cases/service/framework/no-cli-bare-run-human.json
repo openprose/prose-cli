@@ -1,0 +1,24 @@
+{
+  "id": "no-cli-bare-run-human",
+  "feature": "framework",
+  "operation": "run.submit",
+  "description": "Human `prose run` names `prose cli run submit FILE` and suggests its help; nothing reaches the harness.",
+  "argv": [
+    "run"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: That command isn't quite right.\nDetail: `run` alone runs nothing here: hosted runs are `prose cli run submit FILE`; did you mean `prose cli run submit --help`? Nothing was forwarded or sent. To pass these words to the OpenProse language instead, put `--` before them\nAction: Use `cli run submit`: `prose cli run submit --help`.\n"
+  }
+}

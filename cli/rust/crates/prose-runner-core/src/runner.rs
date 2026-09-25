@@ -193,9 +193,60 @@ fn execute_inner(
     human_stream: Option<&mut dyn IoWrite>,
 ) -> CommandOutcome {
     let mode = action_output_mode(parsed, config);
+    // The default hosted harness runs no language command, so a language
+    // command word that also names a service command is that rejection.
+    let hosted_rejection = match &parsed.action {
+        Action::Forward {
+            hosted_rejection: Some(service),
+            ..
+        } if config.harness.value == "openprose" && !parsed.globals.dry_run => Some(&**service),
+        _ => None,
+    };
+    let service = match &parsed.action {
+        Action::Runner {
+            command: RunnerCommand::Service(service),
+            ..
+        } => Some(service),
+        _ => hosted_rejection,
+    };
+    if let Some(service) = service {
+        return crate::SystemContext::capture().map_or_else(
+            |error| error_outcome(error, mode, clock, ids),
+            |system| {
+                let mut sink = std::io::sink();
+                let mut stderr = std::io::stderr();
+                match human_stream {
+                    Some(stream) => crate::service::execute(
+                        service,
+                        &parsed.globals,
+                        &system,
+                        cancellation,
+                        stream,
+                        &mut stderr,
+                    ),
+                    None => crate::service::execute(
+                        service,
+                        &parsed.globals,
+                        &system,
+                        cancellation,
+                        &mut sink,
+                        &mut stderr,
+                    ),
+                }
+            },
+        );
+    }
     if let Action::Runner { command, .. } = &parsed.action {
         if crate::service_account::is_service_command(command) {
-            return crate::SystemContext::capture().and_then(|system| crate::service_account::execute_user_command(command, &parsed.globals, &system, mode, cancellation))
+            return crate::SystemContext::capture()
+                .and_then(|system| {
+                    crate::service_account::execute_user_command(
+                        command,
+                        &system,
+                        mode,
+                        cancellation,
+                    )
+                })
                 .unwrap_or_else(|error| error_outcome(error, mode, clock, ids));
         }
     }
@@ -211,8 +262,15 @@ fn execute_inner(
             clock,
             ids,
         ),
-        Action::Forward { argv } => execute_forward(
+        Action::Forward {
             argv,
+            service_hint,
+            hint_in_details_only,
+            ..
+        } => execute_forward(
+            argv,
+            service_hint.as_deref(),
+            *hint_in_details_only,
             &parsed.globals,
             config,
             image,
@@ -376,6 +434,9 @@ fn validate_saved_harness_will_be_active(
         .with_detail("effectiveHarnessSource", source))
 }
 
+/// The human `--dry-run` layout shared by both ports.
+const DRY_RUN_TEMPLATE: &str = include_str!("../../../../shared/fixtures/human/dry-run.v1.txt");
+
 fn human_readiness_label(
     mechanically_ready: bool,
     auth_readiness: &str,
@@ -477,14 +538,13 @@ fn execute_runner_command(
             }
             if mode == OutputMode::Human {
                 let readiness = human_readiness_label(ready, auth_readiness, "not ready");
+                // The readiness summary only: the language image and billing
+                // owner stay in `--output json` (`image`, `billingOwner`).
                 let mut output = format!(
-                    "Selected harness: {} ({readiness})\nTransport: {}\nAuth readiness: {}\nBilling owner: {}\nImage: {} ({})\n",
+                    "Selected harness: {} ({readiness})\nTransport: {}\nAuth readiness: {}\n",
                     human_safe_scalar(&config.harness.value),
                     human_safe_scalar(&selected_transport),
                     human_safe_scalar(auth_readiness),
-                    human_safe_scalar(billing_owner(&config.harness.value)),
-                    human_safe_scalar(&image.manifest.image_version),
-                    human_safe_scalar(image.aggregate_sha256())
                 );
                 if let Some(problem) = problem.as_ref() {
                     let _ = writeln!(
@@ -499,7 +559,11 @@ fn execute_runner_command(
                         .and_then(|details| details.get("reason"))
                         .and_then(Value::as_str)
                     {
-                        let _ = writeln!(output, "Detail: {}", human_safe_scalar(reason));
+                        let _ = writeln!(
+                            output,
+                            "Detail: {}",
+                            crate::error::human_safe_detail(reason)
+                        );
                     }
                     for detail in problem.human_version_repair_details() {
                         let _ = writeln!(output, "{detail}");
@@ -600,7 +664,12 @@ fn execute_runner_command(
         RunnerCommand::CleanupPrime(handle) => {
             execute_prime_cleanup(&handle, mode, clock, ids, &std::env::temp_dir())
         }
-        RunnerCommand::AuthStatus | RunnerCommand::AuthLogin | RunnerCommand::AuthLogout | RunnerCommand::OrgList | RunnerCommand::EnvironmentShow | RunnerCommand::EnvironmentUse(_) | RunnerCommand::EnvironmentReset | RunnerCommand::Package(_) => {
+        RunnerCommand::AuthStatus
+        | RunnerCommand::AuthLogin
+        | RunnerCommand::AuthLogout
+        | RunnerCommand::OrgList
+        | RunnerCommand::Package(_)
+        | RunnerCommand::Service(_) => {
             unreachable!("service commands are dispatched before harness operations")
         }
     }
@@ -748,6 +817,8 @@ fn validate_selected_transport(config: &EffectiveConfig) -> Result<(), RunnerErr
 
 fn execute_forward(
     argv: &[String],
+    service_hint: Option<&[String]>,
+    hint_in_details_only: bool,
     flags: &GlobalFlags,
     config: &EffectiveConfig,
     image: &RuntimeImage,
@@ -912,9 +983,13 @@ fn execute_forward(
 
     match config.harness.value.as_str() {
         "openprose" => forward_error_outcome(
-            RunnerError::catalog(ErrorCode::HostedUnavailable)
-                .with_detail("billingOwner", "openprose")
-                .with_detail("fallbackSelected", false),
+            crate::service::with_cli_hint(
+                RunnerError::catalog(ErrorCode::HostedUnavailable)
+                    .with_detail("billingOwner", "openprose")
+                    .with_detail("fallbackSelected", false),
+                service_hint,
+                hint_in_details_only,
+            ),
             argv,
             config,
             image,
@@ -1101,8 +1176,15 @@ impl OmpStagedController {
                         "OMP tool-state response omitted dumpTools",
                     ));
                 };
-                if tools.iter().any(|tool| tool.get("name").and_then(Value::as_str).is_none_or(str::is_empty)) {
-                    return Err(stream_observer_failure(FailureKind::ProtocolMalformed,"OMP reported an invalid tool inventory"));
+                if tools.iter().any(|tool| {
+                    tool.get("name")
+                        .and_then(Value::as_str)
+                        .is_none_or(str::is_empty)
+                }) {
+                    return Err(stream_observer_failure(
+                        FailureKind::ProtocolMalformed,
+                        "OMP reported an invalid tool inventory",
+                    ));
                 }
                 self.tool_inventory = tools.iter().map(retained_omp_tool).collect();
                 self.pending_write = self.prompt_bytes.take();
@@ -1147,19 +1229,34 @@ struct PrimeStagedController {
 }
 impl PrimeStagedController {
     fn observe(&mut self, record: &Value) -> Result<(), SupervisorFailure> {
-        if self.close {return Ok(());}
+        if self.close {
+            return Ok(());
+        }
         self.records.push(record.clone());
-        installed_adapters::validate_prime_native_prefix(&self.records,&self.id)
-            .map_err(|_|stream_observer_failure(FailureKind::ProtocolMalformed,"Prime native lifecycle rejected the observed record"))?;
-        if self.records.len()==1 { self.pending_write=self.prompt.take(); }
-        if record["type"]=="response" && record["command"]=="prompt" && record["success"]==true {self.close=true;}
+        installed_adapters::validate_prime_native_prefix(&self.records, &self.id).map_err(
+            |_| {
+                stream_observer_failure(
+                    FailureKind::ProtocolMalformed,
+                    "Prime native lifecycle rejected the observed record",
+                )
+            },
+        )?;
+        if self.records.len() == 1 {
+            self.pending_write = self.prompt.take();
+        }
+        if record["type"] == "response"
+            && record["command"] == "prompt"
+            && record["success"] == true
+        {
+            self.close = true;
+        }
         Ok(())
     }
 }
 
 struct InstalledRunObserver<'a> {
-    require_api_source:bool,
-    auth_source_failed:bool,
+    require_api_source: bool,
+    auth_source_failed: bool,
     sdk: bool,
     native_failure: Option<Value>,
     capture: Option<NativeCapture>,
@@ -1180,20 +1277,33 @@ impl std::fmt::Debug for InstalledRunObserver<'_> {
 
 impl RecordObserver for InstalledRunObserver<'_> {
     fn observe_parsed(&mut self, record: &Value) -> Result<(), SupervisorFailure> {
-        if self.sdk && record.get("type").and_then(Value::as_str)==Some("error") {
-            self.native_failure=Some(installed_adapters::sdk_native_failure(record));
+        if self.sdk && record.get("type").and_then(Value::as_str) == Some("error") {
+            self.native_failure = Some(installed_adapters::sdk_native_failure(record));
         }
-        if let Some(capture)=self.capture.as_mut(){capture.write(record)?;}
+        if let Some(capture) = self.capture.as_mut() {
+            capture.write(record)?;
+        }
         Ok(())
     }
     fn observe(&mut self, record: &Value) -> Result<(), SupervisorFailure> {
         #[cfg(windows)]
-        if let Some(capture)=self.capture.as_mut(){capture.write(record)?;}
-        if self.require_api_source && record["type"]=="system" && record["subtype"]=="init" && record["apiKeySource"]!="ANTHROPIC_API_KEY" {
-            self.auth_source_failed=true;
-            return Err(stream_observer_failure(FailureKind::HarnessFailed,"Native init did not confirm selected API credential route"));
+        if let Some(capture) = self.capture.as_mut() {
+            capture.write(record)?;
         }
-        if let Some(prime)=self.prime.as_mut() {prime.observe(record)?;}
+        if self.require_api_source
+            && record["type"] == "system"
+            && record["subtype"] == "init"
+            && record["apiKeySource"] != "ANTHROPIC_API_KEY"
+        {
+            self.auth_source_failed = true;
+            return Err(stream_observer_failure(
+                FailureKind::HarnessFailed,
+                "Native init did not confirm selected API credential route",
+            ));
+        }
+        if let Some(prime) = self.prime.as_mut() {
+            prime.observe(record)?;
+        }
         let mut projection = None;
         if let Some(omp) = self.omp.as_mut() {
             omp.observe(record)?;
@@ -1206,7 +1316,9 @@ impl RecordObserver for InstalledRunObserver<'_> {
     }
 
     fn take_stdin_write(&mut self) -> Result<Option<Vec<u8>>, SupervisorFailure> {
-        if let Some(prime)=self.prime.as_mut() {return Ok(prime.pending_write.take());}
+        if let Some(prime) = self.prime.as_mut() {
+            return Ok(prime.pending_write.take());
+        }
         Ok(self
             .omp
             .as_mut()
@@ -1219,7 +1331,9 @@ impl RecordObserver for InstalledRunObserver<'_> {
             .and_then(OmpStagedController::retained_record_projection)
     }
 
-    fn close_stdin_requested(&self) -> bool {self.prime.as_ref().is_some_and(|p|p.close)}
+    fn close_stdin_requested(&self) -> bool {
+        self.prime.as_ref().is_some_and(|p| p.close)
+    }
 
     fn requires_staged_stdin(&self) -> bool {
         self.omp.is_some() || self.prime.is_some()
@@ -1439,16 +1553,28 @@ fn stream_observer_failure(kind: FailureKind, message: &str) -> SupervisorFailur
 
 // Preserve only the advertised task defaults required by native argument validation.
 // Keep every inventory entry so duplicate task names remain ambiguous.
-fn retained_omp_tool(tool:&Value)->Value {
- let mut out=json!({"name":tool["name"]});let p=&tool["parameters"];
- if tool["name"]!="task"||p["type"]!="object"{return out;}
- let field=|v:&Value|v["type"]=="string"&&v["default"]=="task";
- let mut properties=json!({});
- if field(&p["properties"]["agent"]){properties["agent"]=json!({"type":"string","default":"task"});}
- let t=&p["properties"]["tasks"];
- if t["type"]=="array"&&t["items"]["type"]=="object"&&field(&t["items"]["properties"]["agent"]){properties["tasks"]=json!({"type":"array","items":{"type":"object","properties":{"agent":{"type":"string","default":"task"}}}});}
- if !properties.as_object().unwrap().is_empty(){out["parameters"]=json!({"type":"object","properties":properties});}
- out
+fn retained_omp_tool(tool: &Value) -> Value {
+    let mut out = json!({"name":tool["name"]});
+    let p = &tool["parameters"];
+    if tool["name"] != "task" || p["type"] != "object" {
+        return out;
+    }
+    let field = |v: &Value| v["type"] == "string" && v["default"] == "task";
+    let mut properties = json!({});
+    if field(&p["properties"]["agent"]) {
+        properties["agent"] = json!({"type":"string","default":"task"});
+    }
+    let t = &p["properties"]["tasks"];
+    if t["type"] == "array"
+        && t["items"]["type"] == "object"
+        && field(&t["items"]["properties"]["agent"])
+    {
+        properties["tasks"] = json!({"type":"array","items":{"type":"object","properties":{"agent":{"type":"string","default":"task"}}}});
+    }
+    if !properties.as_object().unwrap().is_empty() {
+        out["parameters"] = json!({"type":"object","properties":properties});
+    }
+    out
 }
 
 #[derive(Debug)]
@@ -2013,14 +2139,41 @@ fn execute_installed_adapter(
     };
     launch.argv.splice(0..0, sdk_limit_arguments(config));
     if config.native_profile.value != "default" {
-        if let Err(error)=launch.apply_workspace_profile(&auth_group,&config.native_add_dirs.value,&config.native_allow_tools.value) {
-            return forward_error_outcome(error,argv,config,image,mode,clock,ids);
+        if let Err(error) = launch.apply_workspace_profile(
+            &auth_group,
+            &config.native_add_dirs.value,
+            &config.native_allow_tools.value,
+        ) {
+            return forward_error_outcome(error, argv, config, image, mode, clock, ids);
         }
     }
-    if let Some(permission)=&config.permission_mode.value {
-        if adapter == installed_adapters::InstalledAdapter::ClaudePrintStreamJson && matches!(permission.as_str(),"default"|"acceptEdits") {launch.argv.splice(0..0,["--permission-mode".into(),permission.into()]);}
-        else if adapter == installed_adapters::InstalledAdapter::CodexExecJson && matches!(permission.as_str(),"workspace-write"|"read-only") {launch.argv.splice(1..1,["--sandbox".into(),permission.into()]);}
-        else {return forward_error_outcome(RunnerError::catalog(ErrorCode::ConfigInvalid).with_detail("reason","Explicit permission mode unsupported for this harness"),argv,config,image,mode,clock,ids);}
+    if let Some(permission) = &config.permission_mode.value {
+        if adapter == installed_adapters::InstalledAdapter::ClaudePrintStreamJson
+            && matches!(permission.as_str(), "default" | "acceptEdits")
+        {
+            launch
+                .argv
+                .splice(0..0, ["--permission-mode".into(), permission.into()]);
+        } else if adapter == installed_adapters::InstalledAdapter::CodexExecJson
+            && matches!(permission.as_str(), "workspace-write" | "read-only")
+        {
+            launch
+                .argv
+                .splice(1..1, ["--sandbox".into(), permission.into()]);
+        } else {
+            return forward_error_outcome(
+                RunnerError::catalog(ErrorCode::ConfigInvalid).with_detail(
+                    "reason",
+                    "Explicit permission mode unsupported for this harness",
+                ),
+                argv,
+                config,
+                image,
+                mode,
+                clock,
+                ids,
+            );
+        }
     }
     let rendered_payload_digest =
         matches!(adapter, installed_adapters::InstalledAdapter::CodexExecJson).then(|| {
@@ -2032,7 +2185,8 @@ fn execute_installed_adapter(
             )
         });
     let timeout = parse_duration(&config.timeout.value).unwrap_or(Duration::from_secs(600));
-    let native_prime=adapter == installed_adapters::InstalledAdapter::PrimeRpc && config.output_contract.value == "native";
+    let native_prime = adapter == installed_adapters::InstalledAdapter::PrimeRpc
+        && config.output_contract.value == "native";
     let mut process_spec = launch.process_spec(
         config.cwd.clone(),
         env::current_exe().ok(),
@@ -2041,12 +2195,27 @@ fn execute_installed_adapter(
         probe_before_run,
         cancellation.clone(),
     );
-    let prime_controller=if native_prime {
-        let prompt=process_spec.stdin.take();
-        process_spec.stdin=Some(format!("{}\n",json!({"id":format!("{invocation_id}.prime.state.1"),"type":"get_state"})).into_bytes());
-        process_spec.stdin_lifecycle=prose_process_supervisor::StdinLifecycle::CloseAfterTerminalEvent;
-        Some(PrimeStagedController{id:invocation_id.clone(),prompt,pending_write:None,records:Vec::new(),close:false})
-    } else {None};
+    let prime_controller = if native_prime {
+        let prompt = process_spec.stdin.take();
+        process_spec.stdin = Some(
+            format!(
+                "{}\n",
+                json!({"id":format!("{invocation_id}.prime.state.1"),"type":"get_state"})
+            )
+            .into_bytes(),
+        );
+        process_spec.stdin_lifecycle =
+            prose_process_supervisor::StdinLifecycle::CloseAfterTerminalEvent;
+        Some(PrimeStagedController {
+            id: invocation_id.clone(),
+            prompt,
+            pending_write: None,
+            records: Vec::new(),
+            close: false,
+        })
+    } else {
+        None
+    };
     let mut secret_values = process_spec.environment.secret_strings();
     secret_values.extend([
         process_spec.recursion_token.clone(),
@@ -2079,18 +2248,50 @@ fn execute_installed_adapter(
     protected.sort();
     protected.dedup();
     let human_stream = human_stream
-        .filter(|_| mode == OutputMode::Human && !native_prime && !(adapter == installed_adapters::InstalledAdapter::ClaudePrintStreamJson && config.output_contract.value == "native"))
+        .filter(|_| {
+            mode == OutputMode::Human
+                && !native_prime
+                && !(adapter == installed_adapters::InstalledAdapter::ClaudePrintStreamJson
+                    && config.output_contract.value == "native")
+        })
         .map(|sink| InstalledHumanStream::new(adapter, &invocation_id, sink, protected));
     let omp_controller = launch
         .omp_prompt_bytes()
         .map(|bytes| OmpStagedController::new(&invocation_id, bytes.to_vec()));
-    if config.output_contract.value == "native" { process_spec.limits.max_stdout_bytes = crate::config::native_output_bytes(config); }
-    let capture=match config.native_log.value.as_ref().map(|path|NativeCapture::open(path,secret_values.clone(),crate::config::native_output_bytes(config))).transpose(){
-       Ok(value)=>value,Err(_)=>return forward_error_outcome(RunnerError::catalog(ErrorCode::ConfigInvalid).with_detail("reason","Native log must be a new writable absolute path"),argv,config,image,mode,clock,ids)
+    if config.output_contract.value == "native" {
+        process_spec.limits.max_stdout_bytes = crate::config::native_output_bytes(config);
+    }
+    let capture = match config
+        .native_log
+        .value
+        .as_ref()
+        .map(|path| {
+            NativeCapture::open(
+                path,
+                secret_values.clone(),
+                crate::config::native_output_bytes(config),
+            )
+        })
+        .transpose()
+    {
+        Ok(value) => value,
+        Err(_) => {
+            return forward_error_outcome(
+                RunnerError::catalog(ErrorCode::ConfigInvalid)
+                    .with_detail("reason", "Native log must be a new writable absolute path"),
+                argv,
+                config,
+                image,
+                mode,
+                clock,
+                ids,
+            );
+        }
     };
     let mut run_observer = InstalledRunObserver {
-        require_api_source:config.native_profile.value != "default" && auth_group=="anthropic-api-key",
-        auth_source_failed:false,
+        require_api_source: config.native_profile.value != "default"
+            && auth_group == "anthropic-api-key",
+        auth_source_failed: false,
         sdk: adapter == installed_adapters::InstalledAdapter::AgentsSdkJsonl,
         native_failure: None,
         capture,
@@ -2098,11 +2299,22 @@ fn execute_installed_adapter(
         omp: omp_controller,
         prime: prime_controller,
     };
-    let native_claude=adapter == installed_adapters::InstalledAdapter::ClaudePrintStreamJson && config.output_contract.value == "native";
-    let mut installed_protocol=adapter.protocol();
-    installed_protocol.terminal_is_candidate=native_claude || native_prime;
-    if native_prime {installed_protocol.allowed_events.insert("response".to_owned());}
-    let supervised = if run_observer.prime.is_some() || run_observer.sdk || run_observer.require_api_source || run_observer.human.is_some() || run_observer.omp.is_some() || run_observer.capture.is_some() {
+    let native_claude = adapter == installed_adapters::InstalledAdapter::ClaudePrintStreamJson
+        && config.output_contract.value == "native";
+    let mut installed_protocol = adapter.protocol();
+    installed_protocol.terminal_is_candidate = native_claude || native_prime;
+    if native_prime {
+        installed_protocol
+            .allowed_events
+            .insert("response".to_owned());
+    }
+    let supervised = if run_observer.prime.is_some()
+        || run_observer.sdk
+        || run_observer.require_api_source
+        || run_observer.human.is_some()
+        || run_observer.omp.is_some()
+        || run_observer.capture.is_some()
+    {
         supervise_observed(process_spec, &installed_protocol, &mut run_observer)
     } else {
         supervise(process_spec, &installed_protocol)
@@ -2212,7 +2424,24 @@ fn execute_installed_adapter(
         Ok(outcome) => outcome,
         Err(failure) => {
             if run_observer.auth_source_failed {
-                return installed_adapter_cleanup_failure_result(adapter,&task,&task_digest,&invocation_id,failure,detected_version.as_deref(),RunnerError::catalog(ErrorCode::HarnessNeedsAuth).with_detail("reason","Native init did not confirm selected API credential route").with_detail("fallbackAttempted",false),config,image,mode,clock);
+                return installed_adapter_cleanup_failure_result(
+                    adapter,
+                    &task,
+                    &task_digest,
+                    &invocation_id,
+                    failure,
+                    detected_version.as_deref(),
+                    RunnerError::catalog(ErrorCode::HarnessNeedsAuth)
+                        .with_detail(
+                            "reason",
+                            "Native init did not confirm selected API credential route",
+                        )
+                        .with_detail("fallbackAttempted", false),
+                    config,
+                    image,
+                    mode,
+                    clock,
+                );
             }
             return installed_adapter_failure_result(
                 adapter,
@@ -2229,28 +2458,44 @@ fn execute_installed_adapter(
             );
         }
     };
-    if let Err(error)=validate_native_auth(config,&outcome.records) {
-        return installed_adapter_postprocess_failure(adapter,&task,&task_digest,&invocation_id,outcome,detected_version.as_deref(),error,config,image,mode,clock);
+    if let Err(error) = validate_native_auth(config, &outcome.records) {
+        return installed_adapter_postprocess_failure(
+            adapter,
+            &task,
+            &task_digest,
+            &invocation_id,
+            outcome,
+            detected_version.as_deref(),
+            error,
+            config,
+            image,
+            mode,
+            clock,
+        );
     }
-    let normalized =
-        match installed_adapters::normalize_transport_mode(adapter, &outcome.records, &invocation_id,native_claude || native_prime) {
-            Ok(normalized) => normalized,
-            Err(error) => {
-                return installed_adapter_postprocess_failure(
-                    adapter,
-                    &task,
-                    &task_digest,
-                    &invocation_id,
-                    outcome,
-                    detected_version.as_deref(),
-                    error,
-                    config,
-                    image,
-                    mode,
-                    clock,
-                );
-            }
-        };
+    let normalized = match installed_adapters::normalize_transport_mode(
+        adapter,
+        &outcome.records,
+        &invocation_id,
+        native_claude || native_prime,
+    ) {
+        Ok(normalized) => normalized,
+        Err(error) => {
+            return installed_adapter_postprocess_failure(
+                adapter,
+                &task,
+                &task_digest,
+                &invocation_id,
+                outcome,
+                detected_version.as_deref(),
+                error,
+                config,
+                image,
+                mode,
+                clock,
+            );
+        }
+    };
     let terminal = if config.output_contract.value == "native" {
         native_output(&normalized.assistant_messages)
     } else {
@@ -2424,8 +2669,12 @@ fn installed_adapter_success_result(
         event_bytes.extend(serde_json::to_vec(value).expect("event JSON"));
         event_bytes.push(b'\n');
     }
-    let terminal_digest = if terminal.envelope.is_null() { None } else {
-        Some(sha256_hex(&serde_json::to_vec(&terminal.envelope).expect("terminal envelope JSON")))
+    let terminal_digest = if terminal.envelope.is_null() {
+        None
+    } else {
+        Some(sha256_hex(
+            &serde_json::to_vec(&terminal.envelope).expect("terminal envelope JSON"),
+        ))
     };
     let mut result = json!({
         "schema":"openprose.runner-result/1",
@@ -2445,9 +2694,15 @@ fn installed_adapter_success_result(
         "diagnosticRefs":[],
         "runnerExitCode":0
     });
-    if let Some(limits)=crate::config::native_limits(config){result["nativeLimits"]=limits;}
-    if let Some(limits)=crate::config::native_output_limits(config){result["nativeOutputLimits"]=limits;}
-    if let Some(native)=native_configuration(config,Some(&outcome.records)){result["nativeConfiguration"]=native;}
+    if let Some(limits) = crate::config::native_limits(config) {
+        result["nativeLimits"] = limits;
+    }
+    if let Some(limits) = crate::config::native_output_limits(config) {
+        result["nativeOutputLimits"] = limits;
+    }
+    if let Some(native) = native_configuration(config, Some(&outcome.records)) {
+        result["nativeConfiguration"] = native;
+    }
     match mode {
         OutputMode::Human => {
             let remaining = &terminal.visible_text[human_stream_settlement.emitted_prefix_bytes..];
@@ -2611,11 +2866,21 @@ fn installed_adapter_failure_result(
         );
     }
     if adapter == installed_adapters::InstalledAdapter::AgentsSdkJsonl {
-        if let Some(record)=failure.records.iter().rev().find(|r|r.get("type").and_then(Value::as_str)==Some("error")) {
-            error=error.with_detail("nativeFailure",installed_adapters::sdk_native_failure(record));
+        if let Some(record) = failure
+            .records
+            .iter()
+            .rev()
+            .find(|r| r.get("type").and_then(Value::as_str) == Some("error"))
+        {
+            error = error.with_detail(
+                "nativeFailure",
+                installed_adapters::sdk_native_failure(record),
+            );
         }
     }
-    if let Some(diagnostic)=native_failure {error=error.with_detail("nativeFailure",diagnostic);}
+    if let Some(diagnostic) = native_failure {
+        error = error.with_detail("nativeFailure", diagnostic);
+    }
     render_installed_failure(
         adapter,
         task,
@@ -2657,7 +2922,7 @@ fn render_installed_failure(
     image: &RuntimeImage,
     mode: OutputMode,
     clock: &dyn Clock,
-    native_records:Option<&[Value]>,
+    native_records: Option<&[Value]>,
 ) -> CommandOutcome {
     let timestamp = clock.now_rfc3339();
     let invocation = installed_invocation(adapter, task, task_digest, invocation_id, config, image);
@@ -2704,9 +2969,15 @@ fn render_installed_failure(
         "runnerExitCode":exit_code,
         "error":error
     });
-    if let Some(limits)=crate::config::native_limits(config){result["nativeLimits"]=limits;}
-    if let Some(limits)=crate::config::native_output_limits(config){result["nativeOutputLimits"]=limits;}
-    if let Some(native)=native_configuration(config,native_records){result["nativeConfiguration"]=native;}
+    if let Some(limits) = crate::config::native_limits(config) {
+        result["nativeLimits"] = limits;
+    }
+    if let Some(limits) = crate::config::native_output_limits(config) {
+        result["nativeOutputLimits"] = limits;
+    }
+    if let Some(native) = native_configuration(config, native_records) {
+        result["nativeConfiguration"] = native;
+    }
     match mode {
         OutputMode::Human => CommandOutcome::human(
             "",
@@ -2728,20 +2999,38 @@ fn render_installed_failure(
     }
 }
 
-fn native_configuration(config:&EffectiveConfig,records:Option<&[Value]>)->Option<Value>{
-    if config.native_profile.value == "default" {return None;}
+fn native_configuration(config: &EffectiveConfig, records: Option<&[Value]>) -> Option<Value> {
+    if config.native_profile.value == "default" {
+        return None;
+    }
     let observed=records.and_then(|r|r.iter().find(|v|v["type"]=="system" && v["subtype"]=="init"))
         .map(|v|json!({"tools":v.get("tools").cloned().unwrap_or(Value::Null),"apiKeySource":v.get("apiKeySource").cloned().unwrap_or(Value::Null)}));
-    Some(json!({"profile":config.native_profile.value,"toolsRequested":["Read","Write","Edit","Glob","Grep","Agent","Bash"],
+    Some(
+        json!({"profile":config.native_profile.value,"toolsRequested":["Read","Write","Edit","Glob","Grep","Agent","Bash"],
         "additionalDirectories":config.native_add_dirs.value,"allowedToolRules":config.native_allow_tools.value,
         "permissionMode":config.permission_mode.value,"authProfile":config.auth_profile.value.as_deref().unwrap_or("claude-subscription"),
-        "configOwnership":if config.auth_profile.value.as_deref()==Some("anthropic-api-key"){"runner-private"}else{"native-auth-store"},"observed":observed}))
+        "configOwnership":if config.auth_profile.value.as_deref()==Some("anthropic-api-key"){"runner-private"}else{"native-auth-store"},"observed":observed}),
+    )
 }
-fn validate_native_auth(config:&EffectiveConfig,records:&[Value])->Result<(),RunnerError>{
-    if config.native_profile.value != "default" && config.auth_profile.value.as_deref()==Some("anthropic-api-key") {
-        let inits:Vec<_>=records.iter().filter(|v|v["type"]=="system" && v["subtype"]=="init").collect();
-        if inits.is_empty() || inits.iter().any(|v|v["apiKeySource"]!="ANTHROPIC_API_KEY") {
-            return Err(RunnerError::catalog(ErrorCode::HarnessNeedsAuth).with_detail("reason","Native init did not confirm the selected ANTHROPIC_API_KEY route").with_detail("fallbackAttempted",false));
+fn validate_native_auth(config: &EffectiveConfig, records: &[Value]) -> Result<(), RunnerError> {
+    if config.native_profile.value != "default"
+        && config.auth_profile.value.as_deref() == Some("anthropic-api-key")
+    {
+        let inits: Vec<_> = records
+            .iter()
+            .filter(|v| v["type"] == "system" && v["subtype"] == "init")
+            .collect();
+        if inits.is_empty()
+            || inits
+                .iter()
+                .any(|v| v["apiKeySource"] != "ANTHROPIC_API_KEY")
+        {
+            return Err(RunnerError::catalog(ErrorCode::HarnessNeedsAuth)
+                .with_detail(
+                    "reason",
+                    "Native init did not confirm the selected ANTHROPIC_API_KEY route",
+                )
+                .with_detail("fallbackAttempted", false));
         }
     }
     Ok(())
@@ -2755,7 +3044,7 @@ fn installed_invocation(
     config: &EffectiveConfig,
     image: &RuntimeImage,
 ) -> Value {
-    let mut value=json!({
+    let mut value = json!({
         "schema":"openprose.runner-invocation/1",
         "invocationId":invocation_id,
         "cwd":config.cwd.display().to_string(),
@@ -2767,9 +3056,15 @@ fn installed_invocation(
         "task":task,
         "taskDigestSha256":task_digest
     });
-    if let Some(limits)=crate::config::native_limits(config){value["nativeLimits"]=limits;}
-    if let Some(limits)=crate::config::native_output_limits(config){value["nativeOutputLimits"]=limits;}
-    if let Some(native)=native_configuration(config,None){value["nativeConfiguration"]=native;}
+    if let Some(limits) = crate::config::native_limits(config) {
+        value["nativeLimits"] = limits;
+    }
+    if let Some(limits) = crate::config::native_output_limits(config) {
+        value["nativeOutputLimits"] = limits;
+    }
+    if let Some(native) = native_configuration(config, None) {
+        value["nativeConfiguration"] = native;
+    }
     value
 }
 
@@ -3183,9 +3478,12 @@ fn map_supervisor_failure(failure: &SupervisorFailure) -> RunnerError {
     if let Some(diagnostic) = failure.transport_diagnostic() {
         error = error.with_detail("transportDiagnostic", diagnostic);
     }
-    if matches!(failure.kind, FailureKind::ProtocolMalformed | FailureKind::ProtocolTruncated) {
+    if matches!(
+        failure.kind,
+        FailureKind::ProtocolMalformed | FailureKind::ProtocolTruncated
+    ) {
         // Closed runner-authored reasons only; never echo native data or arbitrary observer errors.
-        let reason=match failure.message.as_str() {
+        let reason = match failure.message.as_str() {
             "harness emitted a record after its terminal record" => "record_after_terminal",
             "harness emitted a malformed JSONL record" => "invalid_json",
             "harness emitted a non-object JSONL record" => "non_object_record",
@@ -3194,7 +3492,9 @@ fn map_supervisor_failure(failure: &SupervisorFailure) -> RunnerError {
             "harness emitted a duplicate session-start record" => "duplicate_start",
             _ => "protocol_admission_rejected",
         };
-        return error.with_detail("reason",reason).with_detail("admittedRecordCount",failure.records.len());
+        return error
+            .with_detail("reason", reason)
+            .with_detail("admittedRecordCount", failure.records.len());
     }
     if failure.kind == FailureKind::HarnessFailed
         && failure.message == "unsupported_nonterminal_settlement"
@@ -3533,49 +3833,75 @@ fn dry_run_outcome(
         "readiness":readiness,
         "blockingError":blocking_error
     });
-    if let Some(limits)=crate::config::native_limits(config){report["nativeLimits"]=limits;}
-    if let Some(limits)=crate::config::native_output_limits(config){report["nativeOutputLimits"]=limits;}
-    if let Some(native)=native_configuration(config,None){report["nativeConfiguration"]=native;}
+    if let Some(limits) = crate::config::native_limits(config) {
+        report["nativeLimits"] = limits;
+    }
+    if let Some(limits) = crate::config::native_output_limits(config) {
+        report["nativeOutputLimits"] = limits;
+    }
+    if let Some(native) = native_configuration(config, None) {
+        report["nativeConfiguration"] = native;
+    }
     if mode == OutputMode::Human {
         let human_readiness =
             human_readiness_label(blocking_error.is_none(), auth_readiness, "blocked");
-        let mut output = format!(
-            "Dry run; no model started.\nWorking directory: {}\nHarness: {}\nTransport: {}\nAdapter: {}\nPrompt placement: {} ({})\nIsolation: {}\nAuth: {} ({})\nBilling owner: {}\nImage: {} ({})\nReadiness: {}\n",
-            human_safe_scalar(&config.cwd.display().to_string()),
-            human_safe_scalar(&config.harness.value),
-            human_safe_scalar(transport),
-            human_safe_scalar(adapter_id),
-            human_safe_scalar(prompt_placement.unwrap_or("unavailable")),
-            human_safe_scalar(prompt_strictness),
-            human_safe_scalar(isolation),
-            human_safe_scalar(auth_category),
-            human_safe_scalar(auth_readiness),
-            human_safe_scalar(billing_owner),
-            human_safe_scalar(&image.manifest.image_version),
-            human_safe_scalar(image.aggregate_sha256()),
-            human_safe_scalar(human_readiness)
+        let safe = |value: &str| Some(human_safe_scalar(value));
+        let json_line = |value: &Value| {
+            (!value.is_null()).then(|| human_safe_scalar(&crate::output::canonical_json(value)))
+        };
+        let blocking = report["blockingError"].as_object().and_then(|error| {
+            error
+                .get("code")
+                .and_then(Value::as_str)
+                .zip(error.get("action").and_then(Value::as_str))
+        });
+        let native_profile = (config.native_profile.value != "default")
+            .then(|| human_safe_scalar(&config.native_profile.value));
+        let values: [(&str, Option<String>); 20] = [
+            ("cwd", safe(&config.cwd.display().to_string())),
+            ("harness", safe(&config.harness.value)),
+            ("transport", safe(transport)),
+            ("adapter", safe(adapter_id)),
+            ("placement", safe(prompt_placement.unwrap_or("unavailable"))),
+            ("strictness", safe(prompt_strictness)),
+            ("isolation", safe(isolation)),
+            ("authCategory", safe(auth_category)),
+            ("authReadiness", safe(auth_readiness)),
+            ("billingOwner", safe(billing_owner)),
+            ("imageVersion", safe(&image.manifest.image_version)),
+            ("imageSha256", safe(image.aggregate_sha256())),
+            ("readiness", safe(human_readiness)),
+            ("nativeLimits", json_line(&report["nativeLimits"])),
+            (
+                "nativeOutputLimits",
+                json_line(&report["nativeOutputLimits"]),
+            ),
+            ("nativeProfile", native_profile.clone()),
+            (
+                "nativeConfiguration",
+                native_profile.and_then(|_| json_line(&report["nativeConfiguration"])),
+            ),
+            ("blockingCode", blocking.map(|(code, _)| code.to_owned())),
+            (
+                "action",
+                blocking.map(|(_, action)| {
+                    blocking_error
+                        .as_ref()
+                        .map_or_else(|| action.to_owned(), |error| error.human_action())
+                }),
+            ),
+            ("repairDetails", None),
+        ];
+        let repair = blocking_error
+            .as_ref()
+            .filter(|_| blocking.is_some())
+            .map(|error| error.human_version_repair_details())
+            .unwrap_or_default();
+        let output = crate::output::render_human_template(
+            DRY_RUN_TEMPLATE,
+            &values.into_iter().collect(),
+            &[("repairDetails", repair)].into_iter().collect(),
         );
-        if config.native_profile.value != "default" {
-            let _=writeln!(output,"Native profile: {} (requested; observed tools unavailable in dry run)",config.native_profile.value);
-            let _=writeln!(output,"Native configuration: {}",human_safe_scalar(&report["nativeConfiguration"].to_string()));
-        }
-        if let Some(error) = report["blockingError"].as_object() {
-            if let (Some(code), Some(action)) = (
-                error.get("code").and_then(Value::as_str),
-                error.get("action").and_then(Value::as_str),
-            ) {
-                let _ = writeln!(output, "Blocking problem: {code}");
-                if let Some(problem) = blocking_error {
-                    for detail in problem.human_version_repair_details() {
-                        let _ = writeln!(output, "{detail}");
-                    }
-                }
-                let human_action = blocking_error
-                    .as_ref()
-                    .map_or_else(|| action.to_owned(), |error| error.human_action());
-                let _ = writeln!(output, "Action: {human_action}");
-            }
-        }
         CommandOutcome::human(output, "", exit_code)
     } else {
         CommandOutcome::json(report, exit_code)
@@ -3583,7 +3909,7 @@ fn dry_run_outcome(
 }
 
 fn config_source_entries(config: &EffectiveConfig) -> Vec<Value> {
-    let mut entries=vec![
+    let mut entries = vec![
         config_source_entry("cwd", &config.cwd_source, false),
         config_source_entry("harness", &config.harness.source, false),
         config_source_entry("transport", &config.transport.source, false),
@@ -3594,8 +3920,20 @@ fn config_source_entries(config: &EffectiveConfig) -> Vec<Value> {
         config_source_entry("verbose", &config.verbose.source, false),
         config_source_entry("authProfile", &config.auth_profile.source, true),
     ];
-    for (key,source) in [("outputContract",&config.output_contract.source),("permissionMode",&config.permission_mode.source),("nativeMaxTurns",&config.native_max_turns.source),("nativeTimeout",&config.native_timeout.source),("nativeToolTimeout",&config.native_tool_timeout.source),("nativeOutputBytes",&config.native_output_bytes.source),("nativeProfile",&config.native_profile.source),("nativeAddDirs",&config.native_add_dirs.source),("nativeAllowTools",&config.native_allow_tools.source)] {
-        if source.kind != ConfigSourceKind::Default {entries.push(config_source_entry(key,source,false));}
+    for (key, source) in [
+        ("outputContract", &config.output_contract.source),
+        ("permissionMode", &config.permission_mode.source),
+        ("nativeMaxTurns", &config.native_max_turns.source),
+        ("nativeTimeout", &config.native_timeout.source),
+        ("nativeToolTimeout", &config.native_tool_timeout.source),
+        ("nativeOutputBytes", &config.native_output_bytes.source),
+        ("nativeProfile", &config.native_profile.source),
+        ("nativeAddDirs", &config.native_add_dirs.source),
+        ("nativeAllowTools", &config.native_allow_tools.source),
+    ] {
+        if source.kind != ConfigSourceKind::Default {
+            entries.push(config_source_entry(key, source, false));
+        }
     }
     entries
 }
@@ -4001,15 +4339,37 @@ fn config_report(config: &EffectiveConfig) -> ConfigReport<'_> {
             color: &config.color,
             verbose: &config.verbose,
             auth_profile: &config.auth_profile,
-            output_contract:(config.output_contract.source.kind!=ConfigSourceKind::Default).then_some(&config.output_contract),
-            permission_mode:(config.permission_mode.source.kind!=ConfigSourceKind::Default).then_some(&config.permission_mode),
-            native_max_turns:config.native_max_turns.value.as_ref().map(|_|&config.native_max_turns),
-            native_timeout:config.native_timeout.value.as_ref().map(|_|&config.native_timeout),
-            native_tool_timeout:config.native_tool_timeout.value.as_ref().map(|_|&config.native_tool_timeout),
-            native_output_bytes:config.native_output_bytes.value.as_ref().map(|_|&config.native_output_bytes),
-            native_profile:(config.native_profile.source.kind!=ConfigSourceKind::Default).then_some(&config.native_profile),
-            native_add_dirs:(config.native_add_dirs.source.kind!=ConfigSourceKind::Default).then_some(&config.native_add_dirs),
-            native_allow_tools:(config.native_allow_tools.source.kind!=ConfigSourceKind::Default).then_some(&config.native_allow_tools),
+            output_contract: (config.output_contract.source.kind != ConfigSourceKind::Default)
+                .then_some(&config.output_contract),
+            permission_mode: (config.permission_mode.source.kind != ConfigSourceKind::Default)
+                .then_some(&config.permission_mode),
+            native_max_turns: config
+                .native_max_turns
+                .value
+                .as_ref()
+                .map(|_| &config.native_max_turns),
+            native_timeout: config
+                .native_timeout
+                .value
+                .as_ref()
+                .map(|_| &config.native_timeout),
+            native_tool_timeout: config
+                .native_tool_timeout
+                .value
+                .as_ref()
+                .map(|_| &config.native_tool_timeout),
+            native_output_bytes: config
+                .native_output_bytes
+                .value
+                .as_ref()
+                .map(|_| &config.native_output_bytes),
+            native_profile: (config.native_profile.source.kind != ConfigSourceKind::Default)
+                .then_some(&config.native_profile),
+            native_add_dirs: (config.native_add_dirs.source.kind != ConfigSourceKind::Default)
+                .then_some(&config.native_add_dirs),
+            native_allow_tools: (config.native_allow_tools.source.kind
+                != ConfigSourceKind::Default)
+                .then_some(&config.native_allow_tools),
         },
     }
 }
@@ -4035,8 +4395,27 @@ fn render_config_human(config: &EffectiveConfig) -> String {
         human_safe_scalar(config.auth_profile.value.as_deref().unwrap_or("unset")),
         source_label(&config.auth_profile.source),
     );
-    for (name,value,source) in [("outputContract",config.output_contract.value.as_str(),&config.output_contract.source),("permissionMode",config.permission_mode.value.as_deref().unwrap_or("unset"),&config.permission_mode.source)] {
-        if source.kind!=ConfigSourceKind::Default {let _=writeln!(output,"{} = {} ({})",name,human_safe_scalar(value),source_label(source));}
+    for (name, value, source) in [
+        (
+            "outputContract",
+            config.output_contract.value.as_str(),
+            &config.output_contract.source,
+        ),
+        (
+            "permissionMode",
+            config.permission_mode.value.as_deref().unwrap_or("unset"),
+            &config.permission_mode.source,
+        ),
+    ] {
+        if source.kind != ConfigSourceKind::Default {
+            let _ = writeln!(
+                output,
+                "{} = {} ({})",
+                name,
+                human_safe_scalar(value),
+                source_label(source)
+            );
+        }
     }
     output
 }
@@ -4193,14 +4572,6 @@ fn inspect_installed_binary(
     }
 }
 
-fn billing_owner(harness: &str) -> &'static str {
-    match harness {
-        "openprose" => "openprose",
-        "mock" => "test-fixture",
-        _ => "user-provider",
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -4245,76 +4616,211 @@ mod tests {
 
     #[test]
     fn prime_prelude_gates_prompt_and_closes_only_after_ack() {
-        let f:Value=serde_json::from_str(include_str!("../../../../shared/fixtures/adapters/tool-lifecycle/prime-drain.json")).unwrap();
-        let make=||PrimeStagedController{id:"fixture-drain".into(),prompt:Some(b"prompt\n".to_vec()),pending_write:None,records:vec![],close:false};
-        let mut p=make();assert!(p.pending_write.is_none());p.observe(&f["stateResponse"]).unwrap();assert_eq!(p.pending_write.take(),Some(b"prompt\n".to_vec()));assert!(!p.close);p.observe(&f["promptResponse"]).unwrap();assert!(p.close);
-        for bad in [f["promptResponse"].clone(),json!({"id":"fixture-drain.prime.state.1","type":"response","command":"get_state","success":false,"data":{}})] {let mut p=make();assert!(p.observe(&bad).is_err());assert!(p.pending_write.is_none());assert!(!p.close);}
+        let f: Value = serde_json::from_str(include_str!(
+            "../../../../shared/fixtures/adapters/tool-lifecycle/prime-drain.json"
+        ))
+        .unwrap();
+        let make = || PrimeStagedController {
+            id: "fixture-drain".into(),
+            prompt: Some(b"prompt\n".to_vec()),
+            pending_write: None,
+            records: vec![],
+            close: false,
+        };
+        let mut p = make();
+        assert!(p.pending_write.is_none());
+        p.observe(&f["stateResponse"]).unwrap();
+        assert_eq!(p.pending_write.take(), Some(b"prompt\n".to_vec()));
+        assert!(!p.close);
+        p.observe(&f["promptResponse"]).unwrap();
+        assert!(p.close);
+        for bad in [
+            f["promptResponse"].clone(),
+            json!({"id":"fixture-drain.prime.state.1","type":"response","command":"get_state","success":false,"data":{}}),
+        ] {
+            let mut p = make();
+            assert!(p.observe(&bad).is_err());
+            assert!(p.pending_write.is_none());
+            assert!(!p.close);
+        }
     }
 
     #[test]
     fn sdk_error_is_captured_safely_before_admission_without_log() {
-        let mut observer=InstalledRunObserver{require_api_source:false,auth_source_failed:false,sdk:true,native_failure:None,capture:None,human:None,omp:None,prime:None};
+        let mut observer = InstalledRunObserver {
+            require_api_source: false,
+            auth_source_failed: false,
+            sdk: true,
+            native_failure: None,
+            capture: None,
+            human: None,
+            omp: None,
+            prime: None,
+        };
         observer.observe_parsed(&json!({"type":"error","error_type":"MaxTurnsExceeded","elapsed_seconds":2,"message":"do not expose"})).unwrap();
-        assert_eq!(observer.native_failure,Some(json!({"kind":"max-turns","elapsedSeconds":2.0})));
-        observer.sdk=false;observer.native_failure=None;
-        observer.observe_parsed(&json!({"type":"error","error_type":"MaxTurnsExceeded"})).unwrap();assert!(observer.native_failure.is_none());
+        assert_eq!(
+            observer.native_failure,
+            Some(json!({"kind":"max-turns","elapsedSeconds":2.0}))
+        );
+        observer.sdk = false;
+        observer.native_failure = None;
+        observer
+            .observe_parsed(&json!({"type":"error","error_type":"MaxTurnsExceeded"}))
+            .unwrap();
+        assert!(observer.native_failure.is_none());
     }
 
     #[test]
     fn optional_reporting_preserves_defaults_and_explicit_selections() {
-        let fixture:Value=serde_json::from_str(include_str!("../../../../shared/fixtures/config/optional-reporting.json")).unwrap();
-        let temp=TempDir::new().unwrap();let mut config=installed_config(temp.path(),"agents-sdk","jsonl",Some("fixture"),"openai-api-key");
-        let base=serde_json::to_value(config_report(&config)).unwrap();
-        assert_eq!(config.output_contract.value,"image-envelope");assert!(config.permission_mode.value.is_none());
-        for k in fixture["defaultsOmitted"].as_array().unwrap(){assert!(base["values"].get(k.as_str().unwrap()).is_none());}
-        for case in fixture["cases"].as_array().unwrap(){
-            config.output_contract.value=case["outputContract"].as_str().unwrap().into(); config.output_contract.source=crate::config::ConfigSource{kind:ConfigSourceKind::Flag,location:Some("--output-contract".into())};
-            config.permission_mode.value=Some(case["permissionMode"].as_str().unwrap().into()); config.permission_mode.source=crate::config::ConfigSource{kind:ConfigSourceKind::Flag,location:Some("--permission-mode".into())};
-            let report=serde_json::to_value(config_report(&config)).unwrap();
-            for key in ["outputContract","permissionMode"] {assert_eq!(report["values"][key]["value"],case[key]);assert_eq!(report["values"][key]["source"]["kind"],"flag");assert!(config_source_entries(&config).iter().any(|v|v["key"]==key));}
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../../../../shared/fixtures/config/optional-reporting.json"
+        ))
+        .unwrap();
+        let temp = TempDir::new().unwrap();
+        let mut config = installed_config(
+            temp.path(),
+            "agents-sdk",
+            "jsonl",
+            Some("fixture"),
+            "openai-api-key",
+        );
+        let base = serde_json::to_value(config_report(&config)).unwrap();
+        assert_eq!(config.output_contract.value, "image-envelope");
+        assert!(config.permission_mode.value.is_none());
+        for k in fixture["defaultsOmitted"].as_array().unwrap() {
+            assert!(base["values"].get(k.as_str().unwrap()).is_none());
+        }
+        for case in fixture["cases"].as_array().unwrap() {
+            config.output_contract.value = case["outputContract"].as_str().unwrap().into();
+            config.output_contract.source = crate::config::ConfigSource {
+                kind: ConfigSourceKind::Flag,
+                location: Some("--output-contract".into()),
+            };
+            config.permission_mode.value = Some(case["permissionMode"].as_str().unwrap().into());
+            config.permission_mode.source = crate::config::ConfigSource {
+                kind: ConfigSourceKind::Flag,
+                location: Some("--permission-mode".into()),
+            };
+            let report = serde_json::to_value(config_report(&config)).unwrap();
+            for key in ["outputContract", "permissionMode"] {
+                assert_eq!(report["values"][key]["value"], case[key]);
+                assert_eq!(report["values"][key]["source"]["kind"], "flag");
+                assert!(
+                    config_source_entries(&config)
+                        .iter()
+                        .any(|v| v["key"] == key)
+                );
+            }
         }
     }
 
     #[test]
     fn sdk_tool_timeout_arguments_preserve_parent_defaults() {
-        let temp=TempDir::new().unwrap();
-        let mut config=installed_config(temp.path(),"agents-sdk","jsonl",Some("fixture-model"),"openai-api-key");
+        let temp = TempDir::new().unwrap();
+        let mut config = installed_config(
+            temp.path(),
+            "agents-sdk",
+            "jsonl",
+            Some("fixture-model"),
+            "openai-api-key",
+        );
         config.harness.value = "agents-sdk".into();
         assert!(sdk_limit_arguments(&config).is_empty());
         for (value, seconds) in [("30s", "30"), ("180s", "180"), ("1ms", "0.001")] {
             config.native_tool_timeout.value = Some(value.into());
-            assert_eq!(sdk_limit_arguments(&config), vec![std::ffi::OsString::from("--tool-timeout"), seconds.into()]);
+            assert_eq!(
+                sdk_limit_arguments(&config),
+                vec![std::ffi::OsString::from("--tool-timeout"), seconds.into()]
+            );
             let limits = crate::config::native_limits(&config).unwrap();
             assert_eq!(limits["timeoutSeconds"], 180);
-            assert_eq!(limits["toolTimeoutSeconds"].as_f64().unwrap(), seconds.parse::<f64>().unwrap());
+            assert_eq!(
+                limits["toolTimeoutSeconds"].as_f64().unwrap(),
+                seconds.parse::<f64>().unwrap()
+            );
         }
     }
 
     #[test]
     fn sdk_budget_arguments_and_invocation_metadata() {
-        let f:Value=serde_json::from_str(include_str!("../../../../shared/fixtures/adapters/sdk-native-limits.json")).unwrap();
-        let temp=TempDir::new().unwrap();let mut config=installed_config(temp.path(),"agents-sdk","jsonl",Some("fixture-model"),"openai-api-key");
-        config.harness.value="agents-sdk".into();
+        let f: Value = serde_json::from_str(include_str!(
+            "../../../../shared/fixtures/adapters/sdk-native-limits.json"
+        ))
+        .unwrap();
+        let temp = TempDir::new().unwrap();
+        let mut config = installed_config(
+            temp.path(),
+            "agents-sdk",
+            "jsonl",
+            Some("fixture-model"),
+            "openai-api-key",
+        );
+        config.harness.value = "agents-sdk".into();
         assert!(sdk_limit_arguments(&config).is_empty());
-        assert_eq!(crate::config::native_limits(&config).unwrap(),f["defaults"]);
-        config.native_max_turns.value=Some("40".into());config.native_timeout.value=Some("5m".into());
-        let args:Vec<String>=sdk_limit_arguments(&config).iter().map(|s|s.to_string_lossy().into_owned()).collect();
-        assert_eq!(serde_json::to_value(args).unwrap(),f["override"]["argv"]);
-        config.native_timeout.value=Some("1ms".into());assert_eq!(sdk_limit_arguments(&config).last().unwrap(),"0.001");
+        assert_eq!(
+            crate::config::native_limits(&config).unwrap(),
+            f["defaults"]
+        );
+        config.native_max_turns.value = Some("40".into());
+        config.native_timeout.value = Some("5m".into());
+        let args: Vec<String> = sdk_limit_arguments(&config)
+            .iter()
+            .map(|s| s.to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(serde_json::to_value(args).unwrap(), f["override"]["argv"]);
+        config.native_timeout.value = Some("1ms".into());
+        assert_eq!(sdk_limit_arguments(&config).last().unwrap(), "0.001");
     }
 
     #[test]
-    fn workspace_native_metadata_and_auth_evidence(){
-        let temp=TempDir::new().unwrap();let mut config=installed_config(temp.path(),"claude","print-stream-json",None,"anthropic-api-key");
-        assert!(native_configuration(&config,None).is_none());
-        config.native_profile.value="claude-workspace-tools".into();
-        let good=json!({"type":"system","subtype":"init","tools":["Read","Task"],"apiKeySource":"ANTHROPIC_API_KEY"});
-        assert!(validate_native_auth(&config,&[good.clone()]).is_ok());
-        let meta=native_configuration(&config,Some(&[good])).unwrap();assert_eq!(meta["observed"]["tools"],json!(["Read","Task"]));assert_eq!(meta["configOwnership"],"runner-private");
-        for records in [vec![],vec![json!({"type":"system","subtype":"init"})],vec![json!({"type":"system","subtype":"init","apiKeySource":"oauth"})]] {assert_eq!(validate_native_auth(&config,&records).unwrap_err().code,ErrorCode::HarnessNeedsAuth);}
-        let mut observer=InstalledRunObserver{require_api_source:true,auth_source_failed:false,sdk:false,native_failure:None,capture:None,human:None,omp:None,prime:None};
-        assert!(observer.observe(&json!({"type":"system","subtype":"init","apiKeySource":"oauth"})).is_err());assert!(observer.auth_source_failed);
-        config.auth_profile.value=Some("claude-subscription".into());assert!(validate_native_auth(&config,&[]).is_ok());assert_eq!(native_configuration(&config,None).unwrap()["configOwnership"],"native-auth-store");
+    fn workspace_native_metadata_and_auth_evidence() {
+        let temp = TempDir::new().unwrap();
+        let mut config = installed_config(
+            temp.path(),
+            "claude",
+            "print-stream-json",
+            None,
+            "anthropic-api-key",
+        );
+        assert!(native_configuration(&config, None).is_none());
+        config.native_profile.value = "claude-workspace-tools".into();
+        let good = json!({"type":"system","subtype":"init","tools":["Read","Task"],"apiKeySource":"ANTHROPIC_API_KEY"});
+        assert!(validate_native_auth(&config, &[good.clone()]).is_ok());
+        let meta = native_configuration(&config, Some(&[good])).unwrap();
+        assert_eq!(meta["observed"]["tools"], json!(["Read", "Task"]));
+        assert_eq!(meta["configOwnership"], "runner-private");
+        for records in [
+            vec![],
+            vec![json!({"type":"system","subtype":"init"})],
+            vec![json!({"type":"system","subtype":"init","apiKeySource":"oauth"})],
+        ] {
+            assert_eq!(
+                validate_native_auth(&config, &records).unwrap_err().code,
+                ErrorCode::HarnessNeedsAuth
+            );
+        }
+        let mut observer = InstalledRunObserver {
+            require_api_source: true,
+            auth_source_failed: false,
+            sdk: false,
+            native_failure: None,
+            capture: None,
+            human: None,
+            omp: None,
+            prime: None,
+        };
+        assert!(
+            observer
+                .observe(&json!({"type":"system","subtype":"init","apiKeySource":"oauth"}))
+                .is_err()
+        );
+        assert!(observer.auth_source_failed);
+        config.auth_profile.value = Some("claude-subscription".into());
+        assert!(validate_native_auth(&config, &[]).is_ok());
+        assert_eq!(
+            native_configuration(&config, None).unwrap()["configOwnership"],
+            "native-auth-store"
+        );
     }
 
     #[test]
@@ -4831,89 +5337,225 @@ mod tests {
 }
 
 // Called only after native transport normalization has accepted terminal settlement.
-fn native_output(messages:&[String])->installed_adapters::RecoveredTerminal {
- installed_adapters::RecoveredTerminal { envelope:Value::Null,visible_messages:messages.to_vec(),visible_text:messages.join("\n") }
+fn native_output(messages: &[String]) -> installed_adapters::RecoveredTerminal {
+    installed_adapters::RecoveredTerminal {
+        envelope: Value::Null,
+        visible_messages: messages.to_vec(),
+        visible_text: messages.join("\n"),
+    }
 }
 #[test]
-fn native_output_preserves_arbitrary_prose_without_an_envelope(){
- let fixture:Value=serde_json::from_str(include_str!("../../../../shared/fixtures/adapters/native-output.v1.json")).unwrap();
- let messages:Vec<String>=serde_json::from_value(fixture["messages"].clone()).unwrap();
- let output=native_output(&messages);
- assert!(output.envelope.is_null());
- assert_eq!(output.visible_text,fixture["visibleText"].as_str().unwrap());
+fn native_output_preserves_arbitrary_prose_without_an_envelope() {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../../../../shared/fixtures/adapters/native-output.v1.json"
+    ))
+    .unwrap();
+    let messages: Vec<String> = serde_json::from_value(fixture["messages"].clone()).unwrap();
+    let output = native_output(&messages);
+    assert!(output.envelope.is_null());
+    assert_eq!(
+        output.visible_text,
+        fixture["visibleText"].as_str().unwrap()
+    );
 }
 
 #[test]
-fn native_output_requires_a_native_terminal_before_rendering(){
- let records=vec![json!({"type":"thread.started","thread_id":"fixture"}),json!({"type":"turn.started"}),json!({"type":"item.completed","item":{"type":"agent_message","text":"arbitrary prose"}})];
- assert!(installed_adapters::normalize_transport(installed_adapters::InstalledAdapter::CodexExecJson,&records,"fixture").is_err());
+fn native_output_requires_a_native_terminal_before_rendering() {
+    let records = vec![
+        json!({"type":"thread.started","thread_id":"fixture"}),
+        json!({"type":"turn.started"}),
+        json!({"type":"item.completed","item":{"type":"agent_message","text":"arbitrary prose"}}),
+    ];
+    assert!(
+        installed_adapters::normalize_transport(
+            installed_adapters::InstalledAdapter::CodexExecJson,
+            &records,
+            "fixture"
+        )
+        .is_err()
+    );
 }
 
-struct NativeCapture { file:std::fs::File, secrets:Vec<String>, bytes:usize, limit:usize }
+struct NativeCapture {
+    file: std::fs::File,
+    secrets: Vec<String>,
+    bytes: usize,
+    limit: usize,
+}
 impl NativeCapture {
- fn open(path:&str,secrets:Vec<String>,limit:usize)->std::io::Result<Self>{
-   if !std::path::Path::new(path).is_absolute(){return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput,"absolute path required"));}
-   let mut options=std::fs::OpenOptions::new();options.write(true).create_new(true);
-   #[cfg(unix)] {use std::os::unix::fs::OpenOptionsExt;options.mode(0o600);}
-   Ok(Self {file:options.open(path)?,secrets,bytes:0,limit})
- }
- fn write(&mut self,record:&Value)->Result<(),SupervisorFailure>{
-   fn scrub(value:&mut Value,secrets:&[String]){match value {Value::String(text)=>{for secret in secrets{if !secret.is_empty(){*text=text.replace(secret,"[REDACTED]");}}},Value::Array(items)=>for item in items{scrub(item,secrets)},Value::Object(items)=>for item in items.values_mut(){scrub(item,secrets)},_=>{}}}
-   let mut record=record.clone();scrub(&mut record,&self.secrets);
-   let mut bytes=serde_json::to_vec(&record).expect("native JSON");bytes.push(b'\n');
-   if self.bytes.checked_add(bytes.len()).is_none_or(|n| n>self.limit){return Err(stream_observer_failure(FailureKind::Internal,"native capture size exceeded"));}
-   self.file.write_all(&bytes).map_err(|_|stream_observer_failure(FailureKind::Internal,"native capture write failed"))?;self.bytes+=bytes.len();Ok(())
- }
+    fn open(path: &str, secrets: Vec<String>, limit: usize) -> std::io::Result<Self> {
+        if !std::path::Path::new(path).is_absolute() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "absolute path required",
+            ));
+        }
+        let mut options = std::fs::OpenOptions::new();
+        options.write(true).create_new(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            options.mode(0o600);
+        }
+        Ok(Self {
+            file: options.open(path)?,
+            secrets,
+            bytes: 0,
+            limit,
+        })
+    }
+    fn write(&mut self, record: &Value) -> Result<(), SupervisorFailure> {
+        fn scrub(value: &mut Value, secrets: &[String]) {
+            match value {
+                Value::String(text) => {
+                    for secret in secrets {
+                        if !secret.is_empty() {
+                            *text = text.replace(secret, "[REDACTED]");
+                        }
+                    }
+                }
+                Value::Array(items) => {
+                    for item in items {
+                        scrub(item, secrets);
+                    }
+                }
+                Value::Object(items) => {
+                    for item in items.values_mut() {
+                        scrub(item, secrets);
+                    }
+                }
+                _ => {}
+            }
+        }
+        let mut record = record.clone();
+        scrub(&mut record, &self.secrets);
+        let mut bytes = serde_json::to_vec(&record).expect("native JSON");
+        bytes.push(b'\n');
+        if self
+            .bytes
+            .checked_add(bytes.len())
+            .is_none_or(|n| n > self.limit)
+        {
+            return Err(stream_observer_failure(
+                FailureKind::Internal,
+                "native capture size exceeded",
+            ));
+        }
+        self.file.write_all(&bytes).map_err(|_| {
+            stream_observer_failure(FailureKind::Internal, "native capture write failed")
+        })?;
+        self.bytes += bytes.len();
+        Ok(())
+    }
 }
 
 #[test]
-fn native_capture_is_private_new_bounded_and_redacts_known_values(){
- let dir=tempfile::tempdir().unwrap();let path=dir.path().join("native.jsonl");
- let mut capture=NativeCapture::open(path.to_str().unwrap(),vec!["fixture-secret".into()],64*1024*1024).unwrap();
- capture.write(&json!({"type":"tool_call","text":"prefix fixture-secret suffix"})).unwrap();
- assert!(NativeCapture::open(path.to_str().unwrap(),vec![],64*1024*1024).is_err());
- assert!(std::fs::read_to_string(&path).unwrap().contains("[REDACTED]"));
- #[cfg(unix)] {use std::os::unix::fs::PermissionsExt;assert_eq!(std::fs::metadata(path).unwrap().permissions().mode() & 0o777,0o600);}
- capture.bytes=64*1024*1024;assert!(capture.write(&json!({"type":"final"})).is_err());
+fn native_capture_is_private_new_bounded_and_redacts_known_values() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("native.jsonl");
+    let mut capture = NativeCapture::open(
+        path.to_str().unwrap(),
+        vec!["fixture-secret".into()],
+        64 * 1024 * 1024,
+    )
+    .unwrap();
+    capture
+        .write(&json!({"type":"tool_call","text":"prefix fixture-secret suffix"}))
+        .unwrap();
+    assert!(NativeCapture::open(path.to_str().unwrap(), vec![], 64 * 1024 * 1024).is_err());
+    assert!(
+        std::fs::read_to_string(&path)
+            .unwrap()
+            .contains("[REDACTED]")
+    );
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        assert_eq!(
+            std::fs::metadata(path).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
+    }
+    capture.bytes = 64 * 1024 * 1024;
+    assert!(capture.write(&json!({"type":"final"})).is_err());
 }
 
 #[test]
-fn protocol_diagnostics_do_not_echo_native_or_observer_content(){
- let failure=stream_observer_failure(FailureKind::ProtocolMalformed,"harness emitted a record after its terminal record");
- let error=map_supervisor_failure(&failure);
- assert_eq!(error.details.as_ref().unwrap().get("reason"),Some(&json!("record_after_terminal")));
- assert_eq!(error.details.as_ref().unwrap().get("admittedRecordCount"),Some(&json!(0)));
- let failure=stream_observer_failure(FailureKind::ProtocolMalformed,"private arbitrary content");
- assert_eq!(map_supervisor_failure(&failure).details.as_ref().unwrap().get("reason"),Some(&json!("protocol_admission_rejected")));
+fn protocol_diagnostics_do_not_echo_native_or_observer_content() {
+    let failure = stream_observer_failure(
+        FailureKind::ProtocolMalformed,
+        "harness emitted a record after its terminal record",
+    );
+    let error = map_supervisor_failure(&failure);
+    assert_eq!(
+        error.details.as_ref().unwrap().get("reason"),
+        Some(&json!("record_after_terminal"))
+    );
+    assert_eq!(
+        error.details.as_ref().unwrap().get("admittedRecordCount"),
+        Some(&json!(0))
+    );
+    let failure =
+        stream_observer_failure(FailureKind::ProtocolMalformed, "private arbitrary content");
+    assert_eq!(
+        map_supervisor_failure(&failure)
+            .details
+            .as_ref()
+            .unwrap()
+            .get("reason"),
+        Some(&json!("protocol_admission_rejected"))
+    );
 }
 
 #[test]
 fn rendered_error_keeps_safe_transport_diagnostic() {
-    let failure=stream_observer_failure(FailureKind::ProtocolMalformed,"harness emitted a malformed JSONL record");
-    let rendered=serde_json::to_value(map_supervisor_failure(&failure)).unwrap();
-    assert_eq!(rendered["details"]["transportDiagnostic"]["reason"],"invalid-json");
-    assert_eq!(rendered["exitCode"],22);
+    let failure = stream_observer_failure(
+        FailureKind::ProtocolMalformed,
+        "harness emitted a malformed JSONL record",
+    );
+    let rendered = serde_json::to_value(map_supervisor_failure(&failure)).unwrap();
+    assert_eq!(
+        rendered["details"]["transportDiagnostic"]["reason"],
+        "invalid-json"
+    );
+    assert_eq!(rendered["exitCode"], 22);
 }
 
 fn sdk_limit_arguments(config: &EffectiveConfig) -> Vec<std::ffi::OsString> {
     let mut args = Vec::new();
-    if config.harness.value != "agents-sdk" {return args;}
-    if let Some(v)=&config.native_max_turns.value {
-        args.extend([std::ffi::OsString::from("--max-turns"),v.into()]);
+    if config.harness.value != "agents-sdk" {
+        return args;
     }
-    if let Some(v)=&config.native_timeout.value {
-        args.extend([std::ffi::OsString::from("--timeout"),(crate::config::validate_native_timeout(v).expect("validated") as f64/1000.0).to_string().into()]);
+    if let Some(v) = &config.native_max_turns.value {
+        args.extend([std::ffi::OsString::from("--max-turns"), v.into()]);
     }
-    if let Some(v)=&config.native_tool_timeout.value {
-        args.extend([std::ffi::OsString::from("--tool-timeout"),(crate::config::validate_native_timeout(v).expect("validated") as f64/1000.0).to_string().into()]);
+    if let Some(v) = &config.native_timeout.value {
+        args.extend([
+            std::ffi::OsString::from("--timeout"),
+            (crate::config::validate_native_timeout(v).expect("validated") as f64 / 1000.0)
+                .to_string()
+                .into(),
+        ]);
+    }
+    if let Some(v) = &config.native_tool_timeout.value {
+        args.extend([
+            std::ffi::OsString::from("--tool-timeout"),
+            (crate::config::validate_native_timeout(v).expect("validated") as f64 / 1000.0)
+                .to_string()
+                .into(),
+        ]);
     }
     args
 }
 
 #[test]
-fn native_capture_exact_utf8_budget_after_redaction(){
- let d=tempfile::tempdir().unwrap();let p=d.path().join("capture");let expected="{\"text\":\"é[REDACTED]\"}\n";
- let mut c=NativeCapture::open(p.to_str().unwrap(),vec!["x".into()],expected.len()).unwrap();
- c.write(&json!({"text":"éx"})).unwrap();assert!(c.write(&json!({"text":"next"})).is_err());drop(c);
- assert_eq!(std::fs::read_to_string(p).unwrap(),expected);
+fn native_capture_exact_utf8_budget_after_redaction() {
+    let d = tempfile::tempdir().unwrap();
+    let p = d.path().join("capture");
+    let expected = "{\"text\":\"é[REDACTED]\"}\n";
+    let mut c = NativeCapture::open(p.to_str().unwrap(), vec!["x".into()], expected.len()).unwrap();
+    c.write(&json!({"text":"éx"})).unwrap();
+    assert!(c.write(&json!({"text":"next"})).is_err());
+    drop(c);
+    assert_eq!(std::fs::read_to_string(p).unwrap(), expected);
 }

@@ -1,0 +1,604 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.openprose.org/cli/v1/service-event.schema.json",
+  "title": "OpenProse service stream event v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "runId",
+    "sequence",
+    "at",
+    "type",
+    "data"
+  ],
+  "properties": {
+    "schema": {
+      "const": "openprose.service-event/1"
+    },
+    "runId": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "pattern": "^run_[A-Za-z0-9_-]{1,128}$"
+        }
+      ]
+    },
+    "sequence": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "integer",
+          "minimum": 0
+        }
+      ]
+    },
+    "at": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "maxLength": 40,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+        }
+      ]
+    },
+    "type": {
+      "enum": [
+        "agent_activity",
+        "browser_live_view_changed",
+        "error",
+        "history_truncated",
+        "status",
+        "text_chunk",
+        "unrecognized",
+        "service.completed",
+        "service.failed",
+        "service.detached"
+      ]
+    },
+    "data": {
+      "type": "object"
+    },
+    "exitCode": {
+      "description": "Only on the terminal line (`service.completed`, `service.failed`, `service.detached`): the process exit code.",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 255
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "agent_activity"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "$ref": "#/$defs/agent-activity"
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "runId": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "browser_live_view_changed"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "$ref": "#/$defs/browser-live-view-changed"
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "runId": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "error"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "$ref": "#/$defs/error"
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "runId": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "history_truncated"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "$ref": "#/$defs/history-truncated"
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "runId": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "status"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "$ref": "#/$defs/status"
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "runId": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "text_chunk"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "$ref": "#/$defs/text-chunk"
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "runId": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "unrecognized"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "$ref": "#/$defs/unrecognized"
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "runId": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "enum": [
+              "service.completed",
+              "service.failed",
+              "service.detached"
+            ]
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "$ref": "service-operation.schema.json"
+          },
+          "sequence": {
+            "type": "null"
+          },
+          "at": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "service.completed"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "properties": {
+              "problem": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "service.failed"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "properties": {
+              "problem": {
+                "type": "object",
+                "required": [
+                  "exitCode"
+                ],
+                "properties": {
+                  "exitCode": {
+                    "not": {
+                      "const": 21
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "service.detached"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "properties": {
+              "problem": {
+                "type": "object",
+                "required": [
+                  "exitCode"
+                ],
+                "properties": {
+                  "exitCode": {
+                    "const": 21
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "enum": [
+              "service.completed",
+              "service.failed",
+              "service.detached"
+            ]
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "required": [
+          "exitCode"
+        ]
+      },
+      "else": {
+        "not": {
+          "required": [
+            "exitCode"
+          ]
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "status": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "maxLength": 32,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+        },
+        "message": {
+          "type": "string",
+          "maxLength": 1000,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+        },
+        "controls": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "steer",
+            "stop"
+          ],
+          "properties": {
+            "steer": {
+              "type": "boolean"
+            },
+            "stop": {
+              "type": "boolean"
+            }
+          }
+        }
+      }
+    },
+    "agent-activity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "pattern": "^[a-z_]{1,32}$"
+        },
+        "message": {
+          "type": "string",
+          "maxLength": 1000,
+          "pattern": "^[^\\u0000-\\u0008\\u000b\\u000c\\u000e-\\u001f\\u007f]*$"
+        },
+        "target": {
+          "type": "string",
+          "maxLength": 500,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+        },
+        "tool": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+        },
+        "input_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,128}$"
+        },
+        "agent": {
+          "type": "string",
+          "pattern": "^Agent(?: [0-9]{1,3})?$"
+        },
+        "turn": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 512
+        },
+        "outcome": {
+          "enum": [
+            "success",
+            "error",
+            "cancelled"
+          ]
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "label",
+              "text",
+              "format"
+            ],
+            "properties": {
+              "label": {
+                "type": "string",
+                "maxLength": 80,
+                "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+              },
+              "text": {
+                "type": "string",
+                "maxLength": 4000,
+                "pattern": "^[^\\u0000-\\u0008\\u000b\\u000c\\u000e-\\u001f\\u007f]*$"
+              },
+              "format": {
+                "enum": [
+                  "text",
+                  "diff"
+                ]
+              },
+              "truncated": {
+                "const": true
+              }
+            }
+          },
+          "maxItems": 3
+        }
+      }
+    },
+    "text-chunk": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "text"
+      ],
+      "properties": {
+        "text": {
+          "type": "string",
+          "maxLength": 1048576,
+          "pattern": "^[^\\u0000-\\u0008\\u000b\\u000c\\u000e-\\u001f\\u007f]*$"
+        }
+      }
+    },
+    "browser-live-view-changed": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "started_at"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "live",
+            "ended"
+          ]
+        },
+        "started_at": {
+          "type": "string",
+          "maxLength": 40,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+        },
+        "ended_at": {
+          "type": "string",
+          "maxLength": 40,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+        }
+      }
+    },
+    "history-truncated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "message": {
+          "type": "string",
+          "maxLength": 1000,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+        }
+      }
+    },
+    "error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "message"
+      ],
+      "properties": {
+        "message": {
+          "type": "string",
+          "maxLength": 4096,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+        }
+      }
+    },
+    "unrecognized": {
+      "description": "A service event type this client does not project; only its sanitized name is kept.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9_]{1,64}$"
+        }
+      }
+    }
+  }
+}

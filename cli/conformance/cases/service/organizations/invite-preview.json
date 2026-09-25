@@ -1,0 +1,51 @@
+{
+  "id": "invite-preview",
+  "feature": "organizations",
+  "operation": "org.invite",
+  "description": "`org invite` with --preview returns the plan, exits 0 and sends nothing.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "org",
+    "invite",
+    "acme-research",
+    "cus_ExampleInvitee1",
+    "--role",
+    "developer",
+    "--expires-in",
+    "3600",
+    "--preview"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "organizations.manage",
+      "operation": "org.invite",
+      "problem": null,
+      "result": {
+        "plannedRequest": {
+          "bodyBytes": 78,
+          "bodySha256": "6783cacb42e903b23aa02a32dc8b11f1b83c0009d2167605ebde3c81d32b0ff1",
+          "description": "Invite an account.",
+          "effect": "write",
+          "method": "POST",
+          "operation": "org.invite",
+          "summary": {
+            "role": "developer"
+          }
+        },
+        "preview": true
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

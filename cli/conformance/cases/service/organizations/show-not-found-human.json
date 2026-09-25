@@ -1,0 +1,40 @@
+{
+  "id": "show-not-found-human",
+  "feature": "organizations",
+  "operation": "org.show",
+  "description": "Human form of an organization 404.",
+  "argv": [
+    "cli",
+    "org",
+    "show",
+    "nope"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/organizations/nope",
+        "status": 404,
+        "body": {
+          "error": "Organization not found",
+          "code": "organization_not_found"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "text": ""
+  },
+  "stderr": {
+    "text": "OpenProse: SERVICE_RESOURCE_NOT_FOUND: The requested OpenProse service resource was not found.\nDetail: organization nope was not found\nService code: organization_not_found\nAction: Run `prose cli org list` to find the right organization, then retry with it.\n"
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

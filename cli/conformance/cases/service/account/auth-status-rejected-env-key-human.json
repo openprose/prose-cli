@@ -1,0 +1,44 @@
+{
+  "id": "auth-status-rejected-env-key-human",
+  "feature": "account",
+  "operation": "auth.status",
+  "description": "Human auth status with a rejected environment key prints only the error (label, Detail, Action) on stderr and no status line.",
+  "argv": [
+    "cli",
+    "auth",
+    "status"
+  ],
+  "environment": {
+    "OPENPROSE_API_KEY": "rr_test_0123456789abcdef0123456789abcdef"
+  },
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/organizations",
+        "status": 401,
+        "body": {
+          "error": "Unauthorized"
+        },
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: SERVICE_AUTH_REQUIRED: OpenProse service authentication is required.\nDetail: the service rejected the API key in OPENPROSE_API_KEY (unknown or revoked); replace or unset OPENPROSE_API_KEY: an environment key takes precedence over `prose cli auth login`\nAction: Replace or unset OPENPROSE_API_KEY, then retry.\n"
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

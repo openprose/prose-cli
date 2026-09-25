@@ -1,0 +1,55 @@
+{
+  "id": "list-jsonl-error-envelope",
+  "feature": "run-records",
+  "operation": "run.list",
+  "description": "A failed list operation in jsonl prints the single openprose.service-operation/1 envelope with its problem, not a page trailer.",
+  "argv": [
+    "--output",
+    "jsonl",
+    "cli",
+    "run",
+    "list",
+    "--limit",
+    "201"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "jsonl": [
+      {
+        "interaction": "runs.list",
+        "operation": "run.list",
+        "problem": {
+          "action": "Use --limit 200, the largest value `cli run list` accepts: `prose --output jsonl cli run list --limit 200`.",
+          "boundary": "invocation",
+          "code": "INVOCATION_INVALID",
+          "details": {
+            "reason": "--limit \"201\" is invalid; use a whole number from 1 to 200",
+            "suggestedArgv": [
+              "--output",
+              "jsonl",
+              "cli",
+              "run",
+              "list",
+              "--limit",
+              "200"
+            ]
+          },
+          "exitCode": 2,
+          "message": "That command isn't quite right.",
+          "retryable": false,
+          "schema": "openprose.runner-error/1"
+        },
+        "result": null,
+        "schema": "openprose.service-operation/1"
+      }
+    ]
+  }
+}

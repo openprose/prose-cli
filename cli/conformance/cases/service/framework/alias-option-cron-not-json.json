@@ -1,0 +1,28 @@
+{
+  "id": "alias-option-cron-not-json",
+  "feature": "framework",
+  "operation": "run.list",
+  "description": "`--cron x` is not `--json`: an option edit-distance match needs distance 1 for a short name, and a flag never takes a value; the option is dropped.",
+  "argv": [
+    "cli",
+    "run",
+    "list",
+    "--cron",
+    "x"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: Unknown option.\nDetail: unknown option --cron for `cli run list`\nAction: Remove --cron, which `cli run list` does not take, then remove the extra argument \"x\": `prose cli run list`.\n"
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "id": "output-mode-invalid",
+  "feature": "framework",
+  "operation": "run.list",
+  "description": "An invalid --output value before `cli` is a service invocation error with a per-cause Action and no executable path; with no near mode the suggestion is json.",
+  "argv": [
+    "--output",
+    "yaml",
+    "cli",
+    "run",
+    "list"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: That command isn't quite right.\nDetail: invalid output mode \"yaml\"; expected human, json, or jsonl\nAction: Use --output json for one JSON document (jsonl and human are the other modes): `prose --output json cli run list`.\n"
+  },
+  "suggestedArgvReaches": true
+}

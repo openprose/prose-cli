@@ -1,0 +1,147 @@
+{
+  "id": "submit-error-then-eof-terminal",
+  "feature": "runs",
+  "operation": "run.submit",
+  "description": "A clean end of stream after an error event without run_complete is terminal: HOSTED_RUN_FAILED.",
+  "argv": [
+    "--output",
+    "jsonl",
+    "cli",
+    "run",
+    "submit",
+    "p.prose.md",
+    "--yes"
+  ],
+  "files": [
+    {
+      "path": "p.prose.md",
+      "content": "---\nname: hello\nkind: function\n---\n\nReply with the word ok.\n"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "ids": [
+      "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f"
+    ],
+    "clock": {
+      "start": "2026-09-24T01:00:00.000Z",
+      "stepMs": 0
+    },
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/run",
+        "query": {
+          "live": "1",
+          "session": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f"
+        },
+        "requestHeaders": {
+          "X-Session-Id": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f",
+          "Accept": "text/event-stream",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "expectedBody": {
+          "content": "---\nname: hello\nkind: function\n---\n\nReply with the word ok.\n"
+        },
+        "status": 200,
+        "sse": {
+          "frames": [
+            {
+              "id": "1",
+              "event": "status",
+              "data": {
+                "type": "status",
+                "run_id": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+                "sequence": 1,
+                "at": "2026-09-24T01:00:01.000Z",
+                "status": "running",
+                "message": "reactor model-luna",
+                "session": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f",
+                "controls": {
+                  "steer": true,
+                  "stop": true
+                }
+              }
+            },
+            {
+              "id": "2",
+              "event": "error",
+              "data": {
+                "type": "error",
+                "run_id": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+                "sequence": 2,
+                "at": "2026-09-24T01:00:01.000Z",
+                "message": "Run failed"
+              }
+            }
+          ],
+          "end": "close"
+        }
+      }
+    ]
+  },
+  "exitCode": 22,
+  "stdout": {
+    "jsonl": [
+      {
+        "at": "2026-09-24T01:00:01.000Z",
+        "data": {
+          "controls": {
+            "steer": true,
+            "stop": true
+          },
+          "message": "Running on model-luna",
+          "status": "running"
+        },
+        "runId": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+        "schema": "openprose.service-event/1",
+        "sequence": 1,
+        "type": "status"
+      },
+      {
+        "at": "2026-09-24T01:00:01.000Z",
+        "data": {
+          "message": "The run failed on the service."
+        },
+        "runId": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+        "schema": "openprose.service-event/1",
+        "sequence": 2,
+        "type": "error"
+      },
+      {
+        "at": null,
+        "data": {
+          "interaction": "run.submit",
+          "operation": "run.submit",
+          "problem": {
+            "action": "Inspect the run with the `cli run show` runner operation, correct the program or inputs, then submit again.",
+            "boundary": "hosted-service",
+            "code": "HOSTED_RUN_FAILED",
+            "details": {
+              "afterSequence": 2,
+              "reason": "the event stream ended after an error: The run failed on the service.",
+              "runId": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+              "session": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f"
+            },
+            "exitCode": 22,
+            "message": "The hosted run finished without completing successfully.",
+            "retryable": false,
+            "schema": "openprose.runner-error/1"
+          },
+          "result": null,
+          "schema": "openprose.service-operation/1"
+        },
+        "exitCode": 22,
+        "runId": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+        "schema": "openprose.service-event/1",
+        "sequence": null,
+        "type": "service.failed"
+      }
+    ]
+  }
+}

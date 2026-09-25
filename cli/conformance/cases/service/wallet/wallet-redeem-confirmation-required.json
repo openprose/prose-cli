@@ -1,0 +1,81 @@
+{
+  "id": "wallet-redeem-confirmation-required",
+  "feature": "wallet",
+  "operation": "wallet.redeem",
+  "description": "Without --yes redeem sends nothing, exits 2, and the plan carries no digest of the secret code.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "wallet",
+    "redeem",
+    "--code-file",
+    "code.txt"
+  ],
+  "files": [
+    {
+      "path": "code.txt",
+      "content": "Q7RC9-V5K2M\n"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "wallet.redeem",
+      "operation": "wallet.redeem",
+      "problem": {
+        "action": "Rerun the same command with --yes to confirm, or with --preview to see what it would do without sending anything.",
+        "boundary": "invocation",
+        "code": "CONFIRMATION_REQUIRED",
+        "details": {
+          "confirmArgv": [
+            "--output",
+            "json",
+            "cli",
+            "wallet",
+            "redeem",
+            "--code-file",
+            "code.txt",
+            "--yes"
+          ],
+          "plannedRequest": {
+            "bodyBytes": null,
+            "bodySha256": null,
+            "description": "Redeem a one-time credit code.",
+            "effect": "money",
+            "method": "POST",
+            "operation": "wallet.redeem"
+          },
+          "previewArgv": [
+            "--output",
+            "json",
+            "cli",
+            "wallet",
+            "redeem",
+            "--code-file",
+            "code.txt",
+            "--preview"
+          ],
+          "reason": "--yes is required because it uses up the one-time code; a redeemed code cannot be redeemed again"
+        },
+        "exitCode": 2,
+        "message": "This service operation requires explicit confirmation.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "Q7RC9-V5K2M"
+  ]
+}

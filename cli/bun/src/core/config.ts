@@ -6,8 +6,9 @@ import { randomUUID } from "node:crypto";
 import { dirname, join, parse, posix, resolve, win32 } from "node:path";
 import type { GlobalFlags, EffectiveConfiguration, EffectiveValues, SourceKind, ValueSource } from "./types";
 import { failure } from "./errors";
+import { quote } from "./output";
 import { RunnerFailure } from "./types";
-import { validateNativeConfiguration } from "../adapters/native-profile";
+import { nativeProfileArgv, validateNativeConfiguration } from "../adapters/native-profile";
 
 export interface ConfigDependencies {
   processCwd: string;
@@ -41,24 +42,46 @@ const fileKeyMap: Record<string, ConfigKey> = {
   permission_mode: "permissionMode",
 };
 
-const environmentKeyMap: Record<string, ConfigKey> = {
-  PROSE_HARNESS: "harness",
-  PROSE_TRANSPORT: "transport",
-  PROSE_MODEL: "model",
-  PROSE_TIMEOUT: "timeout",
-  PROSE_OUTPUT: "output",
-  PROSE_COLOR: "color",
-  PROSE_VERBOSE: "verbose",
-  PROSE_AUTH_PROFILE: "authProfile",
-  PROSE_NATIVE_PROFILE: "nativeProfile",
-  PROSE_NATIVE_MAX_TURNS: "nativeMaxTurns",
-  PROSE_NATIVE_TIMEOUT: "nativeTimeout",
-  PROSE_NATIVE_TOOL_TIMEOUT: "nativeToolTimeout",
-  PROSE_NATIVE_OUTPUT_BYTES: "nativeOutputBytes",
-  PROSE_NATIVE_LOG: "nativeLog",
-  PROSE_OUTPUT_CONTRACT: "outputContract",
-  PROSE_PERMISSION_MODE: "permissionMode",
-};
+/**
+ * The configuration keys in their one validation order (the order of `values`
+ * in shared/schemas/configuration-explanation.schema.json, with nativeLog
+ * before authProfile), with each key's file key, variable and flag. The Rust
+ * port validates in the same order.
+ */
+const SETTINGS: ReadonlyArray<readonly [ConfigKey, string, string | undefined, string]> = [
+  ["harness", "harness", "PROSE_HARNESS", "--harness"],
+  ["transport", "transport", "PROSE_TRANSPORT", "--transport"],
+  ["model", "model", "PROSE_MODEL", "--model"],
+  ["timeout", "timeout", "PROSE_TIMEOUT", "--timeout"],
+  ["output", "output", "PROSE_OUTPUT", "--output"],
+  ["color", "color", "PROSE_COLOR", "--no-color"],
+  ["verbose", "verbose", "PROSE_VERBOSE", "--verbose"],
+  ["outputContract", "output_contract", "PROSE_OUTPUT_CONTRACT", "--output-contract"],
+  ["permissionMode", "permission_mode", "PROSE_PERMISSION_MODE", "--permission-mode"],
+  ["nativeMaxTurns", "native_max_turns", "PROSE_NATIVE_MAX_TURNS", "--native-max-turns"],
+  ["nativeTimeout", "native_timeout", "PROSE_NATIVE_TIMEOUT", "--native-timeout"],
+  ["nativeToolTimeout", "native_tool_timeout", "PROSE_NATIVE_TOOL_TIMEOUT", "--native-tool-timeout"],
+  ["nativeOutputBytes", "native_output_bytes", "PROSE_NATIVE_OUTPUT_BYTES", "--native-output-bytes"],
+  ["nativeProfile", "native_profile", "PROSE_NATIVE_PROFILE", "--native-profile"],
+  ["nativeAddDirs", "native_add_dirs", undefined, "--native-add-dir"],
+  ["nativeAllowTools", "native_allow_tools", undefined, "--native-allow-tool"],
+  ["nativeLog", "native_log", "PROSE_NATIVE_LOG", "--native-log"],
+  ["authProfile", "auth_profile", "PROSE_AUTH_PROFILE", "--auth-profile"],
+];
+
+/** The longest accepted run timeout (maxTimeoutMs in shared/capabilities/transport-limits.v1.json). */
+export const MAX_TIMEOUT_MS = 86_400_000;
+
+/** Milliseconds of a run timeout, or the canonical reason it is rejected. */
+export function timeoutMs(value: string): number | string {
+  const match = /^([1-9][0-9]*)(ms|s|m|h)$/u.exec(value);
+  if (match === null) return "timeout must be a positive duration such as 30s or 10m.";
+  const unit = { ms: 1, s: 1000, m: 60_000, h: 3_600_000 }[match[2] as "ms" | "s" | "m" | "h"];
+  const digits = match[1]!;
+  // Compare as digits first: a huge number must not round to an accepted one.
+  if (digits.length > 12 || Number(digits) * unit > MAX_TIMEOUT_MS) return "timeout must be at most 24h.";
+  return Number(digits) * unit;
+}
 
 const defaults: EffectiveValues = {
   harness: "openprose",
@@ -87,14 +110,15 @@ export async function resolveConfiguration(
   dependencies: ConfigDependencies,
 ): Promise<EffectiveConfiguration> {
   const requestedCwd = flags.cwd === undefined ? dependencies.processCwd : resolve(dependencies.processCwd, flags.cwd);
+  const cwdLocation = flags.cwd === undefined ? "process cwd" : "--cwd";
   let cwd: string;
   try {
     const info = await stat(requestedCwd);
-    if (!info.isDirectory()) fail(`Working directory is not a directory: ${requestedCwd}.`, "--cwd");
+    if (!info.isDirectory()) fail(`Working directory is not a directory: ${requestedCwd}.`, cwdLocation);
     cwd = await realpath(requestedCwd);
   } catch (error) {
     if (error instanceof RunnerFailure) throw error;
-    fail(`Working directory does not exist or cannot be read: ${requestedCwd}.`, "--cwd");
+    fail(`Working directory does not exist or cannot be read: ${requestedCwd}.`, cwdLocation);
   }
 
   const userConfigPath = dependencies.userConfigPath ?? defaultUserConfigPath(dependencies);
@@ -108,10 +132,15 @@ export async function resolveConfiguration(
     (Object.keys(defaults) as ConfigKey[]).map((key) => [key, { kind: "default", location: "built-in" }]),
   ) as { [K in ConfigKey]: ValueSource };
 
-  const user = await readConfigIfPresent(userConfigPath, true);
-  apply(values, sources, user.values, "user-config", user.locations);
+  // The same physical file is loaded once; in both roles the nearest
+  // project role is authoritative.
+  const userConfig = await regularFile(userConfigPath);
+  if (userConfig !== null && userConfig !== projectConfigPath) {
+    const user = await readConfig(userConfig, true);
+    apply(values, sources, user.values, "user-config", user.locations);
+  }
   if (projectConfigPath !== null) {
-    const project = await readConfigIfPresent(projectConfigPath);
+    const project = await readConfig(projectConfigPath);
     apply(values, sources, project.values, "project-config", project.locations);
   }
 
@@ -120,10 +149,24 @@ export async function resolveConfiguration(
   const invocation = parseFlags(flags);
   apply(values, sources, invocation.values, "flag", invocation.locations);
 
-  nativeLimits(values);
-  nativeOutputLimits(values);
+  // The checks across keys, in the one order both ports use; each names the
+  // source of the setting it rejects.
+  const at = <T>(keys: ConfigKey[], check: () => T): T => {
+    try { return check(); } catch (caught) {
+      const location = keys.map((key) => sources[key]).find((source) => source.kind !== "default")?.location;
+      if (caught instanceof RunnerFailure && caught.code === "CONFIG_INVALID" && location !== undefined && caught.details?.source === undefined) {
+        throw failure("CONFIG_INVALID", { ...(caught.details ?? {}), source: location });
+      }
+      throw caught;
+    }
+  };
+  at(["nativeMaxTurns", "nativeTimeout", "nativeToolTimeout"], () => nativeLimits(values));
+  at(["nativeOutputBytes"], () => nativeOutputLimits(values));
   if (values.nativeProfile !== undefined || values.nativeAddDirs !== undefined || values.nativeAllowTools !== undefined) {
-    await validateNativeConfiguration(values, cwd);
+    const native: ConfigKey[] = ["nativeProfile", "nativeAddDirs", "nativeAllowTools"];
+    at(native, () => nativeProfileArgv(values));
+    try { await validateNativeConfiguration(values, cwd); }
+    catch (caught) { at(["nativeAddDirs"], () => { throw caught; }); }
   }
   return {
     cwd,
@@ -156,11 +199,20 @@ function defaultUserConfigPath(dependencies: ConfigDependencies): string {
   return pathApi.join(home, ".config", "openprose", "cli.toml");
 }
 
+/** The canonical path of `path` when it is a regular file (symlinks followed), else null. */
+async function regularFile(path: string): Promise<string | null> {
+  try {
+    if (!(await stat(path)).isFile()) return null;
+  } catch { return null; }
+  try { return await realpath(path); }
+  catch { fail(`Cannot read configuration file: ${path}.`, path); }
+}
+
 async function discoverProjectConfig(cwd: string): Promise<string | null> {
   let directory = cwd;
   while (true) {
-    const candidate = join(directory, ".prose", "cli.toml");
-    if (await exists(candidate)) return candidate;
+    const candidate = await regularFile(join(directory, ".prose", "cli.toml"));
+    if (candidate !== null) return candidate;
     if (await exists(join(directory, ".git"))) return null;
     const parent = dirname(directory);
     if (parent === directory || directory === parse(directory).root) return null;
@@ -177,10 +229,7 @@ async function exists(path: string): Promise<boolean> {
   }
 }
 
-export type ServiceEnvironment = "production" | "staging";
-
 interface ParsedValues {
-  serviceEnvironment?: ServiceEnvironment;
   values: PartialValues;
   locations: Partial<Record<ConfigKey, string>>;
 }
@@ -323,39 +372,40 @@ function parseLiteralString(value: string, path: string, line: number): { value:
   configLineFailure(path, line, "Literal string must close on the same physical line.");
 }
 
-function assignFileValue(
-  values: PartialValues,
-  key: ConfigKey,
-  rawKey: string,
-  value: string | boolean | string[],
-  location: string,
-): void {
-  if (key === "nativeAddDirs" || key === "nativeAllowTools") { assignValidated(values,key,value,location); return; }
+/** Checks one file value's type (in line order, with the syntax). */
+function checkFileType(key: ConfigKey, rawKey: string, value: string | boolean | string[], location: string): void {
+  if (key === "nativeAddDirs" || key === "nativeAllowTools") return;
   const requiresBoolean = key === "color" || key === "verbose";
-  if (requiresBoolean && typeof value !== "boolean") {
-    fail(`Configuration key ${rawKey} requires a boolean value.`, location);
-  }
-  if (!requiresBoolean && typeof value !== "string") {
-    fail(`Configuration key ${rawKey} requires a string value.`, location);
-  }
-  if (typeof value === "string" && value.length === 0) {
-    fail(`Configuration key ${rawKey} must not be empty.`, location);
-  }
-  if (key === "harness" && !supportedHarnesses.has(value as string)) {
-    fail("Configuration key harness contains an unsupported value.", location);
-  }
-  if (key === "output" && value !== "human" && value !== "json" && value !== "jsonl") {
-    fail("Configuration key output contains an unsupported value.", location);
-  }
-  if (key === "timeout" && !/^[1-9][0-9]*(?:ms|s|m|h)$/u.test(value as string)) {
-    fail("Configuration key timeout contains an invalid duration.", location);
-  }
-  assignValidated(values, key, value, location);
+  if (requiresBoolean && typeof value !== "boolean") fail(`Configuration key ${rawKey} requires a boolean value.`, location);
+  if (!requiresBoolean && typeof value !== "string") fail(`Configuration key ${rawKey} requires a string value.`, location);
 }
 
-function parseFlatToml(source: string, path: string, allowService = true): ParsedValues {
-  let serviceEnvironment: ServiceEnvironment | undefined;
+/** Validates the file's values in the one key order, with fixed reasons that never echo a value. */
+function validateFileValues(raw: Partial<Record<ConfigKey, string | boolean | string[]>>, locations: Partial<Record<ConfigKey, string>>): PartialValues {
   const values: PartialValues = {};
+  for (const [key, rawKey] of SETTINGS) {
+    const value = raw[key];
+    if (value === undefined) continue;
+    const location = locations[key]!;
+    if (typeof value === "string" && value.length === 0) fail(`Configuration key ${rawKey} must not be empty.`, location);
+    if (key === "harness" && !supportedHarnesses.has(value as string)) fail("Configuration key harness contains an unsupported value.", location);
+    if (key === "output" && value !== "human" && value !== "json" && value !== "jsonl") fail("Configuration key output contains an unsupported value.", location);
+    if (key === "timeout" && typeof timeoutMs(value as string) === "string") fail("Configuration key timeout contains an invalid duration.", location);
+    assignValidated(values, key, value, location);
+  }
+  return values;
+}
+
+/**
+ * `service_environment` is a retired user-configuration key: earlier clients
+ * saved a service selection there. The client now always talks to the
+ * OpenProse service, so a user configuration that still carries the line is
+ * accepted and the value ignored; a project configuration never allowed it.
+ */
+const RETIRED_USER_KEY = "service_environment";
+
+function parseFlatToml(source: string, path: string, allowService = true): ParsedValues {
+  const rawValues: Partial<Record<ConfigKey, string | boolean | string[]>> = {};
   const locations: Partial<Record<ConfigKey, string>> = {};
   const seen = new Set<string>();
   for (const [offset, rawPhysicalLine] of source.split("\n").entries()) {
@@ -372,7 +422,7 @@ function parseFlatToml(source: string, path: string, allowService = true): Parse
     }
     const rawKey = match[1]!;
     const key = Object.hasOwn(fileKeyMap, rawKey) ? fileKeyMap[rawKey] : undefined;
-    if (key === undefined && rawKey !== "service_environment") configLineFailure(path, lineNumber, "Configuration contains an unknown key.");
+    if (key === undefined && rawKey !== RETIRED_USER_KEY) configLineFailure(path, lineNumber, "Configuration contains an unknown key.");
     if (seen.has(rawKey)) configLineFailure(path, lineNumber, `Duplicate configuration key: ${rawKey}.`);
     seen.add(rawKey);
     const rawValue = line.slice(match[0].length);
@@ -400,20 +450,18 @@ function parseFlatToml(source: string, path: string, allowService = true): Parse
       configLineFailure(path, lineNumber, "Unexpected content after configuration value.");
     }
     const location = `${path}:${lineNumber}`;
-    if (rawKey === "service_environment") {
-      if (!allowService) configLineFailure(path, lineNumber, "Service environment is only allowed in user configuration.");
-      if (parsed !== "production" && parsed !== "staging") configLineFailure(path, lineNumber, "Service environment must be production or staging.");
-      serviceEnvironment = parsed;
+    if (rawKey === RETIRED_USER_KEY) {
+      if (!allowService) configLineFailure(path, lineNumber, "Configuration contains an unknown key.");
     } else {
-      assignFileValue(values, key!, rawKey, parsed, location);
+      checkFileType(key!, rawKey, parsed, location);
+      rawValues[key!] = parsed;
       locations[key!] = location;
     }
   }
-  return { values, locations, ...(serviceEnvironment === undefined ? {} : { serviceEnvironment }) };
+  return { values: validateFileValues(rawValues, locations), locations };
 }
 
-async function readConfigIfPresent(path: string, allowService = false): Promise<ParsedValues> {
-  if (!(await exists(path))) return { values: {}, locations: {} };
+async function readConfig(path: string, allowService = false): Promise<ParsedValues> {
   let text: string;
   try {
     text = decodeConfiguration(await readFile(path), path);
@@ -427,7 +475,8 @@ async function readConfigIfPresent(path: string, allowService = false): Promise<
 function parseEnvironment(env: Readonly<Record<string, string | undefined>>): ParsedValues {
   const values: PartialValues = {};
   const locations: Partial<Record<ConfigKey, string>> = {};
-  for (const [name, key] of Object.entries(environmentKeyMap)) {
+  for (const [key, , name] of SETTINGS) {
+    if (name === undefined) continue;
     const value = env[name];
     if (value === undefined) continue;
     assignValidated(values, key, value, name);
@@ -439,47 +488,55 @@ function parseEnvironment(env: Readonly<Record<string, string | undefined>>): Pa
 function parseFlags(flags: GlobalFlags): ParsedValues {
   const values: PartialValues = {};
   const locations: Partial<Record<ConfigKey, string>> = {};
-  for (const key of ["harness", "transport", "model", "authProfile", "permissionMode", "nativeProfile", "nativeMaxTurns", "nativeTimeout", "nativeToolTimeout", "nativeOutputBytes", "nativeAddDirs", "nativeAllowTools", "outputContract", "nativeLog", "timeout", "output", "color", "verbose"] as const) {
-    const value = flags[key];
+  for (const [key, , , location] of SETTINGS) {
+    const value = flags[key as keyof GlobalFlags] as string | boolean | string[] | undefined;
     if (value === undefined) continue;
-    const location = key === "outputContract" ? "--output-contract" : key === "nativeMaxTurns" ? "--native-max-turns" : key === "nativeTimeout" ? "--native-timeout" : key === "nativeToolTimeout" ? "--native-tool-timeout" : key === "nativeOutputBytes" ? "--native-output-bytes" : key === "nativeProfile" ? "--native-profile" : key === "nativeAddDirs" ? "--native-add-dir" : key === "nativeAllowTools" ? "--native-allow-tool" : key === "authProfile" ? "--auth-profile" : key === "permissionMode" ? "--permission-mode" : `--${key}`;
     assignValidated(values, key, value, location);
     locations[key] = location;
   }
   return { values, locations };
 }
 
+/** Validates one environment, flag or file value of `key`; every failure names `location`. */
 function assignValidated(values: PartialValues, key: ConfigKey, raw: string | boolean | string[], location: string): void {
   if (key === "nativeAddDirs" || key === "nativeAllowTools") {
     if (!Array.isArray(raw) || raw.some(v=>typeof v!=="string" || !v.trim() || v.includes("\0"))) fail(`${key} must be an array of nonempty strings.`,location);
     values[key]=[...raw]; return;
   }
+  if (Array.isArray(raw)) fail(`${key} must be a string.`, location);
+  if (typeof raw === "string" && raw.includes("\ufffd")) fail(`${key} must be valid UTF-8.`, location);
   if (key === "color" || key === "verbose") {
-    const parsed = typeof raw === "boolean" ? raw : typeof raw === "string" ? parseBoolean(raw, location) : fail("Expected boolean",location);
-    values[key] = parsed;
+    values[key] = typeof raw === "boolean" ? raw : parseBoolean(key, raw, location);
     return;
   }
   if (typeof raw !== "string") fail(`${key} must be a string.`, location);
   if (raw.length === 0) fail(`${key} must not be empty.`, location);
+  const at = (check: () => unknown) => {
+    try { check(); } catch (caught) {
+      if (caught instanceof RunnerFailure && caught.code === "CONFIG_INVALID") throw failure("CONFIG_INVALID", { ...(caught.details ?? {}), source: location });
+      throw caught;
+    }
+  };
   if (key === "output") {
     if (raw !== "human" && raw !== "json" && raw !== "jsonl") fail("output must be human, json, or jsonl.", location);
     values.output = raw;
     return;
   }
   if (key === "timeout") {
-    if (!/^[1-9][0-9]*(?:ms|s|m|h)$/u.test(raw)) fail("timeout must be a positive duration such as 30s or 10m.", location);
+    const parsed = timeoutMs(raw);
+    if (typeof parsed === "string") fail(parsed, location);
     values.timeout = raw;
     return;
   }
   if (key === "harness") {
     if (!supportedHarnesses.has(raw)) {
-      fail(`Unsupported harness ${JSON.stringify(raw)}; expected openprose, prime, omp, codex, claude, or mock.`, location);
+      fail(`Unsupported harness ${quote(raw)}; expected openprose, prime, omp, codex, claude, or mock.`, location);
     }
     values.harness = raw;
     return;
   }
-  if (key === "nativeOutputBytes") { validateNativeOutputBytes(raw); values[key]=raw; return; }
-  if (key === "nativeMaxTurns" || key === "nativeTimeout" || key === "nativeToolTimeout") { values[key]=raw; nativeLimits({...values,harness:"agents-sdk"}); return; }
+  if (key === "nativeOutputBytes") { at(() => validateNativeOutputBytes(raw)); values[key]=raw; return; }
+  if (key === "nativeMaxTurns" || key === "nativeTimeout" || key === "nativeToolTimeout") { at(() => nativeLimits({ harness: "agents-sdk", [key]: raw })); values[key]=raw; return; }
   if (key === "nativeProfile") {
     if (!["default","claude-workspace-tools"].includes(raw)) fail("Unknown native profile.",location);
     values.nativeProfile=raw;
@@ -488,20 +545,20 @@ function assignValidated(values: PartialValues, key: ConfigKey, raw: string | bo
   else if (key === "authProfile") values.authProfile = raw;
   else if (key === "nativeLog") values.nativeLog = raw;
   else if (key === "outputContract") {
-    if (raw !== "native" && raw !== "image-envelope") fail("Output contract must be native or image-envelope.");
+    if (raw !== "native" && raw !== "image-envelope") fail("Output contract must be native or image-envelope.", location);
     values.outputContract = raw;
   }
   else if (key === "permissionMode") {
-    if (!["default","acceptEdits","workspace-write","read-only"].includes(raw)) fail("Permission mode must be default, acceptEdits, workspace-write, or read-only.");
+    if (!["default","acceptEdits","workspace-write","read-only"].includes(raw)) fail("Permission mode must be default, acceptEdits, workspace-write, or read-only.", location);
     values.permissionMode = raw;
   }
   else if (key === "transport") values.transport = raw;
 }
 
-function parseBoolean(raw: string, location: string): boolean {
+function parseBoolean(key: string, raw: string, location: string): boolean {
   if (raw === "true" || raw === "1") return true;
   if (raw === "false" || raw === "0") return false;
-  fail("Expected true, false, 1, or 0.", location);
+  fail(`${key} must be true, false, 1, or 0.`, location);
 }
 
 function apply(
@@ -570,18 +627,6 @@ export async function writeUserHarnessSelection(
     `harness = ${JSON.stringify(harness)}`,
     ...(selection.model === null ? [] : [`model = ${JSON.stringify(selection.model)}`]),
   ]);
-}
-
-export async function resolveServiceEnvironment(dependencies: ConfigDependencies): Promise<{ environment: ServiceEnvironment; source: "default" | "user-config"; path: string }> {
-  const path = dependencies.userConfigPath ?? defaultUserConfigPath(dependencies);
-  const pathApi = (dependencies.platform ?? process.platform) === "win32" ? win32 : posix;
-  if (!pathApi.isAbsolute(path)) fail("OpenProse user configuration path must be absolute.");
-  const parsed = await readConfigIfPresent(path, true);
-  return { environment: parsed.serviceEnvironment ?? "production", source: parsed.serviceEnvironment === undefined ? "default" : "user-config", path };
-}
-
-export async function writeUserServiceEnvironment(path: string, environment: ServiceEnvironment | null): Promise<boolean> {
-  return writeUserSelection(path, new Set(["service_environment"]), environment === null ? [] : [`service_environment = ${JSON.stringify(environment)}`]);
 }
 
 async function writeUserSelection(path: string, targetKeys: Set<string>, bundle: string[]): Promise<boolean> {

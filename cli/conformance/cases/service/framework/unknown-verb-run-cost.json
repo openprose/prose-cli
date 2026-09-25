@@ -1,0 +1,49 @@
+{
+  "id": "unknown-verb-run-cost",
+  "feature": "framework",
+  "operation": "run.quote",
+  "description": "`cli run cost` is an unknown command with no suggestion: `cost` is not a synonym of `quote`, so the correction is the group's help.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "cost"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": null,
+      "operation": "cli",
+      "problem": {
+        "action": "Choose one of the `cli run` commands; `prose --output json cli run --help` describes them.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "unknown command `cli run cost`. Commands: cancel, download, input, list, quote, share, show, submit, watch",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "--help"
+          ]
+        },
+        "exitCode": 2,
+        "message": "Unknown command.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

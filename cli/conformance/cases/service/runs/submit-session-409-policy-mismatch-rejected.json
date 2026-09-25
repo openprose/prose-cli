@@ -1,0 +1,81 @@
+{
+  "id": "submit-session-409-policy-mismatch-rejected",
+  "feature": "runs",
+  "operation": "run.submit",
+  "description": "With --session, a 409 that is not the duplicate-session refusal (model_policy_mismatch) is classified by the manifest's code map, SERVICE_REQUEST_REJECTED (10) with the service code, exactly as without --session; never RUN_SUBMISSION_AMBIGUOUS.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "submit",
+    "p.prose.md",
+    "--yes",
+    "--session",
+    "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d"
+  ],
+  "files": [
+    {
+      "path": "p.prose.md",
+      "content": "---\nname: hello\nkind: function\n---\n\nReply with the word ok.\n"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "clock": {
+      "start": "2026-09-24T01:00:00.000Z",
+      "stepMs": 0
+    },
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/run",
+        "query": {
+          "live": "1",
+          "session": "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d"
+        },
+        "requestHeaders": {
+          "X-Session-Id": "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+          "Accept": "text/event-stream",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "expectedBody": {
+          "content": "---\nname: hello\nkind: function\n---\n\nReply with the word ok.\n"
+        },
+        "status": 409,
+        "body": {
+          "error": "model \"model-luna\" is not priced by this run's admitted policy; retry the run",
+          "code": "model_policy_mismatch"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "run.submit",
+      "operation": "run.submit",
+      "problem": {
+        "action": "Correct the request as details.serviceMessage and details.serviceCode describe, then retry.",
+        "boundary": "hosted-service",
+        "code": "SERVICE_REQUEST_REJECTED",
+        "details": {
+          "serviceCode": "model_policy_mismatch",
+          "serviceMessage": "model \"model-luna\" is not priced by this run's admitted policy; retry the run",
+          "serviceStatus": 409
+        },
+        "exitCode": 10,
+        "message": "The OpenProse service rejected the request.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

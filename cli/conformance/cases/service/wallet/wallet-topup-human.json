@@ -1,0 +1,57 @@
+{
+  "id": "wallet-topup-human",
+  "feature": "wallet",
+  "operation": "wallet.topup",
+  "description": "Human top-up prints the Checkout URL, amounts and the key on stdout and never opens a browser.",
+  "argv": [
+    "cli",
+    "wallet",
+    "topup",
+    "--amount-cents",
+    "500",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/wallet/topup",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          },
+          "Idempotency-Key": "6f1c2b3a-4d5e-4f60-8a7b-9c0d1e2f3a4b",
+          "Content-Type": "application/json"
+        },
+        "expectedBody": {
+          "amount_cents": 500
+        },
+        "status": 200,
+        "body": {
+          "checkout_url": "https://checkout.stripe.com/c/pay/cs_test_a1b2c3#fid=x",
+          "session_id": "cs_test_a1b2c3",
+          "amount": {
+            "credits_cents": 500,
+            "fee_cents": 60,
+            "total_cents": 560
+          }
+        }
+      }
+    ],
+    "ids": [
+      "6f1c2b3a-4d5e-4f60-8a7b-9c0d1e2f3a4b"
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "Checkout URL: https://checkout.stripe.com/c/pay/cs_test_a1b2c3#fid=x\nCredits: $5.00\nFee: $0.60\nTotal: $5.60\nIdempotency key: 6f1c2b3a-4d5e-4f60-8a7b-9c0d1e2f3a4b\nOpen the URL in a browser to pay. The credit lands in the wallet once payment settles; check with `prose cli wallet balance`.\n"
+  },
+  "stderr": {
+    "text": ""
+  }
+}
