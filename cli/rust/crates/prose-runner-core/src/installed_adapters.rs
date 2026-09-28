@@ -250,6 +250,7 @@ impl InstalledAdapter {
             .with_failure_events(["turn.failed", "error"]),
             Self::ClaudePrintStreamJson => {
                 JsonlProtocol::installed("system", "result", ["system", "assistant", "user", "stream_event", "tool_progress"])
+                    .with_unlisted_nonterminal_events()
             }
             Self::PrimeRpc => JsonlProtocol::installed(
                 "response",
@@ -409,7 +410,26 @@ impl InstalledAdapter {
             self.admitted_versions()
                 .iter()
                 .any(|admitted| admitted == version)
+                || self
+                    .minimum_version()
+                    .is_some_and(|floor| version_meets_floor(version, &floor))
         })
+    }
+
+    /// Optional recipe floor: any stable release at or above it within the
+    /// same major version is admitted alongside the exact audited versions.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the embedded, build-time-validated recipe is malformed.
+    #[must_use]
+    pub fn minimum_version(self) -> Option<String> {
+        let recipe: Value = serde_json::from_str(self.recipe_json())
+            .expect("embedded adapter recipe must be valid JSON");
+        recipe
+            .pointer("/support/minimumVersion")
+            .and_then(Value::as_str)
+            .map(ToOwned::to_owned)
     }
 
     /// Exact audited functional-alpha versions. This recipe field, rather
@@ -1127,6 +1147,15 @@ pub fn normalize_transport_mode(adapter:InstalledAdapter,records:&[Value],expect
                             return Err(failed());
                         }
                     }
+                    // Newer Claude releases add informational records (e.g.
+                    // rate_limit_event, new system subtypes). They are
+                    // session-bound, checked above, and never settle the run.
+                    Some("system")
+                        if record
+                            .get("subtype")
+                            .and_then(Value::as_str)
+                            .is_some_and(|value| !value.is_empty()) => {}
+                    Some(kind) if !kind.is_empty() && !CLAUDE_KNOWN_RECORD_TYPES.contains(&kind) => {}
                     _ => return Err(malformed()),
                 }
             }
@@ -1141,6 +1170,28 @@ pub fn normalize_transport_mode(adapter:InstalledAdapter,records:&[Value],expect
         InstalledAdapter::PrimeRpc if native_claude => native_tools::normalize_mode(records,expected_rpc_id,false,true,true),
         InstalledAdapter::PrimeRpc => normalize_prime_rpc(records, expected_rpc_id),
         InstalledAdapter::OmpRpc => normalize_omp_rpc(records, expected_rpc_id),
+    }
+}
+
+/// Claude record types with a validated shape; an invalid one is malformed
+/// rather than tolerated as an unknown informational record.
+const CLAUDE_KNOWN_RECORD_TYPES: [&str; 6] =
+    ["system", "assistant", "user", "stream_event", "tool_progress", "result"];
+
+fn version_meets_floor(version: &str, floor: &str) -> bool {
+    fn parse(value: &str) -> Option<[u64; 3]> {
+        let mut parts = value.split('.');
+        let parsed = [
+            parts.next()?.parse().ok()?,
+            parts.next()?.parse().ok()?,
+            parts.next()?.parse().ok()?,
+        ];
+        let canonical = parsed.iter().map(u64::to_string).collect::<Vec<_>>().join(".");
+        (parts.next().is_none() && canonical == value).then_some(parsed)
+    }
+    match (parse(version), parse(floor)) {
+        (Some(candidate), Some(floor)) => candidate[0] == floor[0] && candidate >= floor,
+        _ => false,
     }
 }
 
@@ -4070,9 +4121,15 @@ mod tests {
         assert!(
             InstalledAdapter::ClaudePrintStreamJson.version_is_supported("2.1.243 (Claude Code)")
         );
-        assert!(!InstalledAdapter::ClaudePrintStreamJson.version_is_supported("2.1.244"));
+        // Claude admits stable releases at or above its floor within major 2.
+        assert!(InstalledAdapter::ClaudePrintStreamJson.version_is_supported("2.1.244"));
+        assert!(
+            InstalledAdapter::ClaudePrintStreamJson.version_is_supported("2.1.282 (Claude Code)")
+        );
+        assert!(InstalledAdapter::ClaudePrintStreamJson.version_is_supported("2.2.0"));
         assert!(!InstalledAdapter::ClaudePrintStreamJson.version_is_supported("2.1.242"));
-        assert!(!InstalledAdapter::ClaudePrintStreamJson.version_is_supported("2.2.0"));
+        assert!(!InstalledAdapter::ClaudePrintStreamJson.version_is_supported("2.0.999"));
+        assert!(!InstalledAdapter::ClaudePrintStreamJson.version_is_supported("2.1.0243"));
         assert!(!InstalledAdapter::ClaudePrintStreamJson.version_is_supported("2.2.0-alpha.1"));
         assert!(!InstalledAdapter::ClaudePrintStreamJson.version_is_supported("3.0.0"));
         assert!(!InstalledAdapter::ClaudePrintStreamJson.version_is_supported("claude 2.1.243"));
@@ -6539,9 +6596,14 @@ fn claude_native_task_lifecycle_never_settles_outer_invocation(){
  let mut records=vec![init.clone()];records.extend(tasks.clone());
  assert!(normalize_transport(adapter,&records,"unused").is_err());records.push(done.clone());assert!(normalize_transport(adapter,&records,"unused").is_ok());
  for task in tasks {
-  for (key,value) in [("session_id",serde_json::json!("other")),("task_id",serde_json::json!("")),("subtype",serde_json::json!("task_invented"))]{
+  for (key,value) in [("session_id",serde_json::json!("other")),("task_id",serde_json::json!(""))]{
    let mut invalid=task.clone();invalid[key]=value;assert!(normalize_transport(adapter,&[init.clone(),invalid,done.clone()],"unused").is_err());
   }
+  // An unknown subtype is tolerated informational telemetry, but only in-session.
+  let mut invented=task.clone();invented["subtype"]=serde_json::json!("task_invented");
+  assert!(normalize_transport(adapter,&[init.clone(),invented.clone(),done.clone()],"unused").is_ok());
+  invented["session_id"]=serde_json::json!("other");
+  assert!(normalize_transport(adapter,&[init.clone(),invented,done.clone()],"unused").is_err());
  }
 }
 #[test]

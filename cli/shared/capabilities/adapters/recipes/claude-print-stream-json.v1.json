@@ -10,8 +10,9 @@
     "packageIdentity": "Claude Code native installer"
   },
   "support": {
-    "versionRange": "=2.1.243",
+    "versionRange": ">=2.1.243 <3.0.0",
     "admittedVersions": ["2.1.243"],
+    "minimumVersion": "2.1.243",
     "repairCommand": "npm install --global @anthropic-ai/claude-code@2.1.243",
     "platforms": ["darwin-arm64"]
   },

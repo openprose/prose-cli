@@ -32,7 +32,8 @@ test("native task lifecycle remains session-bound nonterminal telemetry",()=>{
  expect(p.accept({type:"result",subtype:"success",is_error:false,session_id:"fixture-session"})).not.toBeNull();
  for(const task of tasks){expect(()=>ready().accept({...task,session_id:"other"})).toThrow();expect(()=>ready().accept({...task,task_id:""})).toThrow();}
  expect(()=>ready().accept({...tasks.find(t=>t.subtype==="task_progress"),usage:{total_tokens:-1,tool_uses:1,duration_ms:1}})).toThrow();
- expect(()=>ready().accept({...tasks[0],subtype:"task_invented"})).toThrow();
+ expect(ready().accept({...tasks[0],subtype:"task_invented"})).toBeNull();
+ expect(()=>ready().accept({...tasks[0],subtype:"task_invented",session_id:"other"})).toThrow();
 });
 import background from "../../shared/fixtures/adapters/claude-background-tasks.json";
 test("native background inventory is validated nonterminal telemetry",()=>{
@@ -63,7 +64,9 @@ test("native Claude requires fresh successful candidate and matching session",()
  const q=native();q.accept(turns[0]);expect(()=>q.settleProcess?.(0)).toThrow();
  expect(()=>q.accept({...turns[1],is_error:true,subtype:"error"})).toThrow();
  expect(()=>q.accept({...turns[1],session_id:"other"})).toThrow();
- expect(()=>q.accept({type:"unsupported",session_id:"fixture-session"})).toThrow();
+ expect(q.accept({type:"rate_limit_event",session_id:"fixture-session",uuid:"u"})).toBeNull();
+ expect(()=>q.accept({type:"rate_limit_event",session_id:"other"})).toThrow();
+ expect(()=>q.accept({type:"",session_id:"fixture-session"})).toThrow();
 });
 test.skipIf(!process.env.CLAUDE_REPLAY_PATH)("recorded native Claude stream remains provisional until exit",async()=>{
  const records=(await Bun.file(process.env.CLAUDE_REPLAY_PATH!).text()).trim().split("\n").map(l=>JSON.parse(l));const p=native();records.forEach(r=>p.accept(r));expect(p.terminalEventObserved).toBe(false);if(process.env.CLAUDE_REPLAY_EXPECT_COMPLETE==="true" || records.at(-1).type==="result")expect(p.settleProcess?.(0)?.type).toBe("session.completed");else expect(()=>p.settleProcess?.(0)).toThrow();
