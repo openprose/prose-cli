@@ -6,7 +6,7 @@
 mod claude_shutdown;
 mod native_tools;
 
-use crate::image::{RuntimeImage, sha256_hex};
+use crate::image::{sha256_hex, RuntimeImage};
 use crate::{ErrorCode, RunnerError};
 use prose_process_supervisor::{
     CancellationToken, CommandProbe, CommandProbeOutcome, EnvironmentPolicy, JsonlProtocol,
@@ -16,7 +16,7 @@ use prose_process_supervisor::{
 use serde::de::{Error as _, MapAccess, SeqAccess, Visitor};
 use serde::ser::{SerializeMap, SerializeSeq};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use std::ffi::{OsStr, OsString};
 use std::fmt;
 use std::fs;
@@ -277,7 +277,8 @@ impl InstalledAdapter {
                     "stream_event",
                     "tool_progress",
                 ],
-            ),
+            )
+            .with_unlisted_nonterminal_events(),
             Self::PrimeRpc => JsonlProtocol::installed(
                 "response",
                 "agent_end",
@@ -436,7 +437,26 @@ impl InstalledAdapter {
             self.admitted_versions()
                 .iter()
                 .any(|admitted| admitted == version)
+                || self
+                    .minimum_version()
+                    .is_some_and(|floor| version_meets_floor(version, &floor))
         })
+    }
+
+    /// Optional recipe floor: any stable release at or above it within the
+    /// same major version is admitted alongside the exact audited versions.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the embedded, build-time-validated recipe is malformed.
+    #[must_use]
+    pub fn minimum_version(self) -> Option<String> {
+        let recipe: Value = serde_json::from_str(self.recipe_json())
+            .expect("embedded adapter recipe must be valid JSON");
+        recipe
+            .pointer("/support/minimumVersion")
+            .and_then(Value::as_str)
+            .map(ToOwned::to_owned)
     }
 
     /// Exact audited functional-alpha versions. This recipe field, rather
@@ -1349,6 +1369,16 @@ pub fn normalize_transport_mode(
                             return Err(failed());
                         }
                     }
+                    // Newer Claude releases add informational records (e.g.
+                    // rate_limit_event, new system subtypes). They are
+                    // session-bound, checked above, and never settle the run.
+                    Some("system")
+                        if record
+                            .get("subtype")
+                            .and_then(Value::as_str)
+                            .is_some_and(|value| !value.is_empty()) => {}
+                    Some(kind)
+                        if !kind.is_empty() && !CLAUDE_KNOWN_RECORD_TYPES.contains(&kind) => {}
                     _ => return Err(malformed()),
                 }
             }
@@ -1367,6 +1397,38 @@ pub fn normalize_transport_mode(
         }
         InstalledAdapter::PrimeRpc => normalize_prime_rpc(records, expected_rpc_id),
         InstalledAdapter::OmpRpc => normalize_omp_rpc(records, expected_rpc_id),
+    }
+}
+
+/// Claude record types with a validated shape; an invalid one is malformed
+/// rather than tolerated as an unknown informational record.
+const CLAUDE_KNOWN_RECORD_TYPES: [&str; 6] = [
+    "system",
+    "assistant",
+    "user",
+    "stream_event",
+    "tool_progress",
+    "result",
+];
+
+fn version_meets_floor(version: &str, floor: &str) -> bool {
+    fn parse(value: &str) -> Option<[u64; 3]> {
+        let mut parts = value.split('.');
+        let parsed = [
+            parts.next()?.parse().ok()?,
+            parts.next()?.parse().ok()?,
+            parts.next()?.parse().ok()?,
+        ];
+        let canonical = parsed
+            .iter()
+            .map(u64::to_string)
+            .collect::<Vec<_>>()
+            .join(".");
+        (parts.next().is_none() && canonical == value).then_some(parsed)
+    }
+    match (parse(version), parse(floor)) {
+        (Some(candidate), Some(floor)) => candidate[0] == floor[0] && candidate >= floor,
+        _ => false,
     }
 }
 
@@ -3826,7 +3888,7 @@ pub(crate) fn omp_rpc_id(invocation_id: &str, suffix: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::{Value, json};
+    use serde_json::{json, Value};
     use tempfile::TempDir;
 
     const FRAMING: &[u8] =
@@ -3873,12 +3935,10 @@ mod tests {
                 .allow_inherited("OPENPROSE_API_KEY", Sensitivity::Secret)
                 .allow_inherited("openprose_api_key", Sensitivity::Secret);
             assert!(!policy.secret_strings().iter().any(|value| value == secret));
-            assert!(
-                !policy
-                    .output_protected_strings()
-                    .iter()
-                    .any(|value| value == secret)
-            );
+            assert!(!policy
+                .output_protected_strings()
+                .iter()
+                .any(|value| value == secret));
         }
     }
 
@@ -4018,15 +4078,13 @@ mod tests {
             InstalledAdapter::PrimeRpc.version_probe().output,
             VersionProbeOutput::Stderr
         );
-        assert!(
-            [
-                InstalledAdapter::CodexExecJson,
-                InstalledAdapter::ClaudePrintStreamJson,
-                InstalledAdapter::OmpRpc,
-            ]
-            .into_iter()
-            .all(|adapter| adapter.version_probe().output == VersionProbeOutput::Stdout)
-        );
+        assert!([
+            InstalledAdapter::CodexExecJson,
+            InstalledAdapter::ClaudePrintStreamJson,
+            InstalledAdapter::OmpRpc,
+        ]
+        .into_iter()
+        .all(|adapter| adapter.version_probe().output == VersionProbeOutput::Stdout));
     }
 
     #[test]
@@ -4353,9 +4411,7 @@ mod tests {
 
     #[test]
     fn exact_version_allowlists_reject_nearby_or_malformed_versions() {
-        assert!(
-            InstalledAdapter::CodexExecJson.version_is_supported("codex-cli 0.149.0-alpha.4.1")
-        );
+        assert!(InstalledAdapter::CodexExecJson.version_is_supported("codex-cli 0.149.0-alpha.4.1"));
         assert!(
             !InstalledAdapter::CodexExecJson.version_is_supported("codex-cli 0.149.0-alpha.4.2")
         );
@@ -4368,9 +4424,15 @@ mod tests {
         assert!(
             InstalledAdapter::ClaudePrintStreamJson.version_is_supported("2.1.243 (Claude Code)")
         );
-        assert!(!InstalledAdapter::ClaudePrintStreamJson.version_is_supported("2.1.244"));
+        // Claude admits stable releases at or above its floor within major 2.
+        assert!(InstalledAdapter::ClaudePrintStreamJson.version_is_supported("2.1.244"));
+        assert!(
+            InstalledAdapter::ClaudePrintStreamJson.version_is_supported("2.1.282 (Claude Code)")
+        );
+        assert!(InstalledAdapter::ClaudePrintStreamJson.version_is_supported("2.2.0"));
         assert!(!InstalledAdapter::ClaudePrintStreamJson.version_is_supported("2.1.242"));
-        assert!(!InstalledAdapter::ClaudePrintStreamJson.version_is_supported("2.2.0"));
+        assert!(!InstalledAdapter::ClaudePrintStreamJson.version_is_supported("2.0.999"));
+        assert!(!InstalledAdapter::ClaudePrintStreamJson.version_is_supported("2.1.0243"));
         assert!(!InstalledAdapter::ClaudePrintStreamJson.version_is_supported("2.2.0-alpha.1"));
         assert!(!InstalledAdapter::ClaudePrintStreamJson.version_is_supported("3.0.0"));
         assert!(!InstalledAdapter::ClaudePrintStreamJson.version_is_supported("claude 2.1.243"));
@@ -4615,11 +4677,9 @@ mod tests {
             let protected = policy.output_protected_strings();
             assert!(protected.iter().any(|value| value == "/fixture/home"));
             assert!(!protected.iter().any(|value| value == raw_secret));
-            assert!(
-                !protected
-                    .iter()
-                    .any(|value| value.contains("store-override"))
-            );
+            assert!(!protected
+                .iter()
+                .any(|value| value.contains("store-override")));
         }
     }
 
@@ -5473,14 +5533,12 @@ mod tests {
 
         let mut atomic_text = text_only.clone();
         atomic_text.drain(7..10);
-        assert!(
-            normalize_transport(
-                InstalledAdapter::PrimeRpc,
-                &atomic_text,
-                "fixture-invocation-0001",
-            )
-            .is_ok()
-        );
+        assert!(normalize_transport(
+            InstalledAdapter::PrimeRpc,
+            &atomic_text,
+            "fixture-invocation-0001",
+        )
+        .is_ok());
 
         let mut empty_deltas_then_atomic_text = text_only.clone();
         for record in &mut empty_deltas_then_atomic_text[6..] {
@@ -5493,14 +5551,12 @@ mod tests {
                 record["message"]["content"][0]["text"] = json!("");
             }
         }
-        assert!(
-            normalize_transport(
-                InstalledAdapter::PrimeRpc,
-                &empty_deltas_then_atomic_text,
-                "fixture-invocation-0001",
-            )
-            .is_ok()
-        );
+        assert!(normalize_transport(
+            InstalledAdapter::PrimeRpc,
+            &empty_deltas_then_atomic_text,
+            "fixture-invocation-0001",
+        )
+        .is_ok());
 
         let mut invalid_first_content = text_only.clone();
         invalid_first_content[6]["assistantMessageEvent"]["contentIndex"] = json!(1);
@@ -5657,14 +5713,12 @@ mod tests {
                 }
             }
         }
-        assert!(
-            normalize_transport(
-                InstalledAdapter::PrimeRpc,
-                &records,
-                "fixture-invocation-0001",
-            )
-            .is_ok()
-        );
+        assert!(normalize_transport(
+            InstalledAdapter::PrimeRpc,
+            &records,
+            "fixture-invocation-0001",
+        )
+        .is_ok());
     }
 
     #[test]
@@ -6130,14 +6184,12 @@ mod tests {
             let mut records = omp_lifecycle();
             *records.last_mut().unwrap() = terminal;
             records.insert(3, omp_response(true));
-            assert!(
-                normalize_transport(
-                    InstalledAdapter::OmpRpc,
-                    &records,
-                    "fixture-invocation-0001"
-                )
-                .is_ok()
-            );
+            assert!(normalize_transport(
+                InstalledAdapter::OmpRpc,
+                &records,
+                "fixture-invocation-0001"
+            )
+            .is_ok());
         }
 
         for event_type in OMP_ASSISTANT_MESSAGE_EVENTS {
@@ -6552,21 +6604,15 @@ mod tests {
     #[test]
     fn omp_rpc_accepts_exact_set_widget_presentation_across_lifecycle_and_settlement() {
         let supervisor_protocol = InstalledAdapter::OmpRpc.protocol();
-        assert!(
-            supervisor_protocol
-                .allowed_events
-                .contains("extension_ui_request")
-        );
-        assert!(
-            !supervisor_protocol
-                .failure_events
-                .contains("extension_ui_request")
-        );
-        assert!(
-            supervisor_protocol
-                .allowed_after_terminal_events
-                .contains("extension_ui_request")
-        );
+        assert!(supervisor_protocol
+            .allowed_events
+            .contains("extension_ui_request"));
+        assert!(!supervisor_protocol
+            .failure_events
+            .contains("extension_ui_request"));
+        assert!(supervisor_protocol
+            .allowed_after_terminal_events
+            .contains("extension_ui_request"));
 
         let base = omp_lifecycle();
         let turn_end = base
@@ -6604,14 +6650,12 @@ mod tests {
             }),
         );
         cleared.insert(4, omp_response(true));
-        assert!(
-            normalize_transport(
-                InstalledAdapter::OmpRpc,
-                &cleared,
-                "fixture-invocation-0001"
-            )
-            .is_ok()
-        );
+        assert!(normalize_transport(
+            InstalledAdapter::OmpRpc,
+            &cleared,
+            "fixture-invocation-0001"
+        )
+        .is_ok());
 
         for presentation in [
             json!({"type":"extension_ui_request","id":"notify","method":"notify","message":"status","notifyType":"info"}),
@@ -6622,14 +6666,12 @@ mod tests {
             let mut records = omp_lifecycle();
             records.insert(3, omp_response(true));
             records.insert(3, presentation);
-            assert!(
-                normalize_transport(
-                    InstalledAdapter::OmpRpc,
-                    &records,
-                    "fixture-invocation-0001"
-                )
-                .is_ok()
-            );
+            assert!(normalize_transport(
+                InstalledAdapter::OmpRpc,
+                &records,
+                "fixture-invocation-0001"
+            )
+            .is_ok());
         }
     }
 
@@ -6771,14 +6813,12 @@ mod tests {
         let init = json!({"type":"system","subtype":"init","session_id":"fixture-session"});
         let done = json!({"type":"result","subtype":"success","is_error":false,"session_id":"fixture-session"});
         let adapter = InstalledAdapter::ClaudePrintStreamJson;
-        assert!(
-            normalize_transport(
-                adapter,
-                &[init.clone(), telemetry.clone(), done.clone()],
-                "unused"
-            )
-            .is_ok()
-        );
+        assert!(normalize_transport(
+            adapter,
+            &[init.clone(), telemetry.clone(), done.clone()],
+            "unused"
+        )
+        .is_ok());
         assert!(
             normalize_transport(adapter, &[init.clone(), telemetry.clone()], "unused").is_err()
         );
@@ -6870,12 +6910,10 @@ mod tests {
                 .map(|x| OsString::from(x.as_str().unwrap()))
                 .collect();
             assert_eq!(&launch.argv[..flags.len()], flags.as_slice());
-            assert!(
-                !launch
-                    .argv
-                    .iter()
-                    .any(|x| x == "--bare" || x == "--allowedTools" || x == "--add-dir")
-            );
+            assert!(!launch
+                .argv
+                .iter()
+                .any(|x| x == "--bare" || x == "--allowedTools" || x == "--add-dir"));
             assert!(launch.argv.iter().any(|x| x == "--safe-mode"));
             assert_eq!(
                 launch.credential_config_directory().is_some(),
@@ -6907,12 +6945,10 @@ mod tests {
                 &["Bash(git status:*)".into(), "Agent".into()],
             )
             .unwrap();
-        assert!(
-            launch
-                .argv
-                .windows(2)
-                .any(|x| x == [OsString::from("--add-dir"), OsString::from("/tmp/a b")])
-        );
+        assert!(launch
+            .argv
+            .windows(2)
+            .any(|x| x == [OsString::from("--add-dir"), OsString::from("/tmp/a b")]));
         assert_eq!(
             launch
                 .argv
@@ -6930,14 +6966,12 @@ mod tests {
         let final_record =
             json!({"type":"result","subtype":"success","is_error":false,"session_id":"s"});
         let adapter = InstalledAdapter::ClaudePrintStreamJson;
-        assert!(
-            normalize_transport(
-                adapter,
-                &[init.clone(), denial.clone(), final_record.clone()],
-                "unused"
-            )
-            .is_ok()
-        );
+        assert!(normalize_transport(
+            adapter,
+            &[init.clone(), denial.clone(), final_record.clone()],
+            "unused"
+        )
+        .is_ok());
         assert!(normalize_transport(adapter, &[init.clone(), denial.clone()], "unused").is_err());
         let mut invalid = denial;
         invalid["session_id"] = json!("other");
@@ -6983,7 +7017,6 @@ fn claude_native_task_lifecycle_never_settles_outer_invocation() {
         for (key, value) in [
             ("session_id", serde_json::json!("other")),
             ("task_id", serde_json::json!("")),
-            ("subtype", serde_json::json!("task_invented")),
         ] {
             let mut invalid = task.clone();
             invalid[key] = value;
@@ -6992,6 +7025,20 @@ fn claude_native_task_lifecycle_never_settles_outer_invocation() {
                     .is_err()
             );
         }
+        // An unknown subtype is tolerated informational telemetry, but only in-session.
+        let mut invented = task.clone();
+        invented["subtype"] = serde_json::json!("task_invented");
+        assert!(normalize_transport(
+            adapter,
+            &[init.clone(), invented.clone(), done.clone()],
+            "unused"
+        )
+        .is_ok());
+        invented["session_id"] = serde_json::json!("other");
+        assert!(
+            normalize_transport(adapter, &[init.clone(), invented, done.clone()], "unused")
+                .is_err()
+        );
     }
 }
 #[test]
@@ -7017,14 +7064,12 @@ fn claude_task_resumption_preserves_initial_configuration() {
     let mut repeated = init.clone();
     repeated["uuid"] = serde_json::json!("resumed");
     let a = InstalledAdapter::ClaudePrintStreamJson;
-    assert!(
-        normalize_transport(
-            a,
-            &[init.clone(), notice.clone(), repeated.clone(), done.clone()],
-            "unused"
-        )
-        .is_ok()
-    );
+    assert!(normalize_transport(
+        a,
+        &[init.clone(), notice.clone(), repeated.clone(), done.clone()],
+        "unused"
+    )
+    .is_ok());
     assert!(
         normalize_transport(a, &[init.clone(), repeated.clone(), done.clone()], "unused").is_err()
     );
@@ -7089,15 +7134,13 @@ mod native_turn_tests {
         if records.last().unwrap()["type"] != "result" {
             let mut synthetic = records.clone();
             synthetic.push(json!({"type":"result","subtype":"success","is_error":false,"session_id":records[0]["session_id"]}));
-            assert!(
-                normalize_transport_mode(
-                    InstalledAdapter::ClaudePrintStreamJson,
-                    &synthetic,
-                    "fixture",
-                    true
-                )
-                .is_ok()
-            );
+            assert!(normalize_transport_mode(
+                InstalledAdapter::ClaudePrintStreamJson,
+                &synthetic,
+                "fixture",
+                true
+            )
+            .is_ok());
         }
     }
 }
@@ -7300,11 +7343,9 @@ mod prime_child_outer_tests {
         assert!(protocol.allowed_events.contains("rlm_child_update"));
         assert!(protocol.allowed_events.contains("session_action_update"));
         assert_ne!(protocol.terminal_event, "rlm_child_update");
-        assert!(
-            !InstalledAdapter::OmpRpc
-                .protocol()
-                .allowed_events
-                .contains("rlm_child_update")
-        );
+        assert!(!InstalledAdapter::OmpRpc
+            .protocol()
+            .allowed_events
+            .contains("rlm_child_update"));
     }
 }

@@ -311,6 +311,9 @@ pub struct JsonlProtocol {
     pub allowed_after_terminal_events: BTreeSet<String>,
     pub terminal_envelope_field: Option<String>,
     pub terminal_is_candidate: bool,
+    /// Accepts unlisted nonterminal event types between start and terminal.
+    /// Adapter normalization remains responsible for validating them.
+    pub allow_unlisted_nonterminal_events: bool,
 }
 
 impl JsonlProtocol {
@@ -328,6 +331,7 @@ impl JsonlProtocol {
             allowed_after_terminal_events: BTreeSet::new(),
             terminal_envelope_field: Some("terminalEnvelope".to_owned()),
             terminal_is_candidate: false,
+            allow_unlisted_nonterminal_events: false,
         }
     }
 
@@ -348,7 +352,16 @@ impl JsonlProtocol {
             allowed_after_terminal_events: BTreeSet::new(),
             terminal_envelope_field: None,
             terminal_is_candidate: false,
+            allow_unlisted_nonterminal_events: false,
         }
+    }
+
+    /// Tolerates informational event types a harness adds in newer releases.
+    /// Start, terminal and failure events keep their strict handling.
+    #[must_use]
+    pub const fn with_unlisted_nonterminal_events(mut self) -> Self {
+        self.allow_unlisted_nonterminal_events = true;
+        self
     }
 
     /// Marks structured records which are explicit harness failures rather
@@ -549,7 +562,9 @@ impl ProtocolState {
                 value.clone()
             };
             self.terminal = Some(terminal);
-        } else if !protocol.allowed_events.contains(event_type) {
+        } else if !protocol.allowed_events.contains(event_type)
+            && !protocol.allow_unlisted_nonterminal_events
+        {
             return Err(SupervisorFailure::new(
                 FailureKind::ProtocolMalformed,
                 "harness emitted an unsupported structured event type",
@@ -2475,6 +2490,23 @@ mod tests {
         let mut state = ProtocolState::default();
         state.accept(br#"{"type":"system"}"#, &strict).unwrap();
         assert!(state.accept(br#"{"type":"system"}"#, &strict).is_err());
+    }
+
+    #[test]
+    fn unlisted_nonterminal_events_are_opt_in() {
+        let strict = JsonlProtocol::installed("system", "result", ["assistant"]);
+        let mut state = ProtocolState::default();
+        state.accept(br#"{"type":"system"}"#, &strict).unwrap();
+        assert!(state.accept(br#"{"type":"rate_limit_event"}"#, &strict).is_err());
+
+        let tolerant = strict.with_unlisted_nonterminal_events();
+        let mut state = ProtocolState::default();
+        assert!(state.accept(br#"{"type":"rate_limit_event"}"#, &tolerant).is_err());
+        state.accept(br#"{"type":"system"}"#, &tolerant).unwrap();
+        state.accept(br#"{"type":"rate_limit_event"}"#, &tolerant).unwrap();
+        assert!(state.terminal.is_none());
+        state.accept(br#"{"type":"result"}"#, &tolerant).unwrap();
+        assert!(state.accept(br#"{"type":"rate_limit_event"}"#, &tolerant).is_err());
     }
 
     #[test]

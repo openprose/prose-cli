@@ -93,8 +93,9 @@
     {
       "adapterId": "claude/print-stream-json",
       "recipe": "cli/shared/capabilities/adapters/recipes/claude-print-stream-json.v1.json",
-      "versionRange": "=2.1.243",
+      "versionRange": ">=2.1.243 <3.0.0",
       "admittedVersions": ["2.1.243"],
+      "minimumVersion": "2.1.243",
       "repairCommand": "npm install --global @anthropic-ai/claude-code@2.1.243",
       "selection": "explicit",
       "shell": false,

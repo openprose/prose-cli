@@ -13,6 +13,14 @@ the tagged release.
 
 ### Added
 
+- Claude `print-stream-json` admits any stable release from `2.1.243` up to,
+  but not including, `3.0.0` through a new optional recipe field
+  `support.minimumVersion`; `admittedVersions` remains the exact audited list
+  and other adapters stay exact allowlists. Both parsers now tolerate unknown
+  session-bound Claude record types and system subtypes (for example
+  `rate_limit_event`, emitted by 2.1.282) as nonterminal telemetry; start,
+  terminal, failure, and session-identity checks are unchanged.
+
 - A transport-only functional-alpha package train for standalone Rust,
   standalone Bun, and npm installation on the explicitly admitted POSIX
   platforms.

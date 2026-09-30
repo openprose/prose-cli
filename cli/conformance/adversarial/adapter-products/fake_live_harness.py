@@ -277,9 +277,11 @@ def main() -> int:
     argv = sys.argv[1:]
     if executable not in ADAPTERS:
         raise ValueError(f"unexpected executable identity: {executable}")
+    compatibility_path = Path.cwd() / ".claude-compatibility-fixture.json"
+    compatibility = json.loads(compatibility_path.read_text("utf-8")) if executable == "claude" and compatibility_path.is_file() else {}
     if argv == ["--version"]:
         stream = sys.stderr if executable == "prime-agent" else sys.stdout
-        print(VERSIONS[executable], file=stream)
+        print(compatibility.get("version", VERSIONS[executable]), file=stream)
         return 0
     if executable == "codex" and argv == ["login", "status"]:
         print("Logged in using ChatGPT")
@@ -416,6 +418,13 @@ def main() -> int:
             {"type": "turn.completed", "usage": {}},
         )
     elif adapter_id == "claude/print-stream-json":
+        telemetry = []
+        scenario = compatibility.get("telemetryScenario")
+        if scenario is not None:
+            record = {"type": "rate_limit_event", "session_id": "fixture-session"}
+            if scenario == "unknown-subtype":
+                record.update(type="system", subtype="future_telemetry")
+            telemetry.append(record)
         emit(
             {
                 "type": "system",
@@ -426,6 +435,7 @@ def main() -> int:
                 "mcp_servers": [],
                 "plugins": [],
             },
+            *telemetry,
             *(
                 {
                     "type": "assistant",

@@ -42,9 +42,12 @@ export interface InstalledAdapterRecipe {
     packageIdentity: string | null;
   };
   support: {
-    /** Human-readable compatibility summary. Admission uses admittedVersions only. */
+    /** Human-readable compatibility summary. Admission uses admittedVersions and minimumVersion only. */
     versionRange: string;
+    /** Exact audited versions. */
     admittedVersions: string[];
+    /** Optional floor: any stable release at or above it within the same major version is admitted. */
+    minimumVersion?: string;
     repairCommand: string;
     runtimePrerequisites?: RuntimePrerequisiteRequirement[];
     platforms: string[];

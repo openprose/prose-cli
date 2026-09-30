@@ -6,7 +6,7 @@ import { probeExecutableCommand, probeExecutableVersion, resolveExecutable } fro
 import { installedAdapterDefinition } from "./recipes";
 import type { RuntimePrerequisiteObservation } from "../core/types";
 import { RunnerFailure } from "../core/types";
-import type { InstalledAdapterId, RuntimePrerequisiteRequirement } from "./types";
+import type { InstalledAdapterId, InstalledAdapterRecipe, RuntimePrerequisiteRequirement } from "./types";
 import { assertInstalledAdapterPlatform } from "./admission";
 
 export interface ResolveInstalledExecutableInput {
@@ -226,7 +226,7 @@ export async function probeInstalledAdapterVersion(input: {
     throw caught;
   }
   const detectedVersion = observedVersion(input.adapterId, version);
-  if (detectedVersion === null || !recipe.support.admittedVersions.includes(detectedVersion)) {
+  if (detectedVersion === null || !versionIsAdmitted(recipe.support, detectedVersion)) {
     throw failure("HARNESS_INCOMPATIBLE", {
       adapterId: input.adapterId,
       detectedVersion: version,
@@ -236,6 +236,23 @@ export async function probeInstalledAdapterVersion(input: {
     });
   }
   return version;
+}
+
+/** Exact audited versions, or a stable release at or above the recipe's floor within its major version. */
+export function versionIsAdmitted(
+  support: Pick<InstalledAdapterRecipe["support"], "admittedVersions" | "minimumVersion">,
+  version: string,
+): boolean {
+  if (support.admittedVersions.includes(version)) return true;
+  if (support.minimumVersion === undefined) return false;
+  const parse = (value: string) => /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/u.exec(value)?.slice(1).map(Number) ?? null;
+  const floor = parse(support.minimumVersion);
+  const candidate = parse(version);
+  if (floor === null || candidate === null || candidate[0] !== floor[0]) return false;
+  for (let index = 1; index < 3; index++) {
+    if (candidate[index]! !== floor[index]!) return candidate[index]! > floor[index]!;
+  }
+  return true;
 }
 
 function observedVersion(adapterId: InstalledAdapterId, output: string): string | null {

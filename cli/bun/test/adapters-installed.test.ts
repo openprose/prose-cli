@@ -1870,7 +1870,8 @@ describe("installed executable discovery and version probes", () => {
     ["omp/rpc", "omp/18.0.10", "omp", ["18.0.9"], "npm install --global bun@1.3.14 @oh-my-pi/pi-coding-agent@18.0.9"],
     ["codex/exec-json", "codex-cli 0.149.0-alpha.4.2", "codex", ["0.149.0-alpha.4.1"], "npm install --global @openai/codex@0.149.0-alpha.4.1"],
     ["codex/exec-json", "codex-cli 0.150.0-alpha.1", "codex", ["0.149.0-alpha.4.1"], "npm install --global @openai/codex@0.149.0-alpha.4.1"],
-    ["claude/print-stream-json", "2.1.244 (Claude Code)", "claude", ["2.1.243"], "npm install --global @anthropic-ai/claude-code@2.1.243"],
+    ["claude/print-stream-json", "2.1.242 (Claude Code)", "claude", ["2.1.243"], "npm install --global @anthropic-ai/claude-code@2.1.243"],
+    ["claude/print-stream-json", "3.0.0 (Claude Code)", "claude", ["2.1.243"], "npm install --global @anthropic-ai/claude-code@2.1.243"],
     ["claude/print-stream-json", "2.2.0-alpha.1 (Claude Code)", "claude", ["2.1.243"], "npm install --global @anthropic-ai/claude-code@2.1.243"],
   ] as const)("rejects adjacent non-allowlisted %s version %s with exact repair metadata", async (adapterId, version, executableName, admittedVersions, repairCommand) => {
     const input = await fixture();
