@@ -2571,7 +2571,7 @@ fn rejected_adjacent_versions_report_exact_machine_and_human_repair_details() {
             "claude",
             "print-stream-json",
             "claude/print-stream-json",
-            "2.1.244 (Claude Code)",
+            "2.1.242 (Claude Code)",
             json!(["2.1.243"]),
             "npm install --global @anthropic-ai/claude-code@2.1.243",
             None,
