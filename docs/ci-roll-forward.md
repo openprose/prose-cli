@@ -95,3 +95,17 @@ malformed-key reason. Those tests now follow the current service envelope and
 structured credential fields, retaining secret-tool call, shadow resistance,
 missing-D-Bus and recovery checks. This is a test update, not a legacy fallback.
 Fresh Linux execution remains required.
+
+The clean local run begun at runtime-source revision
+`9c83400402a0e229b8415910fef249c1bff54ebd` passed all 53 provider-free
+gates. It includes 717 Bun tests (714 pass, 3 recorded/platform skips), both
+normal/developer Rust suites and strict lint, 17 compiled adapter adversaries,
+1,089 hosted cases and 21 registry cases per product, exact-package custody and
+the three-surface 50-case rehearsal. Subsequent edits are Linux-only credential
+assertions and adapter host selection; runtime sources are unchanged. Focused
+format and both strict Clippy builds pass after the Linux test update.
+
+Fresh CodeQL run 36787732733 completed all four analyses and PR findings are
+empty. Native Linux source admission and the final head matrices remain pending.
+OMP's Linux environment-key isolation and early-EOF fixture checks remain active
+even though Prime-specific native cases are not admitted on Linux.

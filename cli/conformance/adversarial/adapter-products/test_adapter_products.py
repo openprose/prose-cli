@@ -1332,8 +1332,6 @@ class AdapterProductAdversary(unittest.TestCase):
     def test_prime_omp_environment_key_routes_are_fresh_private_and_cross_product_isolated(
         self,
     ) -> None:
-        if not self.supports_host("prime/rpc"):
-            self.skipTest("Prime recipe does not admit this host; macOS ARM64 CI qualifies it")
         if os.name == "nt":  # pragma: no cover - functional alpha is POSIX-only
             self.skipTest(
                 "functional-alpha installed-process execution is not admitted on Windows"
@@ -1498,8 +1496,6 @@ class AdapterProductAdversary(unittest.TestCase):
                 self.assertEqual(errors["rust"], errors["bun"], adapter_id)
 
     def test_rpc_fixture_rejects_eof_before_terminal(self) -> None:
-        if not self.supports_host("prime/rpc"):
-            self.skipTest("Prime recipe does not admit this host; macOS ARM64 CI qualifies it")
         if os.name == "nt":  # pragma: no cover - POSIX functional-alpha fixture
             self.skipTest("functional-alpha installed-process execution is POSIX-only")
         with tempfile.TemporaryDirectory(prefix="openprose-early-eof-") as root:
