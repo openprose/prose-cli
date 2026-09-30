@@ -518,3 +518,19 @@ Root adds the fs feature to already pinned rustix in runner-core Cargo.toml for 
 Root additionally assigns `environment_bun` `cli/README.md`, `cli/conformance/runner/README.md`, `cli/conformance/cases/fixtures/runner-help.txt`, `cli/ci/check_architecture.py` (exact module builtin admissions only), `cli/ci/run_local.py` (registry oracle gates), and `cli/shared/schemas/README.md` for registry developer documentation and shared integration gates. Rust help/source changes remain coordinated with `environment_rust`; root retains Git and schema/taxonomy validation.
 
 Root extends the integration lease to `cli/ci/test_run_local.py` for the explicit service/environment/registry gate inventory assertion.
+
+## IMP-061 isolated corrective review — September 30, 2026
+
+Codex is the user-assigned lead in this isolated corrective branch. The lead owns Git/index operations, this registry, and the following exact corrective paths: `cli/bun/src/core/service/http.ts`, `cli/bun/src/core/service/proxy.ts`, `cli/bun/test/proxy-selection.test.ts`, `cli/bun/test/service-proxy.test.ts`, `cli/shared/fixtures/transport/proxy-selection.json`, `cli/conformance/runner/service_operations.py`, `cli/rust/crates/prose-runner-core/src/service/journal.rs`, `cli/bun/src/core/service/journal.ts`, `docs/cli-pr-review.md`, `docs/validation/**`, `cli/ci/check_public_surface.py`, `cli/ci/public_surface_denylist.py`, `cli/ci/test_check_public_surface.py`. Existing historical leases are preserved; no shared worktree is being edited. Scope is provider-free qualification and fixes for PRs 10/11; no merge, release, deployment, or model run is assigned.
+
+Lease extension: `cli/bun/src/core/service-account.ts` for the same explicit proxy selection, and `docs/validation/imp-014/README.md`, `docs/validation/imp-034/README.md` for immutable historical evidence navigation.
+
+Lease extension: `cli/bun/src/core/service/fetch.ts` for a direct Node transport that cannot inherit Bun proxy defaults.
+
+Lease extension: `cli/bun/package.json`, `cli/bun/bun.lock`, `cli/ci/check_dependencies.py`, `cli/ci/check_architecture.py`, `cli/ci/test_check_dependencies.py`, `cli/ci/test_check_architecture.py` for an exact HTTP transport dependency. Pinned Bun proxy behavior cannot implement the existing shared rules; this dependency is necessary to this fix and does not upgrade the runtime.
+
+Lease extension: `cli/bun/test/service-account.test.ts` to inject the explicit service transport instead of the replaced global fetch.
+
+Lease extension: `cli/rust/crates/prose-runner-core/src/service/runs.rs` for clearer recovery-argument construction at the falsely classified CodeQL sink.
+
+Lease extension: `docs/hosted-client-qualification.md` for the maintained corrective verification record. The experimental environment-mutation and Node HTTP prototypes were discarded; the final candidate uses the pinned raw transport dependency.

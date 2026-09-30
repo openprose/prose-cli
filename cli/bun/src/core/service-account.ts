@@ -5,6 +5,7 @@ import { failure, invocationFailure } from "./errors";
 import { humanSafeScalar, jsonLine } from "./output";
 import { credentialFailure, localizeHint, malformedReason, missingReason, nativeStore, rejectedReason, storeUnavailable, type CredentialSource } from "./service/credentials";
 import { clientHeaders, parseJson } from "./service/http";
+import { serviceFetch } from "./service/fetch";
 import { PRODUCTION } from "./service/endpoint";
 import { environmentLabel, validCredential, type Environment, type Json } from "./service/manifest";
 import { followUpCommand, humanError, structuredOutputFor } from "./service/render";
@@ -111,7 +112,7 @@ export class Service {
         return { status: integer(exchange.status, 100, 599), bytes };
       }
       const signal = this.deps.cancellationSignal === undefined ? AbortSignal.timeout(10_000) : AbortSignal.any([this.deps.cancellationSignal, AbortSignal.timeout(10_000)]);
-      const response = await fetch(`${this.origin}${path}`, { method, redirect: "manual", signal, headers: { ...Object.fromEntries(clientHeaders()), Accept: "application/json", ...(credential === undefined ? {} : { Authorization: `Bearer ${credential}` }), ...(body === undefined ? {} : { "Content-Type": "application/json" }) }, ...(body === undefined ? {} : { body: Buffer.from(body) }) });
+      const response = await serviceFetch(`${this.origin}${path}`, { method, redirect: "manual", signal, headers: { ...Object.fromEntries(clientHeaders()), Accept: "application/json", ...(credential === undefined ? {} : { Authorization: `Bearer ${credential}` }), ...(body === undefined ? {} : { "Content-Type": "application/json" }) }, ...(body === undefined ? {} : { body: Buffer.from(body) }) }, this.deps.env);
       // Classified on the status before any body is read (the caller maps
       // every other non-2xx status); a service error body is never kept.
       if (response.status < 200 || response.status >= 300) { await response.body?.cancel(); return { status: response.status, bytes: new Uint8Array() }; }
@@ -161,11 +162,11 @@ export class Service {
         return { status, body: object(exchange.body) };
       }
       const signal = this.deps.cancellationSignal === undefined ? AbortSignal.timeout(timeoutMs) : AbortSignal.any([this.deps.cancellationSignal, AbortSignal.timeout(timeoutMs)]);
-      const response = await fetch(`${this.origin}${path}`, {
+      const response = await serviceFetch(`${this.origin}${path}`, {
         method, redirect: "manual", signal,
         headers: { ...Object.fromEntries(clientHeaders()), Accept: "application/json", ...(credential === undefined ? {} : { Authorization: `Bearer ${credential}` }), ...(body === undefined ? {} : { "Content-Type": "application/json" }) },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-      });
+      }, this.deps.env);
       // Classified on the status before the body is read (the same code as
       // the fixture path): an error body's format never matters.
       try { classifyAccountStatus(response.status, path); }

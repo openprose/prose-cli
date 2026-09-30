@@ -970,6 +970,7 @@ def proxy_probe(command: list[str]) -> list[str]:
     dead = "http://127.0.0.1:9"
     scenarios = [
         ("uppercase", {"HTTPS_PROXY": proxy.url}, True),
+        ("empty-lowercase-falls-through", {"https_proxy": "", "HTTPS_PROXY": proxy.url}, True),
         ("lowercase-wins", {"https_proxy": proxy.url, "HTTPS_PROXY": dead}, True),
         ("no-proxy-other-hosts", {"HTTPS_PROXY": proxy.url, "NO_PROXY": "other.example, .invalid,"}, True),
         ("dead-proxy", {"HTTPS_PROXY": dead, "ALL_PROXY": proxy.url}, False),
@@ -991,6 +992,8 @@ def proxy_probe(command: list[str]) -> list[str]:
                                     f"{observed.returncode}: {observed.stdout[:200]!r}")
                 if through and not any(line.startswith("CONNECT ") and line.endswith(":443 HTTP/1.1") for line in seen):
                     failures.append(f"{name}: the request did not go through the proxy ({seen!r})")
+                if through and len(seen) != 1:
+                    failures.append(f"{name}: expected one proxy connection with no retry, got {len(seen)}")
                 if not through and seen:
                     failures.append(f"{name}: ALL_PROXY must never be used ({seen!r})")
     finally:

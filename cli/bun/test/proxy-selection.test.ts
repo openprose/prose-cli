@@ -1,4 +1,4 @@
-// The Bun build's own fetch chooses a proxy exactly as the shared vectors say
+// The service transport chooses a proxy exactly as the shared vectors say
 // (shared/fixtures/transport/proxy-selection.json); the Rust build implements
 // the same rules (service/http.rs `proxy_for`). Each vector runs a real Bun
 // fetch against a local recording proxy that answers 502. A request that is
@@ -10,7 +10,7 @@ import { join } from "node:path";
 
 const fixture = JSON.parse(readFileSync(join(import.meta.dir, "../../shared/fixtures/transport/proxy-selection.json"), "utf8"));
 
-test.skipIf(process.platform === "win32")("Bun's fetch selects the proxy the shared vectors name", async () => {
+test.skipIf(process.platform === "win32")("The service selects the proxy the shared vectors name", async () => {
   let seen = 0;
   const server = Bun.listen({
     hostname: "127.0.0.1", port: 0,
@@ -24,8 +24,9 @@ test.skipIf(process.platform === "win32")("Bun's fetch selects the proxy the sha
       const env: Record<string, string> = { PATH: process.env.PATH ?? "/usr/bin:/bin", HOME: process.env.HOME ?? "/" };
       for (const [name, value] of Object.entries(item.environment as Record<string, string>)) env[name] = value.split("{PORT}").join(String(server.port));
       // Asynchronous, so this process's event loop keeps serving the proxy.
-      const child = Bun.spawn([process.execPath, "-e", `try { await fetch(${JSON.stringify(item.url)}, { signal: AbortSignal.timeout(4000) }); } catch {}`], { env, stdout: "ignore", stderr: "ignore" });
+      const child = Bun.spawn([process.execPath, "-e", `import { serviceFetch } from ${JSON.stringify(join(import.meta.dir, "../src/core/service/fetch.ts"))}; try { await serviceFetch(${JSON.stringify(item.url)}, { signal: AbortSignal.timeout(4000) }, process.env); } catch (error) { console.error(error, error.cause); }`], { env, stdout: "ignore", stderr: "pipe" });
       expect({ id: item.id, exit: await child.exited }).toEqual({ id: item.id, exit: 0 });
+      if ((seen > before) !== item.proxied) console.error(await new Response(child.stderr).text());
       expect({ id: item.id, proxied: seen > before }).toEqual({ id: item.id, proxied: item.proxied });
     }
   } finally { server.stop(true); }

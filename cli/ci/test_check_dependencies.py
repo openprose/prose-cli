@@ -17,7 +17,7 @@ from package_local import NODE_MINIMUM as PACKAGE_NODE_MINIMUM
 class DependencyContractTest(unittest.TestCase):
     def test_bun_runtime_and_development_dependency_contract_is_exact(self) -> None:
         self.assertEqual(
-            {"ajv": "8.20.0"},
+            {"ajv": "8.20.0", "undici": "7.30.0"},
             BUN_PRODUCTION_DEPENDENCIES,
         )
         self.assertEqual(

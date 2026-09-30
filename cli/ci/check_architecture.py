@@ -28,6 +28,7 @@ PRODUCT_ROOTS = (
 ALLOWED_BUN_MODULES = frozenset(
     {
         "ajv/dist/2020",
+        "undici/index.js",
         "node:crypto",
         "node:fs",
         "node:fs/promises",
@@ -55,7 +56,7 @@ ALLOWED_BUN_SCRIPTS = {
     "check": "bun run typecheck && bun run test && bun run build",
 }
 ALLOWED_BUN_DEPENDENCIES = {
-    "dependencies": {"ajv": "8.20.0"},
+    "dependencies": {"ajv": "8.20.0", "undici": "7.30.0"},
     "devDependencies": {
         "@types/bun": "1.3.5",
         "ajv-formats": "3.0.1",
@@ -143,6 +144,8 @@ ALLOWED_SHARED_REFERENCE_FILES = frozenset(
         "cli/shared/service/guide.v1.md",
         "cli/shared/service/help.v1.json",
         "cli/shared/service/operations.v1.json",
+        "cli/shared/service/operations-public.v1.json",
+        "cli/shared/fixtures/service/run-errors.v1.json",
         "cli/shared/service/service-interactions.v1.json",
     }
 )

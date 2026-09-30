@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { serviceHttp } from "../src/core/service/fetch";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -95,10 +96,10 @@ test("the service key cannot enter a child or adapter environment via explicit a
   expect(Object.values(adapter)).not.toContain(credential);
 });
 test("transport pins origin and bearer and strips extra remote fields", async () => {
-  const originalFetch = globalThis.fetch;
+  const originalFetch = serviceHttp.fetch;
   let stdout = "";
   try {
-    globalThis.fetch = (async (input: unknown, options?: RequestInit) => {
+    serviceHttp.fetch = (async (input: unknown, options?: RequestInit) => {
       expect(input).toBe("https://run-prose-production.openprose.workers.dev/organizations");
       expect(options?.redirect).toBe("manual");
       expect((options?.headers as Record<string, string>).Authorization).toBe(`Bearer ${credential}`);
@@ -110,10 +111,10 @@ test("transport pins origin and bearer and strips extra remote fields", async ()
     expect(code).toBe(0);
     expect(JSON.parse(stdout).result.organizations).toEqual([{ id: "org", slug: "org", name: "Org" }]);
     expect(stdout).not.toContain(credential);
-  } finally { globalThis.fetch = originalFetch; }
+  } finally { serviceHttp.fetch = originalFetch; }
 });
 test("HTTP failures remain typed with empty or HTML bodies; successful bodies remain bounded", async () => {
-  const originalFetch = globalThis.fetch;
+  const originalFetch = serviceHttp.fetch;
   try {
     for (const [status, body, expected] of [
       [401, "", "SERVICE_AUTH_REQUIRED"],
@@ -121,12 +122,12 @@ test("HTTP failures remain typed with empty or HTML bodies; successful bodies re
       [200, "x".repeat(65_537), "SERVICE_PROTOCOL_INVALID"],
     ] as const) {
       let stdout = "";
-      globalThis.fetch = (async () => new Response(body, { status })) as unknown as typeof fetch;
+      serviceHttp.fetch = (async () => new Response(body, { status })) as unknown as typeof fetch;
       await runServiceAccount("auth-status", "json", { env: { OPENPROSE_API_KEY: credential }, writeStdout: (value) => { stdout += value; }, writeStderr: () => {} });
       expect(JSON.parse(stdout).problem.code).toBe(expected);
       expect(stdout).not.toContain(credential);
     }
-  } finally { globalThis.fetch = originalFetch; }
+  } finally { serviceHttp.fetch = originalFetch; }
 });
 test("organization group help is the generated topic; org list help is its own topic", async () => {
   let topic = "";

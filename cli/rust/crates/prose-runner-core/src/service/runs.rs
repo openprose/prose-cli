@@ -1965,7 +1965,13 @@ fn session_resubmit_argv(context: &Context<'_>, session: &str) -> Vec<String> {
             .iter()
             .position(|token| token == "--")
             .unwrap_or(argv.len());
-        argv.insert(end, "--detach".to_owned());
+        // Construct recovery argv only; the session is not written to a log.
+        argv = argv[..end]
+            .iter()
+            .cloned()
+            .chain(std::iter::once("--detach".to_owned()))
+            .chain(argv[end..].iter().cloned())
+            .collect();
     }
     argv
 }

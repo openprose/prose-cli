@@ -10,6 +10,7 @@ import { manifest, type Environment, type Json, type JsonObject, type ManifestOp
 import { canonicalJson, patternMatches, sanitizeServiceMessage } from "./render";
 import { FixtureSource, SseReader, StreamSource, fixtureBytes, type StreamEnd } from "./sse";
 import { nativeStore } from "./credentials";
+import { serviceFetch } from "./fetch";
 
 // Compile-time only (scripts/image-bundle.ts); the inline guard below lets a
 // release build fold this test seam away.
@@ -381,13 +382,13 @@ export class Transport {
       signals.push(connect.signal);
     }
     try {
-      return await fetch(url(this.environment.origin, request), {
+      return await serviceFetch(url(this.environment.origin, request), {
         method: request.method,
         redirect: "manual",
         signal: AbortSignal.any(signals),
         headers: wireHeaders(request, token),
         ...(request.body === undefined ? {} : { body: Buffer.from(request.body) }),
-      });
+      }, this.env);
     } catch {
       this.check();
       throw unavailable();
