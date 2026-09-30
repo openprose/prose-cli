@@ -1131,8 +1131,20 @@ mod tests {
 
 #[test]
 fn output_budget_keeps_host_stderr_boundary() {
- let c=CancellationPolicy {graceful:GracefulControl::None,grace_ms:0,hard_kill_after_ms:1};
- let mut l=HostLimits {max_stdout_bytes:268_435_456,max_stderr_bytes:67_108_864,max_queued_chunks:1};
- assert!(validate_limits(&l,&c,1000).is_ok());l.max_stdout_bytes+=1;assert!(validate_limits(&l,&c,1000).is_err());
- l.max_stdout_bytes=268_435_456;l.max_stderr_bytes+=1;assert!(validate_limits(&l,&c,1000).is_err());
+    let c = CancellationPolicy {
+        graceful: GracefulControl::None,
+        grace_ms: 0,
+        hard_kill_after_ms: 1,
+    };
+    let mut l = HostLimits {
+        max_stdout_bytes: 268_435_456,
+        max_stderr_bytes: 67_108_864,
+        max_queued_chunks: 1,
+    };
+    assert!(validate_limits(&l, &c, 1000).is_ok());
+    l.max_stdout_bytes += 1;
+    assert!(validate_limits(&l, &c, 1000).is_err());
+    l.max_stdout_bytes = 268_435_456;
+    l.max_stderr_bytes += 1;
+    assert!(validate_limits(&l, &c, 1000).is_err());
 }
