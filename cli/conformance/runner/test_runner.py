@@ -87,7 +87,7 @@ class RunnerUnitTest(unittest.TestCase):
         wanted = runner.expected_for_host(case, "linux", "aarch64")
         self.assertEqual("arm64", wanted["resultMatches"]["error"]["details"]["hostArchitecture"])
         self.assertTrue(runner.deep_subset({"terminal": {"classification": "success"}}, wanted["resultMatches"]))
-        self.assertEqual(48, len(list(runner.case_paths(7, set()))))
+        self.assertEqual(50, len(list(runner.case_paths(7, set()))))
 
     def test_hosted_transport_and_missing_selection_cases_freeze_dx_precedence(
         self,

@@ -518,3 +518,15 @@ Root adds the fs feature to already pinned rustix in runner-core Cargo.toml for 
 Root additionally assigns `environment_bun` `cli/README.md`, `cli/conformance/runner/README.md`, `cli/conformance/cases/fixtures/runner-help.txt`, `cli/ci/check_architecture.py` (exact module builtin admissions only), `cli/ci/run_local.py` (registry oracle gates), and `cli/shared/schemas/README.md` for registry developer documentation and shared integration gates. Rust help/source changes remain coordinated with `environment_rust`; root retains Git and schema/taxonomy validation.
 
 Root extends the integration lease to `cli/ci/test_run_local.py` for the explicit service/environment/registry gate inventory assertion.
+
+## IMP-061 isolated corrective review — September 30, 2026
+
+Codex is the user-assigned lead in this isolated corrective branch. The lead owns Git/index operations, this registry, and the following exact corrective paths: `cli/shared/schemas/adapter-admission-recipe.schema.json`, `cli/conformance/cases/adapters/claude-*.json`, `cli/conformance/runner/run.py`, `cli/conformance/fixtures/installed-adapter-harness.py`, `cli/conformance/runner/test_runner.py`, `docs/cli-pr-review.md`, `cli/CONTRIBUTING.md`. Existing historical leases are preserved; no shared worktree is being edited. Scope is provider-free qualification and fixes for PRs 10/11; no merge, release, deployment, or model run is assigned.
+
+Lease extension: `cli/conformance/cases/case-manifest.schema.json`, `cli/conformance/adversarial/adapter-products/fake_live_harness.py`, `cli/shared/tests/test_contracts.py` for shared Claude compatibility fixture controls and schema tests.
+
+Lease extension: `cli/rust/crates/prose-runner-core/src/installed_adapters.rs` for shared session-rejection diagnostics established by the new negative corpus cases.
+
+Lease extension: `cli/conformance/fixtures/adapter-host-expectations.json` to preserve platform rejection for the two new shared cases.
+
+Lease extension: `docs/claude-compatibility-qualification.md` for the maintained corrective verification record.

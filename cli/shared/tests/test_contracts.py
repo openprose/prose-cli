@@ -924,5 +924,14 @@ class ContractsTest(unittest.TestCase):
             )
 
 
+    def test_claude_compatibility_floor_is_closed_and_canonical(self):
+        recipe = load_json(SHARED / "capabilities/adapters/recipes/claude-print-stream-json.v1.json")
+        self.assert_valid("adapter-admission-recipe.schema.json", recipe)
+        for floor in ["2.1.0243", "2.1.243-alpha.1", "2.1", "latest", 243]:
+            candidate = json.loads(json.dumps(recipe))
+            candidate["support"]["minimumVersion"] = floor
+            self.assertTrue(list(self.validator("adapter-admission-recipe.schema.json").iter_errors(candidate)))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

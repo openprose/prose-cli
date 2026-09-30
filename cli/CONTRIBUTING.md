@@ -239,3 +239,18 @@ using one product's output as the expected result for the other.
 For the current implementation status and known blockers, read
 `cli/protocol/STATUS.md`. For release construction and local package rehearsal,
 read `cli/release/README.md`.
+
+## Claude compatibility admission and measured qualification
+
+The Claude adapter permits stable versions from the recipe's `minimumVersion`
+within the same major version. This is permission to attempt an invocation,
+not evidence that every permitted release has passed live qualification.
+`admittedVersions` retains the exact audited versions; release evidence and
+benchmark cells continue to identify the exact version actually tested.
+
+Unknown Claude telemetry is tolerated only after initialization, within the
+same session, and before completion. It cannot settle an invocation or weaken
+validation of known records. Shared provider-free cases exercise newer-version
+startup and unknown types/subtypes. Both product unit suites retain missing
+and incorrect session rejection checks. Their error-metadata parity is a
+separate known limitation, not a successful differential qualification.

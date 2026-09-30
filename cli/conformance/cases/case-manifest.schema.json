@@ -46,6 +46,8 @@
                 "omp/rpc"
               ]
             },
+            "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+            "telemetryScenario": { "enum": ["unknown-type", "unknown-subtype"] },
             "versionProbeScenario": {
               "enum": ["wrong-stream-success"]
             }

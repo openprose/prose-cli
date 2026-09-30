@@ -27,7 +27,9 @@
     "adapters.omp-version-probe-wrong-stream": "omp/rpc",
     "adapters.claude-functional-alpha": "claude/print-stream-json",
     "adapters.prime-functional-alpha": "prime/rpc",
-    "dx.dry-run-prime": "prime/rpc"
+    "dx.dry-run-prime": "prime/rpc",
+    "adapters.claude-unknown-type": "claude/print-stream-json",
+    "adapters.claude-unknown-subtype": "claude/print-stream-json"
   },
   "supportedPlatforms": {
     "codex/exec-json": [
