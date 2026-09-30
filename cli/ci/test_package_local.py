@@ -2688,6 +2688,24 @@ process.stdout.write(JSON.stringify({ spawned, stderr, exitCode: fakeProcess.exi
                 self.assertIn("--image-manifest", completed.stderr)
                 self.assertNotIn("Traceback", completed.stderr)
 
+    def assert_logged_out_account_status(self, completed):
+        report = json.loads(completed.stdout)
+        self.assertEqual(set(report), {"schema", "operation", "interaction", "result", "problem"})
+        self.assertEqual(report["schema"], "openprose.service-operation/1")
+        self.assertEqual(report["operation"], "auth.status")
+        self.assertEqual(report["interaction"], "cli.auth_status")
+        if completed.returncode == 0:
+            self.assertEqual(report["result"], {"authenticated": False, "credentialSource": "none"})
+            self.assertIsNone(report["problem"])
+        else:
+            # Headless hosts may lack Secret Service/keychain availability.
+            self.assertEqual(completed.returncode, 10, report)
+            self.assertIsNone(report["result"])
+            self.assertEqual(report["problem"]["code"], "CREDENTIAL_STORE_UNAVAILABLE")
+            self.assertEqual(report["problem"]["exitCode"], 10)
+            self.assertIn("OPENPROSE_API_KEY", report["problem"]["action"])
+        self.assertEqual(completed.stderr, b"")
+
     def test_unpacked_rust_and_bun_archives_run_the_public_machine_surface(
         self,
     ) -> None:
@@ -2757,7 +2775,7 @@ process.stdout.write(JSON.stringify({ spawned, stderr, exitCode: fakeProcess.exi
                 (
                     ["--output", "json", "cli", "auth", "status"],
                     "openprose.service-operation/1",
-                    0,
+                    None,
                 ),
             ]:
                 result = run_artifact(
@@ -2766,9 +2784,10 @@ process.stdout.write(JSON.stringify({ spawned, stderr, exitCode: fakeProcess.exi
                     workspace,
                     self.root / f"machine-env-{implementation}-{schema}",
                 )
-                self.assertEqual(
-                    result.returncode, exit_code, (implementation, arguments, result.stderr)
-                )
+                if schema == "openprose.service-operation/1":
+                    self.assert_logged_out_account_status(result)
+                else:
+                    self.assertEqual(result.returncode, exit_code, (implementation, arguments, result.stderr))
                 self.assertEqual(result.stderr, b"")
                 report = json.loads(result.stdout)
                 self.assertEqual(report["schema"], schema)
@@ -2820,10 +2839,7 @@ process.stdout.write(JSON.stringify({ spawned, stderr, exitCode: fakeProcess.exi
             workspace,
             self.root / "npm-account-env",
         )
-        self.assertEqual(account.returncode, 0)
-        self.assertEqual(
-            json.loads(account.stdout)["schema"], "openprose.service-operation/1"
-        )
+        self.assert_logged_out_account_status(account)
 
     def test_meta_package_has_exact_optional_dependencies_and_no_lifecycle_scripts(
         self,
