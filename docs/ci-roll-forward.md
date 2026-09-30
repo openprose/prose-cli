@@ -88,3 +88,10 @@ absolute image/program/validator paths in exported identities. Admission still
 verifies exact input bytes, but public descriptors now use portable paths. All
 34 current benchmark contract tests pass. The fixture process is explicitly not
 a CLI performance measurement.
+
+Linux source run 36787737698 reached Rust tests and exposed three Linux Secret
+Service assertions still using the former account envelope and unstructured
+malformed-key reason. Those tests now follow the current service envelope and
+structured credential fields, retaining secret-tool call, shadow resistance,
+missing-D-Bus and recovery checks. This is a test update, not a legacy fallback.
+Fresh Linux execution remains required.

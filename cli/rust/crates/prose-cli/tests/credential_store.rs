@@ -113,9 +113,9 @@ fn credential_store_auth_status_and_logout_use_secret_tool() {
         );
         let report = json(&output);
         assert_eq!(output.status.code(), Some(0), "{report}");
-        assert_eq!(report["schema"], "openprose.service-account/1");
-        assert_eq!(report["environment"], environment);
-        assert_eq!(report["authenticated"], false);
+        assert_eq!(report["schema"], "openprose.service-operation/1");
+        assert_eq!(report["operation"], "auth.logout");
+        assert_eq!(report["result"]["authenticated"], false);
         assert_eq!(report["problem"], Value::Null);
         assert!(!item.exists(), "logout removed the stored key");
         assert_eq!(
@@ -132,8 +132,8 @@ fn credential_store_auth_status_and_logout_use_secret_tool() {
         );
         let report = json(&output);
         assert_eq!(output.status.code(), Some(0), "{report}");
-        assert_eq!(report["authenticated"], false);
-        assert_eq!(report["credentialSource"], "none");
+        assert_eq!(report["result"]["authenticated"], false);
+        assert_eq!(report["result"]["credentialSource"], "none");
         assert_eq!(
             calls(temp.path()).last().unwrap(),
             &format!("|lookup{}", attributes(environment))
@@ -180,11 +180,7 @@ fn credential_store_missing_tool_or_dbus_names_the_environment_variable() {
         );
         let report = json(&output);
         assert_ne!(output.status.code(), Some(0), "{report}");
-        let problem = if report["problem"].is_object() {
-            &report["problem"]
-        } else {
-            &report
-        };
+        let problem = &report["problem"];
         assert_eq!(problem["code"], "CREDENTIAL_STORE_UNAVAILABLE", "{report}");
         let reason = problem["details"]["reason"].as_str().unwrap_or_default();
         assert!(reason.contains("OPENPROSE_API_KEY"), "{report}");
@@ -218,17 +214,13 @@ fn run_json(root: &Path, path: &Path, args: &[&str]) -> (Option<i32>, Value) {
 }
 
 fn problem(report: &Value) -> &Value {
-    if report["problem"].is_object() {
-        &report["problem"]
-    } else {
-        report
-    }
+    &report["problem"]
 }
 
 /// A malformed or newline-terminated stored value is returned unchanged by the
 /// store and rejected by the caller, exactly as the Bun build does: service
 /// commands report `SERVICE_AUTH_REQUIRED` with a reason (no request is sent),
-/// the account `auth status` reports `SERVICE_PROTOCOL_INVALID`, and `auth logout`
+/// the account `auth status` reports `SERVICE_AUTH_REQUIRED`, and `auth logout`
 /// still recovers.
 #[test]
 fn credential_store_malformed_item_is_rejected_by_callers_like_bun() {
@@ -246,9 +238,15 @@ fn credential_store_malformed_item_is_rejected_by_callers_like_bun() {
         let problem = problem(&report);
         assert_eq!(problem["code"], "SERVICE_AUTH_REQUIRED", "{report}");
         let reason = problem["details"]["reason"].as_str().unwrap_or_default();
+        assert!(reason.contains("not a valid"), "{report}");
+        assert_eq!(
+            problem["details"]["credentialVariable"],
+            "OPENPROSE_API_KEY"
+        );
+        assert_eq!(problem["details"]["credentialProblem"], "malformed");
         assert!(
-            reason.contains("OPENPROSE_API_KEY") && reason.contains("not a valid"),
-            "{report}"
+            !report.to_string().contains(value),
+            "stored value is private"
         );
         assert!(
             problem["details"]["serviceStatus"].is_null(),
@@ -257,11 +255,7 @@ fn credential_store_malformed_item_is_rejected_by_callers_like_bun() {
 
         let (code, report) = run_json(temp.path(), &bin, &["auth", "status"]);
         assert_eq!(code, Some(10), "{report}");
-        assert_eq!(
-            problem_code(&report),
-            "SERVICE_PROTOCOL_INVALID",
-            "{report}"
-        );
+        assert_eq!(problem_code(&report), "SERVICE_AUTH_REQUIRED", "{report}");
 
         let (code, report) = run_json(temp.path(), &bin, &["auth", "logout"]);
         assert_eq!(code, Some(0), "{report}");
@@ -287,7 +281,7 @@ fn credential_store_system_tool_wins_over_a_path_shadow() {
     fs::rename(temp.path().join("bin"), temp.path().join("system")).unwrap();
     let (code, report) = run_json(temp.path(), &shadow.join("bin"), &["auth", "status"]);
     assert_eq!(code, Some(0), "{report}");
-    assert_eq!(report["authenticated"], false, "{report}");
+    assert_eq!(report["result"]["authenticated"], false, "{report}");
     assert!(calls(&shadow).is_empty(), "the PATH shadow was never run");
     assert_eq!(calls(temp.path()).len(), 1, "the system tool answered");
 }

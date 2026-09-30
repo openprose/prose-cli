@@ -607,3 +607,5 @@ IMP-061 lease extension: `cli/ci/release_package_admission.py` to update its clo
 IMP-061 benchmark leases: `cli/benchmarks/tests/test_smoke_contract.py` and `cli/benchmarks/README.md`. Retire assertions against absent mechanically migrated historical evidence. Retain current snapshot/atomic custody and rig tests, and verify current fixture collection digests, privacy and deterministic reanalysis without claiming a CLI measurement.
 
 IMP-061 lease extension: `cli/benchmarks/runner/cli.py`. Current fixture collection revealed absolute image/program/validator paths in exported identities. Normalize only their public descriptors after exact input admission, preserving the verified digest and private execution authorities.
+
+IMP-061 Linux credential-test lease: `cli/rust/crates/prose-cli/tests/credential_store.rs`. Fresh Linux source admission exposed assertions for the retired account envelope and error text. Assert the current service-operation envelope, structured malformed-credential details, native Secret Service calls, shadow resistance and credential-free argv; no compatibility fallback is added.
