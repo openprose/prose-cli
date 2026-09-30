@@ -1,0 +1,22 @@
+{
+  "id": "help-package-publish-topic",
+  "feature": "framework",
+  "operation": "package.publish",
+  "description": "`cli package publish --help` prints its topic with manifest exit codes.",
+  "argv": [
+    "cli",
+    "package",
+    "publish",
+    "--help"
+  ],
+  "fixture": {
+    "exchanges": []
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "Usage: prose [GLOBAL OPTIONS] cli package publish <FILE|DIR> --organization <ORG> --name <NAME> --version <VERSION> [--public] [--json]\n\nPublish one file, or a directory with prose-package.json listing its files, exports\nand pinned dependencies. Private is the default.\n\nArguments:\n  FILE|DIR                    The file or package directory to publish.\n\nOptions:\n  --organization ORG          Organization that owns the package. Required.\n  --name NAME                 Package name. Required.\n  --version VERSION           Exact version to publish. Required.\n  --public                    Make the version publicly discoverable.\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli package publish my-package --organization acme --name tool --version 1.0.0 --json\n\nOutput: openprose.package-operation/1 (--json).\nExit codes: 0 success; 2 invalid invocation or configuration; 10 service, credential or registry error; 24 interrupted.\n"
+  },
+  "stderr": {
+    "text": ""
+  }
+}

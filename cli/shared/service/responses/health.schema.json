@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.openprose.org/cli/v1/service/responses/health.schema.json",
+  "title": "service response acceptance: GET /health",
+  "x-probed": true,
+  "type": "object",
+  "required": [
+    "status",
+    "models",
+    "default_model"
+  ],
+  "properties": {
+    "status": {
+      "type": "string"
+    },
+    "environments": {
+      "type": "object",
+      "required": [
+        "default",
+        "available"
+      ],
+      "properties": {
+        "default": {
+          "type": "string"
+        },
+        "available": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "models": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "default_model": {
+      "type": "string"
+    }
+  },
+  "description": "The CLI reads status, models and default_model (and environments for `cli run quote`); every other field is ignored and never printed."
+}

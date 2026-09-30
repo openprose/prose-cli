@@ -1,0 +1,51 @@
+{
+  "id": "job-show-control-character-id",
+  "feature": "jobs",
+  "operation": "job.show",
+  "description": "A job id with a control character is rejected before any request.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "job",
+    "show",
+    "bad\u0007id"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "job.read",
+      "operation": "job.show",
+      "problem": {
+        "action": "Correct the value named in Detail; `prose --output json cli job show --help` shows the accepted syntax.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "job id must be 1 to 256 characters without control characters; list ids with `cli job list`",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "job",
+            "show",
+            "--help"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

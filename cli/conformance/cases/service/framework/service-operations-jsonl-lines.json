@@ -1,0 +1,20 @@
+{
+  "id": "service-operations-jsonl-lines",
+  "feature": "framework",
+  "operation": "service.operations",
+  "description": "`--output jsonl` prints one canonical line per manifest operation, in manifest order.",
+  "argv": [
+    "--output",
+    "jsonl",
+    "cli",
+    "service",
+    "operations"
+  ],
+  "fixture": {
+    "exchanges": []
+  },
+  "exitCode": 0,
+  "stdout": {
+    "manifestOperations": true
+  }
+}

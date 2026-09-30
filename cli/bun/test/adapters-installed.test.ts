@@ -1870,7 +1870,8 @@ describe("installed executable discovery and version probes", () => {
     ["omp/rpc", "omp/18.0.10", "omp", ["18.0.9"], "npm install --global bun@1.3.14 @oh-my-pi/pi-coding-agent@18.0.9"],
     ["codex/exec-json", "codex-cli 0.149.0-alpha.4.2", "codex", ["0.149.0-alpha.4.1"], "npm install --global @openai/codex@0.149.0-alpha.4.1"],
     ["codex/exec-json", "codex-cli 0.150.0-alpha.1", "codex", ["0.149.0-alpha.4.1"], "npm install --global @openai/codex@0.149.0-alpha.4.1"],
-    ["claude/print-stream-json", "2.1.244 (Claude Code)", "claude", ["2.1.243"], "npm install --global @anthropic-ai/claude-code@2.1.243"],
+    ["claude/print-stream-json", "2.1.242 (Claude Code)", "claude", ["2.1.243"], "npm install --global @anthropic-ai/claude-code@2.1.243"],
+    ["claude/print-stream-json", "3.0.0 (Claude Code)", "claude", ["2.1.243"], "npm install --global @anthropic-ai/claude-code@2.1.243"],
     ["claude/print-stream-json", "2.2.0-alpha.1 (Claude Code)", "claude", ["2.1.243"], "npm install --global @anthropic-ai/claude-code@2.1.243"],
   ] as const)("rejects adjacent non-allowlisted %s version %s with exact repair metadata", async (adapterId, version, executableName, admittedVersions, repairCommand) => {
     const input = await fixture();
@@ -2828,7 +2829,7 @@ describe("ordinary functional-alpha installed execution", () => {
       const human = await execute("human");
       expect(human.exit).toBe(0);
       expect(human.stdout).toContain(operation === "dry-run"
-        ? "Dry run: mechanically ready; authentication unverified\n"
+        ? "Readiness: mechanically ready; authentication unverified\n"
         : "status: mechanically ready; authentication unverified\n");
       expect(await Bun.file(observationPath).exists()).toBeFalse();
       expect(await Bun.file(`${observationPath}.auth-probe`).exists()).toBeFalse();
@@ -2860,7 +2861,7 @@ describe("ordinary functional-alpha installed execution", () => {
     };
     for (const [args, line] of [
       [["--harness", "codex", "--output", "human", "cli", "doctor"], "status: ready\n"],
-      [["--harness", "codex", "--dry-run", "--output", "human", "run"], "Dry run: ready\n"],
+      [["--harness", "codex", "--dry-run", "--output", "human", "run"], "Readiness: ready\n"],
     ] as const) {
       const verified = await execute([...args], input.root);
       expect(verified.exit).toBe(0);
@@ -2869,7 +2870,7 @@ describe("ordinary functional-alpha installed execution", () => {
     }
     for (const [args, line, authLine] of [
       [["--harness", "mock", "--output", "human", "cli", "doctor"], "status: ready\n", "auth readiness: not-applicable\n"],
-      [["--harness", "mock", "--dry-run", "--output", "human", "run"], "Dry run: ready\n", "Auth: none-test-only (not-applicable)\n"],
+      [["--harness", "mock", "--dry-run", "--output", "human", "run"], "Readiness: ready\n", "Auth: none-test-only (not-applicable)\n"],
     ] as const) {
       const notApplicable = await execute([...args], input.root, sentinelFixtureImage);
       expect(notApplicable.exit).toBe(0);
@@ -2879,7 +2880,7 @@ describe("ordinary functional-alpha installed execution", () => {
     }
     for (const [args, line] of [
       [["--harness", "codex", "--output", "human", "cli", "doctor"], "status: not ready\n"],
-      [["--harness", "codex", "--dry-run", "--output", "human", "run"], "Dry run: blocked\n"],
+      [["--harness", "codex", "--dry-run", "--output", "human", "run"], "Readiness: blocked\n"],
     ] as const) {
       const blocked = await execute([...args], join(input.root, "empty-path"));
       expect(blocked.exit).toBe(10);

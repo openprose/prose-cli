@@ -1,0 +1,1101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.openprose.org/cli/v1/service/operations.schema.json",
+  "title": "OpenProse CLI service operation manifest v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "contract",
+    "interactionsSource",
+    "grammar",
+    "exitCodes",
+    "envVars",
+    "environments",
+    "credential",
+    "clientIdentity",
+    "transportClasses",
+    "policy",
+    "confirmation",
+    "errorClassification",
+    "stream",
+    "journal",
+    "operations"
+  ],
+  "properties": {
+    "schema": {
+      "const": "openprose.service-operations/1"
+    },
+    "contract": {
+      "const": "service/1"
+    },
+    "interactionsSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "file",
+        "sha256"
+      ],
+      "properties": {
+        "file": {
+          "const": "service-interactions.v1.json"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "grammar": {
+      "type": "object",
+      "required": [
+        "usage",
+        "globalOptions",
+        "placement",
+        "rejectedGlobalOptions",
+        "commonOptions",
+        "intentInference"
+      ],
+      "properties": {
+        "intentInference": {
+          "description": "Parser intent inference: synonym tables, command aliases and the did-you-mean distance. Both products read these tables; a suggestion is never executed, and only a commandAliases spelling runs a command.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "rule",
+            "distance",
+            "nounSynonyms",
+            "verbSynonyms",
+            "optionAliases",
+            "optionConversions",
+            "commandRewrites",
+            "commandAliases",
+            "optionRemovals",
+            "secretFileOptions",
+            "languageCommands"
+          ],
+          "properties": {
+            "rule": {
+              "type": "string",
+              "minLength": 1
+            },
+            "distance": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "metric",
+                "shortWordLength",
+                "shortWordMax",
+                "max"
+              ],
+              "properties": {
+                "metric": {
+                  "const": "optimal-string-alignment"
+                },
+                "shortWordLength": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "shortWordMax": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "max": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 3
+                },
+                "optionShortWordLength": {
+                  "description": "An unknown option whose name, without its leading dashes, has at most this many characters is matched to a known option by distance only within optionShortWordMax.",
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "optionShortWordMax": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            },
+            "nounSynonyms": {
+              "type": "object",
+              "propertyNames": {
+                "pattern": "^[a-z][a-z0-9-]*$"
+              },
+              "additionalProperties": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 3,
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9-]*$"
+                }
+              },
+              "description": "A word after `cli` -> the command words it stands for."
+            },
+            "verbSynonyms": {
+              "type": "object",
+              "propertyNames": {
+                "pattern": "^[a-z][a-z0-9-]*$"
+              },
+              "additionalProperties": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 8,
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9-]*$"
+                }
+              },
+              "description": "A word in verb position -> candidate verbs in preference order; the first that exists in the group wins."
+            },
+            "optionAliases": {
+              "type": "object",
+              "propertyNames": {
+                "pattern": "^-{1,2}[a-z][a-z0-9-]*$"
+              },
+              "additionalProperties": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 4,
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "pattern": "^--[a-z][a-z0-9-]*$"
+                }
+              },
+              "description": "A foreign option spelling -> candidate options in preference order; the first the operation accepts wins."
+            },
+            "optionConversions": {
+              "type": "object",
+              "propertyNames": {
+                "pattern": "^-{1,2}[a-z][a-z0-9-]*$"
+              },
+              "additionalProperties": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "option",
+                  "multiplier",
+                  "from",
+                  "to"
+                ],
+                "properties": {
+                  "option": {
+                    "type": "string",
+                    "pattern": "^--[a-z][a-z0-9-]*$"
+                  },
+                  "multiplier": {
+                    "type": "integer",
+                    "minimum": 2
+                  },
+                  "from": {
+                    "type": "string",
+                    "pattern": "^[a-z]+$"
+                  },
+                  "to": {
+                    "type": "string",
+                    "pattern": "^[a-z]+$"
+                  }
+                }
+              },
+              "description": "A foreign option whose value is in another unit -> the option it means and the factor: a positive whole-number value times multiplier. Any other value is not converted."
+            },
+            "commandRewrites": {
+              "type": "object",
+              "propertyNames": {
+                "pattern": "^[a-z][a-z0-9-]*( [a-z][a-z0-9-]*)*$"
+              },
+              "additionalProperties": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "command",
+                  "append",
+                  "why"
+                ],
+                "properties": {
+                  "command": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[a-z][a-z0-9-]*$"
+                    }
+                  },
+                  "append": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "why": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "argumentOption": {
+                    "description": "The option the typed positional argument becomes (`cli program run SLUG` -> `cli run submit --from SLUG`).",
+                    "type": "string",
+                    "pattern": "^--[a-z][a-z0-9-]*$"
+                  },
+                  "argumentCommand": {
+                    "description": "The command a typed positional argument selects instead (`cli why RUN_ID` -> `cli run show RUN_ID`); nothing is appended to it.",
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[a-z][a-z0-9-]*$"
+                    }
+                  },
+                  "note": {
+                    "description": "A sentence the Action starts with, naming the related commands.",
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              },
+              "description": "A command phrase that is not a command path -> the command that does it and the options to append after the phrase's arguments; `why` is quoted in the reason."
+            },
+            "commandAliases": {
+              "description": "An exact command spelling (group and verb) -> the command it runs. Aliases are hidden from help and listings; the envelope names the target operation.",
+              "type": "object",
+              "propertyNames": {
+                "pattern": "^[a-z][a-z0-9-]* [a-z][a-z0-9-]*$"
+              },
+              "additionalProperties": {
+                "type": "array",
+                "minItems": 2,
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9-]*$"
+                }
+              }
+            },
+            "optionRemovals": {
+              "description": "An option that is dropped with a reason: the suggestion is the argv without it (and its value when `value` is true). A non-empty `operations` limits the entry to those operation ids.",
+              "type": "object",
+              "propertyNames": {
+                "pattern": "^-{1,2}[a-z][a-z0-9-]*$"
+              },
+              "additionalProperties": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "value",
+                  "operations",
+                  "why"
+                ],
+                "properties": {
+                  "value": {
+                    "type": "boolean"
+                  },
+                  "operations": {
+                    "type": "array",
+                    "uniqueItems": true,
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[a-z]+(?:\\.[a-z][a-z-]*)*$"
+                    }
+                  },
+                  "why": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              }
+            },
+            "secretFileOptions": {
+              "type": "object",
+              "propertyNames": {
+                "pattern": "^--[a-z][a-z0-9-]*-file$"
+              },
+              "additionalProperties": {
+                "type": "string",
+                "pattern": "^[A-Z][A-Z_]*$"
+              },
+              "description": "Options that read a secret from a file or standard input -> the placeholder the standard-input example uses. An unexpected argument of an operation with such an option is presumed to be the secret: it is never echoed, and the suggestion reads the option from standard input."
+            },
+            "languageCommands": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]*$"
+              },
+              "description": "Current OpenProse language commands (SPEC 7.1). A lone one before `cli` is always forwarded, even when a nounSynonyms entry names a service command."
+            }
+          }
+        }
+      }
+    },
+    "exitCodes": {
+      "description": "The exit-code dictionary of every error code a service operation can end with: code -> {exit, retryable, meaning}. Each entry equals the error taxonomy (exitCode, retryable, message). It lists every code a shared corpus case emits, every code an operation's exitCodes lists and every errorClassification target; render_service_help.py --check enforces all three. `prose cli service capabilities` prints it.",
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {
+        "pattern": "^[A-Z][A-Z0-9_]*$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "exit",
+          "retryable",
+          "meaning"
+        ],
+        "properties": {
+          "exit": {
+            "enum": [
+              2,
+              10,
+              20,
+              21,
+              22,
+              23,
+              24,
+              25,
+              70
+            ]
+          },
+          "retryable": {
+            "type": "boolean"
+          },
+          "meaning": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "envVars": {
+      "description": "Environment variables service operations read, in the order `prose cli service capabilities` prints them.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "description"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_]*$"
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "environments": {
+      "description": "The one service origin public builds reach. Developer builds may override it at run time; that override is never part of this manifest.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "production"
+      ],
+      "properties": {
+        "production": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "origin",
+            "credentialEnv",
+            "credentialStore"
+          ],
+          "properties": {
+            "origin": {
+              "const": "https://run-prose-production.openprose.workers.dev"
+            },
+            "credentialEnv": {
+              "const": "OPENPROSE_API_KEY"
+            },
+            "credentialStore": {
+              "const": true
+            }
+          }
+        }
+      }
+    },
+    "credential": {
+      "type": "object"
+    },
+    "clientIdentity": {
+      "type": "object"
+    },
+    "transportClasses": {
+      "type": "object"
+    },
+    "policy": {
+      "type": "object"
+    },
+    "confirmation": {
+      "type": "object",
+      "properties": {
+        "summaryFields": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "body",
+              "field",
+              "kind"
+            ],
+            "properties": {
+              "body": {
+                "type": "string",
+                "pattern": "^[a-z_]+$"
+              },
+              "field": {
+                "type": "string",
+                "pattern": "^[A-Za-z_]+$"
+              },
+              "kind": {
+                "enum": [
+                  "text",
+                  "integer",
+                  "cents",
+                  "keys"
+                ]
+              }
+            }
+          }
+        },
+        "summaryRule": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "summaryFields",
+        "summaryRule"
+      ]
+    },
+    "errorClassification": {
+      "type": "object"
+    },
+    "stream": {
+      "type": "object"
+    },
+    "journal": {
+      "type": "object"
+    },
+    "operations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "command",
+          "contract",
+          "feature",
+          "summary",
+          "interaction",
+          "interactions",
+          "arguments",
+          "options",
+          "requests",
+          "effect",
+          "mutation",
+          "confirm",
+          "preview",
+          "transport",
+          "output",
+          "exitCodes",
+          "examples"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z]+(?:\\.[a-z][a-z-]*)*$"
+          },
+          "command": {
+            "description": "The command as an argv after `prose`: `cli` and the command path (`[\"cli\", \"run\", \"submit\"]`).",
+            "type": "array",
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "const": "cli"
+              }
+            ],
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z-]*$"
+            }
+          },
+          "contract": {
+            "enum": [
+              "account/1",
+              "service/1"
+            ]
+          },
+          "feature": {
+            "enum": [
+              "framework",
+              "discovery",
+              "runs",
+              "run-records",
+              "programs",
+              "results",
+              "jobs",
+              "wallet",
+              "organizations",
+              "account"
+            ]
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 1
+          },
+          "interaction": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "interactions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "arguments": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "name",
+                "description",
+                "required",
+                "variadic"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "required": {
+                  "type": "boolean"
+                },
+                "variadic": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "name",
+                "value",
+                "description",
+                "repeatable",
+                "required"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "pattern": "^--[a-z][a-z-]*$"
+                },
+                "value": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "description": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "repeatable": {
+                  "type": "boolean"
+                },
+                "required": {
+                  "type": "boolean"
+                },
+                "default": {
+                  "type": "string"
+                },
+                "choices": {
+                  "description": "The values the option accepts; any other value is INVOCATION_INVALID before anything is sent, naming them and suggesting the nearest.",
+                  "type": "array",
+                  "minItems": 1,
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              }
+            }
+          },
+          "requests": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "interaction",
+                "method",
+                "path",
+                "auth",
+                "body",
+                "when",
+                "catalogRoute",
+                "response"
+              ],
+              "properties": {
+                "interaction": {
+                  "type": "string"
+                },
+                "method": {
+                  "enum": [
+                    "GET",
+                    "HEAD",
+                    "POST",
+                    "PUT",
+                    "PATCH",
+                    "DELETE"
+                  ]
+                },
+                "path": {
+                  "type": "string",
+                  "pattern": "^/"
+                },
+                "query": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                },
+                "auth": {
+                  "enum": [
+                    "none",
+                    "bearer",
+                    "optional"
+                  ]
+                },
+                "headers": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                },
+                "body": {
+                  "enum": [
+                    null,
+                    "json"
+                  ]
+                },
+                "when": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "catalogRoute": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "method",
+                    "path",
+                    "auth"
+                  ],
+                  "properties": {
+                    "method": {
+                      "enum": [
+                        "GET",
+                        "HEAD",
+                        "POST",
+                        "PUT",
+                        "PATCH",
+                        "DELETE"
+                      ]
+                    },
+                    "path": {
+                      "type": "string",
+                      "pattern": "^/"
+                    },
+                    "auth": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "response": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          },
+          "effect": {
+            "enum": [
+              "read",
+              "write",
+              "money",
+              "outward",
+              "destructive"
+            ]
+          },
+          "mutation": {
+            "type": "boolean"
+          },
+          "confirm": {
+            "type": "boolean"
+          },
+          "confirmReason": {
+            "description": "The consequence that makes a confirm-class operation need --yes, rendered in its help (`--yes ... required because <reason>.`) and as details.reason of CONFIRMATION_REQUIRED. Required exactly when confirm is true; it must name the effect, never restate that confirmation is required.",
+            "type": "string",
+            "minLength": 20,
+            "maxLength": 240,
+            "pattern": "^(?![\\s\\S]*[Cc]onfirm)[^\\u0000-\\u001f\\u007f]*[^.\\s]$"
+          },
+          "preview": {
+            "type": "boolean"
+          },
+          "transport": {
+            "enum": [
+              "none",
+              "account",
+              "control",
+              "listing",
+              "stream",
+              "download"
+            ]
+          },
+          "output": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "schema",
+              "stream",
+              "paged"
+            ],
+            "properties": {
+              "schema": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "stream": {
+                "type": "boolean"
+              },
+              "paged": {
+                "type": "boolean"
+              },
+              "records": {
+                "description": "The result property holding a list operation's items. In --output jsonl each item is one openprose.service-record/1 line, followed by one openprose.service-page/1 trailer carrying nextBefore and the rest of the result as meta.",
+                "type": "string",
+                "pattern": "^[a-z][A-Za-z_]*$"
+              }
+            }
+          },
+          "notFound": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "resource",
+              "id"
+            ],
+            "properties": {
+              "resource": {
+                "description": "The resource kind a 404 names in details.resource.kind and the reason.",
+                "type": "string",
+                "pattern": "^[a-z]+$"
+              },
+              "id": {
+                "description": "Template of details.resource.id: {ARGUMENT} placeholders name operation arguments.",
+                "type": "string",
+                "minLength": 1
+              },
+              "list": {
+                "description": "Words after `cli` of the listing command returned as details.suggestedArgv; {ARGUMENT} placeholders allowed. Absent when no command lists this resource.",
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "hint": {
+                "description": "Appended to the generated reason after `, ` when the 404 has another likely cause.",
+                "type": "string",
+                "minLength": 1
+              },
+              "serviceCodes": {
+                "description": "Per allowlisted service code (details.serviceCode), the entry that replaces this one.",
+                "type": "object",
+                "additionalProperties": {
+                  "$ref": "#/properties/operations/items/properties/notFound"
+                }
+              }
+            },
+            "description": "What a SERVICE_RESOURCE_NOT_FOUND on this operation names. Both products add details.resource {kind, id}, a reason naming the id (unless a handler gave a more specific one), details.suggestedArgv for `list`, and an Action that quotes it."
+          },
+          "spec": {
+            "$ref": "#/$defs/jobSpec"
+          },
+          "exitCodes": {
+            "description": "The process exit codes this operation can end with, in ascending order, each with the meaning its help prints. `codes` lists the error codes behind an exit when they are specific to the operation; without it the entry stands for every taxonomy code with that exit. render_service_help.py renders the help line from it and checks it against the taxonomy and the shared corpora.",
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "exit",
+                "meaning"
+              ],
+              "properties": {
+                "exit": {
+                  "enum": [
+                    0,
+                    2,
+                    10,
+                    20,
+                    21,
+                    22,
+                    23,
+                    24,
+                    25,
+                    70
+                  ]
+                },
+                "meaning": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[^;]+$"
+                },
+                "codes": {
+                  "type": "array",
+                  "minItems": 1,
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string",
+                    "pattern": "^[A-Z][A-Z0-9_]*$"
+                  }
+                }
+              }
+            }
+          },
+          "confirmWaiver": {
+            "type": "string",
+            "minLength": 1
+          },
+          "examples": {
+            "description": "Runnable example command lines, each starting `prose `. A confirm-class operation's examples carry --yes or --preview. render_service_help.py --check parses each one against the operation's grammar.",
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^prose [^\\n]+$"
+            }
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "confirm": {
+                  "const": true
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "confirmReason"
+              ]
+            },
+            "else": {
+              "not": {
+                "required": [
+                  "confirmReason"
+                ]
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "$defs": {
+    "specField": {
+      "oneOf": [
+        {
+          "enum": [
+            "text",
+            "integer",
+            "interval",
+            "pinnedRef",
+            "programRef",
+            "stringMap",
+            "object",
+            "array"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "enum"
+          ],
+          "properties": {
+            "enum": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "object"
+          ],
+          "properties": {
+            "object": {
+              "$ref": "#/$defs/specObject"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "array"
+          ],
+          "properties": {
+            "array": {
+              "$ref": "#/$defs/specObject"
+            }
+          }
+        }
+      ]
+    },
+    "specObject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "required",
+        "keys"
+      ],
+      "properties": {
+        "required": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "keys": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {
+            "$ref": "#/$defs/specField"
+          }
+        }
+      }
+    },
+    "jobSpec": {
+      "description": "The closed schema a job spec file is checked against before any request. Every key outside `keys` (plus `common` for each `variants` entry chosen by `discriminator`) is refused with the nearest accepted key; every violation is reported at once in details.violations. `unpaidWhen` names the spec shape that starts no runs (effect write, no hold).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "option"
+      ],
+      "properties": {
+        "option": {
+          "type": "string",
+          "pattern": "^--[a-z-]+$"
+        },
+        "discriminator": {
+          "type": "string"
+        },
+        "common": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/specField"
+          }
+        },
+        "variants": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {
+            "$ref": "#/$defs/specObject"
+          }
+        },
+        "unpaidWhen": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "absent"
+          ],
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "absent": {
+              "type": "string"
+            }
+          }
+        },
+        "minKeys": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "required": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "keys": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {
+            "$ref": "#/$defs/specField"
+          }
+        }
+      },
+      "oneOf": [
+        {
+          "required": [
+            "discriminator",
+            "common",
+            "variants"
+          ]
+        },
+        {
+          "required": [
+            "required",
+            "keys"
+          ]
+        }
+      ]
+    }
+  }
+}

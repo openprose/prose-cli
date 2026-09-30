@@ -62,7 +62,8 @@ fn registry_plus_build_path_and_selected_credentials_are_exact() {
                 "OPENPROSE_API_KEY",
                 "rr_test_11111111111111111111111111111111",
             ),
-            ("OPENPROSE_STAGING_API_KEY", "invalid-other-environment"),
+            // Only OPENPROSE_API_KEY is a credential.
+            ("OPENPROSE_TOKEN", "invalid-other-variable"),
         ],
     );
     assert_eq!(output.status.code(), Some(0));
@@ -78,7 +79,7 @@ fn registry_plus_build_path_and_selected_credentials_are_exact() {
         ],
         fixture(json!([])),
         &[(
-            "OPENPROSE_STAGING_API_KEY",
+            "OPENPROSE_TOKEN",
             "rr_test_11111111111111111111111111111111",
         )],
     );

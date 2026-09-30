@@ -1,0 +1,78 @@
+{
+  "id": "program-draft-unknown-model",
+  "feature": "programs",
+  "operation": "program.draft",
+  "description": "An unknown draft --model fails before confirmation with the nearest offered models.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "program",
+    "draft",
+    "write a haiku about rain",
+    "--model",
+    "model-sun",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/models",
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef",
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          },
+          "Accept": "application/json"
+        },
+        "status": 200,
+        "body": {
+          "models": [
+            "model-astra",
+            "model-sol",
+            "model-luna"
+          ],
+          "default_model": "model-sol"
+        }
+      }
+    ]
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "write.author",
+      "operation": "program.draft",
+      "problem": {
+        "action": "Rerun with a model the service offers, for example `prose --output json cli program draft 'write a haiku about rain' --model model-luna --yes`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "--model \"model-sun\" is not a model this account may run; nearest: model-luna, model-sol, model-astra; `prose --output json cli model list` lists them all",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "program",
+            "draft",
+            "write a haiku about rain",
+            "--model",
+            "model-luna",
+            "--yes"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

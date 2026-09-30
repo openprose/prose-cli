@@ -1,0 +1,278 @@
+{
+  "id": "triage-no-cost-fields",
+  "feature": "discovery",
+  "operation": "service.triage",
+  "description": "No cost-side field survives: *_nanos balance fields, run cost fields, customer ids and every /health field other than status, models and default_model are dropped; only price fields (balance, price_cents) appear.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "service",
+    "triage"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/health",
+        "requestHeaders": {
+          "Authorization": {
+            "present": false
+          },
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          }
+        },
+        "status": 200,
+        "body": {
+          "status": "ok",
+          "environments": {
+            "default": "builtin",
+            "available": [
+              "builtin",
+              "linux"
+            ]
+          },
+          "models": [
+            "model-sol",
+            "model-luna"
+          ],
+          "default_model": "model-sol",
+          "version": "9.9.9-extra",
+          "capabilities": {
+            "web:search": {
+              "available": true,
+              "tool": "web_search"
+            }
+          }
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/wallet/balance",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          },
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          }
+        },
+        "status": 200,
+        "body": {
+          "balance": {
+            "available_cents": 18535,
+            "available_dollars": "185.35",
+            "available_nanos": 185350000000,
+            "posted_cents": 19147,
+            "posted_dollars": "191.47",
+            "reserved_cents": 612,
+            "reserved_dollars": "6.12",
+            "reserved_nanos": 6120000000,
+            "cost_nanos": 99,
+            "provider_cost_cents": 7
+          },
+          "customer_id": "cus_ExampleOwner01"
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/organizations/default",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          },
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          }
+        },
+        "status": 200,
+        "body": {
+          "organization": {
+            "id": "0f3c2a9e-5b1d-4c7e-9a8f-1e2d3c4b5a69",
+            "slug": "exowner1",
+            "name": "Example Owner",
+            "role": "admin",
+            "created_at": 1790012915257,
+            "created_by": "cus_ExampleOwner01"
+          }
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/runs",
+        "query": {
+          "limit": "5"
+        },
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          },
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          }
+        },
+        "status": 200,
+        "body": {
+          "runs": [
+            {
+              "run_id": "run_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "created_at": "2026-09-24T05:56:26.658Z",
+              "status": "completed",
+              "model": "model-luna",
+              "price_cents": 2,
+              "environment_price_cents": 1,
+              "billing_status": "settled",
+              "program_ref": "exowner1/daily-digest@3765c81b9bf06fb0",
+              "cost_cents": 1,
+              "provider_cost_nanos": 1234,
+              "cost_usd": "0.01"
+            }
+          ]
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/triggers",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          },
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          }
+        },
+        "status": 200,
+        "body": {
+          "triggers": [
+            {
+              "id": "7d9e4c1a-2b3f-4a5e-8c6d-9f0a1b2c3d4e",
+              "type": "schedule",
+              "createdAt": 1790012915257,
+              "name": "Nightly digest",
+              "adopted": true,
+              "intervalSeconds": 86400,
+              "nextFireAt": 1790100000000,
+              "lastRunId": "run_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "lastError": "program not found",
+              "costCents": 3
+            }
+          ],
+          "max_triggers": 5,
+          "trigger_limit": {
+            "kind": "unlimited"
+          },
+          "types": []
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "health.read",
+      "operation": "service.triage",
+      "problem": null,
+      "result": {
+        "credential": {
+          "problem": null,
+          "source": "store",
+          "state": "valid",
+          "variable": "OPENPROSE_API_KEY"
+        },
+        "health": {
+          "default_model": "model-sol",
+          "models": [
+            "model-sol",
+            "model-luna"
+          ],
+          "problem": null,
+          "status": "ok"
+        },
+        "jobs": {
+          "jobs": [
+            {
+              "id": "7d9e4c1a-2b3f-4a5e-8c6d-9f0a1b2c3d4e",
+              "last_error": "program not found",
+              "last_run_id": "run_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "name": "Nightly digest",
+              "next_fire_at": 1790100000000,
+              "next_fire_at_iso": "2026-09-22T18:00:00.000Z",
+              "type": "schedule"
+            }
+          ],
+          "max": 5,
+          "problem": null,
+          "total": 1
+        },
+        "nextCommands": [
+          {
+            "argv": [
+              "--output",
+              "json",
+              "cli",
+              "job",
+              "show",
+              "7d9e4c1a-2b3f-4a5e-8c6d-9f0a1b2c3d4e"
+            ],
+            "env": null,
+            "why": "job 7d9e4c1a-2b3f-4a5e-8c6d-9f0a1b2c3d4e reported an error"
+          }
+        ],
+        "organization": {
+          "default": {
+            "created_at": 1790012915257,
+            "created_at_iso": "2026-09-21T17:48:35.257Z",
+            "id": "0f3c2a9e-5b1d-4c7e-9a8f-1e2d3c4b5a69",
+            "name": "Example Owner",
+            "role": "admin",
+            "slug": "exowner1"
+          },
+          "problem": null
+        },
+        "runs": {
+          "live": [],
+          "problem": null,
+          "recent": [
+            {
+              "created_at": "2026-09-24T05:56:26.658Z",
+              "model": "model-luna",
+              "price_cents": 2,
+              "program_ref": "exowner1/daily-digest@3765c81b9bf06fb0",
+              "run_id": "run_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "status": "completed"
+            }
+          ]
+        },
+        "wallet": {
+          "balance": {
+            "available_cents": 18535,
+            "available_dollars": "185.35",
+            "posted_cents": 19147,
+            "posted_dollars": "191.47",
+            "reserved_cents": 612,
+            "reserved_dollars": "6.12"
+          },
+          "low": false,
+          "lowBelowCents": 500,
+          "problem": null
+        }
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "cost",
+    "Cost",
+    "nanos",
+    "cus_ExampleOwner01",
+    "rr_test_0123456789abcdef0123456789abcdef",
+    "9.9.9-extra",
+    "web_search"
+  ]
+}

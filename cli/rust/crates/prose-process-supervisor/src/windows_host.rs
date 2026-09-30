@@ -1330,8 +1330,15 @@ const fn host_integrity() -> WindowsHostClientFailure {
 
 #[test]
 fn output_budget_keeps_windows_stderr_boundary() {
- let mut limits=WindowsHostLimits {max_stdout_bytes:268_435_456,max_stderr_bytes:67_108_864,max_queued_chunks:1};
- assert!(validate_limits(limits).is_ok());
- limits.max_stdout_bytes+=1;assert!(validate_limits(limits).is_err());
- limits.max_stdout_bytes=268_435_456;limits.max_stderr_bytes+=1;assert!(validate_limits(limits).is_err());
+    let mut limits = WindowsHostLimits {
+        max_stdout_bytes: 268_435_456,
+        max_stderr_bytes: 67_108_864,
+        max_queued_chunks: 1,
+    };
+    assert!(validate_limits(limits).is_ok());
+    limits.max_stdout_bytes += 1;
+    assert!(validate_limits(limits).is_err());
+    limits.max_stdout_bytes = 268_435_456;
+    limits.max_stderr_bytes += 1;
+    assert!(validate_limits(limits).is_err());
 }

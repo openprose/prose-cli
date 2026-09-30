@@ -1,0 +1,94 @@
+{
+  "id": "program-draft-preview-shows-hold",
+  "feature": "programs",
+  "operation": "program.draft",
+  "description": "A draft preview carries the flat run hold (GET /run/quote) and the model in plannedRequest.summary.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "program",
+    "draft",
+    "write a haiku about rain",
+    "--model",
+    "model-luna",
+    "--preview"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/models",
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef",
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          },
+          "Accept": "application/json"
+        },
+        "status": 200,
+        "body": {
+          "models": [
+            "model-astra",
+            "model-sol",
+            "model-luna"
+          ],
+          "default_model": "model-sol"
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/run/quote",
+        "requestHeaders": {
+          "Authorization": {
+            "present": false
+          }
+        },
+        "status": 200,
+        "body": {
+          "hold": {
+            "hold_usd": "1.02",
+            "ttl_seconds": 900
+          },
+          "pricing_policy_id": "pricing-policy.sha256.f114eadc02b7550e58f12c49996382b04f867cb774ac295506806f599ef1e3cd",
+          "note": "Unused hold is released when the run settles."
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "write.author",
+      "operation": "program.draft",
+      "problem": null,
+      "result": {
+        "plannedRequest": {
+          "bodyBytes": 59,
+          "bodySha256": "15e01384ab6baf839d3e5791b9b1c9abcd402bfe4c8088e5a35e7669cbc0d082",
+          "description": "Draft a program from a sentence with the hosted writer.",
+          "effect": "money",
+          "method": "POST",
+          "operation": "program.draft",
+          "quote": {
+            "hold": {
+              "hold_cents": 102,
+              "hold_usd": "1.02",
+              "ttl_seconds": 900
+            }
+          },
+          "summary": {
+            "model": "model-luna"
+          }
+        },
+        "preview": true
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

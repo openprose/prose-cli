@@ -1,0 +1,57 @@
+{
+  "id": "lone-surrogate-body-ignored",
+  "feature": "framework",
+  "operation": "repo.list",
+  "description": "A body that is not strict JSON (lone surrogate escape) is classified by status alone in both products.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "repo",
+    "list"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/repos",
+        "status": 400,
+        "bodyText": "{\"error\":\"\\ud800x\",\"code\":\"invalid_request\"}"
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "repos.list",
+      "operation": "repo.list",
+      "problem": {
+        "action": "The service gave no reason; check the command against `prose --output json cli repo list --help`, then retry.",
+        "boundary": "hosted-service",
+        "code": "SERVICE_REQUEST_REJECTED",
+        "details": {
+          "serviceStatus": 400,
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "repo",
+            "list",
+            "--help"
+          ]
+        },
+        "exitCode": 10,
+        "message": "The OpenProse service rejected the request.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

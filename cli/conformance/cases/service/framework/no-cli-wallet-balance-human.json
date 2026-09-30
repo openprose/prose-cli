@@ -1,0 +1,25 @@
+{
+  "id": "no-cli-wallet-balance-human",
+  "feature": "framework",
+  "operation": "wallet.balance",
+  "description": "`prose wallet balance` names `prose cli wallet balance`.",
+  "argv": [
+    "wallet",
+    "balance"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: That command isn't quite right.\nDetail: `wallet balance` is a service command; did you mean `prose cli wallet balance`? Nothing was forwarded or sent. To pass these words to the OpenProse language instead, put `--` before them\nAction: Insert cli before the service command: `prose cli wallet balance`.\n"
+  }
+}

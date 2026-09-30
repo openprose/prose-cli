@@ -1,0 +1,57 @@
+{
+  "id": "verb-before-noun-submit-run",
+  "feature": "framework",
+  "operation": "run.submit",
+  "description": "`cli submit run FILE` swaps the verb and noun: `cli run submit FILE`.",
+  "argv": [
+    "cli",
+    "submit",
+    "run",
+    "hello.prose.md",
+    "--preview",
+    "--json"
+  ],
+  "files": [
+    {
+      "path": "hello.prose.md",
+      "content": "# Hello\n\nSay hello.\n"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": null,
+      "operation": "cli",
+      "problem": {
+        "action": "Use `cli run submit`: `prose cli run submit hello.prose.md --preview --json`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "unknown command `cli submit run`; the command word comes first: did you mean `cli run submit`?",
+          "suggestedArgv": [
+            "cli",
+            "run",
+            "submit",
+            "hello.prose.md",
+            "--preview",
+            "--json"
+          ]
+        },
+        "exitCode": 2,
+        "message": "Unknown command.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

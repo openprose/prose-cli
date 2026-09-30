@@ -1,0 +1,169 @@
+{
+  "id": "result-list-limit-unknown-fields",
+  "feature": "results",
+  "operation": "result.list",
+  "description": "--limit is sent as the limit query. Every service record also carries internal fields (runtime, contract, version, adoption, driver, configuration token, reactor, call id, showable, price policy, organization id, an internal path): the output is unchanged and names none of them.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "result",
+    "list",
+    "Owner/demo",
+    "--limit",
+    "5"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/p/Owner/demo/results",
+        "status": 200,
+        "query": {
+          "limit": "5"
+        },
+        "body": {
+          "contract": {
+            "owner": "Owner",
+            "slug": "demo",
+            "rev_id": "0123456789abcdef",
+            "visibility": "public",
+            "runtime": "x-internal-runtime",
+            "contract": "x-internal-contract",
+            "version": "x-internal-version",
+            "adopted": true,
+            "driver": "x-internal-driver",
+            "configurationToken": "x-internal-configuration-token",
+            "reactor": "x-internal-reactor",
+            "call_id": "x-internal-call",
+            "showable": true,
+            "pricing_policy_id": "x-internal-pricing-policy",
+            "organization_id": "x-internal-organization",
+            "internal_path": "/internal/x-internal-path/state.json"
+          },
+          "results": [
+            {
+              "id": "AbCdEf012_-x",
+              "published_at": "2026-09-23T20:30:00.000Z",
+              "run_id": "run_abc123",
+              "program_ref": "Owner/demo@0123456789abcdef",
+              "created_at": "2026-09-23T20:26:28.686Z",
+              "model": "model-sol",
+              "status": "completed",
+              "owner_customer_id": "cus_private",
+              "price_cents": 4,
+              "runtime": "x-internal-runtime",
+              "contract": "x-internal-contract",
+              "version": "x-internal-version",
+              "adopted": true,
+              "driver": "x-internal-driver",
+              "configurationToken": "x-internal-configuration-token",
+              "reactor": "x-internal-reactor",
+              "call_id": "x-internal-call",
+              "showable": true,
+              "pricing_policy_id": "x-internal-pricing-policy",
+              "organization_id": "x-internal-organization",
+              "internal_path": "/internal/x-internal-path/state.json"
+            },
+            {
+              "id": "Zy9_-8XwVu7t",
+              "published_at": "2026-09-22T10:00:00.000Z",
+              "run_id": "run_def456",
+              "program_ref": "Owner/demo@0123456789abcdef",
+              "created_at": "2026-09-23T20:26:28.686Z",
+              "model": "model-sol",
+              "status": "completed",
+              "runtime": "x-internal-runtime",
+              "contract": "x-internal-contract",
+              "version": "x-internal-version",
+              "adopted": true,
+              "driver": "x-internal-driver",
+              "configurationToken": "x-internal-configuration-token",
+              "reactor": "x-internal-reactor",
+              "call_id": "x-internal-call",
+              "showable": true,
+              "pricing_policy_id": "x-internal-pricing-policy",
+              "organization_id": "x-internal-organization",
+              "internal_path": "/internal/x-internal-path/state.json"
+            }
+          ],
+          "runtime": "x-internal-runtime",
+          "version": "x-internal-version",
+          "adopted": true,
+          "driver": "x-internal-driver",
+          "configurationToken": "x-internal-configuration-token",
+          "reactor": "x-internal-reactor",
+          "call_id": "x-internal-call",
+          "showable": true,
+          "pricing_policy_id": "x-internal-pricing-policy",
+          "organization_id": "x-internal-organization",
+          "internal_path": "/internal/x-internal-path/state.json"
+        },
+        "requestHeaders": {
+          "Authorization": {
+            "present": false
+          },
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          }
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "results.list_public",
+      "operation": "result.list",
+      "problem": null,
+      "result": {
+        "contract": {
+          "owner": "Owner",
+          "rev_id": "0123456789abcdef",
+          "slug": "demo"
+        },
+        "results": [
+          {
+            "created_at": "2026-09-23T20:26:28.686Z",
+            "id": "AbCdEf012_-x",
+            "model": "model-sol",
+            "program_ref": "Owner/demo@0123456789abcdef",
+            "published_at": "2026-09-23T20:30:00.000Z",
+            "run_id": "run_abc123",
+            "status": "completed"
+          },
+          {
+            "created_at": "2026-09-23T20:26:28.686Z",
+            "id": "Zy9_-8XwVu7t",
+            "model": "model-sol",
+            "program_ref": "Owner/demo@0123456789abcdef",
+            "published_at": "2026-09-22T10:00:00.000Z",
+            "run_id": "run_def456",
+            "status": "completed"
+          }
+        ]
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef",
+    "x-internal-",
+    "/internal/",
+    "\"adopted\"",
+    "\"driver\"",
+    "\"showable\"",
+    "\"call_id\"",
+    "\"pricing_policy_id\"",
+    "\"organization_id\"",
+    "\"configurationToken\"",
+    "\"runtime\"",
+    "\"reactor\"",
+    "\"internal_path\""
+  ]
+}

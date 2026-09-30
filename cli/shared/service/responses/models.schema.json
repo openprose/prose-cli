@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.openprose.org/cli/v1/service/responses/models.schema.json",
+  "title": "service response acceptance: GET /models",
+  "x-probed": true,
+  "type": "object",
+  "required": [
+    "models",
+    "default_model"
+  ],
+  "properties": {
+    "models": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "default_model": {
+      "type": "string"
+    },
+    "catalog": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "tier": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "successor": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "description": "The CLI reads models, default_model and, when present, catalog (id, status, tier, summary, successor of each entry); every other field is ignored and never printed. An older server sends no catalog."
+}

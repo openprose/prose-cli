@@ -1,0 +1,45 @@
+{
+  "id": "invitation-revoke-human",
+  "feature": "organizations",
+  "operation": "org.invitation.revoke",
+  "description": "Human revoke output.",
+  "argv": [
+    "cli",
+    "org",
+    "invitation",
+    "revoke",
+    "acme-research",
+    "7e6d5c4b-3a29-4817-8f6e-5d4c3b2a1908",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "DELETE",
+        "path": "/organizations/acme-research/invitations/7e6d5c4b-3a29-4817-8f6e-5d4c3b2a1908",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          },
+          "Accept": "application/json"
+        },
+        "status": 200,
+        "body": {
+          "ok": true
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "Revoked invitation 7e6d5c4b-3a29-4817-8f6e-5d4c3b2a1908 in acme-research.\n"
+  },
+  "stderr": {
+    "text": ""
+  }
+}

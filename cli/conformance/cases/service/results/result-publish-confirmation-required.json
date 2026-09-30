@@ -1,0 +1,78 @@
+{
+  "id": "result-publish-confirmation-required",
+  "feature": "results",
+  "operation": "result.publish",
+  "description": "Publishing creates a public result, so without --yes nothing is sent and the plan (with the body digest) is returned.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "result",
+    "publish",
+    "demo",
+    "--run",
+    "run_abc123abc123abc123abc123abc123abc123abc123abc123abc123abc123abc1"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "results.publish",
+      "operation": "result.publish",
+      "problem": {
+        "action": "Rerun the same command with --yes to confirm, or with --preview to see what it would do without sending anything.",
+        "boundary": "invocation",
+        "code": "CONFIRMATION_REQUIRED",
+        "details": {
+          "confirmArgv": [
+            "--output",
+            "json",
+            "cli",
+            "result",
+            "publish",
+            "demo",
+            "--run",
+            "run_abc123abc123abc123abc123abc123abc123abc123abc123abc123abc123abc1",
+            "--yes"
+          ],
+          "plannedRequest": {
+            "bodyBytes": 81,
+            "bodySha256": "85c76703f08329daa5b531fe0bb4c4b3268e8078865c4356c3de3328e32afc88",
+            "description": "Publish a completed run as a public result of a program.",
+            "effect": "outward",
+            "method": "POST",
+            "operation": "result.publish"
+          },
+          "previewArgv": [
+            "--output",
+            "json",
+            "cli",
+            "result",
+            "publish",
+            "demo",
+            "--run",
+            "run_abc123abc123abc123abc123abc123abc123abc123abc123abc123abc123abc1",
+            "--preview"
+          ],
+          "reason": "--yes is required because it puts the run's result on a public page that anyone can open"
+        },
+        "exitCode": 2,
+        "message": "This service operation requires explicit confirmation.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

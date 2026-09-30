@@ -1,0 +1,98 @@
+{
+  "id": "show-file-encoded-path",
+  "feature": "run-records",
+  "operation": "run.show",
+  "description": "Each path segment is percent-encoded; slashes between segments are kept.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "show",
+    "run_5e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f68",
+    "--file",
+    "out put/a+b.txt"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/runs/run_5e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f68",
+        "requestHeaders": {
+          "Authorization": {
+            "pattern": "^Bearer rr_test_[0-9a-f]{32}$"
+          }
+        },
+        "status": 200,
+        "body": {
+          "run_id": "run_5e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f68",
+          "created_at": "2026-09-23T20:29:47.788Z",
+          "status": "completed",
+          "model": "model-sol",
+          "environment": {
+            "id": "builtin",
+            "version": "1.0.0",
+            "runtime_contract": 1
+          },
+          "price_cents": 4,
+          "environment_price_cents": 1,
+          "billing_status": "settled",
+          "program_ref": "openprose/prose-write@840170241e030597",
+          "customer_id": "cus_ExampleOwner01",
+          "usage": {
+            "input_tokens": 103123,
+            "output_tokens": 836,
+            "cache_read_input_tokens": 5
+          },
+          "files": [
+            "out put/a+b.txt"
+          ],
+          "has_patch": false,
+          "session_files": [],
+          "file_urls": {
+            "out put/a+b.txt": "https://run-prose-production.openprose.workers.dev/runs/run_5e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f68/files/out put/a+b.txt?tok=SIGNEDTOKEN&exp=1790298569"
+          },
+          "spec_commit": "0123abcd",
+          "browser_live_view": {
+            "status": "ended"
+          }
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/runs/run_5e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f68/files/out%20put/a%2Bb.txt",
+        "requestHeaders": {
+          "Authorization": {
+            "pattern": "^Bearer rr_test_[0-9a-f]{32}$"
+          }
+        },
+        "status": 200,
+        "bodyText": "x"
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "run.read",
+      "operation": "run.show",
+      "problem": null,
+      "result": {
+        "file": {
+          "bytes": 1,
+          "content": "x",
+          "sha256": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+          "written": false
+        },
+        "path": "out put/a+b.txt",
+        "runId": "run_5e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f68"
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

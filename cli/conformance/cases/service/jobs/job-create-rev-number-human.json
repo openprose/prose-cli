@@ -1,0 +1,81 @@
+{
+  "id": "job-create-rev-number-human",
+  "feature": "jobs",
+  "operation": "job.create",
+  "description": "The human preview names the pinned program and when the first run fires.",
+  "argv": [
+    "cli",
+    "job",
+    "create",
+    "--spec-file",
+    "spec.json",
+    "--preview"
+  ],
+  "files": [
+    {
+      "path": "spec.json",
+      "content": "{\"type\": \"schedule\", \"program_ref\": \"jobs-example@rev2\", \"interval_seconds\": 86400}\n"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/programs/jobs-example/revisions",
+        "status": 200,
+        "body": {
+          "revisions": [
+            {
+              "owner": "exowner1",
+              "slug": "jobs-example",
+              "rev": 2,
+              "rev_id": "0123456789abcdef",
+              "commit_id": "1111111111111111",
+              "parent_commit_id": "2222222222222222",
+              "updated_at": 1790212199320
+            },
+            {
+              "owner": "exowner1",
+              "slug": "jobs-example",
+              "rev": 1,
+              "rev_id": "fedcba9876543210",
+              "commit_id": "2222222222222222",
+              "parent_commit_id": null,
+              "updated_at": 1790212000000
+            }
+          ]
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/run/quote",
+        "status": 200,
+        "body": {
+          "hold": {
+            "hold_usd": "1.02",
+            "ttl_seconds": 900
+          },
+          "pricing_policy_id": "pricing-policy.sha256.f114eadc02b7550e58f12c49996382b04f867cb774ac295506806f599ef1e3cd",
+          "note": "Unused hold is released when the run settles."
+        },
+        "requestHeaders": {
+          "Authorization": {
+            "present": false
+          }
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "Preview: Create a job from a JSON spec.\nSummary: type schedule; program exowner1/jobs-example@0123456789abcdef; every 24h\nEffect: starts paid runs\nHold: $1.02 (set aside from the wallet while the run is live; not its price)\nFirst run: about 1 second after the job is created, then every 24h\nNothing was changed.\n"
+  },
+  "stderr": {
+    "text": ""
+  }
+}

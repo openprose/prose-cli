@@ -1,0 +1,120 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.openprose.org/cli/v1/service/framework.schema.json",
+  "title": "OpenProse service framework results",
+  "description": "Closed per-operation result projections. Referenced from shared/service/operations.v1.json by $defs name; no property name may match /cost/i.",
+  "$defs": {
+    "preview": {
+      "description": "--preview result: the exact planned request; nothing was changed (read-only lookups such as a hold quote may be made).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "preview",
+        "plannedRequest"
+      ],
+      "properties": {
+        "preview": {
+          "const": true
+        },
+        "plannedRequest": {
+          "$ref": "../service-operation.schema.json#/$defs/plannedRequest"
+        }
+      }
+    },
+    "guide": {
+      "description": "`cli service guide --json`: the `## ` sections of shared/service/guide.v1.md in file order. A section's id is its title lowercased, apostrophes dropped and every other run of characters outside [a-z0-9] turned into one hyphen; its body is the Markdown up to the next section without leading or trailing LF.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sections"
+      ],
+      "properties": {
+        "sections": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "title",
+              "body"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+              },
+              "body": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    "help": {
+      "description": "The result of a service `--help` in a JSON mode: the help text and the manifest records of the commands it describes (one for a command, the group's for a group).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "help",
+        "operations"
+      ],
+      "properties": {
+        "help": {
+          "type": "string",
+          "minLength": 1
+        },
+        "operations": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "description": "A manifest operation record, as `cli service operations --json` prints it (the public projection's operation fields).",
+            "type": "object",
+            "propertyNames": {
+              "not": {
+                "pattern": "[Cc][Oo][Ss][Tt]"
+              }
+            },
+            "additionalProperties": false,
+            "properties": {
+              "id": {},
+              "command": {},
+              "contract": {},
+              "feature": {},
+              "summary": {},
+              "arguments": {},
+              "options": {},
+              "spec": {},
+              "effect": {},
+              "mutation": {},
+              "confirm": {},
+              "confirmReason": {},
+              "preview": {},
+              "notFound": {},
+              "output": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "schema": {},
+                  "stream": {},
+                  "paged": {},
+                  "records": {}
+                }
+              },
+              "exitCodes": {},
+              "examples": {}
+            }
+          }
+        }
+      }
+    }
+  }
+}

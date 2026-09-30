@@ -1,0 +1,25 @@
+{
+  "id": "alias-money",
+  "feature": "framework",
+  "operation": "wallet.balance",
+  "description": "`cli money` means the wallet balance, never `cli model list`: `cli wallet balance`.",
+  "argv": [
+    "cli",
+    "money"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: Unknown command.\nDetail: unknown command `cli money`; did you mean `cli wallet balance`? Commands: auth, cleanup, config, doctor, example, harness, job, model, org, package, program, repo, result, run, service, wallet\nAction: Use `cli wallet balance`: `prose cli wallet balance`.\n"
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "id": "no-cli-cost-json",
+  "feature": "framework",
+  "operation": "run.quote",
+  "description": "`prose --output json cost` prints the INVOCATION_INVALID envelope whose suggestedArgv is `cli run quote --help`, and the Action names `cli wallet usage`.",
+  "argv": [
+    "--output",
+    "json",
+    "cost"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": null,
+      "operation": "cli",
+      "problem": {
+        "action": "Past spending is `cli wallet usage`. Use `cli run quote`; `prose --output json cli run quote --help` shows its arguments.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "`cost` is not a command; did you mean `prose --output json cli run quote --help`? `cli run quote FILE` prices a run before it starts; past spending is `cli wallet usage`. Nothing was forwarded or sent. To pass these words to the OpenProse language instead, put `--` before them",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "quote",
+            "--help"
+          ]
+        },
+        "exitCode": 2,
+        "message": "Unknown command.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

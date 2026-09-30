@@ -1,0 +1,24 @@
+{
+  "id": "no-cli-last-human",
+  "feature": "framework",
+  "operation": "run.list",
+  "description": "`prose last` (no `cli`) exits 2 with `cli run list --limit 1`; nothing is forwarded or billed.",
+  "argv": [
+    "last"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: Unknown command.\nDetail: `last` is not a command; did you mean `prose cli run list --limit 1`? `cli run list --limit 1` shows the latest run and `cli run show RUN_ID` one run. Nothing was forwarded or sent. To pass these words to the OpenProse language instead, put `--` before them\nAction: Use `cli run list`: `prose cli run list --limit 1`.\n"
+  }
+}

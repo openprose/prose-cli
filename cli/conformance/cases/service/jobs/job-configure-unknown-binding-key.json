@@ -1,0 +1,65 @@
+{
+  "id": "job-configure-unknown-binding-key",
+  "feature": "jobs",
+  "operation": "job.configure",
+  "description": "job configure checks bindings[] and run_configuration keys, pinned refs and string inputs.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "job",
+    "configure",
+    "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10",
+    "--config-file",
+    "spec.json",
+    "--yes"
+  ],
+  "files": [
+    {
+      "path": "spec.json",
+      "content": "{\"interval_seconds\": 3600, \"configuration_revision\": 2, \"revision_token\": \"0000000000000000000000000000000000000000000000000000000000000000\", \"bindings\": [{\"program_ref\": \"exowner1/jobs-example\", \"run_configuration\": {\"modle\": \"model-luna\", \"inputs\": {\"n\": 1}}}]}"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "job.update",
+      "operation": "job.configure",
+      "problem": {
+        "action": "Correct the value named in Detail; `prose --output json cli job configure --help` shows the accepted syntax.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "3 problems in --config-file \"spec.json\": (1) bindings[0].program_ref: program reference \"exowner1/jobs-example\" must be pinned as OWNER/SLUG@REV (the 16-hex-digit rev_id); `prose --output json cli program show exowner1/jobs-example --json` prints the latest as `ref` (2) bindings[0].run_configuration.inputs.n must be a string (got number) (3) unknown key bindings[0].run_configuration.modle; did you mean bindings[0].run_configuration.model?",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "job",
+            "configure",
+            "--help"
+          ],
+          "violations": [
+            "bindings[0].program_ref: program reference \"exowner1/jobs-example\" must be pinned as OWNER/SLUG@REV (the 16-hex-digit rev_id); `prose --output json cli program show exowner1/jobs-example --json` prints the latest as `ref`",
+            "bindings[0].run_configuration.inputs.n must be a string (got number)",
+            "unknown key bindings[0].run_configuration.modle; did you mean bindings[0].run_configuration.model?"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

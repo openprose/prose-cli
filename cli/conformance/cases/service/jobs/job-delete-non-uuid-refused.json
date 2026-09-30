@@ -1,0 +1,54 @@
+{
+  "id": "job-delete-non-uuid-refused",
+  "feature": "jobs",
+  "operation": "job.delete",
+  "description": "A JOB_ID that is not a UUID is refused (exit 2, INVOCATION_INVALID) before any request, with suggestedArgv `cli job list`. Only a 404 for a well-formed id is already_absent.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "job",
+    "delete",
+    "job_nope",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "job.delete",
+      "operation": "job.delete",
+      "problem": {
+        "action": "List your jobs with `prose --output json cli job list` and pass one of their ids.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "JOB_ID \"job_nope\" is not a job id: job ids are lowercase UUIDs (8-4-4-4-12 hex digits) as `prose --output json cli job list` prints them; nothing was sent",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "job",
+            "list"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

@@ -1,0 +1,72 @@
+{
+  "schema": "openprose.service-operations-projection/1",
+  "description": "The public projection of operations.v1.json: what `prose cli service operations` prints (as the JSON result, the JSONL records and trailer, and what the capabilities document's manifest sha256 covers). `fields` is an allowlist: a member is `true` (copied whole) or an object (the same allowlist applied to that object, or to each element of that array). Every other member of the manifest (service routes and their catalog entries, service error strings, the service origin, the key format, the vendored export and this client's own transport, journal and identity settings) is read by the products internally and never printed. `maxBytes` is the size budget of the printed result (canonical JSON), and no string in `forbid` may appear in it.",
+  "maxBytes": 98304,
+  "forbid": [
+    "/triggers/",
+    "/examples/private",
+    "workers.dev",
+    "rr_test_",
+    "credit_grants_misconfigured",
+    "catalogRoute",
+    "GET /",
+    "POST /",
+    "PUT /",
+    "PATCH /",
+    "DELETE /"
+  ],
+  "fields": {
+    "schema": true,
+    "contract": true,
+    "grammar": true,
+    "exitCodes": true,
+    "envVars": true,
+    "environments": {
+      "production": {
+        "credentialEnv": true,
+        "credentialStore": true
+      }
+    },
+    "policy": true,
+    "confirmation": {
+      "rule": true,
+      "code": true,
+      "exitCode": true
+    },
+    "errorClassification": {
+      "statuses": true,
+      "otherStatus": true,
+      "transportFailure": true,
+      "malformedSuccess": true,
+      "oversize": true
+    },
+    "stream": {
+      "eventSchema": true,
+      "terminalEvents": true
+    },
+    "operations": {
+      "id": true,
+      "command": true,
+      "contract": true,
+      "feature": true,
+      "summary": true,
+      "arguments": true,
+      "options": true,
+      "spec": true,
+      "effect": true,
+      "mutation": true,
+      "confirm": true,
+      "confirmReason": true,
+      "preview": true,
+      "notFound": true,
+      "output": {
+        "schema": true,
+        "stream": true,
+        "paged": true,
+        "records": true
+      },
+      "exitCodes": true,
+      "examples": true
+    }
+  }
+}

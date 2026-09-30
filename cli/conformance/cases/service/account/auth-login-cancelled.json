@@ -1,0 +1,59 @@
+{
+  "id": "auth-login-cancelled",
+  "feature": "account",
+  "operation": "auth.login",
+  "description": "Device flow: an interrupt while polling is CANCELLED and nothing is stored. Ported from the account corpus.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "auth",
+    "login"
+  ],
+  "fixture": {
+    "credential": null,
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/auth/device",
+        "status": 200,
+        "body": {
+          "device_code": "fixture-device-secret",
+          "user_code": "ABCD-EFGH",
+          "verification_uri": "https://github.com/login/device",
+          "expires_in": 60,
+          "interval": 1
+        }
+      }
+    ],
+    "cancelBeforePoll": true
+  },
+  "exitCode": 24,
+  "stdout": {
+    "json": {
+      "schema": "openprose.service-operation/1",
+      "operation": "auth.login",
+      "interaction": "auth.device_flow",
+      "result": null,
+      "problem": {
+        "action": "Retry the command when you are ready to let it complete.",
+        "boundary": "process",
+        "code": "CANCELLED",
+        "exitCode": 24,
+        "message": "The runner was cancelled before semantic completion.",
+        "retryable": true,
+        "schema": "openprose.runner-error/1",
+        "details": {
+          "reason": "login was interrupted before the code was approved; nothing was stored"
+        }
+      }
+    }
+  },
+  "stderr": {
+    "text": "Go to https://github.com/login/device and enter code: ABCD-EFGH\n"
+  },
+  "forbid": [
+    "fixture-device-secret"
+  ]
+}

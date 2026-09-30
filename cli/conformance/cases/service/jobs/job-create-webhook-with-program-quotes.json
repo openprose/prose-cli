@@ -1,0 +1,82 @@
+{
+  "id": "job-create-webhook-with-program-quotes",
+  "feature": "jobs",
+  "operation": "job.create",
+  "description": "A webhook with a program starts paid runs: the plan keeps effect money and the hold.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "job",
+    "create",
+    "--spec-file",
+    "spec.json",
+    "--preview"
+  ],
+  "files": [
+    {
+      "path": "spec.json",
+      "content": "{\"type\": \"webhook\", \"name\": \"hook\", \"delivery_mode\": \"test\", \"program_ref\": \"exowner1/jobs-example@0123456789abcdef\"}"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/run/quote",
+        "requestHeaders": {
+          "Authorization": {
+            "present": false
+          }
+        },
+        "status": 200,
+        "body": {
+          "hold": {
+            "hold_usd": "1.02",
+            "ttl_seconds": 900
+          },
+          "pricing_policy_id": "pricing-policy.sha256.f114eadc02b7550e58f12c49996382b04f867cb774ac295506806f599ef1e3cd",
+          "note": "Unused hold is released when the run settles."
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "job.deploy",
+      "operation": "job.create",
+      "problem": null,
+      "result": {
+        "plannedRequest": {
+          "bodyBytes": 117,
+          "bodySha256": "34e78a149dcc02140e89be6275481e6d47f1b24af64cea58a288e0b4dc817251",
+          "description": "Create a job from a JSON spec.",
+          "effect": "money",
+          "method": "POST",
+          "operation": "job.create",
+          "quote": {
+            "hold": {
+              "hold_cents": 102,
+              "hold_usd": "1.02",
+              "ttl_seconds": 900
+            }
+          },
+          "summary": {
+            "delivery_mode": "test",
+            "name": "hook",
+            "programRef": "exowner1/jobs-example@0123456789abcdef",
+            "type": "webhook"
+          }
+        },
+        "preview": true
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

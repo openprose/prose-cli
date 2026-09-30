@@ -1,0 +1,104 @@
+{
+  "id": "example-show-output-file",
+  "feature": "discovery",
+  "operation": "example.show",
+  "description": "--output-file writes the bytes to a new file and leaves content out of the result.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "example",
+    "show",
+    "private-example",
+    "--output-file",
+    "example.prose.md"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/examples/private",
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef",
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          },
+          "Accept": "application/json"
+        },
+        "status": 200,
+        "body": {
+          "examples": [
+            {
+              "id": "private-example",
+              "label": "Private example",
+              "source": "/examples/private/private-example"
+            },
+            {
+              "id": "private-agent-browser",
+              "label": "Persona Website Feedback",
+              "source": "/examples/private/private-agent-browser"
+            },
+            {
+              "id": "agent-native",
+              "label": "Agent-native",
+              "source": "https://examples.example.org/examples/agent-native.prose.md"
+            },
+            {
+              "id": "agent-native-change",
+              "label": "Agent-native change",
+              "source": "https://examples.example.org/examples/agent-native-change.prose.md"
+            },
+            {
+              "id": "slack-hello",
+              "label": "Slack hello",
+              "source": "/examples/private/slack-hello"
+            }
+          ]
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/examples/private/private-example",
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef",
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          },
+          "Accept": "application/json"
+        },
+        "status": 200,
+        "responseHeaders": {
+          "Content-Type": "text/markdown; charset=utf-8"
+        },
+        "bodyText": "---\nname: private-example\nkind: function\n---\n\n# Private Example\n\n### Goal\n\nExercise the ordinary Run Once flow with a personal example. Return the supplied message unchanged; do not access repositories, deploy infrastructure, or call external tools.\n\n### Parameters\n\n- `message`: the text to echo back\n\n### Returns\n\n- `message`: the exact supplied text\n\n### Shape\n\n- `self`: return the supplied message unchanged\n"
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "schema": "openprose.service-operation/1",
+      "operation": "example.show",
+      "interaction": "examples.private",
+      "result": {
+        "id": "private-example",
+        "label": "Private example",
+        "bytes": 413,
+        "sha256": "e04f70ba647939f564e3ea44ab778591bf45c9ab260ac2f7687d7cfe431912b6",
+        "written": true
+      },
+      "problem": null
+    }
+  },
+  "expectFiles": [
+    {
+      "path": "example.prose.md",
+      "sha256": "e04f70ba647939f564e3ea44ab778591bf45c9ab260ac2f7687d7cfe431912b6"
+    }
+  ]
+}

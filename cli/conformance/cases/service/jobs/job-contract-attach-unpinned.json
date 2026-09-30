@@ -1,0 +1,55 @@
+{
+  "id": "job-contract-attach-unpinned",
+  "feature": "jobs",
+  "operation": "job.contract.attach",
+  "description": "An unpinned program reference is rejected before any request.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "job",
+    "contract",
+    "attach",
+    "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10",
+    "exowner1/jobs-example",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "job.contracts",
+      "operation": "job.contract.attach",
+      "problem": {
+        "action": "Correct the value named in Detail; `prose --output json cli job contract attach --help` shows the accepted syntax.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "program reference \"exowner1/jobs-example\" must be pinned as OWNER/SLUG@REV (the 16-hex-digit rev_id); `prose --output json cli program show exowner1/jobs-example --json` prints the latest as `ref`",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "job",
+            "contract",
+            "attach",
+            "--help"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

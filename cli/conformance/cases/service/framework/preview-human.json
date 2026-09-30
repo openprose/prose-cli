@@ -1,0 +1,28 @@
+{
+  "id": "preview-human",
+  "feature": "framework",
+  "operation": "job.delete",
+  "description": "Human preview prints what the request does and its effect, never the service route, and says nothing was changed. (A JOB_ID that is not a UUID is refused before any plan; see jobs/job-delete-non-uuid-refused.)",
+  "argv": [
+    "cli",
+    "job",
+    "delete",
+    "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10",
+    "--preview"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "Preview: Delete a job.\nEffect: cannot be undone\nNothing was changed.\n"
+  },
+  "stderr": {
+    "text": ""
+  }
+}

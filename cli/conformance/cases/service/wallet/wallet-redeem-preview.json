@@ -1,0 +1,53 @@
+{
+  "id": "wallet-redeem-preview",
+  "feature": "wallet",
+  "operation": "wallet.redeem",
+  "description": "--preview prints the plan (no body digest) and sends nothing.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "wallet",
+    "redeem",
+    "--code-file",
+    "code.txt",
+    "--preview"
+  ],
+  "files": [
+    {
+      "path": "code.txt",
+      "content": "Q7RC9-V5K2M\n"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "wallet.redeem",
+      "operation": "wallet.redeem",
+      "problem": null,
+      "result": {
+        "plannedRequest": {
+          "bodyBytes": null,
+          "bodySha256": null,
+          "description": "Redeem a one-time credit code.",
+          "effect": "money",
+          "method": "POST",
+          "operation": "wallet.redeem"
+        },
+        "preview": true
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "Q7RC9-V5K2M"
+  ]
+}

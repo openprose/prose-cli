@@ -1,0 +1,27 @@
+{
+  "id": "help-org-member-group-topic",
+  "feature": "organizations",
+  "operation": "org.member.list",
+  "description": "`cli org member --help` prints the nested group topic and exits 0 (not an unknown-command error).",
+  "argv": [
+    "cli",
+    "org",
+    "member",
+    "--help"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "Usage: prose [GLOBAL OPTIONS] cli org member <COMMAND> [ARGUMENTS] [OPTIONS]\n\nCommands:\n  list                        List an organization's members, numbered by when they joined; account ids are not shown.\n  remove                      Remove a member.\n  role                        Change a member's role.\n\nExamples:\n  prose cli org member list acme-research --json\n  prose cli org member remove acme-research MEMBER --yes\n  prose cli org member role acme-research MEMBER developer --yes\n\nGlobal options:\n  --output human|json|jsonl   Output mode; the same as the PROSE_OUTPUT setting.\n\nRun `prose cli org member <COMMAND> --help` for details. `prose cli service operations --json` prints every command as JSON.\n"
+  },
+  "stderr": {
+    "text": ""
+  }
+}

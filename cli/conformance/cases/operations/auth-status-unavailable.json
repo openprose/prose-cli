@@ -1,7 +1,7 @@
 {
   "schema": "openprose.runner-case/1",
   "id": "operations.auth-status-unavailable",
-  "summary": "Production account status rejects an invalid explicit credential without network or native store access.",
+  "summary": "Production account status refuses a malformed explicit credential as SERVICE_AUTH_REQUIRED naming OPENPROSE_API_KEY, without network or native store access.",
   "phase": 6,
   "tags": [
     "cli",
@@ -35,20 +35,25 @@
     "exitCode": 10,
     "stdout": {
       "kind": "json",
-      "schema": "openprose.service-account/1"
+      "schema": "openprose.service-operation/1"
     },
     "stderr": {
       "kind": "empty"
     },
     "startedHarness": false,
     "resultMatches": {
-      "schema": "openprose.service-account/1",
-      "environment": "production",
-      "operation": "status",
-      "authenticated": false,
-      "credentialSource": "none",
+      "schema": "openprose.service-operation/1",
+      "operation": "auth.status",
+      "interaction": "cli.auth_status",
+      "result": null,
       "problem": {
-        "code": "SERVICE_PROTOCOL_INVALID"
+        "code": "SERVICE_AUTH_REQUIRED",
+        "action": "Replace or unset OPENPROSE_API_KEY, then retry.",
+        "details": {
+          "credentialProblem": "malformed",
+          "credentialSource": "environment",
+          "credentialVariable": "OPENPROSE_API_KEY"
+        }
       }
     }
   }

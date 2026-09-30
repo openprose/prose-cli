@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.openprose.org/cli/v1/service/responses/program-read.schema.json",
+  "title": "service response acceptance: GET /p/{owner}/{slug}",
+  "x-probed": false,
+  "type": "object",
+  "required": [
+    "program"
+  ],
+  "properties": {
+    "program": {
+      "type": "object",
+      "required": [
+        "owner",
+        "slug",
+        "visibility",
+        "rev",
+        "rev_id",
+        "commit_id",
+        "parent_commit_id",
+        "updated_at"
+      ],
+      "properties": {
+        "owner": {
+          "type": "string"
+        },
+        "slug": {
+          "type": "string"
+        },
+        "visibility": {
+          "enum": [
+            "public",
+            "private"
+          ]
+        },
+        "rev": {
+          "type": "integer"
+        },
+        "rev_id": {
+          "type": "string"
+        },
+        "commit_id": {
+          "type": "string"
+        },
+        "parent_commit_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "updated_at": {
+          "type": "integer"
+        },
+        "message": {
+          "type": "string"
+        },
+        "content": {
+          "type": "string"
+        }
+      }
+    },
+    "is_owner": {
+      "type": "boolean"
+    }
+  }
+}

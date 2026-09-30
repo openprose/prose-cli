@@ -1,0 +1,109 @@
+{
+  "id": "submit-interrupt-before-run-id-ambiguous",
+  "feature": "runs",
+  "operation": "run.submit",
+  "description": "An interrupt before the first event cannot name the run: RUN_SUBMISSION_AMBIGUOUS (22) with the session, no resumeArgv, and no resubmission.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "submit",
+    "p.prose.md",
+    "--yes"
+  ],
+  "files": [
+    {
+      "path": "p.prose.md",
+      "content": "---\nname: hello\nkind: function\n---\n\nReply with the word ok.\n"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "ids": [
+      "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f"
+    ],
+    "clock": {
+      "start": "2026-09-24T01:00:00.000Z",
+      "stepMs": 0
+    },
+    "interruptAfterExchange": 1,
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/run",
+        "query": {
+          "live": "1",
+          "session": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f"
+        },
+        "requestHeaders": {
+          "X-Session-Id": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f",
+          "Accept": "text/event-stream",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "expectedBody": {
+          "content": "---\nname: hello\nkind: function\n---\n\nReply with the word ok.\n"
+        },
+        "status": 200,
+        "sse": {
+          "frames": [],
+          "end": "idle"
+        }
+      }
+    ]
+  },
+  "exitCode": 22,
+  "stdout": {
+    "json": {
+      "interaction": "run.submit",
+      "operation": "run.submit",
+      "problem": {
+        "action": "List recent runs with the `cli run list` runner operation before submitting again; the local run journal keeps details.session.",
+        "boundary": "protocol",
+        "code": "RUN_SUBMISSION_AMBIGUOUS",
+        "details": {
+          "reason": "interrupted before the run id was known; the submission was not repeated. Check `prose --output json cli run list --limit 5` before submitting again, or recover the run with `prose --output json cli run submit p.prose.md --yes --session 5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f --detach`: the same session never starts a second run; the local run journal keeps the session",
+          "resumeArgv": [
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "submit",
+            "p.prose.md",
+            "--yes",
+            "--session",
+            "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f",
+            "--detach"
+          ],
+          "session": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "list",
+            "--limit",
+            "5"
+          ]
+        },
+        "exitCode": 22,
+        "message": "The run submission could not be confirmed and was not repeated.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "journalAfter": [
+    {
+      "session": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f",
+      "runId": null
+    }
+  ]
+}

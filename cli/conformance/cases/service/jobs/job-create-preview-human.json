@@ -1,0 +1,54 @@
+{
+  "id": "job-create-preview-human",
+  "feature": "jobs",
+  "operation": "job.create",
+  "description": "Human preview names the request, the money effect and the hold.",
+  "argv": [
+    "cli",
+    "job",
+    "create",
+    "--spec-file",
+    "spec.json",
+    "--preview"
+  ],
+  "files": [
+    {
+      "path": "spec.json",
+      "content": "{\"type\": \"schedule\", \"program_ref\": \"exowner1/jobs-example@0123456789abcdef\", \"interval_seconds\": 86400}\n"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/run/quote",
+        "status": 200,
+        "body": {
+          "hold": {
+            "hold_usd": "1.02",
+            "ttl_seconds": 900
+          },
+          "pricing_policy_id": "pricing-policy.sha256.f114eadc02b7550e58f12c49996382b04f867cb774ac295506806f599ef1e3cd",
+          "note": "Unused hold is released when the run settles."
+        },
+        "requestHeaders": {
+          "Authorization": {
+            "present": false
+          }
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "Preview: Create a job from a JSON spec.\nSummary: type schedule; program exowner1/jobs-example@0123456789abcdef; every 24h\nEffect: starts paid runs\nHold: $1.02 (set aside from the wallet while the run is live; not its price)\nFirst run: about 1 second after the job is created, then every 24h\nNothing was changed.\n"
+  },
+  "stderr": {
+    "text": ""
+  }
+}

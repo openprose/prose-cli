@@ -1,0 +1,50 @@
+{
+  "id": "triage-rejects-argument",
+  "feature": "discovery",
+  "operation": "service.triage",
+  "description": "service triage takes no arguments: a stray word is an invocation error (exit 2) before any request.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "service",
+    "triage",
+    "now"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "health.read",
+      "operation": "service.triage",
+      "problem": {
+        "action": "Remove the extra argument \"now\": `prose --output json cli service triage`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "unexpected argument \"now\" for `cli service triage`",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "service",
+            "triage"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

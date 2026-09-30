@@ -1,0 +1,72 @@
+{
+  "id": "member-list-bad-entry",
+  "feature": "organizations",
+  "operation": "org.member.list",
+  "description": "A member with a role outside admin, developer and reader is SERVICE_PROTOCOL_INVALID naming the field; its organization_id is not read.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "org",
+    "member",
+    "list",
+    "acme-research"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/organizations/acme-research/members",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          },
+          "Accept": "application/json"
+        },
+        "status": 200,
+        "body": {
+          "members": [
+            {
+              "organization_id": "5b0e7c1a-3f2d-4e8b-9a61-2c4d8e0f1a23",
+              "account_id": "cus_ExampleAdmin01",
+              "role": "admin",
+              "created_at": 1790012915257
+            },
+            {
+              "organization_id": "not-a-uuid",
+              "account_id": "cus_ExampleInvitee1",
+              "role": "owner",
+              "created_at": 1790099999000
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "organizations.manage",
+      "operation": "org.member.list",
+      "problem": {
+        "action": "Retry later and report the sanitized error code if it persists.",
+        "boundary": "protocol",
+        "code": "SERVICE_PROTOCOL_INVALID",
+        "details": {
+          "reason": "the service response has a missing or invalid members[].role"
+        },
+        "exitCode": 10,
+        "message": "The OpenProse service returned an invalid response.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

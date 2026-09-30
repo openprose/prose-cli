@@ -1,0 +1,238 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.openprose.org/cli/v1/service-capabilities.schema.json",
+  "title": "OpenProse service capabilities v1",
+  "description": "`prose cli service capabilities --json`: the grammar, the exit-code dictionary, the environment variables and the noun/verb index with examples, derived from the operation manifest by cli/ci/render_service_help.py. One canonical JSON line; makes no request.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "contract",
+    "manifest",
+    "grammar",
+    "exitCodes",
+    "envVars",
+    "nouns",
+    "operations"
+  ],
+  "properties": {
+    "schema": {
+      "const": "openprose.service-capabilities/1"
+    },
+    "contract": {
+      "const": "service/1"
+    },
+    "manifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "sha256",
+        "argv"
+      ],
+      "properties": {
+        "schema": {
+          "const": "openprose.service-operations/1"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "argv": {
+          "const": [
+            "cli",
+            "service",
+            "operations",
+            "--json"
+          ]
+        }
+      }
+    },
+    "grammar": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "usage",
+        "placement",
+        "globalOptions",
+        "rejectedGlobalOptions",
+        "commonOptions",
+        "outputModes",
+        "help"
+      ],
+      "properties": {
+        "usage": {
+          "type": "string",
+          "minLength": 1
+        },
+        "placement": {
+          "type": "string",
+          "minLength": 1
+        },
+        "globalOptions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^--[a-z-]+$"
+          }
+        },
+        "rejectedGlobalOptions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^--[a-z-]+$"
+          }
+        },
+        "commonOptions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^--[a-z-]+$"
+          }
+        },
+        "outputModes": {
+          "const": [
+            "human",
+            "json",
+            "jsonl"
+          ]
+        },
+        "help": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "exitCodes": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {
+        "pattern": "^[A-Z][A-Z0-9_]*$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "exit",
+          "retryable",
+          "meaning"
+        ],
+        "properties": {
+          "exit": {
+            "enum": [
+              2,
+              10,
+              20,
+              21,
+              22,
+              23,
+              24,
+              25,
+              70
+            ]
+          },
+          "retryable": {
+            "type": "boolean"
+          },
+          "meaning": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "envVars": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "description"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_]*$"
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "nouns": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "pattern": "^[a-z][a-z-]*( [a-z][a-z-]*)*$"
+        }
+      }
+    },
+    "operations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "command",
+          "summary",
+          "effect",
+          "confirm",
+          "examples"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "command": {
+            "description": "The command as an argv after `prose`, as in the manifest.",
+            "type": "array",
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "const": "cli"
+              }
+            ],
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z-]*$"
+            }
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 1
+          },
+          "effect": {
+            "enum": [
+              "read",
+              "write",
+              "money",
+              "outward",
+              "destructive"
+            ]
+          },
+          "confirm": {
+            "type": "boolean"
+          },
+          "examples": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "pattern": "^prose "
+            }
+          }
+        }
+      }
+    }
+  }
+}

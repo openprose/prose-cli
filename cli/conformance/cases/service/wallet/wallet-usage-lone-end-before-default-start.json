@@ -1,0 +1,56 @@
+{
+  "id": "wallet-usage-lone-end-before-default-start",
+  "feature": "wallet",
+  "operation": "wallet.usage",
+  "description": "A lone --end before now-30d (2026-08-24 UTC) would invert the server-defaulted window: INVOCATION_INVALID.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "wallet",
+    "usage",
+    "--end",
+    "2026-08-23"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [],
+    "clock": {
+      "start": "2026-09-23T12:00:00.000Z",
+      "stepMs": 0
+    }
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "wallet.usage",
+      "operation": "wallet.usage",
+      "problem": {
+        "action": "Correct the value named in Detail; `prose --output json cli wallet usage --help` shows the accepted syntax.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "--end 2026-08-23 is before the default --start (2026-08-24 UTC, 30 days ago); pass an explicit --start",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "wallet",
+            "usage",
+            "--help"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

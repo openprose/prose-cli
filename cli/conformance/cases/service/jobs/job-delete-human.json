@@ -1,0 +1,40 @@
+{
+  "id": "job-delete-human",
+  "feature": "jobs",
+  "operation": "job.delete",
+  "description": "Human delete confirms in one line.",
+  "argv": [
+    "cli",
+    "job",
+    "delete",
+    "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "DELETE",
+        "path": "/triggers/3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10",
+        "status": 200,
+        "body": {
+          "deleted": true
+        },
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "Deleted job 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10.\n"
+  },
+  "stderr": {
+    "text": ""
+  }
+}

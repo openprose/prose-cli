@@ -1,0 +1,96 @@
+{
+  "id": "contract-org-member-list-defaults-to-default",
+  "feature": "organizations",
+  "operation": "org.member.list",
+  "description": "`org member list` without ORG reads the default organization's slug, then lists its members.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "org",
+    "member",
+    "list"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/organizations/default",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          },
+          "Accept": "application/json"
+        },
+        "status": 200,
+        "body": {
+          "organization": {
+            "id": "5b0e7c1a-3f2d-4e8b-9a61-2c4d8e0f1a23",
+            "slug": "acme-research",
+            "name": "Acme Research",
+            "created_by": "cus_ExampleAdmin01",
+            "created_at": 1790012915257,
+            "role": "admin"
+          }
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/organizations/acme-research/members",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          },
+          "Accept": "application/json"
+        },
+        "status": 200,
+        "body": {
+          "members": [
+            {
+              "organization_id": "5b0e7c1a-3f2d-4e8b-9a61-2c4d8e0f1a23",
+              "account_id": "cus_ExampleAdmin01",
+              "role": "admin",
+              "created_at": 1790012915257
+            },
+            {
+              "organization_id": "5b0e7c1a-3f2d-4e8b-9a61-2c4d8e0f1a23",
+              "account_id": "cus_ExampleInvitee1",
+              "role": "developer",
+              "created_at": 1790099999000
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "organizations.manage",
+      "operation": "org.member.list",
+      "problem": null,
+      "result": {
+        "members": [
+          {
+            "created_at": 1790012915257,
+            "created_at_iso": "2026-09-21T17:48:35.257Z",
+            "member": "member 1",
+            "role": "admin"
+          },
+          {
+            "created_at": 1790099999000,
+            "created_at_iso": "2026-09-22T17:59:59.000Z",
+            "member": "member 2",
+            "role": "developer"
+          }
+        ]
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

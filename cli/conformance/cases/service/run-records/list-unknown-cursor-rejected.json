@@ -1,0 +1,63 @@
+{
+  "id": "list-unknown-cursor-rejected",
+  "feature": "run-records",
+  "operation": "run.list",
+  "description": "The service's 400 for an unknown cursor is SERVICE_REQUEST_REJECTED with its sanitized message.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "list",
+    "--before",
+    "bogus"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/runs",
+        "requestHeaders": {
+          "Authorization": {
+            "pattern": "^Bearer rr_test_[0-9a-f]{32}$"
+          }
+        },
+        "status": 400,
+        "query": {
+          "limit": "20",
+          "before": "bogus"
+        },
+        "body": {
+          "error": "Unknown before cursor"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "runs.list",
+      "operation": "run.list",
+      "problem": {
+        "action": "Correct the request as details.serviceMessage describes, then retry.",
+        "boundary": "hosted-service",
+        "code": "SERVICE_REQUEST_REJECTED",
+        "details": {
+          "serviceMessage": "Unknown before cursor",
+          "serviceStatus": 400
+        },
+        "exitCode": 10,
+        "message": "The OpenProse service rejected the request.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

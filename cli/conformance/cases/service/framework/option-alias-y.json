@@ -1,0 +1,53 @@
+{
+  "id": "option-alias-y",
+  "feature": "framework",
+  "operation": "run.cancel",
+  "description": "`-y` is an alias of `--yes`; the corrected argv is suggested, never executed.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "cancel",
+    "run_1111111111111111111111111111111111111111111111111111111111111111",
+    "-y"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "run.cancel",
+      "operation": "run.cancel",
+      "problem": {
+        "action": "Replace -y with --yes: `prose --output json cli run cancel run_1111111111111111111111111111111111111111111111111111111111111111 --yes`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "unknown option -y for `cli run cancel`; did you mean --yes?",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "cancel",
+            "run_1111111111111111111111111111111111111111111111111111111111111111",
+            "--yes"
+          ]
+        },
+        "exitCode": 2,
+        "message": "Unknown option.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

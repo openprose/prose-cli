@@ -1,0 +1,28 @@
+{
+  "id": "default-preview-human",
+  "feature": "organizations",
+  "operation": "org.default",
+  "description": "Human --preview of `org default` names the organization (no raw request body).",
+  "argv": [
+    "cli",
+    "org",
+    "default",
+    "acme-research",
+    "--preview"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "Preview: Choose this account's default organization.\nOrganization: acme-research\nEffect: changes your default organization\nNothing was changed.\n"
+  },
+  "stderr": {
+    "text": ""
+  }
+}

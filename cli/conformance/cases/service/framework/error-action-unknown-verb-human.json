@@ -1,0 +1,26 @@
+{
+  "id": "error-action-unknown-verb-human",
+  "feature": "framework",
+  "operation": "run.list",
+  "description": "A misspelled verb names the corrected command in the invocation's environment.",
+  "argv": [
+    "cli",
+    "run",
+    "lst"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: Unknown command.\nDetail: unknown command `cli run lst`; did you mean `cli run list`? Commands: cancel, download, input, list, quote, share, show, submit, watch\nAction: Use `cli run list`: `prose cli run list`.\n"
+  }
+}

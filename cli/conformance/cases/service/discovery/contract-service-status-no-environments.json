@@ -1,0 +1,47 @@
+{
+  "id": "contract-service-status-no-environments",
+  "feature": "discovery",
+  "operation": "service.status",
+  "description": "`service status --json` reports environments: [] when /health lists none.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "service",
+    "status"
+  ],
+  "fixture": {
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/health",
+        "status": 200,
+        "body": {
+          "status": "ok",
+          "models": [
+            "model-luna"
+          ],
+          "default_model": "model-luna"
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "health.read",
+      "operation": "service.status",
+      "problem": null,
+      "result": {
+        "default_model": "model-luna",
+        "environments": [],
+        "models": [
+          "model-luna"
+        ],
+        "status": "ok"
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

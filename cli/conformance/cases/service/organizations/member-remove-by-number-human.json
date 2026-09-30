@@ -1,0 +1,74 @@
+{
+  "id": "member-remove-by-number-human",
+  "feature": "organizations",
+  "operation": "org.member.remove",
+  "description": "`org member remove ORG 1 --yes` removes the first member by number and prints `Removed member 1 from ORG.` without the account id.",
+  "argv": [
+    "cli",
+    "org",
+    "member",
+    "remove",
+    "acme-research",
+    "1",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/organizations/acme-research/members",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          },
+          "Accept": "application/json"
+        },
+        "status": 200,
+        "body": {
+          "members": [
+            {
+              "organization_id": "5b0e7c1a-3f2d-4e8b-9a61-2c4d8e0f1a23",
+              "account_id": "cus_ExampleInvitee1",
+              "role": "developer",
+              "created_at": 1790099999000
+            },
+            {
+              "organization_id": "5b0e7c1a-3f2d-4e8b-9a61-2c4d8e0f1a23",
+              "account_id": "cus_ExampleAdmin01",
+              "role": "admin",
+              "created_at": 1790012915257,
+              "handle": "exadmin"
+            }
+          ]
+        }
+      },
+      {
+        "method": "DELETE",
+        "path": "/organizations/acme-research/members/cus_ExampleAdmin01",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          },
+          "Accept": "application/json"
+        },
+        "status": 200,
+        "body": {
+          "ok": true
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "Removed member 1 from acme-research.\n"
+  },
+  "forbid": [
+    "cus_ExampleInvitee1",
+    "cus_ExampleAdmin01"
+  ]
+}

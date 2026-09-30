@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.openprose.org/cli/v1/service/responses/run-quote.schema.json",
+  "title": "service response acceptance: GET /run/quote",
+  "x-probed": true,
+  "type": "object",
+  "required": [
+    "hold",
+    "pricing_policy_id"
+  ],
+  "properties": {
+    "hold": {
+      "type": "object",
+      "required": [
+        "hold_usd",
+        "ttl_seconds"
+      ],
+      "properties": {
+        "hold_usd": {
+          "type": "string"
+        },
+        "ttl_seconds": {
+          "type": "integer"
+        }
+      }
+    },
+    "pricing_policy_id": {
+      "type": "string"
+    },
+    "note": {
+      "type": "string"
+    }
+  }
+}

@@ -1,0 +1,92 @@
+{
+  "id": "program-save-stale-base-write-conflict",
+  "feature": "programs",
+  "operation": "program.save",
+  "description": "A stale --base gets 409 {error, current}: SERVICE_WRITE_CONFLICT with the sanitized message and the current commit and rev to retry with.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "program",
+    "save",
+    "demo",
+    "demo.prose.md",
+    "--base",
+    "1111111111111111"
+  ],
+  "files": [
+    {
+      "path": "demo.prose.md",
+      "content": "---\nname: demo\nkind: function\n---\n\n### Returns\n\n- `text`: exactly `ok`\n"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "PUT",
+        "path": "/programs/demo",
+        "requestHeaders": {
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          },
+          "User-Agent": {
+            "pattern": "^prose-cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"
+          },
+          "Accept": "application/json",
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "status": 409,
+        "expectedBody": {
+          "content": "---\nname: demo\nkind: function\n---\n\n### Returns\n\n- `text`: exactly `ok`\n",
+          "base_commit_id": "1111111111111111"
+        },
+        "body": {
+          "error": "A newer revision was saved in another tab. Reload before saving again.",
+          "current": {
+            "owner": "alice",
+            "slug": "demo",
+            "visibility": "private",
+            "content": "---\nname: demo\nkind: function\n---\n\n### Returns\n\n- `text`: exactly `ok`\n",
+            "rev": 2,
+            "rev_id": "fedcba9876543210",
+            "commit_id": "2222222222222222",
+            "parent_commit_id": "1111111111111111",
+            "updated_at": 1790212199320
+          }
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "schema": "openprose.service-operation/1",
+      "operation": "program.save",
+      "interaction": "program.save",
+      "result": null,
+      "problem": {
+        "schema": "openprose.runner-error/1",
+        "code": "SERVICE_WRITE_CONFLICT",
+        "boundary": "hosted-service",
+        "message": "The OpenProse service reported a conflicting write.",
+        "action": "Read the current state of the resource, reconcile the change, then retry.",
+        "exitCode": 10,
+        "retryable": false,
+        "details": {
+          "serviceStatus": 409,
+          "serviceMessage": "A newer revision was saved in another tab. Reload before saving again.",
+          "currentCommitId": "2222222222222222",
+          "currentRev": 2
+        }
+      }
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

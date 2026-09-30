@@ -1,0 +1,26 @@
+{
+  "id": "org-list-no-key-human",
+  "feature": "organizations",
+  "operation": "org.list",
+  "description": "Human org list without any key: SERVICE_AUTH_REQUIRED whose Detail and Action name OPENPROSE_API_KEY and the environment-preserving login command.",
+  "argv": [
+    "cli",
+    "org",
+    "list"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 10,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: SERVICE_AUTH_REQUIRED: OpenProse service authentication is required.\nDetail: no API key for OpenProse: set OPENPROSE_API_KEY or run `prose cli auth login`\nAction: Set OPENPROSE_API_KEY or run `prose cli auth login`, then retry.\n"
+  }
+}

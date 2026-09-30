@@ -1,0 +1,202 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.openprose.org/cli/v1/service/results.schema.json",
+  "title": "OpenProse service published result results",
+  "description": "Closed per-operation result projections. Referenced from shared/service/operations.v1.json by $defs name; no property name may match /cost/i.",
+  "$defs": {
+    "publication": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "published_at",
+        "run_id",
+        "program_ref",
+        "created_at",
+        "model",
+        "status"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 64,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+        },
+        "published_at": {
+          "$ref": "common.schema.json#/$defs/timestamp"
+        },
+        "run_id": {
+          "$ref": "common.schema.json#/$defs/runId"
+        },
+        "program_ref": {
+          "$ref": "common.schema.json#/$defs/programRef"
+        },
+        "created_at": {
+          "$ref": "common.schema.json#/$defs/timestamp"
+        },
+        "model": {
+          "$ref": "common.schema.json#/$defs/modelId"
+        },
+        "status": {
+          "const": "completed"
+        }
+      }
+    },
+    "resultList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract",
+        "results"
+      ],
+      "properties": {
+        "contract": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "owner",
+            "slug",
+            "rev_id"
+          ],
+          "properties": {
+            "owner": {
+              "$ref": "common.schema.json#/$defs/handle"
+            },
+            "slug": {
+              "$ref": "common.schema.json#/$defs/slug"
+            },
+            "rev_id": {
+              "$ref": "common.schema.json#/$defs/revId"
+            }
+          }
+        },
+        "results": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/publication"
+          },
+          "maxItems": 200
+        }
+      }
+    },
+    "resultManifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "run_id",
+        "status",
+        "model",
+        "program_ref",
+        "created_at",
+        "usage",
+        "price_cents",
+        "files",
+        "has_patch"
+      ],
+      "properties": {
+        "run_id": {
+          "$ref": "common.schema.json#/$defs/runId"
+        },
+        "status": {
+          "const": "completed"
+        },
+        "model": {
+          "$ref": "common.schema.json#/$defs/modelId"
+        },
+        "program_ref": {
+          "$ref": "common.schema.json#/$defs/programRef"
+        },
+        "created_at": {
+          "$ref": "common.schema.json#/$defs/timestamp"
+        },
+        "usage": {
+          "$ref": "common.schema.json#/$defs/usage"
+        },
+        "price_cents": {
+          "$ref": "common.schema.json#/$defs/cents"
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "$ref": "common.schema.json#/$defs/relativePath"
+          },
+          "maxItems": 16
+        },
+        "has_patch": {
+          "type": "boolean"
+        },
+        "spec_commit": {
+          "type": "string",
+          "maxLength": 64,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+        }
+      }
+    },
+    "resultShow": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "publication",
+            "manifest"
+          ],
+          "properties": {
+            "publication": {
+              "$ref": "#/$defs/publication"
+            },
+            "manifest": {
+              "$ref": "#/$defs/resultManifest"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "publication",
+            "raw"
+          ],
+          "properties": {
+            "publication": {
+              "$ref": "#/$defs/publication"
+            },
+            "raw": {
+              "$ref": "common.schema.json#/$defs/writtenFile"
+            }
+          }
+        }
+      ]
+    },
+    "resultPublish": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "publication"
+      ],
+      "properties": {
+        "publication": {
+          "$ref": "#/$defs/publication"
+        }
+      }
+    },
+    "resultUnpublish": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "unpublished",
+        "id"
+      ],
+      "properties": {
+        "unpublished": {
+          "const": true
+        },
+        "id": {
+          "type": "string",
+          "maxLength": 64,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+        }
+      }
+    }
+  }
+}

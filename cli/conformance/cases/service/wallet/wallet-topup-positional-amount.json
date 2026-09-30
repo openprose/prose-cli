@@ -1,0 +1,52 @@
+{
+  "id": "wallet-topup-positional-amount",
+  "feature": "wallet",
+  "operation": "wallet.topup",
+  "description": "`cli wallet topup 500` fills the one missing required option: `--amount-cents 500`.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "wallet",
+    "topup",
+    "500"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "wallet.topup",
+      "operation": "wallet.topup",
+      "problem": {
+        "action": "Pass it as --amount-cents: `prose --output json cli wallet topup --amount-cents 500`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "unexpected argument \"500\" for `cli wallet topup`; did you mean --amount-cents 500? --amount-cents: Credit to add, in cents.",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "wallet",
+            "topup",
+            "--amount-cents",
+            "500"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

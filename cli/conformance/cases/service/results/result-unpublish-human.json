@@ -1,0 +1,45 @@
+{
+  "id": "result-unpublish-human",
+  "feature": "results",
+  "operation": "result.unpublish",
+  "description": "Human unpublish confirms the removed id.",
+  "argv": [
+    "cli",
+    "result",
+    "unpublish",
+    "demo",
+    "AbCdEf012_-x",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "DELETE",
+        "path": "/programs/demo/results/AbCdEf012_-x",
+        "status": 200,
+        "body": {
+          "unpublished": true,
+          "id": "AbCdEf012_-x"
+        },
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "Unpublished AbCdEf012_-x\n"
+  },
+  "stderr": {
+    "text": ""
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

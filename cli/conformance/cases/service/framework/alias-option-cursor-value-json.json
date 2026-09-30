@@ -1,0 +1,53 @@
+{
+  "id": "alias-option-cursor-value-json",
+  "feature": "framework",
+  "operation": "run.list",
+  "description": "`--cursor C` on a paged listing suggests `--before C`, which takes result.nextBefore. (JSON envelope)",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "list",
+    "--cursor",
+    "c1"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "runs.list",
+      "operation": "run.list",
+      "problem": {
+        "action": "Replace --cursor with --before, which takes the previous page's result.nextBefore: `prose --output json cli run list --before c1`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "unknown option --cursor for `cli run list`; did you mean --before? It takes the cursor a previous page returned in result.nextBefore",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "list",
+            "--before",
+            "c1"
+          ]
+        },
+        "exitCode": 2,
+        "message": "Unknown option.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "id": "no-cli-stop-json",
+  "feature": "framework",
+  "operation": "run.cancel",
+  "description": "`prose --output json stop` prints the INVOCATION_INVALID envelope whose suggestedArgv is `cli run cancel --help`.",
+  "argv": [
+    "--output",
+    "json",
+    "stop"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": null,
+      "operation": "cli",
+      "problem": {
+        "action": "Use `cli run cancel RUN_ID`; `prose --output json cli run cancel --help` shows its arguments.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "`stop` is not a command; did you mean `prose --output json cli run cancel --help`? A run in progress is cancelled with `cli run cancel RUN_ID`; a job's future runs stop with `cli job delete JOB_ID`. Nothing was forwarded or sent. To pass these words to the OpenProse language instead, put `--` before them",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "cancel",
+            "--help"
+          ]
+        },
+        "exitCode": 2,
+        "message": "Unknown command.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

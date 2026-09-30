@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.openprose.org/cli/v1/service/responses/error.schema.json",
+  "title": "service response acceptance: * *",
+  "x-probed": true,
+  "description": "JSON error envelope. Plain-text `Not found` bodies are also possible (see the classification rules).",
+  "type": "object",
+  "required": [
+    "error"
+  ],
+  "properties": {
+    "error": {
+      "type": "string"
+    },
+    "code": {
+      "type": "string"
+    },
+    "feature": {
+      "type": "string"
+    }
+  }
+}

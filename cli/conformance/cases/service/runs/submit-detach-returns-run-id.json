@@ -1,0 +1,195 @@
+{
+  "id": "submit-detach-returns-run-id",
+  "feature": "runs",
+  "operation": "run.submit",
+  "description": "--detach returns as soon as the run id is known; later frames are not read and no cancel is sent.",
+  "argv": [
+    "--output",
+    "jsonl",
+    "cli",
+    "run",
+    "submit",
+    "p.prose.md",
+    "--yes",
+    "--detach"
+  ],
+  "files": [
+    {
+      "path": "p.prose.md",
+      "content": "---\nname: hello\nkind: function\n---\n\nReply with the word ok.\n"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "ids": [
+      "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f"
+    ],
+    "clock": {
+      "start": "2026-09-24T01:00:00.000Z",
+      "stepMs": 0
+    },
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/run",
+        "query": {
+          "live": "1",
+          "session": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f"
+        },
+        "requestHeaders": {
+          "X-Session-Id": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f",
+          "Accept": "text/event-stream",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "expectedBody": {
+          "content": "---\nname: hello\nkind: function\n---\n\nReply with the word ok.\n"
+        },
+        "status": 200,
+        "sse": {
+          "frames": [
+            {
+              "id": "1",
+              "event": "status",
+              "data": {
+                "type": "status",
+                "run_id": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+                "sequence": 1,
+                "at": "2026-09-24T01:00:01.000Z",
+                "status": "running",
+                "message": "reactor model-luna",
+                "session": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f",
+                "controls": {
+                  "steer": true,
+                  "stop": true
+                }
+              }
+            },
+            {
+              "id": "2",
+              "event": "text_chunk",
+              "data": {
+                "type": "text_chunk",
+                "run_id": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+                "sequence": 2,
+                "at": "2026-09-24T01:00:01.000Z",
+                "text": "unread"
+              }
+            },
+            {
+              "id": "3",
+              "event": "run_complete",
+              "data": {
+                "type": "run_complete",
+                "run_id": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+                "sequence": 3,
+                "at": "2026-09-24T01:00:01.000Z",
+                "status": "completed",
+                "runtime": "reactor",
+                "environment": {
+                  "id": "builtin",
+                  "version": "1.0.0",
+                  "runtime_contract": 1
+                },
+                "response": "ok",
+                "files": [
+                  "outputs/result.json"
+                ],
+                "price_cents": 2,
+                "environment_price_cents": 1,
+                "billing_status": "settled",
+                "usage": {
+                  "input_tokens": 100,
+                  "output_tokens": 5
+                },
+                "file_urls": {
+                  "outputs/result.json": "https://example.invalid/x?tok=SECRET_SIGNED_TOKEN"
+                }
+              }
+            }
+          ],
+          "end": "close"
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "jsonl": [
+      {
+        "at": "2026-09-24T01:00:01.000Z",
+        "data": {
+          "controls": {
+            "steer": true,
+            "stop": true
+          },
+          "message": "Running on model-luna",
+          "status": "running"
+        },
+        "runId": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+        "schema": "openprose.service-event/1",
+        "sequence": 1,
+        "type": "status"
+      },
+      {
+        "at": null,
+        "data": {
+          "interaction": "run.submit",
+          "operation": "run.submit",
+          "problem": null,
+          "result": {
+            "afterSequence": 1,
+            "cancelArgv": [
+              "--output",
+              "jsonl",
+              "cli",
+              "run",
+              "cancel",
+              "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+              "--session",
+              "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f",
+              "--yes"
+            ],
+            "detached": true,
+            "resumeArgv": [
+              "--output",
+              "jsonl",
+              "cli",
+              "run",
+              "watch",
+              "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+              "--after",
+              "1",
+              "--session",
+              "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f"
+            ],
+            "run": {
+              "run_id": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+              "status": "running"
+            },
+            "runId": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+            "run_id": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+            "session": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f"
+          },
+          "schema": "openprose.service-operation/1"
+        },
+        "exitCode": 0,
+        "runId": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+        "schema": "openprose.service-event/1",
+        "sequence": null,
+        "type": "service.completed"
+      }
+    ]
+  },
+  "journalAfter": [
+    {
+      "session": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f",
+      "runId": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+      "lastSequence": 1
+    }
+  ]
+}

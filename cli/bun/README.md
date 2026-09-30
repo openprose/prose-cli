@@ -55,6 +55,22 @@ it creates a private temporary `sentinel-v1` bundle, enables test seams, writes
 command refuses to overwrite `dist/prose`. `bun run build:release` embeds the
 release-eligible `echo-v0` image with test seams off.
 
+### Developer endpoint build (OpenProse developers only)
+
+Every ordinary, test and release build talks only to the production OpenProse
+service. `bun run build:dev` writes a separate `dist/prose-dev` compiled with
+`PROSE_DEV_BUILD=true`; only that binary reads `OPENPROSE_API_URL`, an https
+origin (no path, query or credentials) that replaces the service origin at run
+time. The key is still `OPENPROSE_API_KEY`, but `cli auth login` stores it
+under a credential-store entry scoped to that origin
+(`org.openprose.cli.custom-<first 16 hex digits of sha256(origin)>`), so it
+never overwrites a production login. Human output is labeled
+`OpenProse (custom endpoint <origin>)` and JSON envelopes report
+`"environment": "custom"`. The build refuses `--require-release-eligible` and
+the default `dist/prose` outfile. Public builds define the switch as false, so
+Bun removes the override code (`src/core/service/dev-endpoint.ts`) and the
+variable name from the binary; `test/dev-endpoint.test.ts` checks both builds.
+
 Builds without image overrides embed the deliberately nonsemantic `echo-v0` image. They can
 discover and run exactly admitted user-installed Prime, OMP, Codex, Claude, and Agents SDK
 harnesses through direct argument-array subprocesses. The adapters preserve

@@ -1,0 +1,40 @@
+{
+  "id": "program-save-slug-option-suggests-argument",
+  "feature": "programs",
+  "operation": "program.save",
+  "description": "`--slug` names the SLUG argument of `cli program save`; the suggestion puts it before the file.",
+  "argv": [
+    "cli",
+    "program",
+    "save",
+    "hello.prose.md",
+    "--slug",
+    "hello",
+    "--yes"
+  ],
+  "files": [
+    {
+      "path": "hello.prose.md",
+      "content": "---\nname: demo\nkind: function\n---\n\n### Returns\n\n- `text`: exactly `ok`\n"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: Unknown option.\nDetail: unknown option --slug for `cli program save`; <SLUG> is an argument, not an option\nAction: Pass <SLUG> as an argument: `prose cli program save hello hello.prose.md --yes`.\n"
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ],
+  "suggestedArgvReaches": true
+}

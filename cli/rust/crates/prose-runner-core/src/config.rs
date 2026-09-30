@@ -1,6 +1,6 @@
 use crate::error::RunnerError;
 use crate::invocation::{GlobalFlags, OutputMode};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::collections::BTreeMap;
 use std::env;
 use std::fs;
@@ -49,9 +49,31 @@ impl SystemContext {
     /// Returns `CONFIG_INVALID` if the current directory is unavailable.
     pub fn capture() -> Result<Self, RunnerError> {
         let current_dir = env::current_dir().map_err(|error| {
-            RunnerError::config(format!("cannot read the current directory: {error}"))
+            let _ = error;
+            RunnerError::config("cannot read the current directory")
+                .with_detail("source", "process cwd")
         })?;
-        let environment: BTreeMap<String, String> = env::vars().collect();
+        // A variable that is not UTF-8 never panics: it is decoded like the
+        // Bun build decodes its environment (U+FFFD for each invalid
+        // sequence), and a configuration variable holding U+FFFD is then
+        // CONFIG_INVALID (see `apply_environment`).
+        //
+        // Windows variable names are case-insensitive (the Bun build's
+        // `process.env` matches `Prose_Harness` for `PROSE_HARNESS` there), so
+        // names are compared in upper case on Windows.
+        let environment: BTreeMap<String, String> = env::vars_os()
+            .map(|(name, value)| {
+                let name = name.to_string_lossy();
+                (
+                    if cfg!(windows) {
+                        name.to_ascii_uppercase()
+                    } else {
+                        name.into_owned()
+                    },
+                    value.to_string_lossy().into_owned(),
+                )
+            })
+            .collect();
         Ok(Self {
             current_dir,
             home_dir: env::var_os("HOME").map(PathBuf::from),
@@ -207,9 +229,13 @@ pub fn write_user_harness(
     model: Option<&str>,
     auth_profile: Option<&str>,
 ) -> Result<UserHarnessSelection, RunnerError> {
-    if !matches!(harness, "openprose" | "agents-sdk" | "prime" | "omp" | "codex" | "claude") {
+    if !matches!(
+        harness,
+        "openprose" | "agents-sdk" | "prime" | "omp" | "codex" | "claude"
+    ) {
         return Err(RunnerError::config(format!(
-            "unsupported default harness {harness:?}; expected openprose, prime, omp, codex, or claude"
+            "unsupported default harness {harness_quoted}; expected openprose, prime, omp, codex, or claude",
+            harness_quoted = crate::error::quote(harness)
         )));
     }
     let path = config
@@ -224,29 +250,22 @@ pub fn write_user_harness(
     let existing_bytes = match fs::read(&path) {
         Ok(bytes) => bytes,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Vec::new(),
-        Err(error) => {
-            return Err(RunnerError::config(format!(
-                "cannot read user configuration {}: {error}",
-                path.display()
-            )));
+        Err(_) => {
+            return Err(setting_error(
+                "OpenProse user configuration cannot be read safely.",
+                &path.display().to_string(),
+            ));
         }
     };
     let existing = decode_configuration(&existing_bytes, &path)?.to_owned();
     let mut table = if existing.trim().is_empty() {
         toml::map::Map::new()
     } else {
-        let lines = validate_flat_toml(&existing, &path)?;
-        let values: FileConfig = toml::from_str(&existing).map_err(|_| {
-            config_line_error(
-                &path,
-                1,
-                "Configuration does not match the supported flat TOML subset.",
-            )
-        })?;
+        let loaded = parse_file(&existing, &path)?;
         let mut validated = config.clone();
         apply_file(
             &mut validated,
-            LoadedFileConfig { values, lines },
+            loaded,
             ConfigSource::file(ConfigSourceKind::UserFile, &path),
         )?;
         toml::from_str::<toml::Table>(&existing).map_err(|_| {
@@ -290,16 +309,24 @@ pub fn write_user_harness(
         }
     }
     let bytes = toml::to_string(&table)
-        .map_err(|error| {
-            RunnerError::config(format!("cannot serialize user configuration: {error}"))
+        .map_err(|_| {
+            setting_error(
+                "OpenProse user configuration could not be written atomically.",
+                &path.display().to_string(),
+            )
         })?
         .into_bytes();
     atomic_user_config_write(&path, &bytes)?;
-    Ok(UserHarnessSelection { path, changed: true })
+    Ok(UserHarnessSelection {
+        path,
+        changed: true,
+    })
 }
 
 fn atomic_user_config_write(path: &Path, bytes: &[u8]) -> Result<(), RunnerError> {
-    let parent = path.parent().ok_or_else(|| RunnerError::config("user configuration has no parent directory"))?;
+    let parent = path
+        .parent()
+        .ok_or_else(|| RunnerError::config("user configuration has no parent directory"))?;
     let temporary = parent.join(format!(".cli.toml.{}.tmp", uuid::Uuid::now_v7()));
     let write_result = (|| -> std::io::Result<()> {
         let mut options = OpenOptions::new();
@@ -321,28 +348,36 @@ fn atomic_user_config_write(path: &Path, bytes: &[u8]) -> Result<(), RunnerError
         fs::rename(&temporary, path)?;
         Ok(())
     })();
-    if let Err(error) = write_result {
+    if write_result.is_err() {
         let _ = fs::remove_file(&temporary);
-        return Err(RunnerError::config(format!(
-            "cannot atomically update user configuration {}: {error}",
-            path.display()
-        )));
+        return Err(setting_error(
+            "OpenProse user configuration could not be written atomically.",
+            &path.display().to_string(),
+        ));
     }
     Ok(())
 }
 
+/// Creates and secures the user configuration's parent, with the fixed
+/// reasons both ports use (no operating-system error text).
 fn prepare_private_config_parent(parent: &Path) -> Result<(), RunnerError> {
-    create_private_config_parent_io(parent).map_err(|error| {
-        RunnerError::config(format!(
-            "cannot create user configuration directory {}: {error}",
-            parent.display()
-        ))
-    })?;
+    let location = parent.display().to_string();
+    let not_directory = || {
+        setting_error(
+            "OpenProse user configuration parent must be a real directory, not a symlink.",
+            &location,
+        )
+    };
+    create_private_config_parent_io(parent).map_err(|_| not_directory())?;
     harden_config_parent_io(parent).map_err(|error| {
-        RunnerError::config(format!(
-            "cannot secure user configuration directory {}: {error}",
-            parent.display()
-        ))
+        if error.kind() == std::io::ErrorKind::InvalidInput {
+            not_directory()
+        } else {
+            setting_error(
+                "OpenProse user configuration parent cannot be secured for owner-only access.",
+                &location,
+            )
+        }
     })
 }
 
@@ -363,10 +398,14 @@ fn create_private_config_parent_io(parent: &Path) -> std::io::Result<()> {
 
 fn refuse_symlinked_config_destination(path: &Path) -> Result<(), RunnerError> {
     refuse_symlinked_config_destination_io(path).map_err(|error| {
-        RunnerError::config(format!(
-            "cannot authenticate user configuration {}: {error}",
-            path.display()
-        ))
+        setting_error(
+            if error.kind() == std::io::ErrorKind::InvalidInput {
+                "OpenProse user configuration must be a regular non-symlink file."
+            } else {
+                "OpenProse user configuration cannot be read safely."
+            },
+            &path.display().to_string(),
+        )
     })
 }
 
@@ -458,16 +497,51 @@ impl EffectiveConfig {
                 value: false,
                 source: ConfigSource::default(),
             },
-            native_log:Sourced {value:None,source:ConfigSource::default()},
-            output_contract: Sourced { value:if crate::kernel_startup::PUBLISHED_KERNEL_STARTUP && !cfg!(test) { "native" } else { "image-envelope" }.into(),source:ConfigSource::default() },
-            native_max_turns: Sourced {value:None,source:ConfigSource::default()},
-            native_timeout: Sourced {value:None,source:ConfigSource::default()},
-            native_tool_timeout: Sourced {value:None,source:ConfigSource::default()},
-            native_output_bytes: Sourced {value:None,source:ConfigSource::default()},
-            native_profile: Sourced {value:"default".into(),source:ConfigSource::default()},
-            native_add_dirs: Sourced {value:vec![],source:ConfigSource::default()},
-            native_allow_tools: Sourced {value:vec![],source:ConfigSource::default()},
-            permission_mode: Sourced { value:None, source:ConfigSource::default() },
+            native_log: Sourced {
+                value: None,
+                source: ConfigSource::default(),
+            },
+            output_contract: Sourced {
+                value: if crate::kernel_startup::PUBLISHED_KERNEL_STARTUP && !cfg!(test) {
+                    "native"
+                } else {
+                    "image-envelope"
+                }
+                .into(),
+                source: ConfigSource::default(),
+            },
+            native_max_turns: Sourced {
+                value: None,
+                source: ConfigSource::default(),
+            },
+            native_timeout: Sourced {
+                value: None,
+                source: ConfigSource::default(),
+            },
+            native_tool_timeout: Sourced {
+                value: None,
+                source: ConfigSource::default(),
+            },
+            native_output_bytes: Sourced {
+                value: None,
+                source: ConfigSource::default(),
+            },
+            native_profile: Sourced {
+                value: "default".into(),
+                source: ConfigSource::default(),
+            },
+            native_add_dirs: Sourced {
+                value: vec![],
+                source: ConfigSource::default(),
+            },
+            native_allow_tools: Sourced {
+                value: vec![],
+                source: ConfigSource::default(),
+            },
+            permission_mode: Sourced {
+                value: None,
+                source: ConfigSource::default(),
+            },
             auth_profile: Sourced {
                 value: None,
                 source: ConfigSource::default(),
@@ -476,32 +550,8 @@ impl EffectiveConfig {
     }
 }
 
-#[derive(Debug, Clone, Default, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct FileConfig {
-    service_environment: Option<String>,
-    harness: Option<String>,
-    transport: Option<String>,
-    model: Option<String>,
-    timeout: Option<String>,
-    output: Option<String>,
-    color: Option<bool>,
-    verbose: Option<bool>,
-    auth_profile: Option<String>,
-    native_log: Option<String>,
-    output_contract: Option<String>,
-    permission_mode: Option<String>,
-    native_max_turns: Option<String>,
-    native_timeout: Option<String>,
-    native_tool_timeout: Option<String>,
-    native_output_bytes: Option<String>,
-    native_profile: Option<String>,
-    native_add_dirs: Option<Vec<String>>,
-    native_allow_tools: Option<Vec<String>>,
-}
-
 struct LoadedFileConfig {
-    values: FileConfig,
+    values: BTreeMap<String, RawSetting>,
     lines: BTreeMap<String, usize>,
 }
 
@@ -698,9 +748,22 @@ fn validate_flat_toml(source: &str, path: &Path) -> Result<BTreeMap<String, usiz
         }
         let value = &bytes[cursor..];
         if matches!(key, "native_add_dirs" | "native_allow_tools") {
-            let parsed: toml::Table = raw.parse().map_err(|_|config_line_error(path,line_number,"Expected a single-line string array."))?;
-            let array = parsed.get(key).and_then(toml::Value::as_array).ok_or_else(||config_line_error(path,line_number,"Expected a single-line string array."))?;
-            if !array.iter().all(|v|v.as_str().is_some()) {return Err(config_line_error(path,line_number,"Expected a string array."));}
+            let parsed: toml::Table = raw.parse().map_err(|_| {
+                config_line_error(path, line_number, "Expected a single-line string array.")
+            })?;
+            let array = parsed
+                .get(key)
+                .and_then(toml::Value::as_array)
+                .ok_or_else(|| {
+                    config_line_error(path, line_number, "Expected a single-line string array.")
+                })?;
+            if !array.iter().all(|v| v.as_str().is_some()) {
+                return Err(config_line_error(
+                    path,
+                    line_number,
+                    "Expected a string array.",
+                ));
+            }
             continue;
         }
         let (end, literal, value_kind) = match value.first() {
@@ -742,7 +805,9 @@ fn validate_flat_toml(source: &str, path: &Path) -> Result<BTreeMap<String, usiz
                 format!("Configuration key {key} requires a boolean value."),
             ));
         }
-        if !requires_boolean && value_kind != FileValueKind::String {
+        // The retired `service_environment` key is ignored whatever its value.
+        if !requires_boolean && key != "service_environment" && value_kind != FileValueKind::String
+        {
             return Err(config_line_error(
                 path,
                 line_number,
@@ -773,18 +838,28 @@ pub fn resolve_config(
             }
         },
     );
-    let cwd = fs::canonicalize(&requested_cwd).map_err(|error| {
-        RunnerError::config(format!(
-            "working directory {} does not exist or cannot be resolved: {error}",
-            requested_cwd.display()
-        ))
-    })?;
-    if !cwd.is_dir() {
-        return Err(RunnerError::config(format!(
-            "working directory {} is not a directory",
-            cwd.display()
-        )));
+    let cwd_location = if flags.cwd.is_some() {
+        "--cwd"
+    } else {
+        "process cwd"
+    };
+    let shown = lexical_normal(&requested_cwd).display().to_string();
+    let unreadable = || {
+        setting_error(
+            format!("Working directory does not exist or cannot be read: {shown}."),
+            cwd_location,
+        )
+    };
+    if !fs::metadata(&requested_cwd)
+        .map_err(|_| unreadable())?
+        .is_dir()
+    {
+        return Err(setting_error(
+            format!("Working directory is not a directory: {shown}."),
+            cwd_location,
+        ));
     }
+    let cwd = fs::canonicalize(&requested_cwd).map_err(|_| unreadable())?;
 
     let project_config = discover_project_config(&cwd)?;
     let user_config_candidate = system.user_config_path()?;
@@ -820,16 +895,7 @@ pub fn resolve_config(
     }
     apply_environment(&mut config, &system.environment)?;
     apply_flags(&mut config, flags)?;
-    if config.native_output_bytes.value.is_some() && config.output_contract.value != "native" { return Err(RunnerError::config("Native output bytes require native output mode.")); }
-    if config.harness.value != "agents-sdk" && (config.native_max_turns.value.is_some() || config.native_timeout.value.is_some() || config.native_tool_timeout.value.is_some()) {return Err(RunnerError::config("Native budgets require agents-sdk."));}
-    if config.native_profile.value != "default" && config.harness.value != "claude" {return Err(RunnerError::config("Native workspace profile requires Claude."));}
-    if config.native_profile.value == "default" && (!config.native_add_dirs.value.is_empty() || !config.native_allow_tools.value.is_empty()) {return Err(RunnerError::config("Native directory/tool options require claude-workspace-tools."));}
-    for directory in &mut config.native_add_dirs.value {
-        let path=Path::new(directory);let path=if path.is_absolute(){path.to_owned()}else{config.cwd.join(path)};
-        let resolved=fs::canonicalize(&path).map_err(|_|RunnerError::config("Native additional directory does not exist."))?;
-        if !resolved.is_dir(){return Err(RunnerError::config("Native additional path is not a directory."));}
-        *directory=resolved.to_string_lossy().into_owned();
-    }
+    native_checks(&mut config)?;
     Ok(config)
 }
 
@@ -838,11 +904,9 @@ fn discover_project_config(cwd: &Path) -> Result<Option<PathBuf>, RunnerError> {
     while let Some(directory) = cursor {
         let candidate = directory.join(".prose").join("cli.toml");
         if candidate.is_file() {
-            let canonical = fs::canonicalize(&candidate).map_err(|error| {
-                RunnerError::config(format!(
-                    "cannot resolve project configuration {}: {error}",
-                    candidate.display()
-                ))
+            let shown = candidate.display().to_string();
+            let canonical = fs::canonicalize(&candidate).map_err(|_| {
+                setting_error(format!("Cannot read configuration file: {shown}."), &shown)
             })?;
             return Ok(Some(canonical));
         }
@@ -854,36 +918,461 @@ fn discover_project_config(cwd: &Path) -> Result<Option<PathBuf>, RunnerError> {
     Ok(None)
 }
 
+/// `path` with `.` and `..` components removed lexically, as the Bun build
+/// resolves `--cwd` before it shows it.
+fn lexical_normal(path: &Path) -> PathBuf {
+    let mut normal = PathBuf::new();
+    for component in path.components() {
+        match component {
+            std::path::Component::CurDir => {}
+            std::path::Component::ParentDir => {
+                if !normal.pop() {
+                    normal.push(component);
+                }
+            }
+            other => normal.push(other),
+        }
+    }
+    normal
+}
+
+/// The checks across keys, after every source applied, in the one order
+/// both ports use. Each names the source of the setting it rejects.
+fn native_checks(config: &mut EffectiveConfig) -> Result<(), RunnerError> {
+    let fail = |reason: &str, keys: &[&str], config: &EffectiveConfig| {
+        let error = RunnerError::config(reason);
+        match first_source(config, keys) {
+            Some(location) => error.with_detail("source", location),
+            None => error,
+        }
+    };
+    let budgets = ["nativeMaxTurns", "nativeTimeout", "nativeToolTimeout"];
+    if config.harness.value != "agents-sdk" && first_source(config, &budgets).is_some() {
+        return Err(fail(
+            "Native budget options are supported only by agents-sdk.",
+            &budgets,
+            config,
+        ));
+    }
+    if config.native_output_bytes.value.is_some() && config.output_contract.value != "native" {
+        return Err(fail(
+            "Native output bytes require native output mode.",
+            &["nativeOutputBytes"],
+            config,
+        ));
+    }
+    let native = ["nativeProfile", "nativeAddDirs", "nativeAllowTools"];
+    if first_source(config, &native).is_none() {
+        return Ok(());
+    }
+    if config.native_profile.value == "default" {
+        if !config.native_add_dirs.value.is_empty() || !config.native_allow_tools.value.is_empty() {
+            return Err(fail(
+                "Native directory and tool rules require claude-workspace-tools.",
+                &native,
+                config,
+            ));
+        }
+        return Ok(());
+    }
+    if config.harness.value != "claude" {
+        return Err(fail(
+            "Native workspace profile is supported only by Claude.",
+            &native,
+            config,
+        ));
+    }
+    if config
+        .native_allow_tools
+        .value
+        .iter()
+        .any(|rule| rule.starts_with('-'))
+    {
+        return Err(fail(
+            "Native permission rules cannot start with a dash.",
+            &["nativeAllowTools"],
+            config,
+        ));
+    }
+    let cwd = config.cwd.clone();
+    let mut resolved = Vec::with_capacity(config.native_add_dirs.value.len());
+    for directory in &config.native_add_dirs.value {
+        let path = Path::new(directory);
+        let path = if path.is_absolute() {
+            path.to_owned()
+        } else {
+            cwd.join(path)
+        };
+        match fs::canonicalize(&path) {
+            Ok(real) if real.is_dir() => resolved.push(real.to_string_lossy().into_owned()),
+            _ => {
+                return Err(fail(
+                    "Native additional directory does not exist or is not a directory.",
+                    &["nativeAddDirs"],
+                    config,
+                ));
+            }
+        }
+    }
+    config.native_add_dirs.value = resolved;
+    Ok(())
+}
+
 fn load_file(path: &Path) -> Result<LoadedFileConfig, RunnerError> {
-    let bytes = fs::read(path).map_err(|error| {
-        RunnerError::config(format!(
-            "cannot read configuration {}: {error}",
-            path.display()
-        ))
+    let location = path.display().to_string();
+    let bytes = fs::read(path).map_err(|_| {
+        setting_error(
+            format!("Cannot read configuration file: {location}."),
+            &location,
+        )
     })?;
-    let source = decode_configuration(&bytes, path)?;
+    parse_file(decode_configuration(&bytes, path)?, path)
+}
+
+/// Checks the flat TOML subset line by line, then keeps each value raw for
+/// validation in the one key order.
+fn parse_file(source: &str, path: &Path) -> Result<LoadedFileConfig, RunnerError> {
     let lines = validate_flat_toml(source, path)?;
-    let values = toml::from_str(source).map_err(|_| {
+    let table: toml::Table = toml::from_str(source).map_err(|_| {
         config_line_error(
             path,
             1,
             "Configuration does not match the supported flat TOML subset.",
         )
     })?;
+    let values = table
+        .into_iter()
+        .filter_map(|(key, value)| {
+            let raw = match value {
+                toml::Value::String(text) => RawSetting::Text(text),
+                toml::Value::Boolean(flag) => RawSetting::Boolean(flag),
+                toml::Value::Array(items) => RawSetting::List(
+                    items
+                        .into_iter()
+                        .filter_map(|item| item.as_str().map(str::to_owned))
+                        .collect(),
+                ),
+                _ => return None,
+            };
+            Some((key, raw))
+        })
+        .collect();
     Ok(LoadedFileConfig { values, lines })
 }
 
-fn file_value_error(
-    source: &ConfigSource,
-    lines: &BTreeMap<String, usize>,
-    key: &str,
-    reason: impl Into<String>,
-) -> RunnerError {
-    let error = RunnerError::config(reason);
-    match (source.location.as_ref(), lines.get(key)) {
-        (Some(location), Some(line)) => error.with_detail("source", format!("{location}:{line}")),
-        _ => error,
+/// The configuration keys in their one validation order (the order of
+/// `values` in `shared/schemas/configuration-explanation.schema.json`, with
+/// `nativeLog` before `authProfile`): `(key, file key, variable, flag)`.
+const SETTINGS: [(&str, &str, Option<&str>, &str); 18] = [
+    ("harness", "harness", Some("PROSE_HARNESS"), "--harness"),
+    (
+        "transport",
+        "transport",
+        Some("PROSE_TRANSPORT"),
+        "--transport",
+    ),
+    ("model", "model", Some("PROSE_MODEL"), "--model"),
+    ("timeout", "timeout", Some("PROSE_TIMEOUT"), "--timeout"),
+    ("output", "output", Some("PROSE_OUTPUT"), "--output"),
+    ("color", "color", Some("PROSE_COLOR"), "--no-color"),
+    ("verbose", "verbose", Some("PROSE_VERBOSE"), "--verbose"),
+    (
+        "outputContract",
+        "output_contract",
+        Some("PROSE_OUTPUT_CONTRACT"),
+        "--output-contract",
+    ),
+    (
+        "permissionMode",
+        "permission_mode",
+        Some("PROSE_PERMISSION_MODE"),
+        "--permission-mode",
+    ),
+    (
+        "nativeMaxTurns",
+        "native_max_turns",
+        Some("PROSE_NATIVE_MAX_TURNS"),
+        "--native-max-turns",
+    ),
+    (
+        "nativeTimeout",
+        "native_timeout",
+        Some("PROSE_NATIVE_TIMEOUT"),
+        "--native-timeout",
+    ),
+    (
+        "nativeToolTimeout",
+        "native_tool_timeout",
+        Some("PROSE_NATIVE_TOOL_TIMEOUT"),
+        "--native-tool-timeout",
+    ),
+    (
+        "nativeOutputBytes",
+        "native_output_bytes",
+        Some("PROSE_NATIVE_OUTPUT_BYTES"),
+        "--native-output-bytes",
+    ),
+    (
+        "nativeProfile",
+        "native_profile",
+        Some("PROSE_NATIVE_PROFILE"),
+        "--native-profile",
+    ),
+    ("nativeAddDirs", "native_add_dirs", None, "--native-add-dir"),
+    (
+        "nativeAllowTools",
+        "native_allow_tools",
+        None,
+        "--native-allow-tool",
+    ),
+    (
+        "nativeLog",
+        "native_log",
+        Some("PROSE_NATIVE_LOG"),
+        "--native-log",
+    ),
+    (
+        "authProfile",
+        "auth_profile",
+        Some("PROSE_AUTH_PROFILE"),
+        "--auth-profile",
+    ),
+];
+
+/// The longest accepted run timeout (`maxTimeoutMs` in
+/// `shared/capabilities/transport-limits.v1.json`).
+pub(crate) const MAX_TIMEOUT_MS: u64 = 86_400_000;
+
+/// One raw configuration value, before validation.
+#[derive(Debug, Clone)]
+enum RawSetting {
+    Text(String),
+    Boolean(bool),
+    List(Vec<String>),
+}
+
+fn setting_error(reason: impl Into<String>, location: &str) -> RunnerError {
+    RunnerError::config(reason).with_detail("source", location.to_owned())
+}
+
+/// Milliseconds of a run timeout (`^[1-9][0-9]*(ms|s|m|h)$`, at most 24h).
+///
+/// # Errors
+///
+/// The canonical reason text of an invalid or too long timeout.
+pub(crate) fn timeout_ms(value: &str) -> Result<u64, &'static str> {
+    const INVALID: &str = "timeout must be a positive duration such as 30s or 10m.";
+    let (number, unit) = [("ms", 1), ("s", 1000), ("m", 60_000), ("h", 3_600_000)]
+        .into_iter()
+        .find_map(|(suffix, unit)| value.strip_suffix(suffix).map(|number| (number, unit)))
+        .ok_or(INVALID)?;
+    if number.is_empty() || number.starts_with('0') || !number.bytes().all(|b| b.is_ascii_digit()) {
+        return Err(INVALID);
     }
+    number
+        .parse::<u64>()
+        .ok()
+        .and_then(|number| number.checked_mul(unit))
+        .filter(|ms| *ms <= MAX_TIMEOUT_MS)
+        .ok_or("timeout must be at most 24h.")
+}
+
+/// Validates one value of `key` and stores it. `file` selects the fixed,
+/// value-free reasons of a configuration file; `location` is the value's
+/// `details.source`.
+#[allow(clippy::too_many_lines)]
+fn assign_setting(
+    target: &mut EffectiveConfig,
+    key: &str,
+    file_key: &str,
+    raw: RawSetting,
+    source: &ConfigSource,
+    location: &str,
+    file: bool,
+) -> Result<(), RunnerError> {
+    let fail = |reason: String| Err(setting_error(reason, location));
+    let text = match raw {
+        RawSetting::Boolean(value) => {
+            if !matches!(key, "color" | "verbose") {
+                return fail(format!(
+                    "Configuration key {file_key} requires a string value."
+                ));
+            }
+            if key == "color" {
+                target.color.replace(value, source.clone());
+            } else {
+                target.verbose.replace(value, source.clone());
+            }
+            return Ok(());
+        }
+        RawSetting::List(values) => {
+            if !matches!(key, "nativeAddDirs" | "nativeAllowTools") {
+                return fail(format!(
+                    "Configuration key {file_key} requires a string value."
+                ));
+            }
+            if values
+                .iter()
+                .any(|value| value.trim().is_empty() || value.contains('\0'))
+            {
+                return fail(format!("{key} must be an array of nonempty strings."));
+            }
+            if key == "nativeAddDirs" {
+                target.native_add_dirs.replace(values, source.clone());
+            } else {
+                target.native_allow_tools.replace(values, source.clone());
+            }
+            return Ok(());
+        }
+        RawSetting::Text(text) => text,
+    };
+    if file && matches!(key, "color" | "verbose") {
+        return fail(format!(
+            "Configuration key {file_key} requires a boolean value."
+        ));
+    }
+    if matches!(key, "nativeAddDirs" | "nativeAllowTools") {
+        return fail(format!("{key} must be an array of nonempty strings."));
+    }
+    if text.contains('\u{FFFD}') {
+        return fail(format!("{key} must be valid UTF-8."));
+    }
+    if matches!(key, "color" | "verbose") {
+        let value = match text.as_str() {
+            "true" | "1" => true,
+            "false" | "0" => false,
+            _ => return fail(format!("{key} must be true, false, 1, or 0.")),
+        };
+        if key == "color" {
+            target.color.replace(value, source.clone());
+        } else {
+            target.verbose.replace(value, source.clone());
+        }
+        return Ok(());
+    }
+    if text.is_empty() {
+        return fail(if file {
+            format!("Configuration key {file_key} must not be empty.")
+        } else {
+            format!("{key} must not be empty.")
+        });
+    }
+    let source = source.clone();
+    match key {
+        "harness" => {
+            if !SUPPORTED_HARNESSES.contains(&text.as_str()) {
+                return fail(if file {
+                    "Configuration key harness contains an unsupported value.".to_owned()
+                } else {
+                    format!(
+                        "Unsupported harness {}; expected openprose, prime, omp, codex, claude, or mock.",
+                        crate::error::quote(&text)
+                    )
+                });
+            }
+            target.harness.replace(text, source);
+        }
+        "transport" => target.transport.replace(text, source),
+        "model" => target.model.replace(Some(text), source),
+        "timeout" => {
+            if let Err(reason) = timeout_ms(&text) {
+                return fail(if file {
+                    "Configuration key timeout contains an invalid duration.".to_owned()
+                } else {
+                    reason.to_owned()
+                });
+            }
+            target.timeout.replace(text, source);
+        }
+        "output" => {
+            let Ok(mode) = OutputMode::parse(&text) else {
+                return fail(if file {
+                    "Configuration key output contains an unsupported value.".to_owned()
+                } else {
+                    "output must be human, json, or jsonl.".to_owned()
+                });
+            };
+            target.output.replace(mode, source);
+        }
+        "outputContract" => {
+            if !matches!(text.as_str(), "native" | "image-envelope") {
+                return fail("Output contract must be native or image-envelope.".to_owned());
+            }
+            target.output_contract.replace(text, source);
+        }
+        "permissionMode" => {
+            if !matches!(
+                text.as_str(),
+                "default" | "acceptEdits" | "workspace-write" | "read-only"
+            ) {
+                return fail(
+                    "Permission mode must be default, acceptEdits, workspace-write, or read-only."
+                        .to_owned(),
+                );
+            }
+            target.permission_mode.replace(Some(text), source);
+        }
+        "nativeMaxTurns" => {
+            validate_native_turns(&text).map_err(|error| relocate(error, location))?;
+            target.native_max_turns.replace(Some(text), source);
+        }
+        "nativeTimeout" | "nativeToolTimeout" => {
+            validate_native_timeout(&text).map_err(|error| relocate(error, location))?;
+            if key == "nativeTimeout" {
+                target.native_timeout.replace(Some(text), source);
+            } else {
+                target.native_tool_timeout.replace(Some(text), source);
+            }
+        }
+        "nativeOutputBytes" => {
+            validate_native_output_bytes(&text).map_err(|error| relocate(error, location))?;
+            target.native_output_bytes.replace(Some(text), source);
+        }
+        "nativeProfile" => {
+            if !matches!(text.as_str(), "default" | "claude-workspace-tools") {
+                return fail("Unknown native profile.".to_owned());
+            }
+            target.native_profile.replace(text, source);
+        }
+        "nativeLog" => target.native_log.replace(Some(text), source),
+        "authProfile" => target.auth_profile.replace(Some(text), source),
+        _ => return fail("Configuration contains an unknown key.".to_owned()),
+    }
+    Ok(())
+}
+
+/// Gives a validator's error the source of the value it rejected.
+fn relocate(error: RunnerError, location: &str) -> RunnerError {
+    error.with_detail("source", location.to_owned())
+}
+
+const SUPPORTED_HARNESSES: [&str; 7] = [
+    "openprose",
+    "agents-sdk",
+    "prime",
+    "omp",
+    "codex",
+    "claude",
+    "mock",
+];
+
+/// The source of the first of `keys` that is not a default.
+fn first_source(config: &EffectiveConfig, keys: &[&str]) -> Option<String> {
+    keys.iter().find_map(|key| {
+        let source = match *key {
+            "nativeMaxTurns" => &config.native_max_turns.source,
+            "nativeTimeout" => &config.native_timeout.source,
+            "nativeToolTimeout" => &config.native_tool_timeout.source,
+            "nativeOutputBytes" => &config.native_output_bytes.source,
+            "nativeProfile" => &config.native_profile.source,
+            "nativeAddDirs" => &config.native_add_dirs.source,
+            "nativeAllowTools" => &config.native_allow_tools.source,
+            _ => return None,
+        };
+        (source.kind != ConfigSourceKind::Default)
+            .then(|| source.location.clone())
+            .flatten()
+    })
 }
 
 fn apply_file(
@@ -891,108 +1380,32 @@ fn apply_file(
     loaded: LoadedFileConfig,
     source: ConfigSource,
 ) -> Result<(), RunnerError> {
-    let LoadedFileConfig {
-        values: source_values,
-        lines,
-    } = loaded;
-    if let Some(value) = source_values.service_environment {
-        if source.kind != ConfigSourceKind::UserFile || !matches!(value.as_str(), "production" | "staging") {
-            return Err(file_value_error(&source, &lines, "service_environment", "Service environment must be production or staging and may only be set in user configuration."));
-        }
+    let LoadedFileConfig { values, lines } = loaded;
+    let location = |file_key: &str| {
+        format!(
+            "{}:{}",
+            source.location.as_deref().unwrap_or_default(),
+            lines.get(file_key).copied().unwrap_or(1)
+        )
+    };
+    if values.contains_key("service_environment") && source.kind != ConfigSourceKind::UserFile {
+        return Err(setting_error(
+            "Configuration contains an unknown key.",
+            &location("service_environment"),
+        ));
     }
-    if let Some(value) = source_values.harness {
-        target.harness.replace(
-            validate_harness("harness", value).map_err(|_| {
-                file_value_error(
-                    &source,
-                    &lines,
-                    "harness",
-                    "Configuration key harness contains an unsupported value.",
-                )
-            })?,
-            source.clone(),
-        );
-    }
-    if let Some(value) = source_values.transport {
-        target.transport.replace(
-            nonempty("transport", value).map_err(|_| {
-                file_value_error(
-                    &source,
-                    &lines,
-                    "transport",
-                    "Configuration key transport must not be empty.",
-                )
-            })?,
-            source.clone(),
-        );
-    }
-    if let Some(value) = source_values.model {
-        target.model.replace(
-            Some(nonempty("model", value).map_err(|_| {
-                file_value_error(
-                    &source,
-                    &lines,
-                    "model",
-                    "Configuration key model must not be empty.",
-                )
-            })?),
-            source.clone(),
-        );
-    }
-    if let Some(value) = source_values.timeout {
-        validate_timeout(&value).map_err(|_| {
-            file_value_error(
+    for (key, file_key, _, _) in SETTINGS {
+        if let Some(raw) = values.get(file_key) {
+            assign_setting(
+                target,
+                key,
+                file_key,
+                raw.clone(),
                 &source,
-                &lines,
-                "timeout",
-                "Configuration key timeout contains an invalid duration.",
-            )
-        })?;
-        target.timeout.replace(value, source.clone());
-    }
-    if let Some(value) = source_values.output {
-        target.output.replace(
-            OutputMode::parse(&value).map_err(|_| {
-                file_value_error(
-                    &source,
-                    &lines,
-                    "output",
-                    "Configuration key output contains an unsupported value.",
-                )
-            })?,
-            source.clone(),
-        );
-    }
-    if let Some(value) = source_values.color {
-        target.color.replace(value, source.clone());
-    }
-    if let Some(value) = source_values.verbose {
-        target.verbose.replace(value, source.clone());
-    }
-    if let Some(value)=source_values.native_max_turns { validate_native_turns(&value)?; target.native_max_turns.replace(Some(value),source.clone()); }
-    if let Some(value)=source_values.native_timeout { validate_native_timeout(&value)?; target.native_timeout.replace(Some(value),source.clone()); }
-    if let Some(value)=source_values.native_tool_timeout { validate_native_timeout(&value)?; target.native_tool_timeout.replace(Some(value),source.clone()); }
-    if let Some(value)=source_values.native_output_bytes { validate_native_output_bytes(&value)?; target.native_output_bytes.replace(Some(value),source.clone()); }
-    if let Some(value)=source_values.native_profile {target.native_profile.replace(validate_native_profile(value)?,source.clone());}
-    if let Some(value)=source_values.native_add_dirs {target.native_add_dirs.replace(validate_native_values(value)?,source.clone());}
-    if let Some(value)=source_values.native_allow_tools {target.native_allow_tools.replace(validate_native_rules(value)?,source.clone());}
-    if let Some(value)=source_values.native_log {target.native_log.replace(Some(value),source.clone());}
-    if let Some(value) = source_values.output_contract { target.output_contract.replace(validate_output_contract(value)?,source.clone()); }
-    if let Some(value) = source_values.permission_mode {
-        target.permission_mode.replace(Some(validate_permission_mode(value)?), source.clone());
-    }
-    if let Some(value) = source_values.auth_profile {
-        target.auth_profile.replace(
-            Some(nonempty("auth_profile", value).map_err(|_| {
-                file_value_error(
-                    &source,
-                    &lines,
-                    "auth_profile",
-                    "Configuration key auth_profile must not be empty.",
-                )
-            })?),
-            source,
-        );
+                &location(file_key),
+                true,
+            )?;
+        }
     }
     Ok(())
 }
@@ -1001,193 +1414,64 @@ fn apply_environment(
     target: &mut EffectiveConfig,
     environment: &BTreeMap<String, String>,
 ) -> Result<(), RunnerError> {
-    if let Some(value) = environment.get("PROSE_HARNESS") {
-        target.harness.replace(
-            validate_harness("PROSE_HARNESS", value.clone())?,
-            ConfigSource::environment("PROSE_HARNESS"),
-        );
-    }
-    if let Some(value) = environment.get("PROSE_TRANSPORT") {
-        target.transport.replace(
-            nonempty("PROSE_TRANSPORT", value.clone())?,
-            ConfigSource::environment("PROSE_TRANSPORT"),
-        );
-    }
-    if let Some(value) = environment.get("PROSE_MODEL") {
-        target.model.replace(
-            Some(nonempty("PROSE_MODEL", value.clone())?),
-            ConfigSource::environment("PROSE_MODEL"),
-        );
-    }
-    if let Some(value) = environment.get("PROSE_TIMEOUT") {
-        validate_timeout(value)?;
-        target
-            .timeout
-            .replace(value.clone(), ConfigSource::environment("PROSE_TIMEOUT"));
-    }
-    if let Some(value) = environment.get("PROSE_OUTPUT") {
-        target.output.replace(
-            OutputMode::parse(value)?,
-            ConfigSource::environment("PROSE_OUTPUT"),
-        );
-    }
-    if let Some(value) = environment.get("PROSE_COLOR") {
-        target.color.replace(
-            parse_bool("PROSE_COLOR", value)?,
-            ConfigSource::environment("PROSE_COLOR"),
-        );
-    }
-    if let Some(value) = environment.get("PROSE_VERBOSE") {
-        target.verbose.replace(
-            parse_bool("PROSE_VERBOSE", value)?,
-            ConfigSource::environment("PROSE_VERBOSE"),
-        );
-    }
-    if let Some(value)=environment.get("PROSE_NATIVE_MAX_TURNS") { validate_native_turns(value)?; target.native_max_turns.replace(Some(value.clone()),ConfigSource::environment("PROSE_NATIVE_MAX_TURNS")); }
-    if let Some(value)=environment.get("PROSE_NATIVE_TIMEOUT") { validate_native_timeout(value)?; target.native_timeout.replace(Some(value.clone()),ConfigSource::environment("PROSE_NATIVE_TIMEOUT")); }
-    if let Some(value)=environment.get("PROSE_NATIVE_TOOL_TIMEOUT") { validate_native_timeout(value)?; target.native_tool_timeout.replace(Some(value.clone()),ConfigSource::environment("PROSE_NATIVE_TOOL_TIMEOUT")); }
-    if let Some(value)=environment.get("PROSE_NATIVE_OUTPUT_BYTES") { validate_native_output_bytes(value)?; target.native_output_bytes.replace(Some(value.clone()),ConfigSource::environment("PROSE_NATIVE_OUTPUT_BYTES")); }
-    if let Some(value)=environment.get("PROSE_NATIVE_PROFILE") {target.native_profile.replace(validate_native_profile(value.clone())?,ConfigSource::environment("PROSE_NATIVE_PROFILE"));}
-    if let Some(value)=environment.get("PROSE_NATIVE_LOG"){target.native_log.replace(Some(value.clone()),ConfigSource::environment("PROSE_NATIVE_LOG"));}
-    if let Some(value) = environment.get("PROSE_OUTPUT_CONTRACT") { target.output_contract.replace(validate_output_contract(value.clone())?,ConfigSource::environment("PROSE_OUTPUT_CONTRACT")); }
-    if let Some(value) = environment.get("PROSE_PERMISSION_MODE") {
-        target.permission_mode.replace(Some(validate_permission_mode(value.clone())?),ConfigSource::environment("PROSE_PERMISSION_MODE"));
-    }
-    if let Some(value) = environment.get("PROSE_AUTH_PROFILE") {
-        target.auth_profile.replace(
-            Some(nonempty("PROSE_AUTH_PROFILE", value.clone())?),
-            ConfigSource::environment("PROSE_AUTH_PROFILE"),
-        );
+    for (key, file_key, variable, _) in SETTINGS {
+        let Some(variable) = variable else { continue };
+        if let Some(value) = environment.get(variable) {
+            assign_setting(
+                target,
+                key,
+                file_key,
+                RawSetting::Text(value.clone()),
+                &ConfigSource::environment(variable),
+                variable,
+                false,
+            )?;
+        }
     }
     Ok(())
-}
-
-fn validate_native_profile(value:String)->Result<String,RunnerError>{
-    if matches!(value.as_str(),"default"|"claude-workspace-tools"){Ok(value)}else{Err(RunnerError::config("Unknown native profile."))}
-}
-fn validate_native_values(values:Vec<String>)->Result<Vec<String>,RunnerError>{
-    if values.iter().any(|v|v.trim().is_empty() || v.contains('\0')) {Err(RunnerError::config("Native directory/tool values must be nonempty and contain no NUL."))}else{Ok(values)}
-}
-
-fn validate_native_rules(values:Vec<String>)->Result<Vec<String>,RunnerError>{
-    let values=validate_native_values(values)?;
-    if values.iter().any(|v|v.starts_with('-')) {Err(RunnerError::config("Native tool rules must not start with '-'."))}else{Ok(values)}
-}
-
-fn validate_output_contract(value:String)->Result<String,RunnerError>{
- if matches!(value.as_str(),"native"|"image-envelope") {Ok(value)} else {Err(RunnerError::catalog(crate::error::ErrorCode::ConfigInvalid).with_detail("reason","Output contract must be native or image-envelope"))}
-}
-
-fn validate_permission_mode(value:String)->Result<String,RunnerError>{
-    if matches!(value.as_str(),"default"|"acceptEdits"|"workspace-write"|"read-only") {Ok(value)} else {Err(RunnerError::catalog(crate::error::ErrorCode::ConfigInvalid).with_detail("reason","Permission mode must be default, acceptEdits, workspace-write, or read-only"))}
 }
 
 fn apply_flags(target: &mut EffectiveConfig, flags: &GlobalFlags) -> Result<(), RunnerError> {
-    if let Some(value)=&flags.native_max_turns { validate_native_turns(value)?; target.native_max_turns.replace(Some(value.clone()),ConfigSource::flag("--native-max-turns")); }
-    if let Some(value)=&flags.native_timeout { validate_native_timeout(value)?; target.native_timeout.replace(Some(value.clone()),ConfigSource::flag("--native-timeout")); }
-    if let Some(value)=&flags.native_tool_timeout { validate_native_timeout(value)?; target.native_tool_timeout.replace(Some(value.clone()),ConfigSource::flag("--native-tool-timeout")); }
-    if let Some(value)=&flags.native_output_bytes { validate_native_output_bytes(value)?; target.native_output_bytes.replace(Some(value.clone()),ConfigSource::flag("--native-output-bytes")); }
-    if let Some(value)=&flags.native_profile {target.native_profile.replace(validate_native_profile(value.clone())?,ConfigSource::flag("--native-profile"));}
-    if !flags.native_add_dirs.is_empty() {target.native_add_dirs.replace(validate_native_values(flags.native_add_dirs.clone())?,ConfigSource::flag("--native-add-dir"));}
-    if !flags.native_allow_tools.is_empty() {target.native_allow_tools.replace(validate_native_rules(flags.native_allow_tools.clone())?,ConfigSource::flag("--native-allow-tool"));}
-    if let Some(value)=&flags.native_log {target.native_log.replace(Some(value.clone()),ConfigSource::flag("--native-log"));}
-    if let Some(value)=&flags.output_contract {target.output_contract.replace(validate_output_contract(value.clone())?,ConfigSource::flag("--output-contract"));}
-    if let Some(value)=&flags.permission_mode {target.permission_mode.replace(Some(validate_permission_mode(value.clone())?),ConfigSource::flag("--permission-mode"));}
-    if let Some(value) = &flags.harness {
-        target.harness.replace(
-            validate_harness("--harness", value.clone())?,
-            ConfigSource::flag("--harness"),
-        );
-    }
-    if let Some(value) = &flags.transport {
-        target.transport.replace(
-            nonempty("--transport", value.clone())?,
-            ConfigSource::flag("--transport"),
-        );
-    }
-    if let Some(value) = &flags.model {
-        target.model.replace(
-            Some(nonempty("--model", value.clone())?),
-            ConfigSource::flag("--model"),
-        );
-    }
-    if let Some(value) = &flags.auth_profile {
-        target.auth_profile.replace(
-            Some(nonempty("--auth-profile", value.clone())?),
-            ConfigSource::flag("--auth-profile"),
-        );
-    }
-    if let Some(value) = &flags.timeout {
-        validate_timeout(value)?;
-        target
-            .timeout
-            .replace(value.clone(), ConfigSource::flag("--timeout"));
-    }
-    if let Some(value) = flags.output {
-        target.output.replace(value, ConfigSource::flag("--output"));
-    }
-    if flags.no_color {
-        target
-            .color
-            .replace(false, ConfigSource::flag("--no-color"));
-    }
-    if flags.verbose {
-        target
-            .verbose
-            .replace(true, ConfigSource::flag("--verbose"));
-    }
-    Ok(())
-}
-
-fn nonempty(name: &str, value: String) -> Result<String, RunnerError> {
-    if value.is_empty() {
-        Err(RunnerError::config(format!("{name} cannot be empty")))
-    } else {
-        Ok(value)
-    }
-}
-
-fn validate_harness(name: &str, value: String) -> Result<String, RunnerError> {
-    if matches!(
-        value.as_str(),
-        "openprose" | "agents-sdk" | "prime" | "omp" | "codex" | "claude" | "mock"
-    ) {
-        Ok(value)
-    } else {
-        Err(RunnerError::config(format!(
-            "Unsupported harness {value:?}; expected openprose, prime, omp, codex, claude, or mock."
-        ))
-        .with_detail("source", name))
-    }
-}
-
-fn parse_bool(name: &str, value: &str) -> Result<bool, RunnerError> {
-    match value {
-        "1" | "true" | "yes" | "on" | "always" => Ok(true),
-        "0" | "false" | "no" | "off" | "never" => Ok(false),
-        _ => Err(RunnerError::config(format!(
-            "invalid {name} value {value:?}; expected true or false"
-        ))),
-    }
-}
-
-fn validate_timeout(value: &str) -> Result<(), RunnerError> {
-    let suffix = ["ms", "s", "m", "h"]
-        .into_iter()
-        .find(|suffix| value.ends_with(suffix))
-        .ok_or_else(|| {
-            RunnerError::config(format!(
-                "invalid timeout {value:?}; expected a positive duration such as 500ms, 30s, 10m, or 1h"
-            ))
-        })?;
-    let number = &value[..value.len() - suffix.len()];
-    let parsed = number.parse::<u64>().map_err(|_| {
-        RunnerError::config(format!(
-            "invalid timeout {value:?}; expected a positive duration such as 500ms, 30s, 10m, or 1h"
-        ))
-    })?;
-    if parsed == 0 {
-        return Err(RunnerError::config("timeout must be greater than zero"));
+    for (key, file_key, _, flag) in SETTINGS {
+        let raw = match key {
+            "harness" => flags.harness.clone().map(RawSetting::Text),
+            "transport" => flags.transport.clone().map(RawSetting::Text),
+            "model" => flags.model.clone().map(RawSetting::Text),
+            "timeout" => flags.timeout.clone().map(RawSetting::Text),
+            "output" => {
+                if let Some(value) = flags.output {
+                    target.output.replace(value, ConfigSource::flag(flag));
+                }
+                None
+            }
+            "color" => flags.no_color.then_some(RawSetting::Boolean(false)),
+            "verbose" => flags.verbose.then_some(RawSetting::Boolean(true)),
+            "outputContract" => flags.output_contract.clone().map(RawSetting::Text),
+            "permissionMode" => flags.permission_mode.clone().map(RawSetting::Text),
+            "nativeMaxTurns" => flags.native_max_turns.clone().map(RawSetting::Text),
+            "nativeTimeout" => flags.native_timeout.clone().map(RawSetting::Text),
+            "nativeToolTimeout" => flags.native_tool_timeout.clone().map(RawSetting::Text),
+            "nativeOutputBytes" => flags.native_output_bytes.clone().map(RawSetting::Text),
+            "nativeProfile" => flags.native_profile.clone().map(RawSetting::Text),
+            "nativeAddDirs" => (!flags.native_add_dirs.is_empty())
+                .then(|| RawSetting::List(flags.native_add_dirs.clone())),
+            "nativeAllowTools" => (!flags.native_allow_tools.is_empty())
+                .then(|| RawSetting::List(flags.native_allow_tools.clone())),
+            "nativeLog" => flags.native_log.clone().map(RawSetting::Text),
+            "authProfile" => flags.auth_profile.clone().map(RawSetting::Text),
+            _ => None,
+        };
+        if let Some(raw) = raw {
+            assign_setting(
+                target,
+                key,
+                file_key,
+                raw,
+                &ConfigSource::flag(flag),
+                flag,
+                false,
+            )?;
+        }
     }
     Ok(())
 }
@@ -1197,6 +1481,80 @@ mod tests {
     use super::*;
     use serde_json::Value;
     use std::fs;
+
+    #[test]
+    fn maximum_timeout_matches_the_transport_limits() {
+        let limits: Value = serde_json::from_str(include_str!(
+            "../../../../shared/capabilities/transport-limits.v1.json"
+        ))
+        .unwrap();
+        assert_eq!(limits["maxTimeoutMs"], MAX_TIMEOUT_MS);
+        assert_eq!(timeout_ms("24h"), Ok(MAX_TIMEOUT_MS));
+        assert!(timeout_ms("1441m").is_err());
+    }
+
+    #[test]
+    fn shared_config_values_corpus() {
+        let corpus: Value = serde_json::from_str(include_str!(
+            "../../../../shared/fixtures/config/values-v1.json"
+        ))
+        .unwrap();
+        let order: Vec<&str> = SETTINGS.iter().map(|(key, ..)| *key).collect();
+        assert_eq!(corpus["order"], serde_json::json!(order));
+        for case in corpus["cases"].as_array().unwrap() {
+            let id = case["id"].as_str().unwrap();
+            let temp = tempfile::TempDir::new().unwrap();
+            let root = fs::canonicalize(temp.path()).unwrap();
+            fs::create_dir(root.join(".git")).unwrap();
+            fs::create_dir_all(root.join(".prose")).unwrap();
+            if let Some(text) = case["files"]["project"].as_str() {
+                fs::write(root.join(".prose/cli.toml"), text).unwrap();
+            }
+            if case["files"]["projectDirectory"] == true {
+                fs::create_dir(root.join(".prose/cli.toml")).unwrap();
+            }
+            let environment = case["environment"]
+                .as_object()
+                .map(|values| {
+                    values
+                        .iter()
+                        .map(|(name, value)| (name.clone(), value.as_str().unwrap().to_owned()))
+                        .collect()
+                })
+                .unwrap_or_default();
+            let system = SystemContext {
+                current_dir: root.clone(),
+                home_dir: Some(root.join("home")),
+                xdg_config_home: Some(root.join("xdg")),
+                appdata: None,
+                environment,
+                platform: Platform::Unix,
+            };
+            let result = resolve_config(&GlobalFlags::default(), &system);
+            let fill = |text: &str| text.replace("{ROOT}", &root.display().to_string());
+            let expected = &case["expected"];
+            if let Some(values) = expected["values"].as_object() {
+                let config =
+                    serde_json::to_value(result.unwrap_or_else(|e| panic!("{id}: {e}"))).unwrap();
+                for (key, value) in values {
+                    assert_eq!(&config[key]["value"], value, "{id}: {key}");
+                }
+            } else {
+                let error = result.err().unwrap_or_else(|| panic!("{id}: accepted"));
+                let details = error.details.unwrap();
+                assert_eq!(
+                    details["reason"],
+                    fill(expected["error"]["reason"].as_str().unwrap()),
+                    "{id}"
+                );
+                assert_eq!(
+                    details["source"],
+                    fill(expected["error"]["source"].as_str().unwrap()),
+                    "{id}"
+                );
+            }
+        }
+    }
     use tempfile::TempDir;
 
     fn context(root: &Path, home: &Path) -> SystemContext {
@@ -1212,52 +1570,153 @@ mod tests {
 
     #[test]
     fn native_output_budget_shared_fixture_and_precedence() {
-        let f:Value=serde_json::from_str(include_str!("../../../../shared/fixtures/native-output-budget.json")).unwrap();
-        for v in f["valid"].as_array().unwrap(){assert_eq!(validate_native_output_bytes(v.as_str().unwrap()).unwrap().to_string(),v.as_str().unwrap());}
-        for v in f["invalid"].as_array().unwrap(){assert!(validate_native_output_bytes(v.as_str().unwrap()).is_err(),"{v}");}
-        let temp=TempDir::new().unwrap();let home=temp.path().join("home");
+        let f: Value = serde_json::from_str(include_str!(
+            "../../../../shared/fixtures/native-output-budget.json"
+        ))
+        .unwrap();
+        for v in f["valid"].as_array().unwrap() {
+            assert_eq!(
+                validate_native_output_bytes(v.as_str().unwrap())
+                    .unwrap()
+                    .to_string(),
+                v.as_str().unwrap()
+            );
+        }
+        for v in f["invalid"].as_array().unwrap() {
+            assert!(
+                validate_native_output_bytes(v.as_str().unwrap()).is_err(),
+                "{v}"
+            );
+        }
+        let temp = TempDir::new().unwrap();
+        let home = temp.path().join("home");
         fs::create_dir_all(temp.path().join(".prose")).unwrap();
-        fs::write(temp.path().join(".prose/cli.toml"),"output_contract='native'\nnative_output_bytes='1048576'\n").unwrap();
-        let mut sys=context(temp.path(),&home);let mut flags=GlobalFlags::default();
-        assert_eq!(native_output_bytes(&resolve_config(&flags,&sys).unwrap()),1048576);
-        sys.environment.insert("PROSE_NATIVE_OUTPUT_BYTES".into(),"134217728".into());
-        assert_eq!(native_output_bytes(&resolve_config(&flags,&sys).unwrap()),134217728);
-        flags.native_output_bytes=Some("268435456".into());
-        let c=resolve_config(&flags,&sys).unwrap();assert_eq!(native_output_bytes(&c),268435456);assert_eq!(c.native_output_bytes.source,ConfigSource::flag("--native-output-bytes"));
-        flags.output_contract=Some("image-envelope".into());assert!(resolve_config(&flags,&sys).is_err());
-        let mut c=c;c.native_output_bytes.value=None;assert_eq!(native_output_bytes(&c),67108864);assert_eq!(native_output_limits(&c).unwrap()["captureEnabled"],false);
+        fs::write(
+            temp.path().join(".prose/cli.toml"),
+            "output_contract='native'\nnative_output_bytes='1048576'\n",
+        )
+        .unwrap();
+        let mut sys = context(temp.path(), &home);
+        let mut flags = GlobalFlags::default();
+        assert_eq!(
+            native_output_bytes(&resolve_config(&flags, &sys).unwrap()),
+            1048576
+        );
+        sys.environment
+            .insert("PROSE_NATIVE_OUTPUT_BYTES".into(), "134217728".into());
+        assert_eq!(
+            native_output_bytes(&resolve_config(&flags, &sys).unwrap()),
+            134217728
+        );
+        flags.native_output_bytes = Some("268435456".into());
+        let c = resolve_config(&flags, &sys).unwrap();
+        assert_eq!(native_output_bytes(&c), 268435456);
+        assert_eq!(
+            c.native_output_bytes.source,
+            ConfigSource::flag("--native-output-bytes")
+        );
+        flags.output_contract = Some("image-envelope".into());
+        assert!(resolve_config(&flags, &sys).is_err());
+        let mut c = c;
+        c.native_output_bytes.value = None;
+        assert_eq!(native_output_bytes(&c), 67108864);
+        assert_eq!(native_output_limits(&c).unwrap()["captureEnabled"], false);
     }
 
     #[test]
     fn sdk_native_budget_fixture_and_precedence() {
-        let fixture:Value=serde_json::from_str(include_str!("../../../../shared/fixtures/adapters/sdk-native-limits.json")).unwrap();
-        for v in fixture["invalidTurns"].as_array().unwrap() {assert!(validate_native_turns(v.as_str().unwrap()).is_err());}
-        for v in fixture["invalidTimeouts"].as_array().unwrap() {assert!(validate_native_timeout(v.as_str().unwrap()).is_err());}
-        let temp=TempDir::new().unwrap();let home=temp.path().join("home");
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../../../../shared/fixtures/adapters/sdk-native-limits.json"
+        ))
+        .unwrap();
+        for v in fixture["invalidTurns"].as_array().unwrap() {
+            assert!(validate_native_turns(v.as_str().unwrap()).is_err());
+        }
+        for v in fixture["invalidTimeouts"].as_array().unwrap() {
+            assert!(validate_native_timeout(v.as_str().unwrap()).is_err());
+        }
+        let temp = TempDir::new().unwrap();
+        let home = temp.path().join("home");
         fs::create_dir_all(temp.path().join(".prose")).unwrap();
-        fs::write(temp.path().join(".prose/cli.toml"),"harness='agents-sdk'\nnative_max_turns='30'\nnative_timeout='1s'\n").unwrap();
-        let mut sys=context(temp.path(),&home);let mut flags=GlobalFlags::default();
-        assert_eq!(native_limits(&resolve_config(&flags,&sys).unwrap()).unwrap()["maxTurns"],30);
-        sys.environment.insert("PROSE_NATIVE_MAX_TURNS".into(),"35".into());
-        sys.environment.insert("PROSE_NATIVE_TIMEOUT".into(),"1ms".into());
-        assert_eq!(native_limits(&resolve_config(&flags,&sys).unwrap()).unwrap()["timeoutSeconds"],0.001);
-        flags.native_max_turns=Some("40".into());flags.native_timeout=Some("5m".into());
-        let cfg=resolve_config(&flags,&sys).unwrap();assert_eq!(native_limits(&cfg).unwrap(),fixture["override"]["limits"]);
-        flags.harness=Some("claude".into());assert!(resolve_config(&flags,&sys).is_err());
-        let mut cfg=cfg;cfg.native_max_turns.value=None;cfg.native_timeout.value=None;assert_eq!(native_limits(&cfg).unwrap(),fixture["defaults"]);
+        fs::write(
+            temp.path().join(".prose/cli.toml"),
+            "harness='agents-sdk'\nnative_max_turns='30'\nnative_timeout='1s'\n",
+        )
+        .unwrap();
+        let mut sys = context(temp.path(), &home);
+        let mut flags = GlobalFlags::default();
+        assert_eq!(
+            native_limits(&resolve_config(&flags, &sys).unwrap()).unwrap()["maxTurns"],
+            30
+        );
+        sys.environment
+            .insert("PROSE_NATIVE_MAX_TURNS".into(), "35".into());
+        sys.environment
+            .insert("PROSE_NATIVE_TIMEOUT".into(), "1ms".into());
+        assert_eq!(
+            native_limits(&resolve_config(&flags, &sys).unwrap()).unwrap()["timeoutSeconds"],
+            0.001
+        );
+        flags.native_max_turns = Some("40".into());
+        flags.native_timeout = Some("5m".into());
+        let cfg = resolve_config(&flags, &sys).unwrap();
+        assert_eq!(native_limits(&cfg).unwrap(), fixture["override"]["limits"]);
+        flags.harness = Some("claude".into());
+        assert!(resolve_config(&flags, &sys).is_err());
+        let mut cfg = cfg;
+        cfg.native_max_turns.value = None;
+        cfg.native_timeout.value = None;
+        assert_eq!(native_limits(&cfg).unwrap(), fixture["defaults"]);
     }
 
     #[test]
-    fn native_profile_precedence_arrays_and_directory_validation(){
-        let temp=TempDir::new().unwrap();let home=temp.path().join("home");fs::create_dir_all(temp.path().join(".prose")).unwrap();fs::create_dir(temp.path().join("a b")).unwrap();
+    fn native_profile_precedence_arrays_and_directory_validation() {
+        let temp = TempDir::new().unwrap();
+        let home = temp.path().join("home");
+        fs::create_dir_all(temp.path().join(".prose")).unwrap();
+        fs::create_dir(temp.path().join("a b")).unwrap();
         fs::write(temp.path().join(".prose/cli.toml"),"harness='claude'\nnative_profile='claude-workspace-tools'\nnative_add_dirs=['a b']\nnative_allow_tools=['Read','Bash(git status:*)']\n").unwrap();
-        let mut system=context(temp.path(),&home);let mut flags=GlobalFlags::default();
-        let cfg=resolve_config(&flags,&system).unwrap();assert_eq!(cfg.native_add_dirs.value,vec![fs::canonicalize(temp.path().join("a b")).unwrap().to_string_lossy()]);assert_eq!(cfg.native_allow_tools.value.len(),2);
-        system.environment.insert("PROSE_NATIVE_PROFILE".into(),"default".into());assert!(resolve_config(&flags,&system).is_err());
-        flags.native_profile=Some("claude-workspace-tools".into());flags.native_allow_tools=vec!["Agent".into()];assert_eq!(resolve_config(&flags,&system).unwrap().native_allow_tools.value,vec!["Agent"]);
-        flags.native_add_dirs=vec!["missing".into()];assert!(resolve_config(&flags,&system).is_err());
-        flags.native_add_dirs=vec!["a b".into()];flags.harness=Some("codex".into());assert!(resolve_config(&flags,&system).is_err());
-        assert!(validate_native_values(vec![" ".into()]).is_err());assert!(validate_native_rules(vec!["--dangerous".into()]).is_err());assert!(validate_native_profile("unknown".into()).is_err());
+        let mut system = context(temp.path(), &home);
+        let mut flags = GlobalFlags::default();
+        let cfg = resolve_config(&flags, &system).unwrap();
+        assert_eq!(
+            cfg.native_add_dirs.value,
+            vec![
+                fs::canonicalize(temp.path().join("a b"))
+                    .unwrap()
+                    .to_string_lossy()
+            ]
+        );
+        assert_eq!(cfg.native_allow_tools.value.len(), 2);
+        system
+            .environment
+            .insert("PROSE_NATIVE_PROFILE".into(), "default".into());
+        assert!(resolve_config(&flags, &system).is_err());
+        flags.native_profile = Some("claude-workspace-tools".into());
+        flags.native_allow_tools = vec!["Agent".into()];
+        assert_eq!(
+            resolve_config(&flags, &system)
+                .unwrap()
+                .native_allow_tools
+                .value,
+            vec!["Agent"]
+        );
+        flags.native_add_dirs = vec!["missing".into()];
+        assert!(resolve_config(&flags, &system).is_err());
+        flags.native_add_dirs = vec!["a b".into()];
+        flags.harness = Some("codex".into());
+        assert!(resolve_config(&flags, &system).is_err());
+        flags.harness = Some("claude".into());
+        flags.native_allow_tools = vec![" ".into()];
+        assert!(resolve_config(&flags, &system).is_err());
+        flags.native_allow_tools = vec!["--dangerous".into()];
+        assert_eq!(
+            resolve_config(&flags, &system)
+                .unwrap_err()
+                .details
+                .unwrap()["reason"],
+            "Native permission rules cannot start with a dash."
+        );
     }
 
     #[test]
@@ -1827,145 +2286,95 @@ mod tests {
 }
 
 pub(crate) fn validate_native_turns(value: &str) -> Result<u64, RunnerError> {
-    if value.is_empty() || value.starts_with('0') || !value.bytes().all(|c| c.is_ascii_digit()) { return Err(RunnerError::config("Native max turns must be a positive safe integer.")); }
-    value.parse::<u64>().ok().filter(|n| *n > 0 && *n <= 9_007_199_254_740_991).ok_or_else(|| RunnerError::config("Native max turns must be a positive safe integer."))
+    if value.is_empty() || value.starts_with('0') || !value.bytes().all(|c| c.is_ascii_digit()) {
+        return Err(RunnerError::config(
+            "Native max turns must be a positive safe integer.",
+        ));
+    }
+    value
+        .parse::<u64>()
+        .ok()
+        .filter(|n| *n > 0 && *n <= 9_007_199_254_740_991)
+        .ok_or_else(|| RunnerError::config("Native max turns must be a positive safe integer."))
 }
 pub(crate) fn validate_native_timeout(value: &str) -> Result<u64, RunnerError> {
-    let (n,m)=if let Some(n)=value.strip_suffix("ms") {(n,1)} else if let Some(n)=value.strip_suffix('s') {(n,1000)} else if let Some(n)=value.strip_suffix('m') {(n,60000)} else if let Some(n)=value.strip_suffix('h') {(n,3600000)} else {return Err(RunnerError::config("Native timeout requires ms, s, m or h."));};
-    validate_native_turns(n)?.checked_mul(m).filter(|n| *n<=9_007_199_254_740_991).ok_or_else(||RunnerError::config("Native timeout exceeds safe milliseconds."))
+    let invalid = || RunnerError::config("Native timeout must be a positive duration.");
+    let (n, m) = if let Some(n) = value.strip_suffix("ms") {
+        (n, 1)
+    } else if let Some(n) = value.strip_suffix('s') {
+        (n, 1000)
+    } else if let Some(n) = value.strip_suffix('m') {
+        (n, 60000)
+    } else if let Some(n) = value.strip_suffix('h') {
+        (n, 3_600_000)
+    } else {
+        return Err(invalid());
+    };
+    if n.is_empty() || n.starts_with('0') || !n.bytes().all(|c| c.is_ascii_digit()) {
+        return Err(invalid());
+    }
+    n.parse::<u64>()
+        .ok()
+        .and_then(|n| n.checked_mul(m))
+        .filter(|n| *n <= 9_007_199_254_740_991)
+        .ok_or_else(|| RunnerError::config("Native timeout is outside the supported range."))
 }
-pub(crate) fn native_limits(config: &EffectiveConfig)->Option<serde_json::Value> {
- if config.harness.value!="agents-sdk" {return None;}
- let ms=config.native_timeout.value.as_deref().map(|v|validate_native_timeout(v).expect("validated")).unwrap_or(180000);
- let tool_ms=config.native_tool_timeout.value.as_deref().map(|v|validate_native_timeout(v).expect("validated")).unwrap_or(30000);
- let tool_seconds=if tool_ms%1000==0 {serde_json::json!(tool_ms/1000)}else{serde_json::json!(tool_ms as f64/1000.0)};
- let seconds=if ms%1000==0 {serde_json::json!(ms/1000)}else{serde_json::json!(ms as f64/1000.0)};
- Some(serde_json::json!({"maxTurns":config.native_max_turns.value.as_deref().map(|v|validate_native_turns(v).expect("validated")).unwrap_or(20),"timeoutSeconds":seconds,"toolTimeoutSeconds":tool_seconds,"maxOutputTokens":12000}))
+pub(crate) fn native_limits(config: &EffectiveConfig) -> Option<serde_json::Value> {
+    if config.harness.value != "agents-sdk" {
+        return None;
+    }
+    let ms = config
+        .native_timeout
+        .value
+        .as_deref()
+        .map_or(180000, |v| validate_native_timeout(v).expect("validated"));
+    let tool_ms = config
+        .native_tool_timeout
+        .value
+        .as_deref()
+        .map_or(30000, |v| validate_native_timeout(v).expect("validated"));
+    let tool_seconds = if tool_ms % 1000 == 0 {
+        serde_json::json!(tool_ms / 1000)
+    } else {
+        serde_json::json!(tool_ms as f64 / 1000.0)
+    };
+    let seconds = if ms % 1000 == 0 {
+        serde_json::json!(ms / 1000)
+    } else {
+        serde_json::json!(ms as f64 / 1000.0)
+    };
+    Some(
+        serde_json::json!({"maxTurns":config.native_max_turns.value.as_deref().map_or(20, |v|validate_native_turns(v).expect("validated")),"timeoutSeconds":seconds,"toolTimeoutSeconds":tool_seconds,"maxOutputTokens":12000}),
+    )
 }
 
 const DEFAULT_NATIVE_OUTPUT_BYTES: usize = 67_108_864;
 pub(crate) fn validate_native_output_bytes(value: &str) -> Result<usize, RunnerError> {
- validate_native_turns(value).ok().filter(|n| (1_048_576..=268_435_456).contains(n)).map(|n| n as usize).ok_or_else(|| RunnerError::config("Native output bytes must be decimal bytes from 1048576 through 268435456."))
+    validate_native_turns(value)
+        .ok()
+        .filter(|n| (1_048_576..=268_435_456).contains(n))
+        .map(|n| n as usize)
+        .ok_or_else(|| {
+            RunnerError::config(
+                "Native output bytes must be decimal bytes from 1048576 through 268435456.",
+            )
+        })
 }
 pub(crate) fn native_output_bytes(config: &EffectiveConfig) -> usize {
- config.native_output_bytes.value.as_deref().map(|v| validate_native_output_bytes(v).expect("validated output budget")).unwrap_or(DEFAULT_NATIVE_OUTPUT_BYTES)
+    config
+        .native_output_bytes
+        .value
+        .as_deref()
+        .map_or(DEFAULT_NATIVE_OUTPUT_BYTES, |v| {
+            validate_native_output_bytes(v).expect("validated output budget")
+        })
 }
 pub(crate) fn native_output_limits(config: &EffectiveConfig) -> Option<serde_json::Value> {
- (config.output_contract.value == "native").then(|| serde_json::json!({"maxAggregateStdoutBytes":native_output_bytes(config),"maxNativeCaptureBytes":native_output_bytes(config),"captureEnabled":config.native_log.value.is_some()}))
-}
-
-/// User-only service selection, separate from harness configuration.
-#[derive(Debug, Clone)]
-pub struct ServiceSelection {
-    pub environment: String,
-    pub source: &'static str,
-}
-
-fn read_service_config(
-    system: &SystemContext,
-) -> Result<(PathBuf, String, FileConfig), RunnerError> {
-    let path = system.user_config_path()?;
-    let bytes = match fs::read(&path) {
-        Ok(bytes) => bytes,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Vec::new(),
-        Err(_) => return Err(RunnerError::config("Cannot read user configuration.")),
-    };
-    let text = decode_configuration(&bytes, &path)?.to_owned();
-    let lines = validate_flat_toml(&text, &path)?;
-    let values: FileConfig = toml::from_str(&text).map_err(|_| {
-        config_line_error(
-            &path,
-            1,
-            "Configuration does not match the supported flat TOML subset.",
-        )
-    })?;
-    let mut validated =
-        EffectiveConfig::defaults(system.current_dir.clone(), None, Some(path.clone()));
-    apply_file(
-        &mut validated,
-        LoadedFileConfig {
-            values: values.clone(),
-            lines,
-        },
-        ConfigSource::file(ConfigSourceKind::UserFile, &path),
-    )?;
-    Ok((path, text, values))
-}
-
-/// Reads only the user's service selection; workspace files cannot redirect it.
-///
-/// # Errors
-/// Returns `CONFIG_INVALID` if the user path or configuration is invalid.
-pub fn resolve_service_selection(system: &SystemContext) -> Result<ServiceSelection, RunnerError> {
-    let (_, _, values) = read_service_config(system)?;
-    Ok(ServiceSelection {
-        source: if values.service_environment.is_some() {
-            "user-config"
-        } else {
-            "default"
-        },
-        environment: values
-            .service_environment
-            .unwrap_or_else(|| "production".into()),
-    })
-}
-
-/// Saves or removes only the service selection, preserving unrelated text.
-///
-/// # Errors
-/// Returns `CONFIG_INVALID` for invalid values, unsafe paths, invalid existing
-/// configuration, or an atomic filesystem update failure.
-pub fn write_service_selection(
-    system: &SystemContext,
-    environment: Option<&str>,
-) -> Result<ServiceSelection, RunnerError> {
-    if environment.is_some_and(|value| !matches!(value, "production" | "staging")) {
-        return Err(RunnerError::config(
-            "Service environment must be production or staging.",
-        ));
-    }
-    let path = system.user_config_path()?;
-    let parent = path
-        .parent()
-        .ok_or_else(|| RunnerError::config("user configuration has no parent directory"))?;
-    prepare_private_config_parent(parent)?;
-    refuse_symlinked_config_destination(&path)?;
-    let (_, existing, values) = read_service_config(system)?;
-    if values.service_environment.as_deref() != environment {
-        let mut updated = String::new();
-        for line in existing.split_inclusive('\n') {
-            if line
-                .split_once('=')
-                .is_some_and(|(key, _)| key.trim() == "service_environment")
-            {
-                if let Some((_, comment)) = line.split_once('#') {
-                    updated.push('#');
-                    updated.push_str(comment);
-                }
-            } else {
-                updated.push_str(line);
-            }
-        }
-        if let Some(environment) = environment {
-            if !updated.is_empty() && !updated.ends_with('\n') {
-                updated.push('\n');
-            }
-            updated.push_str(&format!("service_environment = \"{environment}\"\n"));
-        }
-        atomic_user_config_write(&path, updated.as_bytes())?;
-    }
-    Ok(ServiceSelection {
-        environment: environment.unwrap_or("production").into(),
-        source: if environment.is_some() {
-            "user-config"
-        } else {
-            "default"
-        },
-    })
+    (config.output_contract.value == "native").then(|| serde_json::json!({"maxAggregateStdoutBytes":native_output_bytes(config),"maxNativeCaptureBytes":native_output_bytes(config),"captureEnabled":config.native_log.value.is_some()}))
 }
 
 #[cfg(test)]
-mod service_selection_tests {
+mod retired_service_key_tests {
     use super::*;
     fn system(root: &Path) -> SystemContext {
         SystemContext {
@@ -1977,81 +2386,28 @@ mod service_selection_tests {
             platform: Platform::Unix,
         }
     }
+
     #[test]
-    fn service_selection_is_user_only_and_bad_config_never_defaults() {
+    fn a_saved_service_selection_is_ignored_in_user_configuration_only() {
         let root = tempfile::tempdir().unwrap();
         let system = system(root.path());
-        assert_eq!(
-            resolve_service_selection(&system).unwrap().environment,
-            "production"
-        );
+        let path = system.user_config_path().unwrap();
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        for value in ["\"production\"", "\"other\"", "true"] {
+            fs::write(
+                &path,
+                format!("harness = \"codex\"\nservice_environment = {value}\n"),
+            )
+            .unwrap();
+            let config = resolve_config(&GlobalFlags::default(), &system).unwrap();
+            assert_eq!(config.harness.value, "codex", "{value}");
+        }
         fs::create_dir_all(root.path().join(".prose")).unwrap();
         fs::write(
             root.path().join(".prose/cli.toml"),
-            "service_environment = \"staging\"\n",
+            "service_environment = \"production\"\n",
         )
         .unwrap();
-        assert_eq!(
-            resolve_service_selection(&system).unwrap().environment,
-            "production"
-        );
         assert!(resolve_config(&GlobalFlags::default(), &system).is_err());
-        let path = system.user_config_path().unwrap();
-        fs::create_dir_all(path.parent().unwrap()).unwrap();
-        fs::write(&path, "service_environment = \"other\"\n").unwrap();
-        assert!(resolve_service_selection(&system).is_err());
-        assert!(write_service_selection(&system, Some("production")).is_err());
-        assert_eq!(
-            fs::read_to_string(path).unwrap(),
-            "service_environment = \"other\"\n"
-        );
-    }
-    #[test]
-    fn service_selection_preserves_comments_and_harness_writer_preserves_selection() {
-        let root = tempfile::tempdir().unwrap();
-        let system = system(root.path());
-        let path = system.user_config_path().unwrap();
-        fs::create_dir_all(path.parent().unwrap()).unwrap();
-        fs::write(
-            &path,
-            "# user note\nharness = \"codex\"\nservice_environment = \"staging\" # service note\n",
-        )
-        .unwrap();
-        write_service_selection(&system, None).unwrap();
-        assert_eq!(
-            fs::read_to_string(&path).unwrap(),
-            "# user note\nharness = \"codex\"\n# service note\n"
-        );
-        write_service_selection(&system, Some("staging")).unwrap();
-        let config = resolve_config(&GlobalFlags::default(), &system).unwrap();
-        write_user_harness(&config, "claude", None, None).unwrap();
-        assert_eq!(
-            resolve_service_selection(&system).unwrap().environment,
-            "staging"
-        );
-    }
-    #[cfg(unix)]
-    #[test]
-    fn service_selection_refuses_destination_and_parent_symlinks() {
-        use std::os::unix::fs::symlink;
-        let root = tempfile::tempdir().unwrap();
-        let system = system(root.path());
-        let path = system.user_config_path().unwrap();
-        fs::create_dir_all(path.parent().unwrap()).unwrap();
-        let target = root.path().join("target");
-        fs::write(&target, "harness = \"codex\"\n").unwrap();
-        symlink(&target, &path).unwrap();
-        assert!(write_service_selection(&system, Some("staging")).is_err());
-        assert_eq!(
-            fs::read_to_string(&target).unwrap(),
-            "harness = \"codex\"\n"
-        );
-        fs::remove_file(&path).unwrap();
-        fs::remove_dir(path.parent().unwrap()).unwrap();
-        let redirected = root.path().join("redirected");
-        fs::create_dir(&redirected).unwrap();
-        symlink(&redirected, path.parent().unwrap()).unwrap();
-        assert!(write_service_selection(&system, Some("staging")).is_err());
-        assert!(!redirected.join("cli.toml").exists());
     }
 }

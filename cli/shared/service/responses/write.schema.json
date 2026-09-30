@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.openprose.org/cli/v1/service/responses/write.schema.json",
+  "title": "service response acceptance: POST /write",
+  "x-probed": false,
+  "type": "object",
+  "description": "Provisional: not probed on the hosted service."
+}

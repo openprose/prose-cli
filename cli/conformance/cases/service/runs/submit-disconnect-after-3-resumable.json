@@ -1,0 +1,199 @@
+{
+  "id": "submit-disconnect-after-3-resumable",
+  "feature": "runs",
+  "operation": "run.submit",
+  "description": "A mid-stream disconnect after event 3 exits HOSTED_RUN_DETACHED (21, not retryable: retrying submit would start a second run) with runId, afterSequence 3, resumeArgv and cancelArgv; nothing is resubmitted or cancelled.",
+  "argv": [
+    "--output",
+    "jsonl",
+    "cli",
+    "run",
+    "submit",
+    "p.prose.md",
+    "--yes"
+  ],
+  "files": [
+    {
+      "path": "p.prose.md",
+      "content": "---\nname: hello\nkind: function\n---\n\nReply with the word ok.\n"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "ids": [
+      "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f"
+    ],
+    "clock": {
+      "start": "2026-09-24T01:00:00.000Z",
+      "stepMs": 0
+    },
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/run",
+        "query": {
+          "live": "1",
+          "session": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f"
+        },
+        "requestHeaders": {
+          "X-Session-Id": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f",
+          "Accept": "text/event-stream",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "expectedBody": {
+          "content": "---\nname: hello\nkind: function\n---\n\nReply with the word ok.\n"
+        },
+        "status": 200,
+        "sse": {
+          "frames": [
+            {
+              "id": "1",
+              "event": "status",
+              "data": {
+                "type": "status",
+                "run_id": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+                "sequence": 1,
+                "at": "2026-09-24T01:00:01.000Z",
+                "status": "running",
+                "message": "reactor model-luna",
+                "session": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f",
+                "controls": {
+                  "steer": true,
+                  "stop": true
+                }
+              }
+            },
+            {
+              "id": "2",
+              "event": "agent_activity",
+              "data": {
+                "type": "agent_activity",
+                "run_id": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+                "sequence": 2,
+                "at": "2026-09-24T01:00:01.000Z",
+                "kind": "model_start"
+              }
+            },
+            {
+              "id": "3",
+              "event": "text_chunk",
+              "data": {
+                "type": "text_chunk",
+                "run_id": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+                "sequence": 3,
+                "at": "2026-09-24T01:00:01.000Z",
+                "text": "par"
+              }
+            }
+          ],
+          "end": "disconnect"
+        }
+      }
+    ]
+  },
+  "exitCode": 21,
+  "stdout": {
+    "jsonl": [
+      {
+        "at": "2026-09-24T01:00:01.000Z",
+        "data": {
+          "controls": {
+            "steer": true,
+            "stop": true
+          },
+          "message": "Running on model-luna",
+          "status": "running"
+        },
+        "runId": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+        "schema": "openprose.service-event/1",
+        "sequence": 1,
+        "type": "status"
+      },
+      {
+        "at": "2026-09-24T01:00:01.000Z",
+        "data": {
+          "kind": "model_start"
+        },
+        "runId": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+        "schema": "openprose.service-event/1",
+        "sequence": 2,
+        "type": "agent_activity"
+      },
+      {
+        "at": "2026-09-24T01:00:01.000Z",
+        "data": {
+          "text": "par"
+        },
+        "runId": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+        "schema": "openprose.service-event/1",
+        "sequence": 3,
+        "type": "text_chunk"
+      },
+      {
+        "at": null,
+        "data": {
+          "interaction": "run.submit",
+          "operation": "run.submit",
+          "problem": {
+            "action": "Resume with the `cli run watch` runner operation using details.resumeArgv (details.runId and details.afterSequence); never submit the run again to resume it.",
+            "boundary": "hosted-service",
+            "code": "HOSTED_RUN_DETACHED",
+            "details": {
+              "afterSequence": 3,
+              "cancelArgv": [
+                "--output",
+                "jsonl",
+                "cli",
+                "run",
+                "cancel",
+                "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+                "--session",
+                "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f",
+                "--yes"
+              ],
+              "reason": "the event stream was lost before run_complete; the run was not cancelled. Resume with `prose --output jsonl cli run watch run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c --after 3 --session 5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f` (it reports the outcome even if the run already finished), or read the record with `prose --output jsonl cli run show run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c`",
+              "resumable": true,
+              "resumeArgv": [
+                "--output",
+                "jsonl",
+                "cli",
+                "run",
+                "watch",
+                "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+                "--after",
+                "3",
+                "--session",
+                "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f"
+              ],
+              "runId": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+              "session": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f"
+            },
+            "exitCode": 21,
+            "message": "The client stopped following the hosted run before its outcome arrived; the run was not cancelled.",
+            "retryable": false,
+            "schema": "openprose.runner-error/1"
+          },
+          "result": null,
+          "schema": "openprose.service-operation/1"
+        },
+        "exitCode": 21,
+        "runId": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+        "schema": "openprose.service-event/1",
+        "sequence": null,
+        "type": "service.detached"
+      }
+    ]
+  },
+  "journalAfter": [
+    {
+      "session": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f",
+      "runId": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+      "lastSequence": 3
+    }
+  ]
+}

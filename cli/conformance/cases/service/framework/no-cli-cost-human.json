@@ -1,0 +1,24 @@
+{
+  "id": "no-cli-cost-human",
+  "feature": "framework",
+  "operation": "run.quote",
+  "description": "`prose cost` (no `cli`) exits 2 with `cli run quote --help`, and the Action names `cli wallet usage`; nothing is forwarded or billed.",
+  "argv": [
+    "cost"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: Unknown command.\nDetail: `cost` is not a command; did you mean `prose cli run quote --help`? `cli run quote FILE` prices a run before it starts; past spending is `cli wallet usage`. Nothing was forwarded or sent. To pass these words to the OpenProse language instead, put `--` before them\nAction: Past spending is `cli wallet usage`. Use `cli run quote`; `prose cli run quote --help` shows its arguments.\n"
+  }
+}

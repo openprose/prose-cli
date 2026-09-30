@@ -1,0 +1,50 @@
+{
+  "id": "redirect-refused",
+  "feature": "framework",
+  "operation": "repo.list",
+  "description": "A 3xx is never followed; it is classified as SERVICE_UNAVAILABLE with serviceStatus.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "repo",
+    "list"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/repos",
+        "status": 302,
+        "redirect": "https://example.invalid/elsewhere",
+        "bodyText": ""
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "repos.list",
+      "operation": "repo.list",
+      "problem": {
+        "action": "Check your network connection and retry later.",
+        "boundary": "hosted-service",
+        "code": "SERVICE_UNAVAILABLE",
+        "details": {
+          "serviceStatus": 302
+        },
+        "exitCode": 10,
+        "message": "The OpenProse service is unavailable.",
+        "retryable": true,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

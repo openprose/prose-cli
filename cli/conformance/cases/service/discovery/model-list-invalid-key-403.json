@@ -1,0 +1,62 @@
+{
+  "id": "model-list-invalid-key-403",
+  "feature": "discovery",
+  "operation": "model.list",
+  "description": "An invalid key (the service answers 403) is SERVICE_AUTH_REQUIRED.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "model",
+    "list"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/models",
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef",
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          },
+          "Accept": "application/json"
+        },
+        "status": 403,
+        "body": {
+          "error": "Invalid API key."
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "models.list",
+      "operation": "model.list",
+      "problem": {
+        "action": "Run `prose --output json cli auth login` again, or set OPENPROSE_API_KEY, then retry.",
+        "boundary": "authentication",
+        "code": "SERVICE_AUTH_REQUIRED",
+        "details": {
+          "credentialProblem": "rejected",
+          "credentialSource": "store",
+          "credentialVariable": "OPENPROSE_API_KEY",
+          "reason": "the service rejected the API key stored for OpenProse (unknown or revoked); run `prose --output json cli auth login` again",
+          "serviceStatus": 403
+        },
+        "exitCode": 10,
+        "message": "OpenProse service authentication is required.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

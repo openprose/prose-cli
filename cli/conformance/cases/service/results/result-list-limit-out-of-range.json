@@ -1,0 +1,58 @@
+{
+  "id": "result-list-limit-out-of-range",
+  "feature": "results",
+  "operation": "result.list",
+  "description": "--limit outside 1-100 is refused before any request.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "result",
+    "list",
+    "Owner/demo",
+    "--limit",
+    "101"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "results.list_public",
+      "operation": "result.list",
+      "problem": {
+        "action": "Use --limit 100, the largest value `cli result list` accepts: `prose --output json cli result list Owner/demo --limit 100`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "--limit must be an integer from 1 to 100, got \"101\"",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "result",
+            "list",
+            "Owner/demo",
+            "--limit",
+            "100"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

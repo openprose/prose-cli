@@ -1,0 +1,43 @@
+{
+  "id": "global-dry-run-rejected",
+  "feature": "framework",
+  "operation": "wallet.balance",
+  "description": "The runner-global --dry-run is INVOCATION_INVALID; --preview is the service equivalent.",
+  "argv": [
+    "--dry-run",
+    "cli",
+    "wallet",
+    "balance",
+    "--json"
+  ],
+  "fixture": {
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "wallet.balance",
+      "operation": "wallet.balance",
+      "problem": {
+        "action": "Drop --dry-run; this command only reads: `prose cli wallet balance --json`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "the runner option --dry-run does not apply to service operations; use --preview after the command",
+          "suggestedArgv": [
+            "cli",
+            "wallet",
+            "balance",
+            "--json"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

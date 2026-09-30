@@ -1,0 +1,659 @@
+{
+  "schema": "openprose.service-interactions/1",
+  "principals": [
+    "anonymous",
+    "customer",
+    "customer_github"
+  ],
+  "interactions": [
+    {
+      "id": "auth.device_flow",
+      "principal": "anonymous",
+      "effect": "write",
+      "reversible": true,
+      "agent": "never",
+      "routes": [
+        {
+          "method": "POST",
+          "path": "/auth/device",
+          "auth": "device_code"
+        },
+        {
+          "method": "POST",
+          "path": "/auth/device/poll",
+          "auth": "device_code"
+        }
+      ]
+    },
+    {
+      "id": "cli.auth_status",
+      "principal": "customer",
+      "effect": "read",
+      "reversible": true,
+      "agent": "never",
+      "routes": []
+    },
+    {
+      "id": "examples.private",
+      "principal": "customer",
+      "effect": "read",
+      "reversible": true,
+      "agent": "auto",
+      "routes": [
+        {
+          "method": "GET",
+          "path": "/examples/private",
+          "auth": "api_key"
+        },
+        {
+          "method": "GET",
+          "path": "/examples/private/{name}",
+          "auth": "api_key"
+        }
+      ]
+    },
+    {
+      "id": "health.read",
+      "principal": "anonymous",
+      "effect": "read",
+      "reversible": true,
+      "agent": "auto",
+      "routes": [
+        {
+          "method": "GET",
+          "path": "/health",
+          "auth": "none"
+        }
+      ]
+    },
+    {
+      "id": "job.contracts",
+      "principal": "customer",
+      "effect": "write",
+      "reversible": true,
+      "agent": "confirm",
+      "routes": [
+        {
+          "method": "GET",
+          "path": "/triggers/{id}/contracts",
+          "auth": "api_key"
+        },
+        {
+          "method": "POST",
+          "path": "/triggers/{id}/contracts",
+          "auth": "api_key"
+        },
+        {
+          "method": "DELETE",
+          "path": "/triggers/{id}/contracts/{program_ref}",
+          "auth": "api_key"
+        }
+      ]
+    },
+    {
+      "id": "job.delete",
+      "principal": "customer",
+      "effect": "destructive",
+      "reversible": false,
+      "agent": "confirm",
+      "routes": [
+        {
+          "method": "DELETE",
+          "path": "/triggers/{id}",
+          "auth": "api_key"
+        }
+      ]
+    },
+    {
+      "id": "job.deliveries",
+      "principal": "customer",
+      "effect": "read",
+      "reversible": true,
+      "agent": "auto",
+      "routes": [
+        {
+          "method": "GET",
+          "path": "/triggers/{id}/deliveries",
+          "auth": "api_key"
+        }
+      ]
+    },
+    {
+      "id": "job.deploy",
+      "principal": "customer",
+      "effect": "money",
+      "reversible": true,
+      "agent": "confirm",
+      "routes": [
+        {
+          "method": "POST",
+          "path": "/triggers",
+          "auth": "api_key"
+        }
+      ]
+    },
+    {
+      "id": "job.list",
+      "principal": "customer",
+      "effect": "read",
+      "reversible": true,
+      "agent": "auto",
+      "routes": [
+        {
+          "method": "GET",
+          "path": "/triggers",
+          "auth": "api_key"
+        }
+      ]
+    },
+    {
+      "id": "job.read",
+      "principal": "customer",
+      "effect": "read",
+      "reversible": true,
+      "agent": "auto",
+      "routes": [
+        {
+          "method": "GET",
+          "path": "/triggers/{id}",
+          "auth": "api_key"
+        }
+      ]
+    },
+    {
+      "id": "job.rotate_secret",
+      "principal": "customer",
+      "effect": "write",
+      "reversible": false,
+      "agent": "confirm",
+      "routes": [
+        {
+          "method": "POST",
+          "path": "/triggers/{id}/rotate-secret",
+          "auth": "api_key"
+        }
+      ]
+    },
+    {
+      "id": "job.update",
+      "principal": "customer",
+      "effect": "write",
+      "reversible": true,
+      "agent": "confirm",
+      "routes": [
+        {
+          "method": "PUT",
+          "path": "/triggers/{id}",
+          "auth": "api_key"
+        },
+        {
+          "method": "PUT",
+          "path": "/triggers/{id}/configuration",
+          "auth": "api_key"
+        }
+      ]
+    },
+    {
+      "id": "models.list",
+      "principal": "customer",
+      "effect": "read",
+      "reversible": true,
+      "agent": "auto",
+      "routes": [
+        {
+          "method": "GET",
+          "path": "/models",
+          "auth": "api_key_or_session_token"
+        }
+      ]
+    },
+    {
+      "id": "organizations.manage",
+      "principal": "customer",
+      "effect": "write",
+      "reversible": false,
+      "agent": "never",
+      "routes": [
+        {
+          "method": "GET",
+          "path": "/organizations",
+          "auth": "api_key"
+        },
+        {
+          "method": "POST",
+          "path": "/organizations",
+          "auth": "api_key"
+        },
+        {
+          "method": "PUT",
+          "path": "/organizations/default",
+          "auth": "api_key"
+        },
+        {
+          "method": "POST",
+          "path": "/organizations/invitations/accept",
+          "auth": "api_key"
+        },
+        {
+          "method": "GET",
+          "path": "/organizations/{name}",
+          "auth": "api_key"
+        },
+        {
+          "method": "PATCH",
+          "path": "/organizations/{name}",
+          "auth": "api_key"
+        },
+        {
+          "method": "POST",
+          "path": "/organizations/{name}/invitations",
+          "auth": "api_key"
+        },
+        {
+          "method": "DELETE",
+          "path": "/organizations/{name}/invitations/{id}",
+          "auth": "api_key"
+        },
+        {
+          "method": "GET",
+          "path": "/organizations/{name}/members",
+          "auth": "api_key"
+        },
+        {
+          "method": "DELETE",
+          "path": "/organizations/{name}/members/{id}",
+          "auth": "api_key"
+        },
+        {
+          "method": "PATCH",
+          "path": "/organizations/{name}/members/{id}",
+          "auth": "api_key"
+        }
+      ]
+    },
+    {
+      "id": "program.delete",
+      "principal": "customer",
+      "effect": "destructive",
+      "reversible": false,
+      "agent": "confirm",
+      "routes": [
+        {
+          "method": "DELETE",
+          "path": "/programs/{slug}",
+          "auth": "api_key_or_session_token"
+        }
+      ]
+    },
+    {
+      "id": "program.read",
+      "principal": "anonymous",
+      "effect": "read",
+      "reversible": true,
+      "agent": "auto",
+      "routes": [
+        {
+          "method": "GET",
+          "path": "/p/{owner}/{slug}",
+          "auth": "api_key_or_session_token"
+        }
+      ]
+    },
+    {
+      "id": "program.revisions",
+      "principal": "customer",
+      "effect": "read",
+      "reversible": true,
+      "agent": "auto",
+      "routes": [
+        {
+          "method": "GET",
+          "path": "/programs/{slug}/revisions",
+          "auth": "api_key_or_session_token"
+        }
+      ]
+    },
+    {
+      "id": "program.save",
+      "principal": "customer",
+      "effect": "write",
+      "reversible": true,
+      "agent": "auto",
+      "routes": [
+        {
+          "method": "PUT",
+          "path": "/programs/{slug}",
+          "auth": "api_key_or_session_token"
+        }
+      ]
+    },
+    {
+      "id": "program.set_visibility",
+      "principal": "customer",
+      "effect": "outward",
+      "reversible": true,
+      "agent": "confirm",
+      "routes": [
+        {
+          "method": "PUT",
+          "path": "/programs/{slug}/visibility",
+          "auth": "api_key_or_session_token"
+        }
+      ]
+    },
+    {
+      "id": "programs.list",
+      "principal": "customer",
+      "effect": "read",
+      "reversible": true,
+      "agent": "auto",
+      "routes": [
+        {
+          "method": "GET",
+          "path": "/programs",
+          "auth": "api_key_or_session_token"
+        }
+      ]
+    },
+    {
+      "id": "registry.gateway",
+      "principal": "anonymous",
+      "effect": "read",
+      "reversible": true,
+      "agent": "never",
+      "routes": [
+        {
+          "method": "GET",
+          "path": "/registry/v1/{path}",
+          "auth": "none"
+        },
+        {
+          "method": "POST",
+          "path": "/registry/v1/{path}",
+          "auth": "none"
+        }
+      ]
+    },
+    {
+      "id": "repos.list",
+      "principal": "customer_github",
+      "effect": "read",
+      "reversible": true,
+      "agent": "auto",
+      "routes": [
+        {
+          "method": "GET",
+          "path": "/repos",
+          "auth": "api_key_with_github"
+        }
+      ]
+    },
+    {
+      "id": "results.list_public",
+      "principal": "anonymous",
+      "effect": "read",
+      "reversible": true,
+      "agent": "auto",
+      "routes": [
+        {
+          "method": "GET",
+          "path": "/p/{owner}/{slug}/results",
+          "auth": "none"
+        }
+      ]
+    },
+    {
+      "id": "results.publish",
+      "principal": "customer",
+      "effect": "outward",
+      "reversible": true,
+      "agent": "confirm",
+      "routes": [
+        {
+          "method": "POST",
+          "path": "/programs/{slug}/results",
+          "auth": "api_key_or_session_token"
+        }
+      ]
+    },
+    {
+      "id": "results.read_public",
+      "principal": "anonymous",
+      "effect": "read",
+      "reversible": true,
+      "agent": "auto",
+      "routes": [
+        {
+          "method": "GET",
+          "path": "/p/{owner}/{slug}/results/latest",
+          "auth": "none"
+        },
+        {
+          "method": "GET",
+          "path": "/p/{owner}/{slug}/results/latest/raw",
+          "auth": "none"
+        },
+        {
+          "method": "GET",
+          "path": "/p/{owner}/{slug}/results/{publication_id}",
+          "auth": "none"
+        },
+        {
+          "method": "GET",
+          "path": "/p/{owner}/{slug}/results/{publication_id}/raw",
+          "auth": "none"
+        }
+      ]
+    },
+    {
+      "id": "results.unpublish",
+      "principal": "customer",
+      "effect": "write",
+      "reversible": true,
+      "agent": "confirm",
+      "routes": [
+        {
+          "method": "DELETE",
+          "path": "/programs/{slug}/results/{publication_id}",
+          "auth": "api_key_or_session_token"
+        }
+      ]
+    },
+    {
+      "id": "run.cancel",
+      "principal": "customer",
+      "effect": "write",
+      "reversible": false,
+      "agent": "confirm",
+      "routes": [
+        {
+          "method": "POST",
+          "path": "/run/{id}/cancel",
+          "auth": "api_key"
+        }
+      ]
+    },
+    {
+      "id": "run.observe",
+      "principal": "customer",
+      "effect": "read",
+      "reversible": true,
+      "agent": "auto",
+      "routes": [
+        {
+          "method": "GET",
+          "path": "/run/{id}/events",
+          "auth": "api_key"
+        }
+      ]
+    },
+    {
+      "id": "run.quote",
+      "principal": "anonymous",
+      "effect": "read",
+      "reversible": true,
+      "agent": "auto",
+      "routes": [
+        {
+          "method": "GET",
+          "path": "/run/quote",
+          "auth": "none"
+        }
+      ]
+    },
+    {
+      "id": "run.read",
+      "principal": "customer",
+      "effect": "read",
+      "reversible": true,
+      "agent": "auto",
+      "routes": [
+        {
+          "method": "GET",
+          "path": "/runs/{id}/{path}",
+          "auth": "api_key_or_session_token"
+        }
+      ]
+    },
+    {
+      "id": "run.share",
+      "principal": "customer",
+      "effect": "outward",
+      "reversible": false,
+      "agent": "confirm",
+      "routes": [
+        {
+          "method": "POST",
+          "path": "/runs/{id}/share",
+          "auth": "api_key_or_session_token"
+        }
+      ]
+    },
+    {
+      "id": "run.steer",
+      "principal": "customer",
+      "effect": "write",
+      "reversible": false,
+      "agent": "confirm",
+      "routes": [
+        {
+          "method": "POST",
+          "path": "/run/{id}/input",
+          "auth": "api_key"
+        }
+      ]
+    },
+    {
+      "id": "run.submit",
+      "principal": "customer",
+      "effect": "money",
+      "reversible": false,
+      "agent": "confirm",
+      "routes": [
+        {
+          "method": "POST",
+          "path": "/run",
+          "auth": "api_key_or_session_token"
+        }
+      ]
+    },
+    {
+      "id": "runs.list",
+      "principal": "customer",
+      "effect": "read",
+      "reversible": true,
+      "agent": "auto",
+      "routes": [
+        {
+          "method": "GET",
+          "path": "/runs",
+          "auth": "api_key_or_session_token"
+        }
+      ]
+    },
+    {
+      "id": "wallet.balance",
+      "principal": "customer",
+      "effect": "read",
+      "reversible": true,
+      "agent": "auto",
+      "routes": [
+        {
+          "method": "GET",
+          "path": "/wallet/balance",
+          "auth": "api_key_or_session_token"
+        }
+      ]
+    },
+    {
+      "id": "wallet.events",
+      "principal": "customer",
+      "effect": "read",
+      "reversible": true,
+      "agent": "auto",
+      "routes": [
+        {
+          "method": "GET",
+          "path": "/wallet/events",
+          "auth": "api_key_or_session_token"
+        }
+      ]
+    },
+    {
+      "id": "wallet.redeem",
+      "principal": "customer",
+      "effect": "money",
+      "reversible": false,
+      "agent": "confirm",
+      "routes": [
+        {
+          "method": "POST",
+          "path": "/wallet/redeem",
+          "auth": "api_key_or_session_token"
+        }
+      ]
+    },
+    {
+      "id": "wallet.topup",
+      "principal": "customer",
+      "effect": "money",
+      "reversible": false,
+      "agent": "confirm",
+      "routes": [
+        {
+          "method": "POST",
+          "path": "/wallet/topup",
+          "auth": "api_key_or_session_token"
+        }
+      ]
+    },
+    {
+      "id": "wallet.usage",
+      "principal": "customer",
+      "effect": "read",
+      "reversible": true,
+      "agent": "auto",
+      "routes": [
+        {
+          "method": "GET",
+          "path": "/wallet/usage",
+          "auth": "api_key_or_session_token"
+        }
+      ]
+    },
+    {
+      "id": "write.author",
+      "principal": "customer",
+      "effect": "money",
+      "reversible": false,
+      "agent": "confirm",
+      "routes": [
+        {
+          "method": "POST",
+          "path": "/write",
+          "auth": "api_key_or_session_token"
+        }
+      ]
+    }
+  ]
+}

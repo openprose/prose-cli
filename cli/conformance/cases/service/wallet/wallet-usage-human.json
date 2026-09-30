@@ -1,0 +1,71 @@
+{
+  "id": "wallet-usage-human",
+  "feature": "wallet",
+  "operation": "wallet.usage",
+  "description": "Human usage prints totals and one line per day.",
+  "argv": [
+    "cli",
+    "wallet",
+    "usage",
+    "--start",
+    "2026-09-01",
+    "--end",
+    "2026-09-03"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/wallet/usage",
+        "query": {
+          "start": "2026-09-01",
+          "end": "2026-09-03"
+        },
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          }
+        },
+        "status": 200,
+        "body": {
+          "period": {
+            "start": "2026-09-01",
+            "end": "2026-09-03"
+          },
+          "total_runs": 3,
+          "total_input_tokens": 1200,
+          "total_output_tokens": 45,
+          "total_price_cents": 4,
+          "daily": [
+            {
+              "date": "2026-09-01",
+              "runs": 1,
+              "input_tokens": 400,
+              "output_tokens": 15,
+              "price_cents": 2
+            },
+            {
+              "date": "2026-09-03",
+              "runs": 2,
+              "input_tokens": 800,
+              "output_tokens": 30,
+              "price_cents": 2
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "Period: 2026-09-01 to 2026-09-03\nRuns: 3\nInput tokens: 1200\nOutput tokens: 45\nTotal price: $0.04\n2026-09-01  runs 1  input 400  output 15  price $0.02\n2026-09-03  runs 2  input 800  output 30  price $0.02\n"
+  },
+  "stderr": {
+    "text": ""
+  }
+}

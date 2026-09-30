@@ -1,0 +1,88 @@
+{
+  "id": "contract-submit-preview-unknown-environment",
+  "feature": "runs",
+  "operation": "run.submit",
+  "description": "`submit --preview` checks --environment against /health like `run quote`: an environment it does not list is INVOCATION_INVALID with a corrected argv.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "submit",
+    "p.prose.md",
+    "--environment",
+    "mars",
+    "--preview"
+  ],
+  "files": [
+    {
+      "path": "p.prose.md",
+      "content": "---\nname: hello\nkind: function\n---\n\nReply with the word ok.\n"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/health",
+        "status": 200,
+        "body": {
+          "status": "ok",
+          "environments": {
+            "default": "builtin",
+            "available": [
+              "builtin",
+              "linux"
+            ]
+          },
+          "runtimes": {
+            "available": [
+              "reactor"
+            ]
+          },
+          "models": [
+            "model-luna"
+          ],
+          "default_model": "model-luna"
+        }
+      }
+    ]
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "run.submit",
+      "operation": "run.submit",
+      "problem": {
+        "action": "Rerun with an environment the service offers: `prose --output json cli run submit p.prose.md --environment builtin --preview`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "environment \"mars\" is not offered by this service (available: builtin, linux); retry with --environment builtin",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "submit",
+            "p.prose.md",
+            "--environment",
+            "builtin",
+            "--preview"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

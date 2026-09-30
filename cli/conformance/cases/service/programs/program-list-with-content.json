@@ -1,0 +1,105 @@
+{
+  "id": "program-list-with-content",
+  "feature": "programs",
+  "operation": "program.list",
+  "description": "`--with-content` includes each program's text; a program whose text has control characters is listed without content (read it with `program show --output-file`).",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "program",
+    "list",
+    "--with-content"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/programs",
+        "requestHeaders": {
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          },
+          "User-Agent": {
+            "pattern": "^prose-cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"
+          },
+          "Accept": "application/json",
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "status": 200,
+        "body": {
+          "programs": [
+            {
+              "owner": "alice",
+              "slug": "older",
+              "visibility": "private",
+              "content": "---\nname: demo\nkind: function\n---\n\n### Returns\n\n- `text`: exactly `ok`\n",
+              "rev": 1,
+              "rev_id": "0123456789abcdef",
+              "commit_id": "1111111111111111",
+              "parent_commit_id": null,
+              "updated_at": 1790212199320
+            },
+            {
+              "owner": "alice",
+              "slug": "bell",
+              "visibility": "private",
+              "content": "ring\u0007\n",
+              "rev": 1,
+              "rev_id": "0123456789abcdef",
+              "commit_id": "1111111111111111",
+              "parent_commit_id": null,
+              "updated_at": 1790212199320
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "schema": "openprose.service-operation/1",
+      "operation": "program.list",
+      "interaction": "programs.list",
+      "result": {
+        "programs": [
+          {
+            "owner": "alice",
+            "slug": "older",
+            "rev": 1,
+            "rev_id": "0123456789abcdef",
+            "commit_id": "1111111111111111",
+            "parent_commit_id": null,
+            "updated_at": 1790212199320,
+            "updated_at_iso": "2026-09-24T01:09:59.320Z",
+            "visibility": "private",
+            "content": "---\nname: demo\nkind: function\n---\n\n### Returns\n\n- `text`: exactly `ok`\n",
+            "ref": "alice/older@0123456789abcdef"
+          },
+          {
+            "owner": "alice",
+            "slug": "bell",
+            "rev": 1,
+            "rev_id": "0123456789abcdef",
+            "commit_id": "1111111111111111",
+            "parent_commit_id": null,
+            "updated_at": 1790212199320,
+            "updated_at_iso": "2026-09-24T01:09:59.320Z",
+            "visibility": "private",
+            "ref": "alice/bell@0123456789abcdef"
+          }
+        ]
+      },
+      "problem": null
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

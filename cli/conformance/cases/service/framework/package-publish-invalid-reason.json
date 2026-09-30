@@ -1,0 +1,51 @@
+{
+  "id": "package-publish-invalid-reason",
+  "feature": "framework",
+  "operation": "package.publish",
+  "description": "A package publish whose directory is missing reports CONFIG_INVALID with details.reason in both ports.",
+  "argv": [
+    "cli",
+    "package",
+    "publish",
+    "my-package",
+    "--organization",
+    "acme",
+    "--name",
+    "tool",
+    "--version",
+    "1.0.0",
+    "--json"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "schema": "openprose.service-operation/1",
+      "operation": "package.publish",
+      "interaction": "registry.gateway",
+      "result": null,
+      "problem": {
+        "action": "Correct or remove the reported configuration source or setting, then invoke the `cli config explain` runner operation to verify the repair.",
+        "boundary": "configuration",
+        "code": "CONFIG_INVALID",
+        "details": {
+          "reason": "Invalid or unsafe package input."
+        },
+        "exitCode": 2,
+        "message": "Runner configuration is invalid.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      }
+    }
+  },
+  "stderr": {
+    "empty": true
+  }
+}

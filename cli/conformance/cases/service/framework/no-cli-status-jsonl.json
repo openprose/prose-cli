@@ -1,0 +1,47 @@
+{
+  "id": "no-cli-status-jsonl",
+  "feature": "framework",
+  "operation": "service.triage",
+  "description": "`prose --output jsonl status` under the default hosted harness prints the INVOCATION_INVALID envelope with `prose --output jsonl cli service triage`.",
+  "argv": [
+    "--output",
+    "jsonl",
+    "status"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": null,
+      "operation": "cli",
+      "problem": {
+        "action": "Use `cli service triage`: `prose --output jsonl cli service triage`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "`status` is a language command, which runs only with a local harness; did you mean `prose --output jsonl cli service triage`? Nothing was forwarded or sent. To run the language command, select a local harness with `prose cli harness use <id>`",
+          "suggestedArgv": [
+            "--output",
+            "jsonl",
+            "cli",
+            "service",
+            "triage"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

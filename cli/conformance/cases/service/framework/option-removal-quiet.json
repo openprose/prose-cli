@@ -1,0 +1,48 @@
+{
+  "id": "option-removal-quiet",
+  "feature": "framework",
+  "operation": "run.list",
+  "description": "`--quiet` is dropped: --json output is already clean.",
+  "argv": [
+    "cli",
+    "run",
+    "list",
+    "--quiet",
+    "--json"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "runs.list",
+      "operation": "run.list",
+      "problem": {
+        "action": "Drop --quiet: `prose cli run list --json`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "unknown option --quiet for `cli run list`; --json output is already clean: one JSON line on standard output and nothing on standard error",
+          "suggestedArgv": [
+            "cli",
+            "run",
+            "list",
+            "--json"
+          ]
+        },
+        "exitCode": 2,
+        "message": "Unknown option.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

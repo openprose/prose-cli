@@ -1,0 +1,89 @@
+{
+  "id": "member-role-number-out-of-range",
+  "feature": "organizations",
+  "operation": "org.member.role",
+  "description": "A member number past the end of the list is INVOCATION_INVALID after reading the list; nothing is changed.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "org",
+    "member",
+    "role",
+    "acme-research",
+    "member-3",
+    "reader",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/organizations/acme-research/members",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          },
+          "Accept": "application/json"
+        },
+        "status": 200,
+        "body": {
+          "members": [
+            {
+              "organization_id": "5b0e7c1a-3f2d-4e8b-9a61-2c4d8e0f1a23",
+              "account_id": "cus_ExampleInvitee1",
+              "role": "developer",
+              "created_at": 1790099999000
+            },
+            {
+              "organization_id": "5b0e7c1a-3f2d-4e8b-9a61-2c4d8e0f1a23",
+              "account_id": "cus_ExampleAdmin01",
+              "role": "admin",
+              "created_at": 1790012915257,
+              "handle": "exadmin"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "organizations.manage",
+      "operation": "org.member.role",
+      "problem": {
+        "action": "List the members with `prose --output json cli org member list acme-research` and pass one of their numbers.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "member 3 is not in acme-research's member list (2 members); `prose --output json cli org member list acme-research` numbers them",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "org",
+            "member",
+            "list",
+            "acme-research"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "cus_ExampleInvitee1",
+    "cus_ExampleAdmin01"
+  ]
+}

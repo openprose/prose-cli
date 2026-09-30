@@ -1,0 +1,32 @@
+{
+  "id": "auth-login-with-env-key-human",
+  "feature": "account",
+  "operation": "auth.login",
+  "description": "Human twin of auth-login-with-env-key: the reason and Action on stderr, never a status line.",
+  "argv": [
+    "cli",
+    "auth",
+    "login"
+  ],
+  "environment": {
+    "OPENPROSE_API_KEY": "rr_test_0123456789abcdef0123456789abcdef"
+  },
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: That command isn't quite right.\nDetail: OPENPROSE_API_KEY is set, and a non-empty OPENPROSE_API_KEY takes precedence over a stored key, so `cli auth login` would not change the key commands use\nAction: Keep using OPENPROSE_API_KEY and check it with `prose cli auth status`, or unset OPENPROSE_API_KEY and run `prose cli auth login`.\n"
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

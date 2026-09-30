@@ -1,0 +1,49 @@
+{
+  "id": "verb-synonym-wallet-get",
+  "feature": "framework",
+  "operation": "wallet.balance",
+  "description": "A synonym resolves to the first candidate the group has: `wallet get` suggests `wallet balance`.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "wallet",
+    "get"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": null,
+      "operation": "cli",
+      "problem": {
+        "action": "Use `cli wallet balance`: `prose --output json cli wallet balance`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "unknown command `cli wallet get`; did you mean `cli wallet balance`? Commands: balance, events, redeem, topup, usage",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "wallet",
+            "balance"
+          ]
+        },
+        "exitCode": 2,
+        "message": "Unknown command.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

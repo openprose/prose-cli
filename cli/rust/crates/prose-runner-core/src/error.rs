@@ -24,6 +24,61 @@ pub(crate) fn human_safe_multiline(value: &str) -> String {
     human_safe(value, true)
 }
 
+/// Makes a runner-authored reason safe for a human `Detail:` line. Unlike
+/// [`human_safe_scalar`], backslashes are kept: a value inside the reason was
+/// already escaped by [`quote`], and escaping it again would double every
+/// backslash. Raw control characters are still made visible.
+#[must_use]
+pub(crate) fn human_safe_detail(value: &str) -> String {
+    let mut rendered = String::with_capacity(value.len());
+    for character in value.chars() {
+        if character == '\\' {
+            rendered.push(character);
+        } else {
+            rendered.push_str(&human_safe(character.encode_utf8(&mut [0; 4]), false));
+        }
+    }
+    rendered
+}
+
+/// Whether [`quote`] escapes `character` as `\uXXXX`: C0 and C1 controls, DEL,
+/// and the invisible format, bidirectional and tag characters.
+fn quote_escapes(character: char) -> bool {
+    matches!(u32::from(character),
+        0..=0x1f | 0x7f..=0x9f | 0xad | 0x61c | 0x180e | 0x200b..=0x200f | 0x2028..=0x202e
+        | 0x2060..=0x206f | 0xfeff | 0xfff9..=0xfffb | 0xe0000..=0xe007f)
+}
+
+/// Quotes one user-supplied value inside a reason or message, identically in
+/// both ports (`shared/fixtures/human/quoted-strings.json`): JSON string
+/// escaping, plus `\uXXXX` escapes for DEL, C1 controls and the invisible
+/// format, bidi and tag characters (astral ones as a UTF-16 surrogate pair).
+#[must_use]
+pub fn quote(value: &str) -> String {
+    let mut quoted = String::with_capacity(value.len() + 2);
+    quoted.push('"');
+    for character in value.chars() {
+        match character {
+            '"' => quoted.push_str("\\\""),
+            '\\' => quoted.push_str("\\\\"),
+            '\u{0008}' => quoted.push_str("\\b"),
+            '\u{000C}' => quoted.push_str("\\f"),
+            '\n' => quoted.push_str("\\n"),
+            '\r' => quoted.push_str("\\r"),
+            '\t' => quoted.push_str("\\t"),
+            other if quote_escapes(other) => {
+                let mut units = [0_u16; 2];
+                for unit in other.encode_utf16(&mut units) {
+                    let _ = write!(quoted, "\\u{unit:04x}");
+                }
+            }
+            other => quoted.push(other),
+        }
+    }
+    quoted.push('"');
+    quoted
+}
+
 fn human_safe(value: &str, preserve_line_feeds: bool) -> String {
     let mut rendered = String::with_capacity(value.len());
     for character in value.chars() {
@@ -138,6 +193,22 @@ pub enum ErrorCode {
     HostedUnavailable,
     HostedAuthRequired,
     HostedQuotaExceeded,
+    ConfirmationRequired,
+    ServiceRequestRejected,
+    ServiceResourceNotFound,
+    ServiceFeatureDisabled,
+    ServiceBalanceInsufficient,
+    ServicePremiumModelLocked,
+    ServiceAccountSuspended,
+    ServiceWriteConflict,
+    GithubLinkRequired,
+    ServiceResponseTooLarge,
+    ServiceWatchDeadline,
+    HostedRunFailed,
+    RunSubmissionAmbiguous,
+    HostedRunDetached,
+    HostedRunCancelled,
+    ExampleNotViewable,
     #[serde(rename = "INTERNAL_ERROR")]
     InternalRunnerFault,
 }
@@ -172,6 +243,22 @@ impl ErrorCode {
             Self::HostedUnavailable => "HOSTED_UNAVAILABLE",
             Self::HostedAuthRequired => "HOSTED_AUTH_REQUIRED",
             Self::HostedQuotaExceeded => "HOSTED_QUOTA_EXCEEDED",
+            Self::ConfirmationRequired => "CONFIRMATION_REQUIRED",
+            Self::ServiceRequestRejected => "SERVICE_REQUEST_REJECTED",
+            Self::ServiceResourceNotFound => "SERVICE_RESOURCE_NOT_FOUND",
+            Self::ServiceFeatureDisabled => "SERVICE_FEATURE_DISABLED",
+            Self::ServiceBalanceInsufficient => "SERVICE_BALANCE_INSUFFICIENT",
+            Self::ServicePremiumModelLocked => "SERVICE_PREMIUM_MODEL_LOCKED",
+            Self::ServiceAccountSuspended => "SERVICE_ACCOUNT_SUSPENDED",
+            Self::ServiceWriteConflict => "SERVICE_WRITE_CONFLICT",
+            Self::GithubLinkRequired => "GITHUB_LINK_REQUIRED",
+            Self::ServiceResponseTooLarge => "SERVICE_RESPONSE_TOO_LARGE",
+            Self::ServiceWatchDeadline => "SERVICE_WATCH_DEADLINE",
+            Self::HostedRunFailed => "HOSTED_RUN_FAILED",
+            Self::RunSubmissionAmbiguous => "RUN_SUBMISSION_AMBIGUOUS",
+            Self::HostedRunDetached => "HOSTED_RUN_DETACHED",
+            Self::HostedRunCancelled => "HOSTED_RUN_CANCELLED",
+            Self::ExampleNotViewable => "EXAMPLE_NOT_VIEWABLE",
             Self::InternalRunnerFault => "INTERNAL_ERROR",
         }
     }
@@ -179,7 +266,10 @@ impl ErrorCode {
     #[must_use]
     pub const fn exit_code(self) -> u8 {
         match self {
-            Self::ConfigInvalid | Self::InvocationInvalid => 2,
+            Self::ConfigInvalid
+            | Self::InvocationInvalid
+            | Self::ConfirmationRequired
+            | Self::ExampleNotViewable => 2,
             Self::HarnessUnavailable
             | Self::HarnessIncompatible
             | Self::HarnessNeedsAuth
@@ -191,19 +281,89 @@ impl ErrorCode {
             | Self::DeviceAuthExpired
             | Self::HostedUnavailable
             | Self::HostedAuthRequired
-            | Self::HostedQuotaExceeded => 10,
+            | Self::HostedQuotaExceeded
+            | Self::ServiceRequestRejected
+            | Self::ServiceResourceNotFound
+            | Self::ServiceFeatureDisabled
+            | Self::ServiceBalanceInsufficient
+            | Self::ServicePremiumModelLocked
+            | Self::ServiceAccountSuspended
+            | Self::ServiceWriteConflict
+            | Self::GithubLinkRequired
+            | Self::ServiceResponseTooLarge => 10,
             Self::TransportUnsupported
             | Self::PromptChannelUnsupported
             | Self::ImageInvalid
             | Self::ImageTooLarge
             | Self::RecursiveInvocation => 20,
-            Self::StartupTimeout => 21,
-            Self::ProtocolMalformed | Self::ProtocolTruncated | Self::HarnessFailed => 22,
+            Self::StartupTimeout | Self::ServiceWatchDeadline | Self::HostedRunDetached => 21,
+            Self::ProtocolMalformed
+            | Self::ProtocolTruncated
+            | Self::HarnessFailed
+            | Self::HostedRunFailed
+            | Self::RunSubmissionAmbiguous => 22,
             Self::SemanticStatusUnknown => 23,
-            Self::Cancelled => 24,
+            Self::Cancelled | Self::HostedRunCancelled => 24,
             Self::ProcessCleanupFailed => 25,
             Self::InternalRunnerFault => 70,
         }
+    }
+}
+
+impl ErrorCode {
+    /// Every taxonomy code, in declaration order.
+    pub const ALL: [Self; 43] = [
+        Self::ConfigInvalid,
+        Self::InvocationInvalid,
+        Self::HarnessUnavailable,
+        Self::HarnessIncompatible,
+        Self::HarnessNeedsAuth,
+        Self::TransportUnsupported,
+        Self::PromptChannelUnsupported,
+        Self::ImageInvalid,
+        Self::ImageTooLarge,
+        Self::RecursiveInvocation,
+        Self::StartupTimeout,
+        Self::ProtocolMalformed,
+        Self::ProtocolTruncated,
+        Self::HarnessFailed,
+        Self::SemanticStatusUnknown,
+        Self::Cancelled,
+        Self::ProcessCleanupFailed,
+        Self::ServiceUnavailable,
+        Self::ServiceAuthRequired,
+        Self::ServiceProtocolInvalid,
+        Self::CredentialStoreUnavailable,
+        Self::DeviceAuthFailed,
+        Self::DeviceAuthExpired,
+        Self::HostedUnavailable,
+        Self::HostedAuthRequired,
+        Self::HostedQuotaExceeded,
+        Self::ConfirmationRequired,
+        Self::ServiceRequestRejected,
+        Self::ServiceResourceNotFound,
+        Self::ServiceFeatureDisabled,
+        Self::ServiceBalanceInsufficient,
+        Self::ServicePremiumModelLocked,
+        Self::ServiceAccountSuspended,
+        Self::ServiceWriteConflict,
+        Self::GithubLinkRequired,
+        Self::ServiceResponseTooLarge,
+        Self::ServiceWatchDeadline,
+        Self::HostedRunFailed,
+        Self::RunSubmissionAmbiguous,
+        Self::HostedRunDetached,
+        Self::HostedRunCancelled,
+        Self::InternalRunnerFault,
+        Self::ExampleNotViewable,
+    ];
+
+    /// Parses a stable taxonomy identifier such as `SERVICE_UNAVAILABLE`.
+    #[must_use]
+    pub fn from_code(code: &str) -> Option<Self> {
+        Self::ALL
+            .into_iter()
+            .find(|candidate| candidate.as_str() == code)
     }
 }
 
@@ -262,13 +422,13 @@ impl RunnerError {
             ErrorCode::ServiceUnavailable => (
                 "hosted-service",
                 "The OpenProse service is unavailable.",
-                "Check the selected service environment and retry later.",
+                "Check your network connection and retry later.",
                 true,
             ),
             ErrorCode::ServiceAuthRequired => (
                 "authentication",
                 "OpenProse service authentication is required.",
-                "Run cli auth login for the selected service environment, then retry.",
+                "Run cli auth login, then retry.",
                 false,
             ),
             ErrorCode::ServiceProtocolInvalid => (
@@ -286,13 +446,13 @@ impl RunnerError {
             ErrorCode::DeviceAuthFailed => (
                 "authentication",
                 "Device authorization failed.",
-                "Run login again for the selected service environment and authorize the displayed code.",
+                "Run login again and authorize the displayed code.",
                 false,
             ),
             ErrorCode::DeviceAuthExpired => (
                 "authentication",
                 "Device authorization expired.",
-                "Run login again for the selected service environment to obtain a new code.",
+                "Run login again to obtain a new code.",
                 true,
             ),
 
@@ -400,8 +560,8 @@ impl RunnerError {
             ),
             ErrorCode::HostedUnavailable => (
                 "hosted-service",
-                "OpenProse-billed execution is not available in this build.",
-                "Select an available BYO harness with the `cli harness use <id>` runner operation, then invoke the `cli doctor` runner operation.",
+                "Programs run here only with a local harness; hosted runs use `prose cli run submit`.",
+                "To use the hosted service, run `cli run submit FILE --preview`; running programs on this machine needs a local harness (`cli harness list`).",
                 false,
             ),
             ErrorCode::HostedAuthRequired => (
@@ -414,6 +574,102 @@ impl RunnerError {
                 "hosted-service",
                 "The OpenProse account has no available execution quota.",
                 "Review OpenProse billing or quota status with the `cli auth status` runner operation.",
+                false,
+            ),
+            ErrorCode::ConfirmationRequired => (
+                "invocation",
+                "This service operation requires explicit confirmation.",
+                "Rerun the same command with --yes to confirm, or with --preview to see what it would do without sending anything.",
+                false,
+            ),
+            ErrorCode::ServiceRequestRejected => (
+                "hosted-service",
+                "The OpenProse service rejected the request.",
+                "Correct the request using whichever of details.reason, details.serviceMessage and details.serviceCode are present, then retry.",
+                false,
+            ),
+            ErrorCode::ServiceResourceNotFound => (
+                "hosted-service",
+                "The requested OpenProse service resource was not found.",
+                "Check the identifier, then retry.",
+                false,
+            ),
+            ErrorCode::ServiceFeatureDisabled => (
+                "hosted-service",
+                "This capability is not available for this account.",
+                "Check your plan or organization, or contact OpenProse support.",
+                false,
+            ),
+            ErrorCode::ServiceBalanceInsufficient => (
+                "hosted-service",
+                "The OpenProse wallet balance is insufficient for this operation.",
+                "Add credit with the `cli wallet topup` or `cli wallet redeem` runner operation, then retry.",
+                false,
+            ),
+            ErrorCode::ServicePremiumModelLocked => (
+                "hosted-service",
+                "This model is a premium model that unlocks with any wallet top-up.",
+                "Top up the wallet with any amount using the `cli wallet topup` runner operation, then retry.",
+                false,
+            ),
+            ErrorCode::ServiceAccountSuspended => (
+                "authentication",
+                "The OpenProse account is suspended.",
+                "Contact OpenProse support; retrying will not succeed.",
+                false,
+            ),
+            ErrorCode::ServiceWriteConflict => (
+                "hosted-service",
+                "The OpenProse service reported a conflicting write.",
+                "Read the current state of the resource, reconcile the change, then retry.",
+                false,
+            ),
+            ErrorCode::GithubLinkRequired => (
+                "authentication",
+                "This operation needs a linked GitHub account on the OpenProse account.",
+                "Link or reconnect GitHub for this account in the OpenProse web app, then retry; the API key itself is valid.",
+                false,
+            ),
+            ErrorCode::ServiceResponseTooLarge => (
+                "protocol",
+                "The OpenProse service response exceeded the client limit.",
+                "Narrow the request, for example with --limit or a more specific identifier, then retry.",
+                false,
+            ),
+            ErrorCode::ServiceWatchDeadline => (
+                "hosted-service",
+                "The watch deadline elapsed before the hosted run finished; the run continues.",
+                "Resume with the `cli run watch` runner operation using details.resumeArgv (details.runId and details.afterSequence); never submit the run again to resume it.",
+                false,
+            ),
+            ErrorCode::HostedRunFailed => (
+                "hosted-service",
+                "The hosted run finished without completing successfully.",
+                "Inspect the run with the `cli run show` runner operation, correct the program or inputs, then submit again.",
+                false,
+            ),
+            ErrorCode::RunSubmissionAmbiguous => (
+                "protocol",
+                "The run submission could not be confirmed and was not repeated.",
+                "List recent runs with the `cli run list` runner operation before submitting again; the local run journal keeps details.session.",
+                false,
+            ),
+            ErrorCode::HostedRunDetached => (
+                "hosted-service",
+                "The client stopped following the hosted run before its outcome arrived; the run was not cancelled.",
+                "Resume with the `cli run watch` runner operation using details.resumeArgv (details.runId and details.afterSequence); never submit the run again to resume it.",
+                false,
+            ),
+            ErrorCode::HostedRunCancelled => (
+                "hosted-service",
+                "The hosted run was cancelled on the service and will not continue.",
+                "Read the cancelled run with the `cli run show` runner operation using details.runId; submit again only to start a new run.",
+                false,
+            ),
+            ErrorCode::ExampleNotViewable => (
+                "invocation",
+                "This example is published outside the OpenProse service and cannot be shown here.",
+                "Read the example on the web at details.webUrl when it is present, or pick an example that the `cli example list` runner operation does not mark viewOnWeb.",
                 false,
             ),
             ErrorCode::InternalRunnerFault => (
@@ -434,6 +690,18 @@ impl RunnerError {
             .get_or_insert_with(|| Box::new(Map::new()))
             .insert(key.to_owned(), value.into());
         self
+    }
+
+    /// `HOSTED_RUN_FAILED` with `details.reason`, its Action chosen by the
+    /// cause the reason names (see [`run_failure_action`]).
+    #[must_use]
+    pub fn hosted_run_failed(reason: impl Into<String>) -> Self {
+        let reason = reason.into();
+        let mut error = Self::catalog(ErrorCode::HostedRunFailed);
+        if let Some(action) = run_failure_action(&reason) {
+            action.clone_into(&mut error.action);
+        }
+        error.with_detail("reason", reason)
     }
 
     #[must_use]
@@ -527,7 +795,7 @@ impl RunnerError {
         if executable == NON_COPYABLE_RUNNER_GUIDANCE {
             format!("{NON_COPYABLE_RUNNER_GUIDANCE} {action}")
         } else {
-            format!("Use the exact executable at {executable} for runner operations. {action}")
+            format!("Use the exact runner invocation {executable} for runner operations. {action}")
         }
     }
 }
@@ -557,7 +825,7 @@ impl Display for RunnerError {
             .and_then(|details| details.get("reason"))
             .and_then(Value::as_str);
         if let Some(reason) = reason {
-            write!(f, "\nDetail: {}", human_safe_scalar(reason))?;
+            write!(f, "\nDetail: {}", human_safe_detail(reason))?;
         } else if self.boundary == "configuration" {
             write!(f, "\nDetail: unavailable")?;
         }
@@ -593,10 +861,128 @@ impl Display for RunnerError {
 
 impl std::error::Error for RunnerError {}
 
+/// The Action of a failed hosted run whose reason names a known cause
+/// (identical in both ports; `shared/fixtures/human/run-failure-actions.json`):
+/// a run that ran out of budget or hit the step limit is not fixed by
+/// correcting its inputs. `None` keeps the catalog Action.
+#[must_use]
+pub fn run_failure_action(reason: &str) -> Option<&'static str> {
+    let reason = reason.to_ascii_lowercase();
+    if reason.contains("budget") {
+        Some(
+            "Raise the run budget, choose another environment, or check `cli wallet balance`, then submit again.",
+        )
+    } else if [
+        "step limit",
+        "max steps",
+        "maximum steps",
+        "max_steps",
+        "too many steps",
+    ]
+    .iter()
+    .any(|cause| reason.contains(cause))
+    {
+        Some("Simplify the program or split it into steps, then submit again.")
+    } else {
+        None
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn quote_and_detail_match_the_shared_fixture() {
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../../../../shared/fixtures/human/quoted-strings.json"
+        ))
+        .unwrap();
+        for case in fixture["cases"].as_array().unwrap() {
+            assert_eq!(
+                quote(case["input"].as_str().unwrap()),
+                case["quoted"].as_str().unwrap(),
+                "{}",
+                case["id"]
+            );
+        }
+        for case in fixture["detailCases"].as_array().unwrap() {
+            assert_eq!(
+                human_safe_detail(case["input"].as_str().unwrap()),
+                case["rendered"].as_str().unwrap(),
+                "{}",
+                case["id"]
+            );
+        }
+        for range in fixture["escapedCodePointRanges"].as_array().unwrap() {
+            let (start, end) = (range[0].as_u64().unwrap(), range[1].as_u64().unwrap());
+            for code in start..=end {
+                if let Some(character) = char::from_u32(u32::try_from(code).unwrap()) {
+                    assert!(
+                        !quote(&character.to_string()).contains(character),
+                        "{code:#x}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn human_runner_errors_match_the_shared_fixture() {
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../../../../shared/fixtures/human/runner-errors.json"
+        ))
+        .unwrap();
+        let runner = human_runner_executable();
+        for case in fixture["cases"].as_array().unwrap() {
+            let shape = &case["error"];
+            let code = ErrorCode::ALL
+                .into_iter()
+                .find(|code| serde_json::to_value(code).unwrap() == shape["code"])
+                .unwrap();
+            let mut error = RunnerError::new(
+                code,
+                shape["boundary"].as_str().unwrap(),
+                shape["message"].as_str().unwrap(),
+                shape["action"].as_str().unwrap(),
+            );
+            if let Some(details) = shape["details"].as_object() {
+                error.details = Some(Box::new(details.clone()));
+            }
+            assert_eq!(
+                format!("{error}\n"),
+                case["rendered"]
+                    .as_str()
+                    .unwrap()
+                    .replace("{{RUNNER}}", &runner),
+                "{}",
+                case["id"]
+            );
+        }
+    }
+
+    #[test]
+    fn run_failure_action_matches_the_shared_fixture() {
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../../../../shared/fixtures/human/run-failure-actions.json"
+        ))
+        .unwrap();
+        for case in fixture["cases"].as_array().unwrap() {
+            let reason = case["reason"].as_str().unwrap();
+            assert_eq!(
+                run_failure_action(reason),
+                case["action"].as_str(),
+                "{}",
+                case["id"]
+            );
+            let expected = case["action"].as_str().map_or_else(
+                || RunnerError::catalog(ErrorCode::HostedRunFailed).action,
+                str::to_owned,
+            );
+            assert_eq!(RunnerError::hosted_run_failed(reason).action, expected);
+        }
+    }
 
     #[test]
     fn human_safe_scalar_matches_the_shared_hostile_fixture() {
@@ -806,7 +1192,23 @@ mod tests {
             ErrorCode::CredentialStoreUnavailable,
             ErrorCode::DeviceAuthFailed,
             ErrorCode::DeviceAuthExpired,
+            ErrorCode::ConfirmationRequired,
+            ErrorCode::ServiceRequestRejected,
+            ErrorCode::ServiceResourceNotFound,
+            ErrorCode::ServiceFeatureDisabled,
+            ErrorCode::ServiceBalanceInsufficient,
+            ErrorCode::ServicePremiumModelLocked,
+            ErrorCode::ServiceAccountSuspended,
+            ErrorCode::ServiceWriteConflict,
+            ErrorCode::GithubLinkRequired,
+            ErrorCode::ServiceResponseTooLarge,
+            ErrorCode::ServiceWatchDeadline,
+            ErrorCode::HostedRunFailed,
+            ErrorCode::RunSubmissionAmbiguous,
+            ErrorCode::HostedRunDetached,
+            ErrorCode::HostedRunCancelled,
             ErrorCode::InternalRunnerFault,
+            ErrorCode::ExampleNotViewable,
         ];
         let expected = taxonomy["errors"].as_array().unwrap();
         assert_eq!(expected.len(), codes.len());

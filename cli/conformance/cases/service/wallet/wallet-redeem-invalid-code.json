@@ -1,0 +1,74 @@
+{
+  "id": "wallet-redeem-invalid-code",
+  "feature": "wallet",
+  "operation": "wallet.redeem",
+  "description": "400 invalid_or_unavailable_code is SERVICE_REQUEST_REJECTED (exit 10) with serviceCode.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "wallet",
+    "redeem",
+    "--code-file",
+    "code.txt",
+    "--yes"
+  ],
+  "files": [
+    {
+      "path": "code.txt",
+      "content": "Q7RC9-V5K2M\n"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/wallet/redeem",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          }
+        },
+        "expectedBody": {
+          "code": "Q7RC9-V5K2M"
+        },
+        "status": 400,
+        "body": {
+          "error": "That code is invalid or no longer available.",
+          "code": "invalid_or_unavailable_code"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "wallet.redeem",
+      "operation": "wallet.redeem",
+      "problem": {
+        "action": "Correct the request as details.serviceMessage and details.serviceCode describe, then retry.",
+        "boundary": "hosted-service",
+        "code": "SERVICE_REQUEST_REJECTED",
+        "details": {
+          "serviceCode": "invalid_or_unavailable_code",
+          "serviceMessage": "That code is invalid or no longer available.",
+          "serviceStatus": 400
+        },
+        "exitCode": 10,
+        "message": "The OpenProse service rejected the request.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "Q7RC9-V5K2M"
+  ]
+}

@@ -1,0 +1,48 @@
+{
+  "id": "plural-noun-programs",
+  "feature": "framework",
+  "operation": "program.list",
+  "description": "`cli programs` alone names its listing, `cli program list`.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "programs"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": null,
+      "operation": "cli",
+      "problem": {
+        "action": "Use `cli program list`: `prose --output json cli program list`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "unknown command `cli programs`; did you mean `cli program list`? Commands: auth, cleanup, config, doctor, example, harness, job, model, org, package, program, repo, result, run, service, wallet",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "program",
+            "list"
+          ]
+        },
+        "exitCode": 2,
+        "message": "Unknown command.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

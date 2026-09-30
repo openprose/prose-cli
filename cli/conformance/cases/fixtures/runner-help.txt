@@ -1,9 +1,77 @@
 OpenProse outer runner
 
 Usage:
+  prose [--output <MODE>] cli <COMMAND> [ARGUMENTS] [OPTIONS]
+
+Hosted OpenProse service commands (never prompt):
+  prose cli run quote|submit|watch|input|cancel|list|show|download|share [--json]
+  prose cli program list|show|save|visibility|delete|revisions|draft [--json]
+  prose cli job list|show|create|update|configure|delete|deliveries|rotate-secret|contract [--json]
+  prose cli wallet balance|events|usage|redeem|topup [--json]
+  prose cli auth login|status|logout [--json]
+Hosted runs use `prose cli run submit FILE`; `prose <FILE>` never runs on the
+service. More commands (model, example, repo, result, org, package, service)
+are listed below and by `prose cli --help`.
+
+Service and account commands always start with `cli`: `prose cli run list`,
+not `prose run list`. Service words without `cli` exit 2 with the exact
+`prose cli ...` command; nothing is forwarded or billed. `prose -- <WORDS>`
+always forwards to the OpenProse language.
+
+For agents:
+  Start with `prose cli service capabilities --json` (grammar, exit codes by
+  error code, environment variables and every command with examples) and
+  `prose cli service triage --json` (health, credential, balance, default
+  organization, recent runs, jobs and the next commands, in one call);
+  `prose cli service status --json` is service health and models alone,
+  `prose cli service operations --json` every command as JSON and
+  `prose cli service guide` the workflow guide
+  (credentials, --yes, exit 21 resume, paging, a run's answer, recipes).
+  Add --json to any service command for one parseable result. Service
+  commands never prompt; on exit 2, details.suggestedArgv is the corrected
+  argv (the words after `prose`).
+
+More hosted OpenProse service commands:
+  prose cli service status|triage|capabilities|operations|guide [--json]
+  prose cli model list [--json]
+  prose cli example list|show [--json]
+  prose cli repo list [--json]
+  prose cli result list|show|publish|unpublish [--json]
+  prose cli org show|create|rename|default|invite [--json]
+  prose cli org member list|role|remove [--json]
+  prose cli org invitation revoke|accept [--json]
+  prose cli job contract list|attach|detach [--json]
+Run `prose cli --help` or `prose cli <COMMAND> --help` for usage, and
+`prose cli service operations --json` for every command as JSON. Commands that
+spend money, publish or delete need --yes; --preview shows the request instead.
+
+OpenProse account commands:
+  prose cli auth login|status|logout [--json]
+  prose cli org list [--json]
+
+Login stores the key in the OS credential store. For CI, set OPENPROSE_API_KEY;
+a non-empty OPENPROSE_API_KEY wins over the stored key. Logout removes only
+the local credential.
+
+Registry package commands (no source execution):
+  prose cli package publish <FILE|DIR> --organization <ORG> --name <NAME> --version <VERSION> [--public] [--json]
+  prose cli package fetch <ORG>/<NAME>@<VERSION> --output-dir <FRESH_DIR> [--sha256 <DIGEST>] [--json]
+  prose cli package list <ORG> [--cursor <CURSOR>] [--json]
+  prose cli package withdraw <ORG>/<NAME>@<VERSION> [--json]
+
+A directory requires prose-package.json with explicitly listed files, exports,
+and pinned dependencies. Private is the publish default; list shows public
+packages one page at a time. Withdraw removes discovery, not pinned retrieval.
+Fetch verifies canonical bytes and receipt hashes before creating a fresh target;
+it never overwrites an existing directory. The receipt is written last: a target
+without that receipt after interruption is incomplete; there is no automatic resume.
+
+Advanced / local harness:
   prose [OPTIONS] <LANGUAGE_COMMAND> [OPAQUE_ARGS]...
   prose [OPTIONS] -- <OPAQUE_LANGUAGE_ARGV>...
-  prose cli <COMMAND>
+
+A language command runs with a local harness you select; hosted runs use
+`prose cli run submit` instead.
 
 Runner commands:
   cli doctor                 Report harness and runner readiness
@@ -12,9 +80,9 @@ Runner commands:
   cli cleanup prime <HANDLE> Settle one failed owned Prime service
   cli config explain         Explain effective runner configuration
   cli auth <COMMAND>         Manage only the OpenProse account
-  cli org list               List organizations for the selected account
-  cli environment <COMMAND>  Show, select, or reset the user service environment
+  cli org <COMMAND>          List, show, create, rename or manage organizations
   cli package <COMMAND>      Publish, fetch, list, or withdraw registry files
+  cli <SERVICE COMMAND>      Hosted OpenProse service commands (listed above)
 
 Runner options:
   --harness <ID>             Select a harness (default: openprose)
@@ -46,32 +114,26 @@ validated and saved atomically. Codex and Claude use their frozen installed-
 login defaults when those selection options are omitted.
 
 The first language-command token ends runner-option parsing. `prose help` is
-forwarded to OpenProse; use `prose --help` for this runner help. Use
-`prose -- cli ...` to forward a language command named `cli`.
+forwarded to OpenProse; use `prose --help` for this runner help and
+`prose help cli [COMMAND]` for service help. Use `prose -- cli ...` to forward
+a language command named `cli`.
 
-OpenProse service commands (production by default; no hosted execution):
-  prose cli auth login|status|logout [--json]
-  prose cli org list [--json]
-  prose cli environment show [--json]
-  prose cli environment use production|staging [--json]
-  prose cli environment reset [--json]
+Environment variables:
+  OPENPROSE_API_KEY          OpenProse service key (overrides stored login)
+  PROSE_OUTPUT               human, json or jsonl (same as --output)
+  PROSE_HARNESS, PROSE_TRANSPORT, PROSE_MODEL, PROSE_AUTH_PROFILE,
+  PROSE_TIMEOUT, PROSE_VERBOSE, PROSE_COLOR  Defaults for the runner options
+  `prose cli config explain` shows every effective setting and its source.
 
-Environment selection persists in user configuration. Reset returns to production.
-Account and package commands accept --service-environment production|staging before cli.
-Staging service output is labeled; JSON reports include the selected environment.
-Login stores credentials separately per environment in the OS credential store.
-For CI, use OPENPROSE_API_KEY or OPENPROSE_STAGING_API_KEY for the selected service.
-Logout removes only the selected local credential.
-
-Registry package commands (candidate; no source execution):
-  prose cli package publish <FILE|DIR> --organization <ORG> --name <NAME> --version <VERSION> [--public] [--json]
-  prose cli package fetch <ORG>/<NAME>@<VERSION> --output-dir <FRESH_DIR> [--sha256 <DIGEST>] [--json]
-  prose cli package list <ORG> [--cursor <CURSOR>] [--json]
-  prose cli package withdraw <ORG>/<NAME>@<VERSION> [--json]
-
-A directory requires prose-package.json with explicitly listed files, exports,
-and pinned dependencies. Private is the publish default; list shows public
-packages one page at a time. Withdraw removes discovery, not pinned retrieval.
-Fetch verifies canonical bytes and receipt hashes before creating a fresh target;
-it never overwrites an existing directory. Bun writes the receipt last: a target
-without that receipt after interruption is incomplete; there is no automatic resume.
+Exit codes (every error prints CODE, Detail and Action; JSON errors carry
+code, exitCode, retryable and, when one applies, details.suggestedArgv):
+  0   success
+  2   invalid invocation or configuration; --yes confirmation required
+  10  harness, account, credential or service error (see the error code)
+  20  unsupported transport, prompt channel or image; recursive invocation
+  21  startup timeout, watch deadline, or hosted run detached (resume it)
+  22  harness, protocol or hosted run failure; ambiguous run submission
+  23  semantic run status unknown
+  24  cancelled or interrupted
+  25  process cleanup failed
+  70  internal error

@@ -1,0 +1,509 @@
+{
+  "id": "triage-authenticated-unknown-fields",
+  "feature": "discovery",
+  "operation": "service.triage",
+  "description": "With a stored key every section is read once: health, the credential (valid, from the store), a price-only balance flagged low below $5.00, the default organization, recent runs and jobs. nextCommands come from state: the running run -> run watch, the low balance -> wallet topup --preview, the job with lastError -> job show; each keeps the output mode. Every service record also carries internal fields (runtime, contract, version, adoption, driver, configuration token, reactor, call id, showable, price policy, organization id, an internal path): the output is unchanged and names none of them.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "service",
+    "triage"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/health",
+        "requestHeaders": {
+          "Authorization": {
+            "present": false
+          },
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          }
+        },
+        "status": 200,
+        "body": {
+          "status": "ok",
+          "environments": {
+            "default": "builtin",
+            "available": [
+              "builtin",
+              "linux"
+            ],
+            "runtime": "x-internal-runtime",
+            "contract": "x-internal-contract",
+            "version": "x-internal-version",
+            "adopted": true,
+            "driver": "x-internal-driver",
+            "configurationToken": "x-internal-configuration-token",
+            "reactor": "x-internal-reactor",
+            "call_id": "x-internal-call",
+            "showable": true,
+            "pricing_policy_id": "x-internal-pricing-policy",
+            "organization_id": "x-internal-organization",
+            "internal_path": "/internal/x-internal-path/state.json"
+          },
+          "models": [
+            "model-sol",
+            "model-luna"
+          ],
+          "default_model": "model-sol",
+          "version": "9.9.9-extra",
+          "capabilities": {
+            "web:search": {
+              "available": true,
+              "tool": "web_search",
+              "runtime": "x-internal-runtime",
+              "contract": "x-internal-contract",
+              "version": "x-internal-version",
+              "adopted": true,
+              "driver": "x-internal-driver",
+              "configurationToken": "x-internal-configuration-token",
+              "reactor": "x-internal-reactor",
+              "call_id": "x-internal-call",
+              "showable": true,
+              "pricing_policy_id": "x-internal-pricing-policy",
+              "organization_id": "x-internal-organization",
+              "internal_path": "/internal/x-internal-path/state.json"
+            },
+            "runtime": "x-internal-runtime",
+            "contract": "x-internal-contract",
+            "version": "x-internal-version",
+            "adopted": true,
+            "driver": "x-internal-driver",
+            "configurationToken": "x-internal-configuration-token",
+            "reactor": "x-internal-reactor",
+            "call_id": "x-internal-call",
+            "showable": true,
+            "pricing_policy_id": "x-internal-pricing-policy",
+            "organization_id": "x-internal-organization",
+            "internal_path": "/internal/x-internal-path/state.json"
+          },
+          "runtime": "x-internal-runtime",
+          "contract": "x-internal-contract",
+          "adopted": true,
+          "driver": "x-internal-driver",
+          "configurationToken": "x-internal-configuration-token",
+          "reactor": "x-internal-reactor",
+          "call_id": "x-internal-call",
+          "showable": true,
+          "pricing_policy_id": "x-internal-pricing-policy",
+          "organization_id": "x-internal-organization",
+          "internal_path": "/internal/x-internal-path/state.json"
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/wallet/balance",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          },
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          }
+        },
+        "status": 200,
+        "body": {
+          "balance": {
+            "available_cents": 312,
+            "available_dollars": "3.12",
+            "available_nanos": 3120000000,
+            "posted_cents": 924,
+            "posted_dollars": "9.24",
+            "reserved_cents": 612,
+            "reserved_dollars": "6.12",
+            "reserved_nanos": 6120000000,
+            "runtime": "x-internal-runtime",
+            "contract": "x-internal-contract",
+            "version": "x-internal-version",
+            "adopted": true,
+            "driver": "x-internal-driver",
+            "configurationToken": "x-internal-configuration-token",
+            "reactor": "x-internal-reactor",
+            "call_id": "x-internal-call",
+            "showable": true,
+            "pricing_policy_id": "x-internal-pricing-policy",
+            "organization_id": "x-internal-organization",
+            "internal_path": "/internal/x-internal-path/state.json"
+          },
+          "runtime": "x-internal-runtime",
+          "contract": "x-internal-contract",
+          "version": "x-internal-version",
+          "adopted": true,
+          "driver": "x-internal-driver",
+          "configurationToken": "x-internal-configuration-token",
+          "reactor": "x-internal-reactor",
+          "call_id": "x-internal-call",
+          "showable": true,
+          "pricing_policy_id": "x-internal-pricing-policy",
+          "organization_id": "x-internal-organization",
+          "internal_path": "/internal/x-internal-path/state.json"
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/organizations/default",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          },
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          }
+        },
+        "status": 200,
+        "body": {
+          "organization": {
+            "id": "0f3c2a9e-5b1d-4c7e-9a8f-1e2d3c4b5a69",
+            "slug": "exowner1",
+            "name": "Example Owner",
+            "role": "admin",
+            "created_at": 1790012915257,
+            "created_by": "cus_ExampleOwner01",
+            "runtime": "x-internal-runtime",
+            "contract": "x-internal-contract",
+            "version": "x-internal-version",
+            "adopted": true,
+            "driver": "x-internal-driver",
+            "configurationToken": "x-internal-configuration-token",
+            "reactor": "x-internal-reactor",
+            "call_id": "x-internal-call",
+            "showable": true,
+            "pricing_policy_id": "x-internal-pricing-policy",
+            "organization_id": "x-internal-organization",
+            "internal_path": "/internal/x-internal-path/state.json"
+          },
+          "runtime": "x-internal-runtime",
+          "contract": "x-internal-contract",
+          "version": "x-internal-version",
+          "adopted": true,
+          "driver": "x-internal-driver",
+          "configurationToken": "x-internal-configuration-token",
+          "reactor": "x-internal-reactor",
+          "call_id": "x-internal-call",
+          "showable": true,
+          "pricing_policy_id": "x-internal-pricing-policy",
+          "organization_id": "x-internal-organization",
+          "internal_path": "/internal/x-internal-path/state.json"
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/runs",
+        "query": {
+          "limit": "5"
+        },
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          },
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          }
+        },
+        "status": 200,
+        "body": {
+          "runs": [
+            {
+              "run_id": "run_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "created_at": "2026-09-24T08:35:02.570Z",
+              "status": "running",
+              "model": "model-sol",
+              "customer_id": "cus_ExampleOwner01",
+              "environment": {
+                "id": "builtin",
+                "runtime_contract": 1,
+                "version": "1.0.0",
+                "runtime": "x-internal-runtime",
+                "contract": "x-internal-contract",
+                "adopted": true,
+                "driver": "x-internal-driver",
+                "configurationToken": "x-internal-configuration-token",
+                "reactor": "x-internal-reactor",
+                "call_id": "x-internal-call",
+                "showable": true,
+                "pricing_policy_id": "x-internal-pricing-policy",
+                "organization_id": "x-internal-organization",
+                "internal_path": "/internal/x-internal-path/state.json"
+              },
+              "runtime": "x-internal-runtime",
+              "contract": "x-internal-contract",
+              "version": "x-internal-version",
+              "adopted": true,
+              "driver": "x-internal-driver",
+              "configurationToken": "x-internal-configuration-token",
+              "reactor": "x-internal-reactor",
+              "call_id": "x-internal-call",
+              "showable": true,
+              "pricing_policy_id": "x-internal-pricing-policy",
+              "organization_id": "x-internal-organization",
+              "internal_path": "/internal/x-internal-path/state.json"
+            },
+            {
+              "run_id": "run_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "created_at": "2026-09-24T05:56:26.658Z",
+              "status": "completed",
+              "model": "model-luna",
+              "price_cents": 2,
+              "environment_price_cents": 1,
+              "billing_status": "settled",
+              "program_ref": "exowner1/daily-digest@3765c81b9bf06fb0",
+              "runtime": "x-internal-runtime",
+              "contract": "x-internal-contract",
+              "version": "x-internal-version",
+              "adopted": true,
+              "driver": "x-internal-driver",
+              "configurationToken": "x-internal-configuration-token",
+              "reactor": "x-internal-reactor",
+              "call_id": "x-internal-call",
+              "showable": true,
+              "pricing_policy_id": "x-internal-pricing-policy",
+              "organization_id": "x-internal-organization",
+              "internal_path": "/internal/x-internal-path/state.json"
+            }
+          ],
+          "next_before": "8209773159722_run_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "runtime": "x-internal-runtime",
+          "contract": "x-internal-contract",
+          "version": "x-internal-version",
+          "adopted": true,
+          "driver": "x-internal-driver",
+          "configurationToken": "x-internal-configuration-token",
+          "reactor": "x-internal-reactor",
+          "call_id": "x-internal-call",
+          "showable": true,
+          "pricing_policy_id": "x-internal-pricing-policy",
+          "organization_id": "x-internal-organization",
+          "internal_path": "/internal/x-internal-path/state.json"
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/triggers",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          },
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          }
+        },
+        "status": 200,
+        "body": {
+          "triggers": [
+            {
+              "id": "7d9e4c1a-2b3f-4a5e-8c6d-9f0a1b2c3d4e",
+              "type": "schedule",
+              "createdAt": 1790012915257,
+              "name": "Nightly digest",
+              "adopted": true,
+              "intervalSeconds": 86400,
+              "nextFireAt": 1790100000000,
+              "lastRunId": "run_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "lastError": "program not found",
+              "runtime": "x-internal-runtime",
+              "contract": "x-internal-contract",
+              "version": "x-internal-version",
+              "driver": "x-internal-driver",
+              "configurationToken": "x-internal-configuration-token",
+              "reactor": "x-internal-reactor",
+              "call_id": "x-internal-call",
+              "showable": true,
+              "pricing_policy_id": "x-internal-pricing-policy",
+              "organization_id": "x-internal-organization",
+              "internal_path": "/internal/x-internal-path/state.json"
+            }
+          ],
+          "max_triggers": 5,
+          "trigger_limit": {
+            "kind": "unlimited",
+            "runtime": "x-internal-runtime",
+            "contract": "x-internal-contract",
+            "version": "x-internal-version",
+            "adopted": true,
+            "driver": "x-internal-driver",
+            "configurationToken": "x-internal-configuration-token",
+            "reactor": "x-internal-reactor",
+            "call_id": "x-internal-call",
+            "showable": true,
+            "pricing_policy_id": "x-internal-pricing-policy",
+            "organization_id": "x-internal-organization",
+            "internal_path": "/internal/x-internal-path/state.json"
+          },
+          "types": [],
+          "runtime": "x-internal-runtime",
+          "contract": "x-internal-contract",
+          "version": "x-internal-version",
+          "adopted": true,
+          "driver": "x-internal-driver",
+          "configurationToken": "x-internal-configuration-token",
+          "reactor": "x-internal-reactor",
+          "call_id": "x-internal-call",
+          "showable": true,
+          "pricing_policy_id": "x-internal-pricing-policy",
+          "organization_id": "x-internal-organization",
+          "internal_path": "/internal/x-internal-path/state.json"
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "health.read",
+      "operation": "service.triage",
+      "problem": null,
+      "result": {
+        "credential": {
+          "problem": null,
+          "source": "store",
+          "state": "valid",
+          "variable": "OPENPROSE_API_KEY"
+        },
+        "health": {
+          "default_model": "model-sol",
+          "models": [
+            "model-sol",
+            "model-luna"
+          ],
+          "problem": null,
+          "status": "ok"
+        },
+        "jobs": {
+          "jobs": [
+            {
+              "id": "7d9e4c1a-2b3f-4a5e-8c6d-9f0a1b2c3d4e",
+              "last_error": "program not found",
+              "last_run_id": "run_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "name": "Nightly digest",
+              "next_fire_at": 1790100000000,
+              "next_fire_at_iso": "2026-09-22T18:00:00.000Z",
+              "type": "schedule"
+            }
+          ],
+          "max": 5,
+          "problem": null,
+          "total": 1
+        },
+        "nextCommands": [
+          {
+            "argv": [
+              "--output",
+              "json",
+              "cli",
+              "run",
+              "watch",
+              "run_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            ],
+            "env": null,
+            "why": "run run_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa is running"
+          },
+          {
+            "argv": [
+              "--output",
+              "json",
+              "cli",
+              "wallet",
+              "topup",
+              "--amount-cents",
+              "500",
+              "--preview"
+            ],
+            "env": null,
+            "why": "the available balance $3.12 is below $5.00"
+          },
+          {
+            "argv": [
+              "--output",
+              "json",
+              "cli",
+              "job",
+              "show",
+              "7d9e4c1a-2b3f-4a5e-8c6d-9f0a1b2c3d4e"
+            ],
+            "env": null,
+            "why": "job 7d9e4c1a-2b3f-4a5e-8c6d-9f0a1b2c3d4e reported an error"
+          }
+        ],
+        "organization": {
+          "default": {
+            "created_at": 1790012915257,
+            "created_at_iso": "2026-09-21T17:48:35.257Z",
+            "id": "0f3c2a9e-5b1d-4c7e-9a8f-1e2d3c4b5a69",
+            "name": "Example Owner",
+            "role": "admin",
+            "slug": "exowner1"
+          },
+          "problem": null
+        },
+        "runs": {
+          "live": [
+            "run_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          ],
+          "problem": null,
+          "recent": [
+            {
+              "created_at": "2026-09-24T08:35:02.570Z",
+              "model": "model-sol",
+              "run_id": "run_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "status": "running"
+            },
+            {
+              "created_at": "2026-09-24T05:56:26.658Z",
+              "model": "model-luna",
+              "price_cents": 2,
+              "program_ref": "exowner1/daily-digest@3765c81b9bf06fb0",
+              "run_id": "run_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "status": "completed"
+            }
+          ]
+        },
+        "wallet": {
+          "balance": {
+            "available_cents": 312,
+            "available_dollars": "3.12",
+            "posted_cents": 924,
+            "posted_dollars": "9.24",
+            "reserved_cents": 612,
+            "reserved_dollars": "6.12"
+          },
+          "low": true,
+          "lowBelowCents": 500,
+          "problem": null
+        }
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef",
+    "cus_ExampleOwner01",
+    "nanos",
+    "next_before",
+    "9.9.9-extra",
+    "web_search",
+    "runtime_contract",
+    "environment_price_cents",
+    "x-internal-",
+    "/internal/",
+    "\"adopted\"",
+    "\"driver\"",
+    "\"showable\"",
+    "\"call_id\"",
+    "\"pricing_policy_id\"",
+    "\"organization_id\"",
+    "\"configurationToken\"",
+    "\"runtime\"",
+    "\"contract\"",
+    "\"reactor\"",
+    "\"internal_path\""
+  ]
+}

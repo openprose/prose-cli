@@ -1,0 +1,48 @@
+{
+  "id": "no-cli-examples-list-json",
+  "feature": "framework",
+  "operation": "example.list",
+  "description": "`prose --output json examples list` under the default hosted harness prints the INVOCATION_INVALID envelope with `prose cli example list`.",
+  "argv": [
+    "--output",
+    "json",
+    "examples",
+    "list"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": null,
+      "operation": "cli",
+      "problem": {
+        "action": "Use `cli example list`: `prose --output json cli example list`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "`examples list` is a language command, which runs only with a local harness; did you mean `prose --output json cli example list`? Nothing was forwarded or sent. To run the language command, select a local harness with `prose cli harness use <id>`",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "example",
+            "list"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

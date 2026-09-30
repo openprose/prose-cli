@@ -170,7 +170,7 @@ not change this runner's nonsemantic, non-release claims, and no artifact from
 this implementation has been published.
 
 
-## Registry and service environment fixtures
+## Registry fixtures
 
 The account and registry lanes use compiled test seams with temporary user
 configuration, synthetic credentials, and exact ordered transport exchanges.
@@ -180,8 +180,6 @@ ignore the fixture environment variable. Build and run from the repository root:
 ```sh
 (cd cli/rust && cargo build --locked --features test-seams --bin prose)
 (cd cli/bun && bun run build:test)
-python3 cli/conformance/runner/service_environment.py -- cli/rust/target/debug/prose
-python3 cli/conformance/runner/service_environment.py -- cli/bun/dist/prose-test
 python3 cli/conformance/runner/registry_service.py -- cli/rust/target/debug/prose
 python3 cli/conformance/runner/registry_service.py -- cli/bun/dist/prose-test
 ```
@@ -189,7 +187,7 @@ python3 cli/conformance/runner/registry_service.py -- cli/bun/dist/prose-test
 Use the repository-pinned Bun 1.3.5 on PATH, including for child build scripts.
 `run_local.py` includes `registry-service-rust` and `registry-service-bun` after
 its test-seam builds. The registry oracle checks both canonical byte fixtures in
-production and staging across publish, fetch, public listing, withdraw, and
+against the production service across publish, fetch, public listing, withdraw, and
 artifact tampering, HTTP error classification, duplicate manifest keys and human
 output. It asserts exact receipt results, exact posted bytes/hash,
 selected fixed origin and credential isolation without retaining credentials.

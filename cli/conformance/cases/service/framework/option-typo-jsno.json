@@ -1,0 +1,27 @@
+{
+  "id": "option-typo-jsno",
+  "feature": "framework",
+  "operation": "run.list",
+  "description": "An option transposition is one edit: `--jsno` suggests `--json`.",
+  "argv": [
+    "cli",
+    "run",
+    "list",
+    "--jsno"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: Unknown option.\nDetail: unknown option --jsno for `cli run list`; did you mean --json?\nAction: Replace --jsno with --json: `prose cli run list --json`.\n"
+  }
+}

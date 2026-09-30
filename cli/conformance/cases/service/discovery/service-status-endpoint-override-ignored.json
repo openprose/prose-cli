@@ -1,0 +1,87 @@
+{
+  "id": "service-status-endpoint-override-ignored",
+  "feature": "discovery",
+  "operation": "service.status",
+  "description": "A public build ignores OPENPROSE_API_URL: the request still goes to the production service (the fixture is production) and the envelope's environment is production.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "service",
+    "status"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/health",
+        "requestHeaders": {
+          "Authorization": {
+            "present": false
+          },
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          }
+        },
+        "status": 200,
+        "body": {
+          "status": "ok",
+          "environments": {
+            "default": "builtin",
+            "available": [
+              "builtin",
+              "linux"
+            ]
+          },
+          "models": [
+            "model-sol",
+            "model-luna"
+          ],
+          "default_model": "model-sol",
+          "version": "9.9.9-extra",
+          "capabilities": {
+            "web:search": {
+              "available": true,
+              "tool": "web_search"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "health.read",
+      "operation": "service.status",
+      "problem": null,
+      "result": {
+        "default_model": "model-sol",
+        "environments": [
+          "builtin",
+          "linux"
+        ],
+        "models": [
+          "model-sol",
+          "model-luna"
+        ],
+        "status": "ok"
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "9.9.9-extra",
+    "custom endpoint",
+    "example.invalid",
+    "web_search"
+  ],
+  "environment": {
+    "OPENPROSE_API_URL": "https://example.invalid"
+  }
+}

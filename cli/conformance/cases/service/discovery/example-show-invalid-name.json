@@ -1,0 +1,51 @@
+{
+  "id": "example-show-invalid-name",
+  "feature": "discovery",
+  "operation": "example.show",
+  "description": "A name with a control character is INVOCATION_INVALID and sends nothing (any other text is looked up by id or label).",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "example",
+    "show",
+    "bad\tname"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "examples.private",
+      "operation": "example.show",
+      "problem": {
+        "action": "Correct the value named in Detail; `prose --output json cli example show --help` shows the accepted syntax.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "example name \"bad\\tname\" is invalid; use an id from `prose --output json cli example list`",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "example",
+            "show",
+            "--help"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

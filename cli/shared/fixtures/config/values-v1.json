@@ -1,0 +1,474 @@
+{
+  "schema": "openprose.config-values-corpus/1",
+  "summary": "Environment and configuration-file values both ports resolve identically: the canonical grammar (booleans true, false, 1 or 0; durations ^[1-9][0-9]*(ms|s|m|h)$ up to 24h; empty values rejected, PROSE_NATIVE_LOG included), one validation order (the order of values in shared/schemas/configuration-explanation.schema.json, with nativeLog before authProfile; a file's values are checked in that order after its lines parse), fixed reasons, and details.source on every failure. {ROOT} is the canonical test root; `project` is {ROOT}/.prose/cli.toml, `projectDirectory` makes that path a directory instead of a file.",
+  "order": [
+    "harness",
+    "transport",
+    "model",
+    "timeout",
+    "output",
+    "color",
+    "verbose",
+    "outputContract",
+    "permissionMode",
+    "nativeMaxTurns",
+    "nativeTimeout",
+    "nativeToolTimeout",
+    "nativeOutputBytes",
+    "nativeProfile",
+    "nativeAddDirs",
+    "nativeAllowTools",
+    "nativeLog",
+    "authProfile"
+  ],
+  "cases": [
+    {
+      "id": "env-output-unsupported",
+      "environment": {
+        "PROSE_OUTPUT": "bogus"
+      },
+      "expected": {
+        "error": {
+          "reason": "output must be human, json, or jsonl.",
+          "source": "PROSE_OUTPUT"
+        }
+      }
+    },
+    {
+      "id": "env-output-empty",
+      "environment": {
+        "PROSE_OUTPUT": ""
+      },
+      "expected": {
+        "error": {
+          "reason": "output must not be empty.",
+          "source": "PROSE_OUTPUT"
+        }
+      }
+    },
+    {
+      "id": "env-timeout-at-most-24h",
+      "environment": {
+        "PROSE_TIMEOUT": "24h"
+      },
+      "expected": {
+        "values": {
+          "timeout": "24h"
+        }
+      }
+    },
+    {
+      "id": "env-timeout-86400000ms",
+      "environment": {
+        "PROSE_TIMEOUT": "86400000ms"
+      },
+      "expected": {
+        "values": {
+          "timeout": "86400000ms"
+        }
+      }
+    },
+    {
+      "id": "env-timeout-over-24h",
+      "environment": {
+        "PROSE_TIMEOUT": "25h"
+      },
+      "expected": {
+        "error": {
+          "reason": "timeout must be at most 24h.",
+          "source": "PROSE_TIMEOUT"
+        }
+      }
+    },
+    {
+      "id": "env-timeout-one-ms-over",
+      "environment": {
+        "PROSE_TIMEOUT": "86400001ms"
+      },
+      "expected": {
+        "error": {
+          "reason": "timeout must be at most 24h.",
+          "source": "PROSE_TIMEOUT"
+        }
+      }
+    },
+    {
+      "id": "env-timeout-huge",
+      "environment": {
+        "PROSE_TIMEOUT": "99999999999999999999s"
+      },
+      "expected": {
+        "error": {
+          "reason": "timeout must be at most 24h.",
+          "source": "PROSE_TIMEOUT"
+        }
+      }
+    },
+    {
+      "id": "env-timeout-zero",
+      "environment": {
+        "PROSE_TIMEOUT": "0s"
+      },
+      "expected": {
+        "error": {
+          "reason": "timeout must be a positive duration such as 30s or 10m.",
+          "source": "PROSE_TIMEOUT"
+        }
+      }
+    },
+    {
+      "id": "env-timeout-fraction",
+      "environment": {
+        "PROSE_TIMEOUT": "1.5s"
+      },
+      "expected": {
+        "error": {
+          "reason": "timeout must be a positive duration such as 30s or 10m.",
+          "source": "PROSE_TIMEOUT"
+        }
+      }
+    },
+    {
+      "id": "env-timeout-leading-zero",
+      "environment": {
+        "PROSE_TIMEOUT": "05s"
+      },
+      "expected": {
+        "error": {
+          "reason": "timeout must be a positive duration such as 30s or 10m.",
+          "source": "PROSE_TIMEOUT"
+        }
+      }
+    },
+    {
+      "id": "env-timeout-empty",
+      "environment": {
+        "PROSE_TIMEOUT": ""
+      },
+      "expected": {
+        "error": {
+          "reason": "timeout must not be empty.",
+          "source": "PROSE_TIMEOUT"
+        }
+      }
+    },
+    {
+      "id": "env-booleans-strict",
+      "environment": {
+        "PROSE_COLOR": "1",
+        "PROSE_VERBOSE": "false"
+      },
+      "expected": {
+        "values": {
+          "color": true,
+          "verbose": false
+        }
+      }
+    },
+    {
+      "id": "env-boolean-yes-rejected",
+      "environment": {
+        "PROSE_COLOR": "yes"
+      },
+      "expected": {
+        "error": {
+          "reason": "color must be true, false, 1, or 0.",
+          "source": "PROSE_COLOR"
+        }
+      }
+    },
+    {
+      "id": "env-boolean-case-sensitive",
+      "environment": {
+        "PROSE_VERBOSE": "TRUE"
+      },
+      "expected": {
+        "error": {
+          "reason": "verbose must be true, false, 1, or 0.",
+          "source": "PROSE_VERBOSE"
+        }
+      }
+    },
+    {
+      "id": "env-boolean-empty",
+      "environment": {
+        "PROSE_COLOR": ""
+      },
+      "expected": {
+        "error": {
+          "reason": "color must be true, false, 1, or 0.",
+          "source": "PROSE_COLOR"
+        }
+      }
+    },
+    {
+      "id": "env-native-log-empty",
+      "environment": {
+        "PROSE_NATIVE_LOG": ""
+      },
+      "expected": {
+        "error": {
+          "reason": "nativeLog must not be empty.",
+          "source": "PROSE_NATIVE_LOG"
+        }
+      }
+    },
+    {
+      "id": "env-harness-quoted",
+      "environment": {
+        "PROSE_HARNESS": "a‮b"
+      },
+      "expected": {
+        "error": {
+          "reason": "Unsupported harness \"a\\u202eb\"; expected openprose, prime, omp, codex, claude, or mock.",
+          "source": "PROSE_HARNESS"
+        }
+      }
+    },
+    {
+      "id": "env-harness-empty",
+      "environment": {
+        "PROSE_HARNESS": ""
+      },
+      "expected": {
+        "error": {
+          "reason": "harness must not be empty.",
+          "source": "PROSE_HARNESS"
+        }
+      }
+    },
+    {
+      "id": "env-model-empty",
+      "environment": {
+        "PROSE_MODEL": ""
+      },
+      "expected": {
+        "error": {
+          "reason": "model must not be empty.",
+          "source": "PROSE_MODEL"
+        }
+      }
+    },
+    {
+      "id": "env-model-not-utf8",
+      "environment": {
+        "PROSE_MODEL": "caf�"
+      },
+      "expected": {
+        "error": {
+          "reason": "model must be valid UTF-8.",
+          "source": "PROSE_MODEL"
+        }
+      }
+    },
+    {
+      "id": "env-permission-mode",
+      "environment": {
+        "PROSE_PERMISSION_MODE": "x"
+      },
+      "expected": {
+        "error": {
+          "reason": "Permission mode must be default, acceptEdits, workspace-write, or read-only.",
+          "source": "PROSE_PERMISSION_MODE"
+        }
+      }
+    },
+    {
+      "id": "env-output-contract",
+      "environment": {
+        "PROSE_OUTPUT_CONTRACT": "x"
+      },
+      "expected": {
+        "error": {
+          "reason": "Output contract must be native or image-envelope.",
+          "source": "PROSE_OUTPUT_CONTRACT"
+        }
+      }
+    },
+    {
+      "id": "env-native-timeout",
+      "environment": {
+        "PROSE_NATIVE_TIMEOUT": "0s"
+      },
+      "expected": {
+        "error": {
+          "reason": "Native timeout must be a positive duration.",
+          "source": "PROSE_NATIVE_TIMEOUT"
+        }
+      }
+    },
+    {
+      "id": "env-native-budget-needs-agents-sdk",
+      "environment": {
+        "PROSE_NATIVE_MAX_TURNS": "3"
+      },
+      "expected": {
+        "error": {
+          "reason": "Native budget options are supported only by agents-sdk.",
+          "source": "PROSE_NATIVE_MAX_TURNS"
+        }
+      }
+    },
+    {
+      "id": "env-native-output-bytes",
+      "environment": {
+        "PROSE_NATIVE_OUTPUT_BYTES": "5"
+      },
+      "expected": {
+        "error": {
+          "reason": "Native output bytes must be decimal bytes from 1048576 through 268435456.",
+          "source": "PROSE_NATIVE_OUTPUT_BYTES"
+        }
+      }
+    },
+    {
+      "id": "env-native-profile",
+      "environment": {
+        "PROSE_NATIVE_PROFILE": "x"
+      },
+      "expected": {
+        "error": {
+          "reason": "Unknown native profile.",
+          "source": "PROSE_NATIVE_PROFILE"
+        }
+      }
+    },
+    {
+      "id": "env-order-harness-before-output",
+      "environment": {
+        "PROSE_OUTPUT": "bogus",
+        "PROSE_HARNESS": "x"
+      },
+      "expected": {
+        "error": {
+          "reason": "Unsupported harness \"x\"; expected openprose, prime, omp, codex, claude, or mock.",
+          "source": "PROSE_HARNESS"
+        }
+      }
+    },
+    {
+      "id": "env-order-native-log-before-auth-profile",
+      "environment": {
+        "PROSE_AUTH_PROFILE": "",
+        "PROSE_NATIVE_LOG": ""
+      },
+      "expected": {
+        "error": {
+          "reason": "nativeLog must not be empty.",
+          "source": "PROSE_NATIVE_LOG"
+        }
+      }
+    },
+    {
+      "id": "env-order-timeout-before-color",
+      "environment": {
+        "PROSE_COLOR": "x",
+        "PROSE_TIMEOUT": "x"
+      },
+      "expected": {
+        "error": {
+          "reason": "timeout must be a positive duration such as 30s or 10m.",
+          "source": "PROSE_TIMEOUT"
+        }
+      }
+    },
+    {
+      "id": "file-timeout-over-24h",
+      "files": {
+        "project": "timeout = \"25h\"\n"
+      },
+      "expected": {
+        "error": {
+          "reason": "Configuration key timeout contains an invalid duration.",
+          "source": "{ROOT}/.prose/cli.toml:1"
+        }
+      }
+    },
+    {
+      "id": "file-order-by-key-not-line",
+      "files": {
+        "project": "output = \"xml\"\nharness = \"nope\"\n"
+      },
+      "expected": {
+        "error": {
+          "reason": "Configuration key harness contains an unsupported value.",
+          "source": "{ROOT}/.prose/cli.toml:2"
+        }
+      }
+    },
+    {
+      "id": "file-boolean-type",
+      "files": {
+        "project": "color = \"true\"\n"
+      },
+      "expected": {
+        "error": {
+          "reason": "Configuration key color requires a boolean value.",
+          "source": "{ROOT}/.prose/cli.toml:1"
+        }
+      }
+    },
+    {
+      "id": "file-native-log-empty",
+      "files": {
+        "project": "native_log = \"\"\n"
+      },
+      "expected": {
+        "error": {
+          "reason": "Configuration key native_log must not be empty.",
+          "source": "{ROOT}/.prose/cli.toml:1"
+        }
+      }
+    },
+    {
+      "id": "file-permission-mode",
+      "files": {
+        "project": "\npermission_mode = \"x\"\n"
+      },
+      "expected": {
+        "error": {
+          "reason": "Permission mode must be default, acceptEdits, workspace-write, or read-only.",
+          "source": "{ROOT}/.prose/cli.toml:2"
+        }
+      }
+    },
+    {
+      "id": "file-native-output-bytes",
+      "files": {
+        "project": "output_contract = \"native\"\nnative_output_bytes = \"5\"\n"
+      },
+      "expected": {
+        "error": {
+          "reason": "Native output bytes must be decimal bytes from 1048576 through 268435456.",
+          "source": "{ROOT}/.prose/cli.toml:2"
+        }
+      }
+    },
+    {
+      "id": "file-then-environment",
+      "files": {
+        "project": "timeout = \"30s\"\nmodel = \"m1\"\n"
+      },
+      "environment": {
+        "PROSE_MODEL": "m2"
+      },
+      "expected": {
+        "values": {
+          "timeout": "30s",
+          "model": "m2"
+        }
+      }
+    },
+    {
+      "id": "file-directory-named-like-config-is-ignored",
+      "files": {
+        "projectDirectory": true
+      },
+      "expected": {
+        "values": {
+          "timeout": "10m"
+        }
+      }
+    }
+  ]
+}

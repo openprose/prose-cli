@@ -1,0 +1,78 @@
+{
+  "schema": "openprose.service-json-parse/1",
+  "summary": "Which service response bodies and stream events both ports accept as JSON: strict UTF-8 without a leading byte order mark, no escaped lone surrogate, at most 127 nested arrays and objects (a document nesting 128 is rejected), and no integral number beyond the safe range (|n| > 9007199254740991). A rejected body is SERVICE_PROTOCOL_INVALID. Each case gives `text` (UTF-8) or `bytesHex`.",
+  "maxDepth": 127,
+  "maxSafeInteger": 9007199254740991,
+  "cases": [
+    {
+      "id": "object",
+      "text": "{\"a\":1}",
+      "accepted": true
+    },
+    {
+      "id": "max-safe-integer",
+      "text": "[9007199254740991,-9007199254740991]",
+      "accepted": true
+    },
+    {
+      "id": "unsafe-integer",
+      "text": "[9007199254740992]",
+      "accepted": false
+    },
+    {
+      "id": "unsafe-negative-integer",
+      "text": "[-9007199254740992]",
+      "accepted": false
+    },
+    {
+      "id": "unsafe-integral-float",
+      "text": "[1e300]",
+      "accepted": false
+    },
+    {
+      "id": "fraction-is-fine",
+      "text": "[1.5e-300,0.5]",
+      "accepted": true
+    },
+    {
+      "id": "leading-bom",
+      "bytesHex": "efbbbf7b7d",
+      "accepted": false
+    },
+    {
+      "id": "lone-surrogate-escape",
+      "text": "[\"\\ud800\"]",
+      "accepted": false
+    },
+    {
+      "id": "surrogate-pair-escape",
+      "text": "[\"\\ud83d\\ude00\"]",
+      "accepted": true
+    },
+    {
+      "id": "depth-127",
+      "text": "[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]",
+      "accepted": true
+    },
+    {
+      "id": "depth-128",
+      "text": "[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]",
+      "accepted": false
+    },
+    {
+      "id": "object-depth-128",
+      "text": "{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":1}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}",
+      "accepted": false
+    },
+    {
+      "id": "invalid-utf8",
+      "bytesHex": "225c22ff22",
+      "accepted": false
+    },
+    {
+      "id": "trailing-garbage",
+      "text": "{} x",
+      "accepted": false
+    }
+  ]
+}

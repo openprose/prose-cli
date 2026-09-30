@@ -1,0 +1,65 @@
+{
+  "id": "wallet-events-unknown-cursor",
+  "feature": "wallet",
+  "operation": "wallet.events",
+  "description": "An unknown cursor (400 invalid_cursor) is SERVICE_REQUEST_REJECTED with serviceCode and serviceMessage.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "wallet",
+    "events",
+    "--before",
+    "charge:999999"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/wallet/events",
+        "query": {
+          "limit": "20",
+          "before": "charge:999999"
+        },
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          }
+        },
+        "status": 400,
+        "body": {
+          "error": "Unknown before cursor",
+          "code": "invalid_cursor"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "wallet.events",
+      "operation": "wallet.events",
+      "problem": {
+        "action": "Correct the request as details.serviceMessage and details.serviceCode describe, then retry.",
+        "boundary": "hosted-service",
+        "code": "SERVICE_REQUEST_REJECTED",
+        "details": {
+          "serviceCode": "invalid_cursor",
+          "serviceMessage": "Unknown before cursor",
+          "serviceStatus": 400
+        },
+        "exitCode": 10,
+        "message": "The OpenProse service rejected the request.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

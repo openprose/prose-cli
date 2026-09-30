@@ -1,0 +1,62 @@
+{
+  "id": "job-create-unknown-type",
+  "feature": "jobs",
+  "operation": "job.create",
+  "description": "An unknown job type names the nearest type and every type.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "job",
+    "create",
+    "--spec-file",
+    "spec.json",
+    "--preview"
+  ],
+  "files": [
+    {
+      "path": "spec.json",
+      "content": "{\"type\": \"schedul\", \"program_ref\": \"exowner1/jobs-example@0123456789abcdef\", \"interval_seconds\": 86400}"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "job.deploy",
+      "operation": "job.create",
+      "problem": {
+        "action": "Correct the value named in Detail; `prose --output json cli job create --help` shows the accepted syntax.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "type \"schedul\" is not a job type; did you mean schedule? (types: email, github-issue-opened, github-pull-request-opened, github-release-published, schedule, webhook, website-change)",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "job",
+            "create",
+            "--help"
+          ],
+          "violations": [
+            "type \"schedul\" is not a job type; did you mean schedule? (types: email, github-issue-opened, github-pull-request-opened, github-release-published, schedule, webhook, website-change)"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

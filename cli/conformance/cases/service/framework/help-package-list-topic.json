@@ -1,0 +1,23 @@
+{
+  "id": "help-package-list-topic",
+  "feature": "framework",
+  "operation": "package.list",
+  "description": "`cli package list ORG --help` prints the package list topic with usage, options, output schema and exit codes.",
+  "argv": [
+    "cli",
+    "package",
+    "list",
+    "acme",
+    "--help"
+  ],
+  "fixture": {
+    "exchanges": []
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "Usage: prose [GLOBAL OPTIONS] cli package list <ORG> [--cursor <CURSOR>] [--json]\n\nList an organization's public packages, one page at a time. An organization with\nno public packages prints `No public packages in ORG.` --output may also follow\nthe command.\n\nArguments:\n  ORG                         Organization slug (see `cli org list`).\n\nOptions:\n  --cursor CURSOR             The next-page cursor printed by the previous page.\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli package list acme --json\n\nOutput: openprose.package-operation/1 (--json).\nExit codes: 0 success; 2 invalid invocation or configuration; 10 service, credential or registry error; 24 interrupted.\n"
+  },
+  "stderr": {
+    "text": ""
+  }
+}

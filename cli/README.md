@@ -29,23 +29,21 @@ Release operators use the
 [functional-alpha readiness contract](release/ALPHA_READINESS.md) to distinguish
 candidate, promotion, and post-publication authority.
 
-For the candidate service-account connection, see [Connect the CLI to staging](../docs/staging-account.md). The candidate registry commands below reuse that account connection; they do not enable hosted execution. Source implementation and hermetic fixtures do not establish deployment, release availability, or live qualification.
+The `prose cli` account, registry and service commands connect to the hosted
+OpenProse service. Source implementation and hermetic fixtures do not establish
+release availability or live qualification.
 
 ## Registry package commands (candidate)
 
-Package commands move bounded, data-only files through the selected OpenProse
-account service. Production is the default. Select staging persistently when
-working with its separate credentials, then inspect the selection:
+Package commands move bounded, data-only files through your OpenProse account.
+Sign in once, or set `OPENPROSE_API_KEY`:
 
 ```sh
-prose cli environment use staging
-prose cli environment show
 prose cli auth login
 prose cli package publish ./hello.md --organization example --name hello --version 1.0.0
 prose cli package list example --json
 prose cli package fetch example/hello@1.0.0 --output-dir ./hello-copy
 prose cli package withdraw example/hello@1.0.0
-prose cli environment reset
 ```
 
 A single file uses its basename as the default export and has no dependencies.
@@ -78,9 +76,9 @@ neither downloaded nor executed. File contents are not scanned for secrets.
 See the [package byte format](shared/fixtures/registry/FORMAT.md) for exact path,
 encoding, hash, and receipt rules.
 
-Fetch obtains a receipt and canonical artifact from the same selected service,
-then verifies artifact and file hashes, manifest, inventory, and canonical bytes
-before writing. Supply `--sha256 <64-lowercase-hex-digest>` to require a known
+Fetch obtains a receipt and canonical artifact from the service, then verifies
+artifact and file hashes, manifest, inventory, and canonical bytes before
+writing. Supply `--sha256 <64-lowercase-hex-digest>` to require a known
 artifact identity. The output directory must be fresh, its parent must exist,
 and its ancestors must not be symlinks. Existing destinations are never replaced.
 The receipt is written as `.prose-package-receipt.json`.
@@ -94,14 +92,50 @@ Cleanup preserves content whose ownership no longer matches the operation.
 These checks do not sandbox another process running with the same filesystem
 privileges. Native platform qualification remains separate from fixture results.
 
-All four commands accept trailing `--json` or global `--output json`. Reports
-include the selected environment; staging human output is labeled. Use global
-`--service-environment production|staging` before `cli` for a one-command override.
-Only user configuration can persist the selection. Production and staging use
-separate OS credentials and `OPENPROSE_API_KEY` / `OPENPROSE_STAGING_API_KEY`
-respectively; switching never copies credentials. Public reads can be anonymous
-when no credential is available, but malformed selected credentials fail closed.
-Publish and withdraw require a credential. No command starts a model or harness.
+All four commands accept trailing `--json` or global `--output json`. The key
+comes from `OPENPROSE_API_KEY` when it is set, otherwise from the OS credential
+store written by `prose cli auth login`. Public reads can be anonymous when no
+credential is available, but a malformed credential fails closed. Publish and
+withdraw require a credential. No command starts a model or harness.
+
+## OpenProse service commands
+
+The `cli` service commands are a thin, noninteractive client of the hosted
+OpenProse service (overview in
+[the service client guide](../docs/hosted-service-client.md)). They use the same
+account connection as the registry commands above. Unlike every other command
+in this README, `cli run submit` starts a hosted model run and spends from your
+wallet.
+
+```sh
+prose --output json cli service status
+prose --output json cli service operations          # every command, option, exit code
+prose --output json cli wallet balance
+prose --output json cli program save hello hello.prose.md
+prose --output json cli run quote
+prose --output jsonl cli run submit hello.prose.md --yes
+prose --output jsonl cli run watch <run-id> --after 0
+prose --output json cli run download <run-id> --output-dir ./out
+```
+
+`cli service operations` prints the embedded operation manifest. That manifest
+drives parsing, help, confirmation, and transport limits in both products, so
+it is the complete machine-readable reference. Every command emits
+`openprose.service-operation/1` JSON, or `openprose.service-event/1` JSONL lines
+ending in exactly one terminal line, and never prompts. Commands that spend
+money, publish outward, delete, or cannot be undone stop with
+`CONFIRMATION_REQUIRED` (exit 2), which shows the planned request, until you
+repeat them with `--yes`. `--preview` shows that plan without sending anything.
+Results show prices only.
+
+A submitted run is journaled before it is sent, and `run watch`, `input`, and
+`cancel` use that local journal's live session (or `--session UUID`); a run
+started elsewhere can still be read with `run show`. `--detach` returns as soon
+as the run id is known. Ctrl-C (`HOSTED_RUN_DETACHED`) and the `--wait`
+deadline, 30 minutes by default (`SERVICE_WATCH_DEADLINE`), both exit 21 and
+leave the run going; their `details.resumeArgv` is the exact command that
+resumes watching. Only `cli run cancel <run-id> --yes` cancels. Organization
+deletion and browser-only flows are not available.
 
 ## First five minutes
 
@@ -413,8 +447,9 @@ independent harness and hosted fixtures, Rust and Bun suites, differential
 black-box behavior, process settlement, architecture/dependency boundaries,
 deterministic dependency inventory and release-note evidence, Windows
 resolution plus static/host-neutral checks, isolated archive/npm installation,
-exact functional-alpha package admission, and the benchmark and release-
-workflow contracts. Passing them is local mechanical admission only; it cannot
+exact functional-alpha package admission, the benchmark and release-
+workflow contracts, and the `public-surface` leak check that keeps internal
+service detail out of this public client. Passing them is local mechanical admission only; it cannot
 grant semantic, native-Windows, strict semantic-adapter, or public-release
 eligibility.
 

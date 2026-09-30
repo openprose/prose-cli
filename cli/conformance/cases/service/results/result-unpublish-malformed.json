@@ -1,0 +1,60 @@
+{
+  "id": "result-unpublish-malformed",
+  "feature": "results",
+  "operation": "result.unpublish",
+  "description": "A success body without unpublished:true is a protocol violation.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "result",
+    "unpublish",
+    "demo",
+    "AbCdEf012_-x",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "DELETE",
+        "path": "/programs/demo/results/AbCdEf012_-x",
+        "status": 200,
+        "body": {
+          "deleted": true
+        },
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "schema": "openprose.service-operation/1",
+      "operation": "result.unpublish",
+      "interaction": "results.unpublish",
+      "result": null,
+      "problem": {
+        "schema": "openprose.runner-error/1",
+        "code": "SERVICE_PROTOCOL_INVALID",
+        "boundary": "protocol",
+        "message": "The OpenProse service returned an invalid response.",
+        "action": "Retry later and report the sanitized error code if it persists.",
+        "exitCode": 10,
+        "retryable": false,
+        "details": {
+          "reason": "the service returned an invalid unpublished"
+        }
+      }
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

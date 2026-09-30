@@ -1,0 +1,55 @@
+{
+  "id": "result-list-human-empty",
+  "feature": "results",
+  "operation": "result.list",
+  "description": "Human list of a program with no publications says so and exits 0.",
+  "argv": [
+    "cli",
+    "result",
+    "list",
+    "Owner/demo"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/p/Owner/demo/results",
+        "status": 200,
+        "query": {
+          "limit": "20"
+        },
+        "body": {
+          "contract": {
+            "owner": "Owner",
+            "slug": "demo",
+            "rev_id": "0123456789abcdef"
+          },
+          "results": []
+        },
+        "requestHeaders": {
+          "Authorization": {
+            "present": false
+          },
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          }
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "No published results for Owner/demo@0123456789abcdef.\n"
+  },
+  "stderr": {
+    "text": ""
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

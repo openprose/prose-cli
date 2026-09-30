@@ -1,0 +1,85 @@
+{
+  "schema": "openprose.runner-case/1",
+  "id": "adapters.claude-unknown-type",
+  "summary": "Claude compatibility admits stable newer versions and validates session-bound telemetry.",
+  "phase": 3,
+  "tags": [
+    "adapter",
+    "claude",
+    "functional-alpha",
+    "provider-free",
+    "differential"
+  ],
+  "platforms": [
+    "unix"
+  ],
+  "controls": {
+    "fixedInvocationId": "00000000-0000-7000-8000-000000000303",
+    "fixedTimestamp": "2026-01-01T00:00:00.000Z",
+    "fixedMonotonicMs": 300,
+    "network": "denied",
+    "installedAdapter": {
+      "adapterId": "claude/print-stream-json",
+      "version": "2.1.282",
+      "telemetryScenario": "unknown-type"
+    }
+  },
+  "invocation": {
+    "argv": [
+      "--harness",
+      "claude",
+      "--transport",
+      "print-stream-json",
+      "--model",
+      "fixture/model:alpha",
+      "--auth-profile",
+      "claude-subscription",
+      "--output",
+      "json",
+      "write",
+      "Hello world"
+    ],
+    "cwd": "{{WORKSPACE}}",
+    "environment": {}
+  },
+  "expected": {
+    "exitCode": 0,
+    "stdout": {
+      "kind": "json",
+      "schema": "openprose.runner-result/1"
+    },
+    "stderr": {
+      "kind": "empty"
+    },
+    "startedHarness": true,
+    "resultMatches": {
+      "adapter": {
+        "id": "claude/print-stream-json"
+      },
+      "transport": "print-stream-json",
+      "terminal": {
+        "classification": "success",
+        "transportCompleted": true,
+        "terminalEventObserved": true,
+        "exitCode": 0,
+        "signal": null
+      },
+      "semantic": {
+        "status": "not-applicable"
+      },
+      "billing": {
+        "owner": "user-provider",
+        "authCategory": "harness-managed"
+      },
+      "runnerExitCode": 0
+    },
+    "forwardedTask": {
+      "argv": [
+        "prose",
+        "write",
+        "Hello world"
+      ],
+      "interactionMode": "non-interactive"
+    }
+  }
+}

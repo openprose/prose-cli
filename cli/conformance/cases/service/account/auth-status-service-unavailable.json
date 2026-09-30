@@ -1,0 +1,55 @@
+{
+  "id": "auth-status-service-unavailable",
+  "feature": "account",
+  "operation": "auth.status",
+  "description": "A 503 from GET /organizations is SERVICE_UNAVAILABLE; the service body is never echoed. Ported from the account corpus.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "auth",
+    "status"
+  ],
+  "fixture": {
+    "credential": "rr_test_11111111111111111111111111111111",
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/organizations",
+        "status": 503,
+        "body": {
+          "error": "fixture-secret-must-not-escape"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "schema": "openprose.service-operation/1",
+      "operation": "auth.status",
+      "interaction": "cli.auth_status",
+      "result": null,
+      "problem": {
+        "action": "Check your network connection and retry later.",
+        "boundary": "hosted-service",
+        "code": "SERVICE_UNAVAILABLE",
+        "exitCode": 10,
+        "message": "The OpenProse service is unavailable.",
+        "retryable": true,
+        "schema": "openprose.runner-error/1",
+        "details": {
+          "serviceStatus": 503
+        }
+      }
+    }
+  },
+  "stderr": {
+    "empty": true
+  },
+  "forbid": [
+    "rr_test_11111111111111111111111111111111",
+    "fixture-secret-must-not-escape"
+  ]
+}

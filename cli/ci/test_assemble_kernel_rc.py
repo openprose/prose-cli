@@ -52,7 +52,7 @@ class AssemblyTests(unittest.TestCase):
             evidence = {str(f.relative_to(root)): {'sha256': p.digest(f), 'byteLength': f.stat().st_size} for directory in (output, logs) for f in directory.iterdir()}
             report = {'schema': 'openprose.kernel-rc-build/1', 'platform': platform, 'version': self.version, 'sourceRevision': self.source, 'imageSource': 'published-on-run', 'testSeamsEnabled': False, 'qualification': 'offline-install-only', 'publicationAuthorized': False, 'modelCalls': 0, 'kernelFetches': 0, 'checks': [{'name': n, 'status': 'passed'} for n in ('built-bun','built-rust','installed-bun','installed-rust','installed-npm')], 'evidence': evidence}
             (root / 'build-report.json').write_text(json.dumps(report))
-        self.evidence = 'https://github.com/openprose/openprose-expedition/tree/' + 'b'*40 + '/test'
+        self.evidence = 'https://github.com/openprose/example-evidence/tree/' + 'b'*40 + '/test'
 
     def record(self, path, implementation, kind, platform):
         return {'path': path.name, 'sha256': p.digest(path), 'byteLength': path.stat().st_size, 'implementation': implementation, 'kind': kind, 'platform': platform}

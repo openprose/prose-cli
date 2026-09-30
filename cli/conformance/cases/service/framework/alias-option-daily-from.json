@@ -1,0 +1,29 @@
+{
+  "id": "alias-option-daily-from",
+  "feature": "framework",
+  "operation": "job.create",
+  "description": "`--daily --from OWNER/SLUG@REV` fold into the suggested schedule spec.",
+  "argv": [
+    "cli",
+    "job",
+    "create",
+    "--daily",
+    "--from",
+    "alice/demo@1"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: Unknown option.\nDetail: unknown option --daily for `cli job create`; a schedule job's interval is interval_seconds (3600 = hourly, 86400 = daily), set in the --spec-file JSON object\nAction: Create a schedule job from a JSON spec on standard input, previewing it first: `printf '%s\\\\n' '{\"interval_seconds\":86400,\"program_ref\":\"alice/demo@1\",\"type\":\"schedule\"}' | prose cli job create --spec-file - --preview`.\n"
+  }
+}

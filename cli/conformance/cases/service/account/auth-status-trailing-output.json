@@ -1,0 +1,63 @@
+{
+  "id": "auth-status-trailing-output",
+  "feature": "account",
+  "operation": "auth.status",
+  "description": "`--output` after the command path is honored for auth status, like service verbs.",
+  "argv": [
+    "cli",
+    "auth",
+    "status",
+    "--output=json"
+  ],
+  "environment": {
+    "OPENPROSE_API_KEY": "rr_test_0123456789abcdef0123456789abcdef"
+  },
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/organizations",
+        "status": 200,
+        "body": {
+          "organizations": [
+            {
+              "id": "org_ExampleOwner01",
+              "slug": "exowner1",
+              "name": "Example Owner",
+              "role": "admin"
+            },
+            {
+              "id": "org_ExampleAcme001",
+              "slug": "acme-research",
+              "name": "Acme Research"
+            }
+          ]
+        },
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "schema": "openprose.service-operation/1",
+      "operation": "auth.status",
+      "interaction": "cli.auth_status",
+      "result": {
+        "authenticated": true,
+        "credentialSource": "environment"
+      },
+      "problem": null
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

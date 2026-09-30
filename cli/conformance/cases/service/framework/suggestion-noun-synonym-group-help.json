@@ -1,0 +1,48 @@
+{
+  "id": "suggestion-noun-synonym-group-help",
+  "feature": "framework",
+  "operation": "org.list",
+  "description": "A noun synonym for a group with several verbs suggests the group help, never the bare noun (`cli organization` -> `cli org --help`).",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "organization"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": null,
+      "operation": "cli",
+      "problem": {
+        "action": "Use `cli org` with one of its commands; `prose --output json cli org --help` describes them.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "unknown command `cli organization`; did you mean `cli org`? Commands: auth, cleanup, config, doctor, example, harness, job, model, org, package, program, repo, result, run, service, wallet",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "org",
+            "--help"
+          ]
+        },
+        "exitCode": 2,
+        "message": "Unknown command.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "schema": "openprose.run-error-messages/1",
+  "description": "The words both products print for a hosted run's error text (a run record's or completion's `error`, a stream error event, a draft writer error). The first entry whose `contains` is a substring of the service's text gives the message; any other text prints `fallback`, so no internal stage or component name is ever echoed. With the environment variable `debugEnv` set to 1 the service's text is printed as it was received (redacted, control characters removed), for debugging.",
+  "debugEnv": "PROSE_DEBUG",
+  "messages": [
+    {
+      "contains": "exceeded its 16-turn cap",
+      "message": "The run hit its 16-step limit before finishing."
+    },
+    {
+      "contains": "exceeds remaining admitted budget",
+      "message": "The run used up its budget."
+    },
+    {
+      "contains": "Stopped by the user",
+      "message": "Stopped by the user."
+    },
+    {
+      "contains": "Model call failed",
+      "message": "A model call failed."
+    },
+    {
+      "contains": "timed out",
+      "message": "The run timed out."
+    }
+  ],
+  "fallback": "The run failed on the service."
+}

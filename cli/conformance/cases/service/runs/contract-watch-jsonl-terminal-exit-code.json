@@ -1,0 +1,103 @@
+{
+  "id": "contract-watch-jsonl-terminal-exit-code",
+  "feature": "runs",
+  "operation": "run.watch",
+  "description": "`--output jsonl` ends with exactly one terminal record, and it carries the process exit code (here 24 for a cancelled run).",
+  "argv": [
+    "--output",
+    "jsonl",
+    "cli",
+    "run",
+    "watch",
+    "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/runs/run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+        "requestHeaders": {
+          "Authorization": {
+            "pattern": "^Bearer rr_test_[0-9a-f]{32}$"
+          }
+        },
+        "status": 200,
+        "body": {
+          "run_id": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+          "created_at": "2026-09-23T20:29:47.788Z",
+          "status": "error",
+          "model": "model-sol",
+          "environment": {
+            "id": "builtin",
+            "version": "1.0.0",
+            "runtime_contract": 1
+          },
+          "price_cents": 4,
+          "environment_price_cents": 1,
+          "billing_status": "parked",
+          "program_ref": "openprose/prose-write@840170241e030597",
+          "customer_id": "cus_ExampleOwner01",
+          "usage": {
+            "input_tokens": 103123,
+            "output_tokens": 836,
+            "cache_read_input_tokens": 5
+          },
+          "files": [
+            "outputs/result.json"
+          ],
+          "has_patch": false,
+          "session_files": [],
+          "file_urls": {
+            "outputs/result.json": "https://run-prose-production.openprose.workers.dev/runs/run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c/files/outputs/result.json?tok=SIGNEDTOKEN&exp=1790298569"
+          },
+          "spec_commit": "0123abcd",
+          "browser_live_view": {
+            "status": "ended"
+          },
+          "error": "Stopped by the user."
+        }
+      }
+    ]
+  },
+  "exitCode": 24,
+  "stdout": {
+    "jsonl": [
+      {
+        "at": null,
+        "data": {
+          "interaction": "run.observe",
+          "operation": "run.watch",
+          "problem": {
+            "action": "Read the cancelled run with the `cli run show` runner operation using details.runId; submit again only to start a new run.",
+            "boundary": "hosted-service",
+            "code": "HOSTED_RUN_CANCELLED",
+            "details": {
+              "files": [
+                "outputs/result.json"
+              ],
+              "reason": "the run was cancelled on the service (from its record; this machine has no live session to replay); read it with `prose --output jsonl cli run show run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c`",
+              "runId": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+              "source": "record"
+            },
+            "exitCode": 24,
+            "message": "The hosted run was cancelled on the service and will not continue.",
+            "retryable": false,
+            "schema": "openprose.runner-error/1"
+          },
+          "result": null,
+          "schema": "openprose.service-operation/1"
+        },
+        "exitCode": 24,
+        "runId": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+        "schema": "openprose.service-event/1",
+        "sequence": null,
+        "type": "service.failed"
+      }
+    ]
+  }
+}

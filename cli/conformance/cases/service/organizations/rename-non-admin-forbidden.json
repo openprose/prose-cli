@@ -1,0 +1,66 @@
+{
+  "id": "rename-non-admin-forbidden",
+  "feature": "organizations",
+  "operation": "org.rename",
+  "description": "A non-admin gets 403 organization_forbidden: SERVICE_REQUEST_REJECTED (body code before status), not an authentication failure.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "org",
+    "rename",
+    "acme-research",
+    "Acme Labs",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "PATCH",
+        "path": "/organizations/acme-research",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          },
+          "Accept": "application/json",
+          "Content-Type": "application/json"
+        },
+        "status": 403,
+        "body": {
+          "error": "Organization admin role required",
+          "code": "organization_forbidden"
+        },
+        "expectedBody": {
+          "name": "Acme Labs"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "organizations.manage",
+      "operation": "org.rename",
+      "problem": {
+        "action": "Correct the request as details.serviceCode describes, then retry.",
+        "boundary": "hosted-service",
+        "code": "SERVICE_REQUEST_REJECTED",
+        "exitCode": 10,
+        "message": "The OpenProse service rejected the request.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1",
+        "details": {
+          "serviceCode": "organization_forbidden",
+          "serviceStatus": 403
+        }
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

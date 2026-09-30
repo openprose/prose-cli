@@ -1,0 +1,77 @@
+{
+  "id": "invite-missing-token-protocol-invalid",
+  "feature": "organizations",
+  "operation": "org.invite",
+  "description": "An invitation result without a token is SERVICE_PROTOCOL_INVALID.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "org",
+    "invite",
+    "acme-research",
+    "cus_ExampleInvitee1",
+    "--role",
+    "reader",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/organizations/acme-research/invitations",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          },
+          "Accept": "application/json",
+          "Content-Type": "application/json"
+        },
+        "status": 201,
+        "body": {
+          "invitation": {
+            "id": "7e6d5c4b-3a29-4817-8f6e-5d4c3b2a1908",
+            "organization_id": "5b0e7c1a-3f2d-4e8b-9a61-2c4d8e0f1a23",
+            "account_id": "cus_ExampleInvitee1",
+            "role": "developer",
+            "created_by": "cus_ExampleAdmin01",
+            "created_at": 1790100000000,
+            "expires_at": 1790103600000,
+            "consumed_at": null,
+            "revoked_at": null
+          }
+        },
+        "expectedBody": {
+          "accountId": "cus_ExampleInvitee1",
+          "role": "reader"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "organizations.manage",
+      "operation": "org.invite",
+      "problem": {
+        "action": "Retry later and report the sanitized error code if it persists.",
+        "boundary": "protocol",
+        "code": "SERVICE_PROTOCOL_INVALID",
+        "exitCode": 10,
+        "message": "The OpenProse service returned an invalid response.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1",
+        "details": {
+          "reason": "the service response has a missing or invalid token"
+        }
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

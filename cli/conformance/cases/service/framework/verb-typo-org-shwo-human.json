@@ -1,0 +1,27 @@
+{
+  "id": "verb-typo-org-shwo-human",
+  "feature": "framework",
+  "operation": "org.show",
+  "description": "`org shwo` suggests `org show` in the human renderer.",
+  "argv": [
+    "cli",
+    "org",
+    "shwo",
+    "acme"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: Unknown command.\nDetail: unknown command `cli org shwo`; did you mean `cli org show`? Commands: create, default, invitation, invite, list, member, rename, show\nAction: Use `cli org show`: `prose cli org show acme`.\n"
+  }
+}

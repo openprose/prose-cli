@@ -1,0 +1,64 @@
+{
+  "id": "job-list-missing-id-protocol-invalid",
+  "feature": "jobs",
+  "operation": "job.list",
+  "description": "A job without an id is SERVICE_PROTOCOL_INVALID naming the field.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "job",
+    "list"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/triggers",
+        "status": 200,
+        "body": {
+          "triggers": [
+            {
+              "type": "webhook",
+              "createdAt": 1
+            }
+          ],
+          "max_triggers": 5,
+          "trigger_limit": {
+            "kind": "unlimited"
+          },
+          "types": []
+        },
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "job.list",
+      "operation": "job.list",
+      "problem": {
+        "action": "Retry later and report the sanitized error code if it persists.",
+        "boundary": "protocol",
+        "code": "SERVICE_PROTOCOL_INVALID",
+        "details": {
+          "reason": "unexpected job response: job.id"
+        },
+        "exitCode": 10,
+        "message": "The OpenProse service returned an invalid response.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

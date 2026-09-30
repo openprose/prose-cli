@@ -1,0 +1,96 @@
+{
+  "id": "download-duplicate-paths",
+  "feature": "run-records",
+  "operation": "run.download",
+  "description": "A path listed twice is SERVICE_PROTOCOL_INVALID before anything is created.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "download",
+    "run_5e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f68",
+    "--output-dir",
+    "out"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/runs/run_5e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f68",
+        "requestHeaders": {
+          "Authorization": {
+            "pattern": "^Bearer rr_test_[0-9a-f]{32}$"
+          }
+        },
+        "status": 200,
+        "body": {
+          "run_id": "run_5e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f68",
+          "created_at": "2026-09-23T20:29:47.788Z",
+          "status": "completed",
+          "model": "model-sol",
+          "environment": {
+            "id": "builtin",
+            "version": "1.0.0",
+            "runtime_contract": 1
+          },
+          "price_cents": 4,
+          "environment_price_cents": 1,
+          "billing_status": "settled",
+          "program_ref": "openprose/prose-write@840170241e030597",
+          "customer_id": "cus_ExampleOwner01",
+          "usage": {
+            "input_tokens": 103123,
+            "output_tokens": 836,
+            "cache_read_input_tokens": 5
+          },
+          "files": [
+            "a.txt",
+            "a.txt"
+          ],
+          "has_patch": false,
+          "session_files": [],
+          "file_urls": {
+            "a.txt": "https://run-prose-production.openprose.workers.dev/runs/run_5e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f68/files/a.txt?tok=SIGNEDTOKEN&exp=1790298569"
+          },
+          "spec_commit": "0123abcd",
+          "browser_live_view": {
+            "status": "ended"
+          }
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "run.read",
+      "operation": "run.download",
+      "problem": {
+        "action": "Retry later and report the sanitized error code if it persists.",
+        "boundary": "protocol",
+        "code": "SERVICE_PROTOCOL_INVALID",
+        "details": {
+          "reason": "the run manifest lists \"a.txt\" more than once"
+        },
+        "exitCode": 10,
+        "message": "The OpenProse service returned an invalid response.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "expectFiles": [
+    {
+      "path": "out",
+      "absent": true
+    }
+  ]
+}

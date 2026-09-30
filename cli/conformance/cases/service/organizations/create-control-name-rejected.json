@@ -1,0 +1,54 @@
+{
+  "id": "create-control-name-rejected",
+  "feature": "organizations",
+  "operation": "org.create",
+  "description": "A --name with a control character is INVOCATION_INVALID and nothing is planned or sent.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "org",
+    "create",
+    "acme-research",
+    "--name",
+    "Acme\tResearch",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "organizations.manage",
+      "operation": "org.create",
+      "problem": {
+        "action": "Correct the value named in Detail; `prose --output json cli org create --help` shows the accepted syntax.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "--name must be 1-200 characters with no control characters",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "org",
+            "create",
+            "--help"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

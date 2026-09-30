@@ -1,0 +1,53 @@
+{
+  "id": "program-delete-owner-preview-verified-human",
+  "feature": "programs",
+  "operation": "program.delete",
+  "description": "The human preview of a confirmed OWNER/SLUG prints `Owner: HANDLE (verified as you)`.",
+  "argv": [
+    "cli",
+    "program",
+    "delete",
+    "alice/demo",
+    "--preview"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/programs/demo/revisions",
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "status": 200,
+        "body": {
+          "revisions": [
+            {
+              "owner": "alice",
+              "slug": "demo",
+              "rev": 1,
+              "rev_id": "0123456789abcdef",
+              "commit_id": "1111111111111111",
+              "parent_commit_id": null,
+              "updated_at": 1790212199320
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "Preview: Delete a saved program and its revisions.\nOwner: alice (verified as you)\nEffect: cannot be undone\nNothing was changed.\n"
+  },
+  "stderr": {
+    "text": ""
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "id": "no-cli-credits-human",
+  "feature": "framework",
+  "operation": "wallet.balance",
+  "description": "`prose credits` (no `cli`) exits 2 with `cli wallet balance`; nothing is forwarded or billed.",
+  "argv": [
+    "credits"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: Unknown command.\nDetail: `credits` is not a command; did you mean `prose cli wallet balance`? Nothing was forwarded or sent. To pass these words to the OpenProse language instead, put `--` before them\nAction: Use `cli wallet balance`: `prose cli wallet balance`.\n"
+  }
+}

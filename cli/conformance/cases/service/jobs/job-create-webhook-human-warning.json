@@ -1,0 +1,60 @@
+{
+  "id": "job-create-webhook-human-warning",
+  "feature": "jobs",
+  "operation": "job.create",
+  "description": "Human mode prints the secret on stdout once and a stderr warning that never contains it.",
+  "argv": [
+    "cli",
+    "job",
+    "create",
+    "--spec-file",
+    "-",
+    "--yes"
+  ],
+  "stdin": "{\"type\":\"webhook\",\"delivery_mode\":\"test\"}",
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/triggers",
+        "status": 201,
+        "body": {
+          "trigger": {
+            "id": "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10",
+            "type": "webhook",
+            "name": null,
+            "internalRef": "opaque-1",
+            "url": null,
+            "intervalSeconds": null,
+            "mode": null,
+            "repositoryId": null,
+            "repositoryFullName": null,
+            "repositoryBranch": null,
+            "contextRepositoryId": null,
+            "contextRepositoryFullName": null,
+            "contextRepositoryBranch": null,
+            "createdAt": 1790212421024,
+            "adopted": true
+          },
+          "endpoint": "/webhooks/triggers/3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10",
+          "signing_secret": "whsec_example_fixture_signing_secret_value"
+        },
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "Job 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10 (webhook)\n  created: 2026-09-24T01:13:41.024Z\n  endpoint URL: https://run-prose-production.openprose.workers.dev/webhooks/triggers/3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10\n  signing secret: whsec_example_fixture_signing_secret_value\nNext: prose cli job deliveries 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10\nNext: prose cli job contract list 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10\n"
+  },
+  "stderr": {
+    "text": "Warning: the signing secret printed on stdout is shown only once. Store it now; `cli job rotate-secret` replaces it.\n"
+  }
+}

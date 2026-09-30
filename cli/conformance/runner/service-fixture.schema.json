@@ -1,0 +1,557 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.openprose.org/cli/v1/conformance/service-fixture.schema.json",
+  "title": "Service test transport fixture and corpus case",
+  "description": "PROSE_TEST_SERVICE_FIXTURE documents (root) and the shared black-box case files under conformance/cases/service/<feature>/ ($defs.case). Also used by the registry fixtures. Only test-seam builds read this file. Every case targets the production service; `environment`, when present, must be production and `credentials` holds only the stored production key.",
+  "$ref": "#/$defs/fixture",
+  "$defs": {
+    "fixture": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "environment": {
+          "const": "production"
+        },
+        "credential": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "maxLength": 256
+            }
+          ]
+        },
+        "credentials": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "production": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "string",
+                  "maxLength": 256
+                }
+              ]
+            }
+          }
+        },
+        "storeAvailable": {
+          "type": "boolean"
+        },
+        "cancelBeforePoll": {
+          "type": "boolean"
+        },
+        "clock": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "start"
+          ],
+          "properties": {
+            "start": {
+              "type": "string",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z$"
+            },
+            "stepMs": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "ids": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "description": "Deterministic UUIDs consumed in order for sessions, instruction ids and idempotency keys."
+        },
+        "journal": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "session",
+              "runId",
+              "createdAt",
+              "lastSequence",
+              "sourceSha256"
+            ],
+            "properties": {
+              "session": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "runId": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              },
+              "createdAt": {
+                "type": "string"
+              },
+              "lastSequence": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "sourceSha256": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  }
+                ]
+              }
+            }
+          },
+          "description": "Run journal entries present before the invocation."
+        },
+        "interruptAfterExchange": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Deliver an interrupt (SIGINT semantics) after this many completed exchanges."
+        },
+        "exchanges": {
+          "type": "array",
+          "maxItems": 512,
+          "items": {
+            "$ref": "#/$defs/exchange"
+          }
+        }
+      }
+    },
+    "exchange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "method",
+        "path",
+        "status"
+      ],
+      "properties": {
+        "origin": {
+          "type": "string",
+          "pattern": "^https://"
+        },
+        "method": {
+          "enum": [
+            "GET",
+            "HEAD",
+            "POST",
+            "PUT",
+            "PATCH",
+            "DELETE"
+          ]
+        },
+        "path": {
+          "type": "string",
+          "pattern": "^/"
+        },
+        "query": {
+          "description": "Exact query parameters; absent means the request must carry none.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "requestHeaders": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[A-Za-z][A-Za-z0-9-]{0,63}$"
+          },
+          "additionalProperties": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "present"
+                ],
+                "properties": {
+                  "present": {
+                    "type": "boolean"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "pattern"
+                ],
+                "properties": {
+                  "pattern": {
+                    "type": "string"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "expectedBody": {
+          "description": "Exact JSON request body."
+        },
+        "expectedBodyText": {
+          "type": "string"
+        },
+        "expectedSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "status": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 599
+        },
+        "responseHeaders": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[A-Za-z][A-Za-z0-9-]{0,63}$"
+          },
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "body": {
+          "description": "JSON response body."
+        },
+        "bodyText": {
+          "type": "string",
+          "description": "Raw UTF-8 response body (for example a plain-text 404)."
+        },
+        "bodyBase64": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9+/]*={0,2}$",
+          "description": "Raw binary response body."
+        },
+        "sse": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "frames",
+            "end"
+          ],
+          "properties": {
+            "frames": {
+              "type": "array",
+              "maxItems": 10000,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "maxLength": 32
+                  },
+                  "event": {
+                    "type": "string",
+                    "maxLength": 64
+                  },
+                  "data": {
+                    "description": "JSON value serialized onto one data: line, or a string sent verbatim."
+                  },
+                  "comment": {
+                    "type": "string",
+                    "maxLength": 256
+                  },
+                  "raw": {
+                    "type": "string",
+                    "maxLength": 2097152,
+                    "description": "Exact bytes (UTF-8) for malformed-frame cases."
+                  }
+                },
+                "minProperties": 1
+              }
+            },
+            "end": {
+              "enum": [
+                "close",
+                "disconnect",
+                "idle"
+              ],
+              "description": "close: clean EOF; disconnect: transport error after the frames; idle: no further bytes until the client's idle timeout (virtual clock)."
+            }
+          }
+        },
+        "disconnect": {
+          "enum": [
+            "before-response",
+            "after-headers",
+            "mid-body"
+          ],
+          "description": "Simulated transport failure."
+        },
+        "redirect": {
+          "type": "string",
+          "description": "Location header of a 3xx response; clients must refuse it."
+        }
+      },
+      "allOf": [
+        {
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "body",
+                  "bodyText"
+                ]
+              },
+              {
+                "required": [
+                  "body",
+                  "bodyBase64"
+                ]
+              },
+              {
+                "required": [
+                  "bodyText",
+                  "bodyBase64"
+                ]
+              },
+              {
+                "required": [
+                  "sse",
+                  "body"
+                ]
+              },
+              {
+                "required": [
+                  "sse",
+                  "bodyText"
+                ]
+              },
+              {
+                "required": [
+                  "sse",
+                  "bodyBase64"
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "case": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "feature",
+        "operation",
+        "description",
+        "argv",
+        "fixture",
+        "exitCode",
+        "stdout"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,79}$"
+        },
+        "feature": {
+          "type": "string"
+        },
+        "operation": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "argv": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "stdin": {
+          "type": "string"
+        },
+        "environment": {
+          "type": "object",
+          "description": "Variables set for the case. OPENPROSE_API_URL is admitted only to prove that a public (test-seam) build ignores the developer endpoint override.",
+          "propertyNames": {
+            "enum": [
+              "OPENPROSE_API_KEY",
+              "OPENPROSE_API_URL",
+              "PROSE_OUTPUT",
+              "PROSE_DEBUG"
+            ]
+          },
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "pattern": "^(?!/)(?!.*\\.\\.)[A-Za-z0-9._/-]+$"
+              },
+              "content": {
+                "type": "string"
+              },
+              "contentBase64": {
+                "type": "string"
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "absent": {
+                "const": true
+              }
+            }
+          },
+          "description": "Files created in the fresh working directory before the invocation."
+        },
+        "fixture": {
+          "$ref": "#/$defs/fixture"
+        },
+        "exitCode": {
+          "enum": [
+            0,
+            2,
+            10,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            30,
+            70
+          ]
+        },
+        "stdout": {
+          "type": "object",
+          "additionalProperties": false,
+          "minProperties": 1,
+          "maxProperties": 1,
+          "properties": {
+            "json": {
+              "description": "Exact JSON document after volatile-field normalization."
+            },
+            "jsonl": {
+              "type": "array",
+              "items": {},
+              "description": "Exact JSON lines after normalization."
+            },
+            "text": {
+              "type": "string"
+            },
+            "empty": {
+              "const": true
+            },
+            "manifestBytes": {
+              "const": true,
+              "description": "stdout must be one canonical openprose.service-operation/1 line whose result is shared/service/operations.v1.json (`--output json cli service operations`)."
+            },
+            "manifestOperations": {
+              "const": true,
+              "description": "stdout must be one canonical service-record/1 line per manifest operation, in manifest order, then the service-page/1 trailer (`--output jsonl cli service operations`)."
+            }
+          }
+        },
+        "stderr": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "text": {
+              "type": "string"
+            },
+            "contains": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "empty": {
+              "const": true
+            }
+          }
+        },
+        "expectFiles": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "pattern": "^(?!/)(?!.*\\.\\.)[A-Za-z0-9._/-]+$"
+              },
+              "content": {
+                "type": "string"
+              },
+              "contentBase64": {
+                "type": "string"
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "absent": {
+                "const": true
+              }
+            }
+          },
+          "description": "Files that must (or, with absent, must not) exist afterwards."
+        },
+        "forbid": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 4
+          },
+          "description": "Strings that must not appear in stdout or stderr."
+        },
+        "languageForwarded": {
+          "const": true,
+          "description": "The argv is forwarded to the OpenProse language and refused by the runner (HOSTED_UNAVAILABLE, exit 10). Only such a runner error may name the exact product executable, as the standalone self-reference rule requires; every other stderr must not."
+        },
+        "suggestedArgvReaches": {
+          "const": true,
+          "description": "Rerun the case's details.suggestedArgv (from the JSON problem on stdout, or the last `prose ...` command of the human Action on stderr) with the same fixture: it must not be rejected with INVOCATION_INVALID."
+        },
+        "journalAfter": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          },
+          "description": "Expected journal entries (subset match) after the invocation."
+        }
+      }
+    }
+  }
+}

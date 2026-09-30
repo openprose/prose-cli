@@ -1,0 +1,78 @@
+{
+  "id": "run-cancel-no-session-ended",
+  "feature": "runs",
+  "operation": "run.cancel",
+  "description": "Cancelling a run that ended, from a machine with no live session for it (no --session, no journal entry), reads GET /runs/{id} first: exit 0 {status: already_ended, runStatus}; nothing is POSTed and the wallet is not read.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "cancel",
+    "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/runs/run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+        "requestHeaders": {
+          "Authorization": {
+            "pattern": "^Bearer rr_test_[0-9a-f]{32}$"
+          }
+        },
+        "status": 200,
+        "body": {
+          "run_id": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+          "created_at": "2026-09-24T01:00:00.000Z",
+          "status": "completed",
+          "model": "model-luna",
+          "environment": {
+            "id": "builtin",
+            "version": "1.0.0",
+            "runtime_contract": 1
+          },
+          "price_cents": 2,
+          "environment_price_cents": 1,
+          "billing_status": "settled",
+          "customer_id": "cus_ExampleOwner01",
+          "usage": {
+            "input_tokens": 89195,
+            "output_tokens": 262
+          },
+          "files": [
+            "outputs/result.json"
+          ],
+          "has_patch": false,
+          "session_files": [],
+          "file_urls": {
+            "outputs/result.json": "https://example-host/runs/run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c/files/outputs/result.json?tok=SIGNEDTOKEN&exp=1790298569"
+          }
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "run.cancel",
+      "operation": "run.cancel",
+      "problem": null,
+      "result": {
+        "runId": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+        "runStatus": "completed",
+        "status": "already_ended"
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

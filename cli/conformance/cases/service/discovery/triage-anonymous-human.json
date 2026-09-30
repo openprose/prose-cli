@@ -1,0 +1,66 @@
+{
+  "id": "triage-anonymous-human",
+  "feature": "discovery",
+  "operation": "service.triage",
+  "description": "Human anonymous triage names the variable to set on the Credential line and as the first next step.",
+  "argv": [
+    "cli",
+    "service",
+    "triage"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/health",
+        "requestHeaders": {
+          "Authorization": {
+            "present": false
+          },
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          }
+        },
+        "status": 200,
+        "body": {
+          "status": "ok",
+          "environments": {
+            "default": "builtin",
+            "available": [
+              "builtin",
+              "linux"
+            ]
+          },
+          "models": [
+            "model-sol",
+            "model-luna"
+          ],
+          "default_model": "model-sol",
+          "version": "9.9.9-extra",
+          "capabilities": {
+            "web:search": {
+              "available": true,
+              "tool": "web_search"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "Service: ok, default model model-sol\nCredential: missing, OPENPROSE_API_KEY not set; no API key for OpenProse: set OPENPROSE_API_KEY or run `prose cli auth login`\nWallet: skipped\nOrganization: skipped\nRuns: skipped\nJobs: skipped\nNext:\n  set OPENPROSE_API_KEY  # no API key for OpenProse: set OPENPROSE_API_KEY or run `prose cli auth login`\n"
+  },
+  "stderr": {
+    "text": ""
+  },
+  "forbid": [
+    "9.9.9-extra",
+    "web_search"
+  ]
+}

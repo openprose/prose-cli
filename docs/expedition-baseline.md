@@ -1,12 +1,12 @@
 # CLI reconnaissance — 2026-09-10
 
-Read-only inspection of `/Users/sl/code/openprose-cli-vm`; no CLI source edits or Git operations. Commands below distinguish verified readiness from proposed launch recipes.
+Read-only inspection of `<checkout>`; no CLI source edits or Git operations. Commands below distinguish verified readiness from proposed launch recipes.
 
 ## Product identity
 
-- `/Users/sl/.local/bin/prose` is **old npm 0.13.0**, an SDK-based CLI. Do not accidentally use it for the new two-implementation experiment.
-- New Rust executable: `/Users/sl/code/openprose-cli-vm/cli/rust/target/debug/prose`.
-- New Bun executable: `/Users/sl/code/openprose-cli-vm/cli/bun/dist/prose`. This standalone is what the new npm packaging distributes; it is not the old globally installed npm command.
+- `~/.local/bin/prose` is **old npm 0.13.0**, an SDK-based CLI. Do not accidentally use it for the new two-implementation experiment.
+- New Rust executable: `<checkout>/cli/rust/target/debug/prose`.
+- New Bun executable: `<checkout>/cli/bun/dist/prose`. This standalone is what the new npm packaging distributes; it is not the old globally installed npm command.
 - Both existing binaries report the test-only mock transport. Rust dry-run confirms `sentinel-v1`, not the default production placeholder. Build clean data-injected binaries into the new lab before semantic evaluation.
 
 ## Custom interpreter image: supported without CLI edits
@@ -14,17 +14,17 @@ Read-only inspection of `/Users/sl/code/openprose-cli-vm`; no CLI source edits o
 There is no runtime image flag. The existing supported **build-time data replacement** accepts a Markdown image directory, its manifest/schema artifacts, bundle, and checksum. The packaging metadata belongs in the lab; the shipped language can remain entirely Markdown.
 
 ```sh
-python3 /Users/sl/code/openprose-cli-vm/cli/shared/image/bundle/image_bundle.py build IMAGE_DIR BUNDLE --checksum CHECKSUM
+python3 <checkout>/cli/shared/image/bundle/image_bundle.py build IMAGE_DIR BUNDLE --checksum CHECKSUM
 
 OPENPROSE_IMAGE_SOURCE_DIR=IMAGE_DIR \
 OPENPROSE_IMAGE_BUNDLE=BUNDLE \
 OPENPROSE_IMAGE_BUNDLE_CHECKSUM=CHECKSUM \
-CARGO_TARGET_DIR=/Users/sl/Documents/openprose/lab/build/rust \
-cargo build --manifest-path /Users/sl/code/openprose-cli-vm/cli/rust/Cargo.toml --locked --offline -p prose-cli
+CARGO_TARGET_DIR=<lab>/build/rust \
+cargo build --manifest-path <checkout>/cli/rust/Cargo.toml --locked --offline -p prose-cli
 
-bun /Users/sl/code/openprose-cli-vm/cli/bun/scripts/image-bundle.ts build \
+bun <checkout>/cli/bun/scripts/image-bundle.ts build \
   --image-dir IMAGE_DIR --bundle BUNDLE --checksum CHECKSUM \
-  --outfile /Users/sl/Documents/openprose/lab/build/prose-bun
+  --outfile <lab>/build/prose-bun
 ```
 
 Use absolute substituted paths. Do not pass `--test-seams` or require release eligibility for an unvalidated image. The supplied image manifest must hash each Markdown payload, aggregate path/length/NUL/raw bytes, and exact ordered concatenation. `cli/shared/image/echo-v0/manifest.json` is a structural example, not language content to retain. The input task envelope has `schema`, `argv`, and `interactionMode: non-interactive`. A final minified JSON line must match the image-owned terminal schema, include its schema identity and string `semanticStatus`; a required `task.argv` field must exactly match the input. Do not falsely keep placeholder semantic status for real evaluation. Semantic correctness still requires independent artifact checks.
@@ -34,7 +34,7 @@ Use absolute substituted paths. Do not pass `--test-seams` or require release el
 | Harness | Installed | CLI admission | Useful scope |
 |---|---|---|---|
 | Prime | 0.7.0, `/opt/homebrew/bin/prime-agent` | admitted | Inline no-tool interpretation through CLI; direct execution can use tools |
-| Claude | 2.1.257, `/Users/sl/.local/bin/claude` | rejected: exact 2.1.243 required | Direct current CLI, or privately install pinned version |
+| Claude | 2.1.257, `~/.local/bin/claude` | rejected: exact 2.1.243 required | Direct current CLI, or privately install pinned version |
 | Codex | 0.153.4, app-bundled executable | rejected: exact 0.149.0-alpha.4.1 required | Direct current CLI, or privately install pinned version |
 | OMP | absent | unavailable; installed Bun 1.3.5 below OMP's 1.3.14 requirement | Not first lane |
 
@@ -45,7 +45,7 @@ The Prime adapter admits a **single no-tool lifecycle**; OMP explicitly disables
 Verified provider-free ready Prime selection:
 
 ```sh
-PROSE --harness prime --model prime-inference/openai/gpt-5.6-luna \
+PROSE --harness prime --model prime-inference/openai/MODEL \
   --auth-profile prime-harness-login --cwd FRESH_CASE_DIRECTORY \
   --timeout 45s --output json --dry-run run CASE
 ```
@@ -76,7 +76,7 @@ This reconnaissance establishes launch paths and limitations. It does not claim 
 
 ## Follow-up: real tool execution and precise blocker
 
-Private pinned Claude installation succeeded with `npm install --prefix /Users/sl/Documents/openprose/lab/tools/cli-baseline --no-audit --no-fund @anthropic-ai/claude-code@2.1.243`. No global installation changed. Prepend that directory's `node_modules/.bin` to PATH for wrapper selection. Both image-injected products now exist:
+Private pinned Claude installation succeeded with `npm install --prefix <lab>/tools/cli-baseline --no-audit --no-fund @anthropic-ai/claude-code@2.1.243`. No global installation changed. Prepend that directory's `node_modules/.bin` to PATH for wrapper selection. Both image-injected products now exist:
 
 - Bun: `lab/tools/cli-baseline/prose-bun`, SHA-256 `797948c1ac125c4e1d30bc5590107cbe4057e0745926a001558e5c5568b45a7f`.
 - Rust: `lab/tools/cli-baseline/rust-target/debug/prose`, SHA-256 `0e1177d106d6be3166c0fe786b3e470eaec4472b87203d3cbd1f111d713e84b1`.
@@ -91,13 +91,13 @@ The precise mismatch is native Claude telemetry. After `system/init`, pinned 2.1
 
 ## Owned CLI repository and working baseline
 
-Private repository: https://github.com/openprose/openprose-cli-lab at `/Users/sl/Documents/openprose/cli`. Baseline `9dc7101`, validated telemetry `b7d01b8`, Rust framing `e118b66`. Source import records current dirty-tree hashes; predecessor remains untouched. Decision branches preserve the two repair commits. Push required a per-command HTTP postBuffer adjustment; no global Git setting changed.
+A separate private lab repository, checked out at `<lab-checkout>`. Baseline `9dc7101`, validated telemetry `b7d01b8`, Rust framing `e118b66`. Source import records current dirty-tree hashes; predecessor remains untouched. Decision branches preserve the two repair commits. Push required a per-command HTTP postBuffer adjustment; no global Git setting changed.
 
-Working binaries built from this repository are `/Users/sl/Documents/openprose/cli/build/prose-rust` and `prose-bun`. Prepend `/Users/sl/Documents/openprose/lab/tools/cli-baseline/node_modules/.bin` to PATH to select pinned Claude and Codex.
+Working binaries built from this repository are `<lab-checkout>/build/prose-rust` and `prose-bun`. Prepend `<lab>/tools/cli-baseline/node_modules/.bin` to PATH to select pinned Claude and Codex.
 
 ```sh
 PROSE --harness claude --model haiku --cwd CASE --timeout 90s --output jsonl run PROGRAM.md
-PROSE --harness codex --model gpt-5.6-luna --cwd CASE --timeout 90s --output jsonl run PROGRAM.md
+PROSE --harness codex --model MODEL --cwd CASE --timeout 90s --output jsonl run PROGRAM.md
 ```
 
 CASE contains README.md (kernel), PROGRAM.md, and input.txt with an independently generated random value. Both products/harnesses have now returned that value through real file reads. Current pointer v1 reads README.md; framing stays outside the language. Rust only accepts a structural JSON-schema subset, so semanticStatus uses `type: string`, not enum. A further observed Rust report limitation marks dynamic terminal status as not-applicable despite the correctly returned semantic-success terminal; do not use that derived field alone as semantic evidence.

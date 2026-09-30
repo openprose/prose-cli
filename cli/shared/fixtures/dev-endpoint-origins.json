@@ -1,0 +1,156 @@
+{
+  "schema": "openprose.dev-endpoint-origins/1",
+  "summary": "How both developer builds read OPENPROSE_API_URL: a strict ASCII https origin (scheme matched without case), lowercase host labels of letters, digits and inner hyphens, an optional port 1-65535 (443 dropped), at most one trailing slash, and nothing else. `origin` is the normalized result; `reason` is the CONFIG_INVALID details.reason.",
+  "cases": [
+    {
+      "id": "plain",
+      "value": "https://host.example",
+      "origin": "https://host.example"
+    },
+    {
+      "id": "trailing-slash",
+      "value": "https://host.example/",
+      "origin": "https://host.example"
+    },
+    {
+      "id": "uppercase-scheme",
+      "value": "HTTPS://host.example",
+      "origin": "https://host.example"
+    },
+    {
+      "id": "mixed-case-scheme",
+      "value": "HtTpS://host.example",
+      "origin": "https://host.example"
+    },
+    {
+      "id": "uppercase-host",
+      "value": "https://HOST.Example",
+      "origin": "https://host.example"
+    },
+    {
+      "id": "default-port-dropped",
+      "value": "https://host.example:443",
+      "origin": "https://host.example"
+    },
+    {
+      "id": "custom-port",
+      "value": "https://host.example:8443",
+      "origin": "https://host.example:8443"
+    },
+    {
+      "id": "ipv4-host",
+      "value": "https://127.0.0.1:8443",
+      "origin": "https://127.0.0.1:8443"
+    },
+    {
+      "id": "single-label",
+      "value": "https://localhost",
+      "origin": "https://localhost"
+    },
+    {
+      "id": "http-scheme",
+      "value": "http://host.example",
+      "reason": "OPENPROSE_API_URL must use https; expected an https origin such as https://host.example"
+    },
+    {
+      "id": "no-scheme",
+      "value": "host.example",
+      "reason": "OPENPROSE_API_URL is not a URL; expected an https origin such as https://host.example"
+    },
+    {
+      "id": "empty-host",
+      "value": "https://",
+      "reason": "OPENPROSE_API_URL has no host; expected an https origin such as https://host.example"
+    },
+    {
+      "id": "empty-host-with-port",
+      "value": "https://:8443",
+      "reason": "OPENPROSE_API_URL has no host; expected an https origin such as https://host.example"
+    },
+    {
+      "id": "credentials",
+      "value": "https://user:pw@host.example",
+      "reason": "OPENPROSE_API_URL must not contain credentials; expected an https origin such as https://host.example"
+    },
+    {
+      "id": "path",
+      "value": "https://host.example/api",
+      "reason": "OPENPROSE_API_URL must be an origin with no path, query or fragment; expected an https origin such as https://host.example"
+    },
+    {
+      "id": "query",
+      "value": "https://host.example?x=1",
+      "reason": "OPENPROSE_API_URL must be an origin with no path, query or fragment; expected an https origin such as https://host.example"
+    },
+    {
+      "id": "fragment",
+      "value": "https://host.example#x",
+      "reason": "OPENPROSE_API_URL must be an origin with no path, query or fragment; expected an https origin such as https://host.example"
+    },
+    {
+      "id": "double-slash-path",
+      "value": "https://host.example//",
+      "reason": "OPENPROSE_API_URL must be an origin with no path, query or fragment; expected an https origin such as https://host.example"
+    },
+    {
+      "id": "non-ascii-host",
+      "value": "https://exämple.com",
+      "reason": "OPENPROSE_API_URL is not a URL; expected an https origin such as https://host.example"
+    },
+    {
+      "id": "underscore-host",
+      "value": "https://my_host.example",
+      "reason": "OPENPROSE_API_URL is not a URL; expected an https origin such as https://host.example"
+    },
+    {
+      "id": "label-leading-hyphen",
+      "value": "https://-host.example",
+      "reason": "OPENPROSE_API_URL is not a URL; expected an https origin such as https://host.example"
+    },
+    {
+      "id": "empty-label",
+      "value": "https://host..example",
+      "reason": "OPENPROSE_API_URL is not a URL; expected an https origin such as https://host.example"
+    },
+    {
+      "id": "trailing-dot",
+      "value": "https://host.example.",
+      "reason": "OPENPROSE_API_URL is not a URL; expected an https origin such as https://host.example"
+    },
+    {
+      "id": "ipv6",
+      "value": "https://[::1]:8443",
+      "reason": "OPENPROSE_API_URL is not a URL; expected an https origin such as https://host.example"
+    },
+    {
+      "id": "port-zero",
+      "value": "https://host.example:0",
+      "reason": "OPENPROSE_API_URL is not a URL; expected an https origin such as https://host.example"
+    },
+    {
+      "id": "port-too-large",
+      "value": "https://host.example:65536",
+      "reason": "OPENPROSE_API_URL is not a URL; expected an https origin such as https://host.example"
+    },
+    {
+      "id": "port-not-digits",
+      "value": "https://host.example:84a3",
+      "reason": "OPENPROSE_API_URL is not a URL; expected an https origin such as https://host.example"
+    },
+    {
+      "id": "empty-port",
+      "value": "https://host.example:",
+      "reason": "OPENPROSE_API_URL is not a URL; expected an https origin such as https://host.example"
+    },
+    {
+      "id": "whitespace",
+      "value": "https://host.example ",
+      "reason": "OPENPROSE_API_URL is not a URL; expected an https origin such as https://host.example"
+    },
+    {
+      "id": "backslash",
+      "value": "https:\\\\host.example",
+      "reason": "OPENPROSE_API_URL is not a URL; expected an https origin such as https://host.example"
+    }
+  ]
+}

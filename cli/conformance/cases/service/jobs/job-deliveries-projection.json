@@ -1,0 +1,80 @@
+{
+  "id": "job-deliveries-projection",
+  "feature": "jobs",
+  "operation": "job.deliveries",
+  "description": "Deliveries keep id, times, outcome and jobs; the payload preview is dropped.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "job",
+    "deliveries",
+    "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/triggers/3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10/deliveries",
+        "status": 200,
+        "body": {
+          "deliveries": [
+            {
+              "id": 7,
+              "deliveryId": "Ev01",
+              "receivedAt": 1790212425000,
+              "outcome": "admitted",
+              "reason": null,
+              "preview": "{\"event\":{\"type\":\"app_mention\"}}",
+              "testOnly": false,
+              "jobs": [
+                {
+                  "programRef": "exowner1/slack-hello@97ddf3a447f534a7",
+                  "status": "completed",
+                  "runId": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c"
+                }
+              ]
+            }
+          ]
+        },
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "job.deliveries",
+      "operation": "job.deliveries",
+      "problem": null,
+      "result": {
+        "deliveries": [
+          {
+            "delivery_id": "Ev01",
+            "id": 7,
+            "outcome": "admitted",
+            "reason": null,
+            "received_at": 1790212425000,
+            "received_at_iso": "2026-09-24T01:13:45.000Z",
+            "runs": [
+              {
+                "program_ref": "exowner1/slack-hello@97ddf3a447f534a7",
+                "run_id": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+                "status": "completed"
+              }
+            ],
+            "test_only": false
+          }
+        ]
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

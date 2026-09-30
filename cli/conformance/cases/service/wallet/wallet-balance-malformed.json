@@ -1,0 +1,64 @@
+{
+  "id": "wallet-balance-malformed",
+  "feature": "wallet",
+  "operation": "wallet.balance",
+  "description": "A balance without reserved_dollars is SERVICE_PROTOCOL_INVALID naming the field.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "wallet",
+    "balance"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/wallet/balance",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          }
+        },
+        "status": 200,
+        "body": {
+          "balance": {
+            "available_cents": 3235,
+            "available_dollars": "32.35",
+            "available_nanos": 32350000000,
+            "posted_cents": 3337,
+            "posted_dollars": "33.37",
+            "reserved_cents": 102,
+            "reserved_nanos": 1020000000
+          }
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "wallet.balance",
+      "operation": "wallet.balance",
+      "problem": {
+        "action": "Retry later and report the sanitized error code if it persists.",
+        "boundary": "protocol",
+        "code": "SERVICE_PROTOCOL_INVALID",
+        "details": {
+          "reason": "unexpected wallet response: balance.reserved_dollars"
+        },
+        "exitCode": 10,
+        "message": "The OpenProse service returned an invalid response.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

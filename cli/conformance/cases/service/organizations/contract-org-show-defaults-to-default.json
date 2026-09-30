@@ -1,0 +1,62 @@
+{
+  "id": "contract-org-show-defaults-to-default",
+  "feature": "organizations",
+  "operation": "org.show",
+  "description": "`org show` without ORG shows the caller's default organization (GET /organizations/default).",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "org",
+    "show"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/organizations/default",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          },
+          "Accept": "application/json"
+        },
+        "status": 200,
+        "body": {
+          "organization": {
+            "id": "5b0e7c1a-3f2d-4e8b-9a61-2c4d8e0f1a23",
+            "slug": "acme-research",
+            "name": "Acme Research",
+            "created_by": "cus_ExampleAdmin01",
+            "created_at": 1790012915257,
+            "role": "admin"
+          }
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "organizations.manage",
+      "operation": "org.show",
+      "problem": null,
+      "result": {
+        "organization": {
+          "created_at": 1790012915257,
+          "created_at_iso": "2026-09-21T17:48:35.257Z",
+          "id": "5b0e7c1a-3f2d-4e8b-9a61-2c4d8e0f1a23",
+          "name": "Acme Research",
+          "role": "admin",
+          "slug": "acme-research"
+        }
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "id": "wallet-events-empty-human",
+  "feature": "wallet",
+  "operation": "wallet.events",
+  "description": "An empty page in human mode says so and exits 0.",
+  "argv": [
+    "cli",
+    "wallet",
+    "events"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/wallet/events",
+        "query": {
+          "limit": "20"
+        },
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          }
+        },
+        "status": 200,
+        "body": {
+          "customer_id": "c",
+          "events": [],
+          "next_before": null
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "No wallet events.\n"
+  },
+  "stderr": {
+    "text": ""
+  }
+}

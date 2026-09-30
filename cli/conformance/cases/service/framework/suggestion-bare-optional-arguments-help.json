@@ -1,0 +1,50 @@
+{
+  "id": "suggestion-bare-optional-arguments-help",
+  "feature": "framework",
+  "operation": "run.submit",
+  "description": "A corrected bare command whose arguments are all optional (`cli run submit` needs a program its handler checks) suggests its help, not a bare argv that fails.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "submt"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": null,
+      "operation": "cli",
+      "problem": {
+        "action": "Use `cli run submit`; `prose --output json cli run submit --help` shows what it needs.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "unknown command `cli run submt`; did you mean `cli run submit`? Commands: cancel, download, input, list, quote, share, show, submit, watch",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "submit",
+            "--help"
+          ]
+        },
+        "exitCode": 2,
+        "message": "Unknown command.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "id": "fix-run-id-uppercase-human",
+  "feature": "framework",
+  "operation": "run.cancel",
+  "description": "A run id in capitals suggests it in lowercase.",
+  "argv": [
+    "cli",
+    "run",
+    "cancel",
+    "RUN_4F1C2D3E4F5A6B7C4F1C2D3E4F5A6B7C4F1C2D3E4F5A6B7C4F1C2D3E4F5A6B7C",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: That command isn't quite right.\nDetail: run id \"RUN_4F1C2D3E4F5A6B7C4F1C2D3E4F5A6B7C4F1C2D3E4F5A6B7C4F1C2D3E4F5A6B7C\" is invalid; a run id is run_ followed by lowercase hex digits; list runs with `prose cli run list`\nAction: Use the run id run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c: `prose cli run cancel run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c --yes`.\n"
+  }
+}

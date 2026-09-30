@@ -1,0 +1,25 @@
+{
+  "id": "alias-help-short-h-before-argument",
+  "feature": "framework",
+  "operation": "run.show",
+  "description": "`-h` anywhere after a complete command path asks for its help, as in both ports.",
+  "argv": [
+    "cli",
+    "run",
+    "show",
+    "-h",
+    "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "Usage: prose [GLOBAL OPTIONS] cli run show <RUN_ID> [OPTIONS]\n\nShow a run manifest (status, files, price), or one output file with --file. Signed file URLs are never printed.\nThe manifest has no final response text. Read the run's outputs with `cli run show RUN_ID --file outputs/result.json` or `cli run download RUN_ID --output-dir DIR`; replay the stream, whose terminal event carries the response, with `cli run watch RUN_ID --after 0` (runs submitted from this machine, or pass --session).\n\nArguments:\n  RUN_ID                      Run id (run_ and 64 hex digits), or latest for your newest run.\n\nOptions:\n  --file PATH                 Output file path exactly as listed in the manifest.\n  --output-file FILE          Write the bytes to FILE, which must not exist, instead of including them in the result.\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli run show run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c --json\n  prose cli run show run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c --file outputs/result.json\n  prose cli run show latest --json\n\nOutput: openprose.service-operation/1 (--json).\nExit codes: 0 success; 2 invalid invocation or configuration; 10 service or credential error, or no such run or --file (SERVICE_RESOURCE_NOT_FOUND); 24 interrupted.\n"
+  }
+}

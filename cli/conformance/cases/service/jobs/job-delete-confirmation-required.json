@@ -1,0 +1,69 @@
+{
+  "id": "job-delete-confirmation-required",
+  "feature": "jobs",
+  "operation": "job.delete",
+  "description": "`job delete` without --yes sends nothing and exits 2.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "job",
+    "delete",
+    "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "job.delete",
+      "operation": "job.delete",
+      "problem": {
+        "action": "Rerun the same command with --yes to confirm, or with --preview to see what it would do without sending anything.",
+        "boundary": "invocation",
+        "code": "CONFIRMATION_REQUIRED",
+        "details": {
+          "confirmArgv": [
+            "--output",
+            "json",
+            "cli",
+            "job",
+            "delete",
+            "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10",
+            "--yes"
+          ],
+          "plannedRequest": {
+            "bodyBytes": null,
+            "bodySha256": null,
+            "description": "Delete a job.",
+            "effect": "destructive",
+            "method": "DELETE",
+            "operation": "job.delete"
+          },
+          "previewArgv": [
+            "--output",
+            "json",
+            "cli",
+            "job",
+            "delete",
+            "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10",
+            "--preview"
+          ],
+          "reason": "--yes is required because it deletes the job permanently: its schedule or endpoint stops and cannot be restored"
+        },
+        "exitCode": 2,
+        "message": "This service operation requires explicit confirmation.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

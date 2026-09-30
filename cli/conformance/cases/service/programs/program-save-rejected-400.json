@@ -1,0 +1,76 @@
+{
+  "id": "program-save-rejected-400",
+  "feature": "programs",
+  "operation": "program.save",
+  "description": "A service 400 is SERVICE_REQUEST_REJECTED with the sanitized serviceMessage.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "program",
+    "save",
+    "demo",
+    "demo.prose.md"
+  ],
+  "files": [
+    {
+      "path": "demo.prose.md",
+      "content": "---\nname: demo\nkind: function\n---\n\n### Returns\n\n- `text`: exactly `ok`\n"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "PUT",
+        "path": "/programs/demo",
+        "requestHeaders": {
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          },
+          "User-Agent": {
+            "pattern": "^prose-cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"
+          },
+          "Accept": "application/json",
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "status": 400,
+        "expectedBody": {
+          "content": "---\nname: demo\nkind: function\n---\n\n### Returns\n\n- `text`: exactly `ok`\n"
+        },
+        "body": {
+          "error": "Invalid slug: lowercase letters, digits, hyphens; max 64 chars."
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "schema": "openprose.service-operation/1",
+      "operation": "program.save",
+      "interaction": "program.save",
+      "result": null,
+      "problem": {
+        "schema": "openprose.runner-error/1",
+        "code": "SERVICE_REQUEST_REJECTED",
+        "boundary": "hosted-service",
+        "message": "The OpenProse service rejected the request.",
+        "action": "Correct the request as details.serviceMessage describes, then retry.",
+        "exitCode": 10,
+        "retryable": false,
+        "details": {
+          "serviceStatus": 400,
+          "serviceMessage": "Invalid slug: lowercase letters, digits, hyphens; max 64 chars."
+        }
+      }
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

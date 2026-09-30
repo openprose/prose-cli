@@ -1,0 +1,45 @@
+{
+  "id": "member-remove-preview",
+  "feature": "organizations",
+  "operation": "org.member.remove",
+  "description": "`org member remove` with --preview returns the plan, exits 0 and sends nothing.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "org",
+    "member",
+    "remove",
+    "acme-research",
+    "cus_ExampleInvitee1",
+    "--preview"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "organizations.manage",
+      "operation": "org.member.remove",
+      "problem": null,
+      "result": {
+        "plannedRequest": {
+          "bodyBytes": null,
+          "bodySha256": null,
+          "description": "Remove a member.",
+          "effect": "destructive",
+          "method": "DELETE",
+          "operation": "org.member.remove"
+        },
+        "preview": true
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "id": "help-wallet-usage-topic",
+  "feature": "framework",
+  "operation": "wallet.usage",
+  "description": "`cli wallet usage --help` states the service's default window (--start 30 days ago, --end today, UTC) and prints its manifest examples.",
+  "argv": [
+    "cli",
+    "wallet",
+    "usage",
+    "--help"
+  ],
+  "fixture": {
+    "exchanges": []
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "Usage: prose [GLOBAL OPTIONS] cli wallet usage [OPTIONS]\n\nSummarize run usage and prices by day.\n\nOptions:\n  --start YYYY-MM-DD          First day. Default: 30 days ago (UTC).\n  --end YYYY-MM-DD            Last day. Default: today (UTC).\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli wallet usage --start 2026-09-01 --end 2026-09-24 --json\n\nOutput: openprose.service-operation/1 (--json).\nExit codes: 0 success; 2 invalid invocation or configuration; 10 service or credential error; 24 interrupted.\n"
+  },
+  "stderr": {
+    "text": ""
+  }
+}

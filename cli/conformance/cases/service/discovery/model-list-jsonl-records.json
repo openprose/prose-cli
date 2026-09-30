@@ -1,0 +1,72 @@
+{
+  "id": "model-list-jsonl-records",
+  "feature": "discovery",
+  "operation": "model.list",
+  "description": "`model list --output jsonl` prints one openprose.service-record/1 line per model and one openprose.service-page/1 trailer whose meta carries default_model.",
+  "argv": [
+    "--output",
+    "jsonl",
+    "cli",
+    "model",
+    "list"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/models",
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef",
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          },
+          "Accept": "application/json"
+        },
+        "status": 200,
+        "body": {
+          "models": [
+            "model-sol",
+            "model-luna"
+          ],
+          "default_model": "model-sol"
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "jsonl": [
+      {
+        "collection": "models",
+        "index": 0,
+        "operation": "model.list",
+        "record": "model-sol",
+        "schema": "openprose.service-record/1"
+      },
+      {
+        "collection": "models",
+        "index": 1,
+        "operation": "model.list",
+        "record": "model-luna",
+        "schema": "openprose.service-record/1"
+      },
+      {
+        "collection": "models",
+        "count": 2,
+        "exitCode": 0,
+        "interaction": "models.list",
+        "meta": {
+          "default_model": "model-sol"
+        },
+        "nextBefore": null,
+        "operation": "model.list",
+        "schema": "openprose.service-page/1"
+      }
+    ]
+  }
+}

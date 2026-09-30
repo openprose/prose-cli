@@ -1,0 +1,70 @@
+{
+  "id": "job-create-feature-disabled",
+  "feature": "jobs",
+  "operation": "job.create",
+  "description": "A disabled job kind (403 feature_disabled) is SERVICE_FEATURE_DISABLED; the feature name is never echoed.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "job",
+    "create",
+    "--spec-file",
+    "spec.json",
+    "--yes"
+  ],
+  "files": [
+    {
+      "path": "spec.json",
+      "content": "{\"type\":\"website-change\",\"url\":\"https://example.com\"}"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/triggers",
+        "status": 403,
+        "body": {
+          "error": "The site monitor is not enabled for this account.",
+          "code": "feature_disabled",
+          "feature": "example_feature"
+        },
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "job.deploy",
+      "operation": "job.create",
+      "problem": {
+        "action": "Check your plan or organization, or contact OpenProse support.",
+        "boundary": "hosted-service",
+        "code": "SERVICE_FEATURE_DISABLED",
+        "details": {
+          "serviceCode": "feature_disabled",
+          "serviceStatus": 403
+        },
+        "exitCode": 10,
+        "message": "This capability is not available for this account.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "example_feature",
+    "The site monitor is not enabled for this account."
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "id": "alias-option-cursor-value",
+  "feature": "framework",
+  "operation": "run.list",
+  "description": "`--cursor C` on a paged listing suggests `--before C`, which takes result.nextBefore.",
+  "argv": [
+    "cli",
+    "run",
+    "list",
+    "--cursor",
+    "c1"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: Unknown option.\nDetail: unknown option --cursor for `cli run list`; did you mean --before? It takes the cursor a previous page returned in result.nextBefore\nAction: Replace --cursor with --before, which takes the previous page's result.nextBefore: `prose cli run list --before c1`.\n"
+  }
+}

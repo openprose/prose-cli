@@ -1,0 +1,38 @@
+{
+  "id": "program-save-file-only-names-slug",
+  "feature": "programs",
+  "operation": "program.save",
+  "description": "`cli program save FILE` names the missing SLUG, which comes before the file, and suggests the slug the file name gives.",
+  "argv": [
+    "cli",
+    "program",
+    "save",
+    "hello.prose.md",
+    "--yes"
+  ],
+  "files": [
+    {
+      "path": "hello.prose.md",
+      "content": "---\nname: demo\nkind: function\n---\n\n### Returns\n\n- `text`: exactly `ok`\n"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: That command isn't quite right.\nDetail: missing argument <SLUG> for `cli program save`; \"hello.prose.md\" is the program file, which comes after the slug: `cli program save <SLUG> <FILE>`\nAction: Pass the slug before the file: `prose cli program save hello hello.prose.md --yes`.\n"
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ],
+  "suggestedArgvReaches": true
+}

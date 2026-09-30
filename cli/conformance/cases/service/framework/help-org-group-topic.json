@@ -1,0 +1,21 @@
+{
+  "id": "help-org-group-topic",
+  "feature": "framework",
+  "operation": "org.show",
+  "description": "`cli org --help` prints the `cli org` topic (`org list` and the organization commands).",
+  "argv": [
+    "cli",
+    "org",
+    "--help"
+  ],
+  "fixture": {
+    "exchanges": []
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "Usage: prose [GLOBAL OPTIONS] cli org <COMMAND> [ARGUMENTS] [OPTIONS]\n\nCommands:\n  list                        List the organizations this account belongs to.\n  show                        Show one organization; ORG may be default.\n  create                      Create an organization.\n  default                     Choose this account's default organization.\n  invitation                  Commands: accept, revoke.\n  invite                      Invite an account.\n  member                      Commands: list, remove, role.\n  rename                      Change an organization's display name.\n\nExamples:\n  prose cli org list --json\n  prose cli org show acme-research --json\n  prose cli org create acme-research --name 'Acme Research' --yes\n  prose cli org default acme-research --yes\n  prose cli org invitation revoke acme-research 7e6d5c4b-3a29-4817-8f6e-5d4c3b2a1908 --yes\n  prose cli org invite acme-research ACCOUNT_ID --role developer --yes\n  prose cli org member list acme-research --json\n  prose cli org rename acme-research 'Acme Labs' --yes\n\nGlobal options:\n  --output human|json|jsonl   Output mode; the same as the PROSE_OUTPUT setting.\n\nRun `prose cli org <COMMAND> --help` for details. `prose cli service operations --json` prints every command as JSON.\n"
+  },
+  "stderr": {
+    "text": ""
+  }
+}

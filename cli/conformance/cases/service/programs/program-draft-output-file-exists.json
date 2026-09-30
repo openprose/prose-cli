@@ -1,0 +1,69 @@
+{
+  "id": "program-draft-output-file-exists",
+  "feature": "programs",
+  "operation": "program.draft",
+  "description": "An existing --output-file is refused before the paid request is sent, even with --yes.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "program",
+    "draft",
+    "write a haiku about rain",
+    "--output-file",
+    "haiku.prose.md",
+    "--yes"
+  ],
+  "files": [
+    {
+      "path": "haiku.prose.md",
+      "content": "mine\n"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "write.author",
+      "operation": "program.draft",
+      "problem": {
+        "action": "Correct the value named in Detail; `prose --output json cli program draft --help` shows the accepted syntax.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "output file \"haiku.prose.md\" already exists; choose a new path",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "program",
+            "draft",
+            "--help"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "expectFiles": [
+    {
+      "path": "haiku.prose.md",
+      "content": "mine\n"
+    }
+  ],
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

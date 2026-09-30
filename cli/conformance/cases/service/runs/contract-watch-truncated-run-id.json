@@ -1,0 +1,52 @@
+{
+  "id": "contract-watch-truncated-run-id",
+  "feature": "runs",
+  "operation": "run.watch",
+  "description": "`run watch` of run_ plus fewer than 64 hex digits is INVOCATION_INVALID before any request: the id looks truncated, and details.suggestedArgv lists recent runs.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "watch",
+    "run_16c1a2b3"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "run.observe",
+      "operation": "run.watch",
+      "problem": {
+        "action": "List recent runs with `prose --output json cli run list --limit 5` and copy the full run id.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "run id \"run_16c1a2b3\" looks truncated; a full run id has 64 hex digits",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "list",
+            "--limit",
+            "5"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

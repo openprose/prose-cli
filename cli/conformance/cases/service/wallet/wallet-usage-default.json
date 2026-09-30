@@ -1,0 +1,63 @@
+{
+  "id": "wallet-usage-default",
+  "feature": "wallet",
+  "operation": "wallet.usage",
+  "description": "Without a window no query is sent; the service picks the last 30 days.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "wallet",
+    "usage"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/wallet/usage",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          }
+        },
+        "status": 200,
+        "body": {
+          "period": {
+            "start": "2026-09-01",
+            "end": "2026-09-03"
+          },
+          "total_runs": 0,
+          "total_input_tokens": 0,
+          "total_output_tokens": 0,
+          "total_price_cents": 0,
+          "daily": []
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "wallet.usage",
+      "operation": "wallet.usage",
+      "problem": null,
+      "result": {
+        "daily": [],
+        "period": {
+          "end": "2026-09-03",
+          "start": "2026-09-01"
+        },
+        "total_input_tokens": 0,
+        "total_output_tokens": 0,
+        "total_price_cents": 0,
+        "total_runs": 0
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "id": "contract-submit-missing-required-input",
+  "feature": "runs",
+  "operation": "run.submit",
+  "description": "A declared input that is neither given nor optional is INVOCATION_INVALID before any money moves, even with --yes.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "submit",
+    "echo.prose.md",
+    "--yes",
+    "--input",
+    "tone=warm"
+  ],
+  "files": [
+    {
+      "path": "echo.prose.md",
+      "content": "---\nname: echo\nkind: function\n---\n\n# Echo\n\n### Parameters\n\n- `message`: the text to echo back\n- `tone`: optional; how to say it\n\n### Returns\n\n- `message`: the text\n"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "run.submit",
+      "operation": "run.submit",
+      "problem": {
+        "action": "Correct the value named in Detail; `prose --output json cli run submit --help` shows the accepted syntax.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "the program needs input \"message\"; pass --input message=VALUE",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "submit",
+            "--help"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

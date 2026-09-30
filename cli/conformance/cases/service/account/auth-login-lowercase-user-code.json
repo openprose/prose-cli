@@ -1,0 +1,86 @@
+{
+  "id": "auth-login-lowercase-user-code",
+  "feature": "account",
+  "operation": "auth.login",
+  "description": "Device flow: a lowercase user code is refused (SERVICE_PROTOCOL_INVALID). Ported from the account corpus.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "auth",
+    "login"
+  ],
+  "fixture": {
+    "credential": null,
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/auth/device",
+        "status": 200,
+        "body": {
+          "device_code": "fixture-device-secret",
+          "user_code": "abcd-efgh",
+          "verification_uri": "https://github.com/login/device",
+          "expires_in": 60,
+          "interval": 1
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/auth/device/poll",
+        "status": 200,
+        "body": {
+          "status": "pending"
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/auth/device/poll",
+        "status": 200,
+        "body": {
+          "status": "slow_down"
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/auth/device/poll",
+        "status": 200,
+        "body": {
+          "status": "complete",
+          "api_key": "rr_test_22222222222222222222222222222222",
+          "customer_id": "customer-fixture",
+          "github_login": "fixture"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "schema": "openprose.service-operation/1",
+      "operation": "auth.login",
+      "interaction": "auth.device_flow",
+      "result": null,
+      "problem": {
+        "action": "Retry later and report the sanitized error code if it persists.",
+        "boundary": "protocol",
+        "code": "SERVICE_PROTOCOL_INVALID",
+        "exitCode": 10,
+        "message": "The OpenProse service returned an invalid response.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1",
+        "details": {
+          "reason": "unexpected POST /auth/device response: user_code"
+        }
+      }
+    }
+  },
+  "stderr": {
+    "empty": true
+  },
+  "forbid": [
+    "rr_test_22222222222222222222222222222222",
+    "fixture-device-secret"
+  ]
+}

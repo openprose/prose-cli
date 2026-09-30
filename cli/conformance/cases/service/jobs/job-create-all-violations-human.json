@@ -1,0 +1,35 @@
+{
+  "id": "job-create-all-violations-human",
+  "feature": "jobs",
+  "operation": "job.create",
+  "description": "Human form: one Detail line numbering every violation.",
+  "argv": [
+    "cli",
+    "job",
+    "create",
+    "--spec-file",
+    "spec.json",
+    "--yes"
+  ],
+  "files": [
+    {
+      "path": "spec.json",
+      "content": "{\"type\": \"webhook\", \"delivery_mode\": \"sometimes\", \"reciever\": {\"profile\": \"openprose\"}, \"inputs\": [\"a\"]}"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: That command isn't quite right.\nDetail: 3 problems in --spec-file \"spec.json\": (1) delivery_mode must be one of test, live (2) inputs must be an object of name -> string (3) unknown key reciever; did you mean receiver?\nAction: Correct the value named in Detail; `prose cli job create --help` shows the accepted syntax.\n"
+  }
+}

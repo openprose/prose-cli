@@ -1,0 +1,67 @@
+{
+  "id": "program-show-bare-slug-not-found",
+  "feature": "programs",
+  "operation": "program.show",
+  "description": "A bare SLUG you have not saved is SERVICE_RESOURCE_NOT_FOUND pointing at `cli program list`.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "program",
+    "show",
+    "nope"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/programs/nope/revisions",
+        "status": 404,
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "body": {
+          "error": "Not found"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "program.read",
+      "operation": "program.show",
+      "problem": {
+        "action": "Run `prose --output json cli program list` to find the right program, then retry with it.",
+        "boundary": "hosted-service",
+        "code": "SERVICE_RESOURCE_NOT_FOUND",
+        "details": {
+          "reason": "you have no saved program \"nope\"; list yours with `prose --output json cli program list`, or pass OWNER/SLUG for another owner's public program",
+          "serviceStatus": 404,
+          "resource": {
+            "id": "nope",
+            "kind": "program"
+          },
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "program",
+            "list"
+          ]
+        },
+        "exitCode": 10,
+        "message": "The requested OpenProse service resource was not found.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "id": "alias-option-page-number",
+  "feature": "framework",
+  "operation": "run.list",
+  "description": "`--page 2` on a paged listing: pages are cursors, so the suggestion lists the first page and the Action names result.nextBefore.",
+  "argv": [
+    "cli",
+    "run",
+    "list",
+    "--page",
+    "2"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: Unknown option.\nDetail: unknown option --page for `cli run list`; pages are cursors, not numbers: --before takes the result.nextBefore of the previous page\nAction: List the first page with `prose cli run list`, then pass its result.nextBefore to --before for the next page.\n"
+  }
+}

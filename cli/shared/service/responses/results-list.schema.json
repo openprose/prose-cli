@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.openprose.org/cli/v1/service/responses/results-list.schema.json",
+  "title": "service response acceptance: GET /p/{owner}/{slug}/results",
+  "x-probed": false,
+  "type": "object",
+  "required": [
+    "contract",
+    "results"
+  ],
+  "properties": {
+    "contract": {
+      "type": "object",
+      "required": [
+        "owner",
+        "slug",
+        "rev_id"
+      ],
+      "properties": {
+        "owner": {
+          "type": "string"
+        },
+        "slug": {
+          "type": "string"
+        },
+        "rev_id": {
+          "type": "string"
+        }
+      }
+    },
+    "results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "published_at",
+          "run_id",
+          "program_ref",
+          "created_at",
+          "model",
+          "status"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "published_at": {
+            "type": "string"
+          },
+          "run_id": {
+            "type": "string"
+          },
+          "program_ref": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

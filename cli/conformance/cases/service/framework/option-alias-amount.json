@@ -1,0 +1,53 @@
+{
+  "id": "option-alias-amount",
+  "feature": "framework",
+  "operation": "wallet.topup",
+  "description": "`--amount` is an alias of `--amount-cents`; nothing is charged.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "wallet",
+    "topup",
+    "--amount",
+    "500"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "wallet.topup",
+      "operation": "wallet.topup",
+      "problem": {
+        "action": "Use --amount-cents 50000 (dollars converted to cents): `prose --output json cli wallet topup --amount-cents 50000`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "unknown option --amount for `cli wallet topup`; --amount-cents counts cents, so --amount 500 (dollars) is --amount-cents 50000",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "wallet",
+            "topup",
+            "--amount-cents",
+            "50000"
+          ]
+        },
+        "exitCode": 2,
+        "message": "Unknown option.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

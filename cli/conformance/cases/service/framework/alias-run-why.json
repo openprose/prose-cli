@@ -1,0 +1,27 @@
+{
+  "id": "alias-run-why",
+  "feature": "framework",
+  "operation": "run.show",
+  "description": "`cli run why RUN_ID` suggests `cli run show RUN_ID`.",
+  "argv": [
+    "cli",
+    "run",
+    "why",
+    "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: Unknown command.\nDetail: unknown command `cli run why`; did you mean `cli run show`? Commands: cancel, download, input, list, quote, share, show, submit, watch\nAction: Use `cli run show`: `prose cli run show run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c`.\n"
+  }
+}

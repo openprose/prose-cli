@@ -861,8 +861,8 @@ class WorkflowPolicyTest(unittest.TestCase):
                 1,
             ),
             alpha.replace(
-                'RUSTFLAGS="--remap-path-prefix=$SOURCE_ROOT=/openprose-source"',
-                'RUSTFLAGS="--remap-path-prefix=$SOURCE_ROOT=/wrong-root"',
+                '--remap-path-prefix=$CARGO_HOME_ROOT=/cargo-home"',
+                '"',
                 1,
             ),
             alpha.replace("pattern: alpha-admission-*", "pattern: alpha-package-*", 1),
@@ -2091,8 +2091,8 @@ class WorkflowPolicyTest(unittest.TestCase):
             (
                 ci,
                 release.replace(
-                    'CARGO_INCREMENTAL=0 RUSTFLAGS="--remap-path-prefix=$SOURCE_ROOT=/openprose-source"',
-                    'CARGO_INCREMENTAL=1 RUSTFLAGS="--remap-path-prefix=$SOURCE_ROOT=/wrong-root"',
+                    '--remap-path-prefix=$CARGO_HOME_ROOT=/cargo-home"',
+                    '"',
                     1,
                 ),
             ),

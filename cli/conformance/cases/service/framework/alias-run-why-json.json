@@ -1,0 +1,51 @@
+{
+  "id": "alias-run-why-json",
+  "feature": "framework",
+  "operation": "run.show",
+  "description": "`cli run why RUN_ID` suggests `cli run show RUN_ID`. (JSON envelope)",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "why",
+    "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": null,
+      "operation": "cli",
+      "problem": {
+        "action": "Use `cli run show`: `prose --output json cli run show run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "unknown command `cli run why`; did you mean `cli run show`? Commands: cancel, download, input, list, quote, share, show, submit, watch",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "show",
+            "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c"
+          ]
+        },
+        "exitCode": 2,
+        "message": "Unknown command.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

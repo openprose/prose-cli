@@ -1,0 +1,61 @@
+{
+  "id": "alias-option-timeout-wait-unit-json",
+  "feature": "framework",
+  "operation": "run.submit",
+  "description": "`--timeout 30` on `cli run submit` suggests `--wait 30s`: the unit a bare number lacks is added. (JSON envelope)",
+  "files": [
+    {
+      "path": "hello.prose.md",
+      "content": "---\nname: hello\nkind: program\n---\nSay hello.\n"
+    }
+  ],
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "submit",
+    "hello.prose.md",
+    "--timeout",
+    "30"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "run.submit",
+      "operation": "run.submit",
+      "problem": {
+        "action": "Use --wait 30s: `prose --output json cli run submit hello.prose.md --wait 30s`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "unknown option --timeout for `cli run submit`; did you mean --wait? --wait takes a duration with a unit, so 30 is 30s",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "submit",
+            "hello.prose.md",
+            "--wait",
+            "30s"
+          ]
+        },
+        "exitCode": 2,
+        "message": "Unknown option.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

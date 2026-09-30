@@ -1,0 +1,30 @@
+{
+  "id": "create-preview-human",
+  "feature": "organizations",
+  "operation": "org.create",
+  "description": "Human --preview of `org create`: the Summary names the slug and name (no raw request body; the JSON plan carries only the digest), and the Effect says it cannot be undone because slugs are permanent.",
+  "argv": [
+    "cli",
+    "org",
+    "create",
+    "acme-research",
+    "--name",
+    "Acme Research",
+    "--preview"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "Preview: Create an organization.\nSummary: slug acme-research; name Acme Research\nEffect: creates an organization; its slug is permanent, so this cannot be undone\nNothing was changed.\n"
+  },
+  "stderr": {
+    "text": ""
+  }
+}

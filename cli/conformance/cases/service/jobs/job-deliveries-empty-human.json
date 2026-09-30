@@ -1,0 +1,39 @@
+{
+  "id": "job-deliveries-empty-human",
+  "feature": "jobs",
+  "operation": "job.deliveries",
+  "description": "No deliveries is exit 0 with an explicit line.",
+  "argv": [
+    "cli",
+    "job",
+    "deliveries",
+    "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/triggers/3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10/deliveries",
+        "status": 200,
+        "body": {
+          "deliveries": []
+        },
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "No deliveries.\n"
+  },
+  "stderr": {
+    "text": ""
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "id": "no-cli-programs-list",
+  "feature": "framework",
+  "operation": "program.list",
+  "description": "`prose programs list` (plural, no `cli`) suggests `cli program list`; the typed verb is not repeated.",
+  "argv": [
+    "--output",
+    "json",
+    "programs",
+    "list"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": null,
+      "operation": "cli",
+      "problem": {
+        "action": "Use `cli program list`: `prose --output json cli program list`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "`programs list` is not a command; did you mean `prose --output json cli program list`? Nothing was forwarded or sent. To pass these words to the OpenProse language instead, put `--` before them",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "program",
+            "list"
+          ]
+        },
+        "exitCode": 2,
+        "message": "Unknown command.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

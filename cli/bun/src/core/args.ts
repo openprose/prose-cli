@@ -1,9 +1,10 @@
 import { parsePackageCommand } from "./package-args";
 import { invocationFailure } from "./errors";
-import type { GlobalFlags, OutputMode, ParsedEntrypoint } from "./types";
+import { quote } from "./output";
+import { claims, cliRedirect, groupHelp, helpRequest, helpWithoutJson, invalidGlobalOutput, misplacedGlobals, misplacedLocalOptions, parseService, unknown, unknownOptionBeforeCli } from "./service/manifest";
+import { RunnerFailure, type GlobalFlags, type OutputMode, type ParsedEntrypoint } from "./types";
 
 const valueOptions: Record<string, keyof GlobalFlags> = {
-  "--service-environment": "serviceEnvironment",
   "--harness": "harness",
   "--transport": "transport",
   "--cwd": "cwd",
@@ -23,24 +24,23 @@ const valueOptions: Record<string, keyof GlobalFlags> = {
   "--output": "output",
 };
 
+/** Whether a token is a runner-global value option (it consumes the next token). */
+export function isValueOption(token: string): boolean {
+  return valueOptions[token] !== undefined;
+}
+
 function invalid(message: string): never {
   throw invocationFailure(message);
 }
 
 function setValue(global: GlobalFlags, key: keyof GlobalFlags, value: string, option: string): void {
-  if (key === "serviceEnvironment") {
-    if (value !== "staging" && value !== "production") invalid("Service environment must be production or staging.");
-    if (global.serviceEnvironment !== undefined) invalid("Service environment was specified more than once.");
-    global.serviceEnvironment = value;
-    return;
-  }
-  if (value.length === 0) invalid(`${option} requires a non-empty value.`);
+  if (value.length === 0) invalid(`${option} requires a value.`);
   if (key === "nativeAddDirs" || key === "nativeAllowTools") { (global[key] ??= []).push(value); return; }
   if (key === "nativeMaxTurns" || key === "nativeTimeout" || key === "nativeToolTimeout" || key === "nativeOutputBytes") {global[key]=value;return;}
   if (key === "nativeProfile") { global.nativeProfile=value; return; }
   if (key === "output") {
     if (value !== "human" && value !== "json" && value !== "jsonl") {
-      invalid(`invalid output mode ${JSON.stringify(value)}; expected human, json, or jsonl`);
+      invalid(`invalid output mode ${quote(value)}; expected human, json, or jsonl`);
     }
     global.output = value as OutputMode;
     return;
@@ -89,6 +89,11 @@ export function parseEntrypoint(args: readonly string[]): ParsedEntrypoint {
       continue;
     }
 
+    // An invalid `--output` value before `cli` is a service invocation error
+    // with a suggestion, never an alias.
+    const badGlobal = invalidGlobalOutput(args, index);
+    if (badGlobal !== undefined) return { kind: "service", global, command: badGlobal };
+
     const equals = token.indexOf("=");
     const option = equals >= 0 ? token.slice(0, equals) : token;
     const key = valueOptions[option];
@@ -111,17 +116,58 @@ export function parseEntrypoint(args: readonly string[]): ParsedEntrypoint {
   if (index >= args.length && !forcedLanguage) return { kind: "help", global };
   const tail = args.slice(index);
   if (forcedLanguage && tail.length === 0) invalid("`--` must be followed by a language command");
-  if (!forcedLanguage && tail[0] === "cli") return parseOperation(global, tail.slice(1));
+  // Service command words without `cli`, or a runner-global alias before
+  // them, never reach the language unless a file of that name makes them a
+  // language command; the caller checks `redirect.operands`.
+  // `prose help cli [COMMAND]` asks for the runner's cli help: `cli` is
+  // reserved, so it can never be a language topic.
+  // Command-local options before `cli` (`prose --json cli run list`) are
+  // never forwarded to the language.
+  const misplacedLocal = forcedLanguage ? undefined : misplacedLocalOptions(args, index, globalKind);
+  if (misplacedLocal !== undefined) return { kind: "service", global, command: misplacedLocal };
+  // Help is text in every mode: `prose help cli --json`.
+  const helped = ["help", ...tail.slice(2)];
+  const helpedText = helpWithoutJson(helped) ?? helped;
+  if (!forcedLanguage && tail[0] === "help" && tail[1] === "cli" && helpRequest(helpedText) !== undefined) {
+    return parseOperation(global, helpedText, args);
+  }
+  const redirect = forcedLanguage ? undefined : cliRedirect(args, index, globalKind);
+  if (redirect !== undefined) return { kind: "language", global, argv: ["prose", ...tail], redirect };
+  // An unknown option before `cli` and a service command is a service
+  // invocation error, never language input.
+  const unknownLeading = forcedLanguage ? undefined : unknownOptionBeforeCli(args, index, globalKind);
+  if (unknownLeading !== undefined) return { kind: "service", global, command: unknownLeading };
+  if (!forcedLanguage && tail[0] === "cli") return parseOperation(global, tail.slice(1), args);
   return { kind: "language", global, argv: ["prose", ...tail] };
 }
 
-function parseOperation(global: GlobalFlags, args: readonly string[]): ParsedEntrypoint {
-  if (args[0] === "weave") return { kind: "weave", global, argv: [...args.slice(1)] };
-  if (knownRunnerHelpPath(args)) return { kind: "help", global };
+/** Classifies a runner-global option: `true` takes a value, `false` is a flag, `undefined` is not a runner global. */
+function globalKind(name: string): boolean | undefined {
+  if (valueOptions[name] !== undefined) return true;
+  if (name === "--dry-run" || name === "--no-color" || name === "--verbose") return false;
+  return undefined;
+}
+
+function parseOperation(global: GlobalFlags, tokens: readonly string[], full: readonly string[]): ParsedEntrypoint {
+  if (tokens[0] === "weave") return { kind: "weave", global, argv: [...tokens.slice(1)] };
+  // Help is text in every mode, so `--json` beside a help request is
+  // dropped.
+  const unjson = helpWithoutJson(tokens) ?? tokens;
+  // Bare `cli`, `cli help [COMMAND]`, `cli <group> help` and a trailing `-h`
+  // read as the matching `--help`.
+  const args = helpRequest(unjson) ?? unjson;
+  const serviceHelp = groupHelp(args);
+  if (serviceHelp !== undefined) return { kind: "service", global, command: { kind: "help", text: serviceHelp } };
+  if (knownRunnerHelpPath(args.at(-1) === "-h" ? [...args.slice(0, -1), "--help"] : args)) return { kind: "help", global };
+  const misplaced = misplacedGlobals(args, full);
+  if (misplaced !== undefined) return { kind: "service", global, command: misplaced };
+  if (claims(args)) return { kind: "service", global, command: parseService(args, full) };
   if (args[0] === "harness" && args[1] === "use") {
     return parseHarnessUse(global, args.slice(2));
   }
-  const withoutJson = [...args];
+  // Account and package verbs take `--output` after the command path, like service verbs.
+  const account = args[0] === "package" || (args[0] === "auth" && ["status", "login", "logout"].includes(args[1] ?? "")) || (args[0] === "org" && args[1] === "list");
+  const withoutJson = account ? takeTrailingGlobals(global, args) : [...args];
   let json = false;
   if (withoutJson.at(-1) === "--json") {
     withoutJson.pop();
@@ -133,9 +179,6 @@ function parseOperation(global: GlobalFlags, args: readonly string[]): ParsedEnt
     if (json) invalid("Prime cleanup uses the global `--output json` option before `cli`.");
     return { kind: "operation", global, operation: "prime-cleanup", json, value: withoutJson[2]! };
   }
-  if (key === "environment show") return { kind: "operation", global, operation: "environment-show", json };
-  if (key === "environment reset") return { kind: "operation", global, operation: "environment-reset", json };
-  if (withoutJson.length === 3 && withoutJson[0] === "environment" && withoutJson[1] === "use" && ["production", "staging"].includes(withoutJson[2]!)) return { kind: "operation", global, operation: "environment-use", json, value: withoutJson[2]! };
   if (key === "doctor") return { kind: "operation", global, operation: "doctor", json };
   if (key === "harness list") return { kind: "operation", global, operation: "harness-list", json };
   if (key === "config explain") return { kind: "operation", global, operation: "config-explain", json };
@@ -143,7 +186,40 @@ function parseOperation(global: GlobalFlags, args: readonly string[]): ParsedEnt
   if (key === "auth status") return { kind: "operation", global, operation: "auth-status", json };
   if (key === "auth login") return { kind: "operation", global, operation: "auth-login", json };
   if (key === "auth logout") return { kind: "operation", global, operation: "auth-logout", json };
-  invalid(`Unknown runner operation: cli${key.length === 0 ? "" : ` ${key}`}.`);
+  return { kind: "service", global, command: unknown(args, full) };
+}
+
+/**
+ * Moves `--output` (separate or `=` value) found
+ * after an account or package command path into the globals, the way service
+ * verbs read them. The same value before and after `cli` is
+ * accepted; different values are an invocation error. Other tokens are
+ * returned in order for the command's own parser.
+ */
+function takeTrailingGlobals(global: GlobalFlags, tokens: readonly string[]): string[] {
+  const rest: string[] = [];
+  for (let index = 0; index < tokens.length;) {
+    const token = tokens[index]!;
+    const equals = token.indexOf("=");
+    const name = equals >= 0 ? token.slice(0, equals) : token;
+    if (name !== "--output") {
+      rest.push(token);
+      index += 1;
+      continue;
+    }
+    const value = equals >= 0 ? token.slice(equals + 1) : tokens[index + 1];
+    if (value === undefined) invalid(`${name} requires a value.`);
+    index += equals >= 0 ? 1 : 2;
+    const twice = (): never => { throw withInvocationAction(invocationFailure(`${name} was given twice with different values`), `Pass ${name} once, with the value you mean.`); };
+    const before = global.output;
+    setValue(global, "output", value, name);
+    if (before !== undefined && before !== global.output) twice();
+  }
+  return rest;
+}
+
+function withInvocationAction(error: RunnerFailure, action: string): RunnerFailure {
+  return new RunnerFailure({ code: error.code, boundary: error.boundary, message: error.message, action, exitCode: error.exitCode, retryable: error.retryable, ...(error.details === undefined ? {} : { details: error.details }) });
 }
 
 function parseHarnessUse(global: GlobalFlags, args: readonly string[]): ParsedEntrypoint {
@@ -191,28 +267,10 @@ function knownRunnerHelpPath(args: readonly string[]): boolean {
     "cleanup prime --help",
     "config --help",
     "config explain --help",
-    "environment --help",
-    "environment show --help",
-    "environment use --help",
-    "environment reset --help",
-    "environment use staging --help",
-    "environment use production --help",
-    "package --help",
-    "package publish --help",
-    "package fetch --help",
-    "package list --help",
-    "package withdraw --help",
-    "org --help",
-    "org list --help",
-    "auth --help",
-    "auth status --help",
-    "auth login --help",
-    "auth logout --help",
   ]).has(key)) return true;
   return args.length === 4
     && (
       (args[0] === "harness" && args[1] === "use")
-      || (args[0] === "package" && ["publish", "fetch", "list", "withdraw"].includes(args[1]!))
       || (args[0] === "cleanup" && args[1] === "prime")
     )
     && args[2]!.length > 0

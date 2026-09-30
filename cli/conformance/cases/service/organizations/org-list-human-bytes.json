@@ -1,0 +1,56 @@
+{
+  "id": "org-list-human-bytes",
+  "feature": "organizations",
+  "operation": "org.list",
+  "description": "Human org list prints `slug  role  name` rows (`-` without a role) on stdout and nothing on stderr, byte-identical in both products.",
+  "argv": [
+    "cli",
+    "org",
+    "list"
+  ],
+  "environment": {
+    "OPENPROSE_API_KEY": "rr_test_0123456789abcdef0123456789abcdef"
+  },
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/organizations",
+        "status": 200,
+        "body": {
+          "organizations": [
+            {
+              "id": "org_ExampleOwner01",
+              "slug": "exowner1",
+              "name": "Example Owner",
+              "role": "admin"
+            },
+            {
+              "id": "org_ExampleAcme001",
+              "slug": "acme-research",
+              "name": "Acme Research"
+            }
+          ]
+        },
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "exowner1  admin  Example Owner\nacme-research  -  Acme Research\n"
+  },
+  "stderr": {
+    "text": ""
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

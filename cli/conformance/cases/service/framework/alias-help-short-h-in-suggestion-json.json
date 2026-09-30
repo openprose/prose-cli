@@ -1,0 +1,51 @@
+{
+  "id": "alias-help-short-h-in-suggestion-json",
+  "feature": "framework",
+  "operation": "repo.list",
+  "description": "A corrected command that asked for help suggests that command's `--help` alone: `cli list repo -h` -> `cli repo list --help`. (JSON envelope)",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "list",
+    "repo",
+    "-h"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": null,
+      "operation": "cli",
+      "problem": {
+        "action": "Use `cli repo list`: `prose --output json cli repo list --help`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "unknown command `cli list repo`; the command word comes first: did you mean `cli repo list`?",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "repo",
+            "list",
+            "--help"
+          ]
+        },
+        "exitCode": 2,
+        "message": "Unknown command.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

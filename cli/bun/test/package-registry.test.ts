@@ -48,13 +48,33 @@ test("strict format rejects collisions, unsafe paths, encodings, unknown fields 
     (value: any) => { value.manifest.dependencies.x = { organization: "example", package: "x", version: "^1.0.0", sha256: "a".repeat(64) }; },
   ]) { const changed = structuredClone(source); mutate(changed); expect(() => preparePackage(changed)).toThrow(); }
 });
-test("package grammar rejects unknown duplicate and misplaced flags", () => {
-  for (const args of [["list", "example", "--public"], ["withdraw", "example/a@1.0.0", "--cursor", "x"], ["fetch", "example/a@1.0.0"], ["publish", "a", "--organization", "example", "--organization", "example"], ["list", "example", "--cursor", "x", "--cursor", "y"]]) expect(() => parsePackageCommand(args)).toThrow();
+test("package grammar names each unknown, duplicate, missing and misplaced flag", () => {
+  const cases: Array<[string[], string]> = [
+    [["list", "example", "--public"], "package list does not take --public; its options are --cursor"],
+    [["withdraw", "example/a@1.0.0", "--cursor", "x"], "package withdraw does not take --cursor; it takes no options"],
+    [["fetch", "example/a@1.0.0"], "package fetch needs --output-dir FRESH_DIR, a new directory to create"],
+    [["publish", "a", "--organization", "example", "--organization", "example"], "--organization was given twice"],
+    [["list", "example", "--cursor", "x", "--cursor", "y"], "--cursor was given twice"],
+    [["list"], "package list needs ORG, the organization whose public packages to list"],
+    [["list", "Example"], 'ORG "Example" is not a valid slug (lowercase letters, digits and inner hyphens, at most 63 characters)'],
+    [["list", "example", "--cursor", "x"], '--cursor "x" is not a cursor from package list; pass the nextCursor value the previous page printed'],
+    [["fetch", "example/a", "--output-dir", "d"], '"example/a" is not ORG/NAME@VERSION (for example acme/tool@1.2.0)'],
+    [["fetch", "example/a@1.0", "--output-dir", "d"], 'VERSION "1.0" is not an exact semantic version (for example 1.2.0)'],
+    [["fetch", "example/a@1.0.0", "--output-dir", "d", "--sha256", "zz"], "--sha256 must be 64 lowercase hexadecimal digits"],
+    [["list", "example", "extra"], 'unexpected argument "extra"; package list takes one ORG'],
+    [["list", "example", "--json", "--cursor", "public:a:1.0.0"], "--json must be the last argument"],
+    [["publish", "a", "--public=yes"], "--public takes no value"],
+    [["fetch", "example/a@1.0.0", "--output-dir"], "--output-dir needs a value"],
+  ];
+  for (const [args, reason] of cases) expect(parsePackageCommand(args).invalid).toBe(reason);
+  expect(parsePackageCommand(["list", "example", "--cursor=public:a:1.0.0"])).toEqual({ operation: "list", input: "example", cursor: "public:a:1.0.0" });
+  expect(() => parsePackageCommand(["frob"])).toThrow();
+  expect(() => parsePackageCommand([])).toThrow();
 });
 test("single publish uploads exact canonical bytes and hash to production account origin", async () => workspace(async (root, invoke) => {
   await writeFile(join(root, "hello.md"), "# Hello\n");
   const result = await invoke(publishArgs, transport([{ method: "POST", path: `${base}/hello/versions`, origin: "https://run-prose-production.openprose.workers.dev", status: 201, expectedBody: await raw("single-file.canonical.json"), expectedSha256: (await data("hash-vectors.json"))[0].sha256, body: await data("single-file.receipt.json") }]));
-  expect(result.code).toBe(0); expect(result.report.environment).toBe("production"); expect(result.stderr).toBe("");
+  expect(result.code).toBe(0); expect(result.report.schema).toBe("openprose.service-operation/1"); expect(result.report.operation).toBe("package.publish"); expect(result.report).not.toHaveProperty("environment"); expect(result.stderr).toBe("");
 }));
 test("directory publish explicitly selects bytes and retains exact build metadata", async () => workspace(async (root, invoke) => {
   const source = await data("directory.json");
@@ -100,15 +120,14 @@ test("pagination allows public receipts only and reports opaque cursor", async (
   const bad = await invoke(["cli", "package", "list", "example", "--json"], transport([{ method: "GET", path: base, status: 200, body: { packages: [await data("single-file.receipt.json")], nextCursor: null } }]));
   expect(bad.report.problem.code).toBe("SERVICE_PROTOCOL_INVALID");
 }));
-test("anonymous read allowed on unavailable store; write requires credentials; staging persists", async () => workspace(async (root, invoke) => {
+test("anonymous read allowed on unavailable store; write requires credentials; production only", async () => workspace(async (root, invoke) => {
   const list = [{ method: "GET", path: base, status: 200, body: { packages: [], nextCursor: null } }];
   expect((await invoke(["cli", "package", "list", "example", "--json"], transport(list, { storeAvailable: false }))).code).toBe(0);
   await writeFile(join(root, "hello.md"), "# Hello\n");
   expect((await invoke(publishArgs)).report.problem.code).toBe("SERVICE_AUTH_REQUIRED");
-  await invoke(["cli", "environment", "use", "staging", "--json"]);
-  const result = await invoke(["cli", "package", "list", "example", "--json"], transport(list, { environment: "staging", credentials: { staging: token, production: null } }), { OPENPROSE_API_KEY: "malformed" });
-  expect(result.report.environment).toBe("staging"); expect(result.code).toBe(0); expect(result.stderr).toBe("");
-  const human = await invoke(["cli", "package", "list", "example"], transport(list, { environment: "staging" })); expect(human.stderr).toContain("OpenProse staging");
+  const result = await invoke(["cli", "package", "list", "example", "--json"], transport(list, { environment: "production", credentials: { production: token } }), { OPENPROSE_API_URL: "https://example.invalid" });
+  expect(result.report).not.toHaveProperty("environment"); expect(result.report).not.toHaveProperty("lane"); expect(result.code).toBe(0); expect(result.stderr).toBe("");
+  const human = await invoke(["cli", "package", "list", "example"], transport(list, { environment: "production" })); expect(human.stderr).toBe("");
 }));
 test("selected malformed credential and exhausted fixture fail closed without response reflection", async () => workspace(async (_root, invoke) => {
   const result = await invoke(["cli", "package", "list", "example", "--json"], transport([]), { OPENPROSE_API_KEY: "bad-secret-value" });

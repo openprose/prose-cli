@@ -1,0 +1,58 @@
+{
+  "id": "repo-list-github-link-required",
+  "feature": "discovery",
+  "operation": "repo.list",
+  "description": "A key whose account has no GitHub link: its 401 `Reconnect GitHub` is GITHUB_LINK_REQUIRED (exit 10), not a bad key.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "repo",
+    "list"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/repos",
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef",
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          },
+          "Accept": "application/json"
+        },
+        "status": 401,
+        "body": {
+          "error": "Reconnect GitHub to list repositories"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "schema": "openprose.service-operation/1",
+      "operation": "repo.list",
+      "interaction": "repos.list",
+      "result": null,
+      "problem": {
+        "schema": "openprose.runner-error/1",
+        "code": "GITHUB_LINK_REQUIRED",
+        "boundary": "authentication",
+        "exitCode": 10,
+        "retryable": false,
+        "message": "This operation needs a linked GitHub account on the OpenProse account.",
+        "action": "Link or reconnect GitHub for this account in the OpenProse web app, then retry; the API key itself is valid.",
+        "details": {
+          "serviceStatus": 401
+        }
+      }
+    }
+  }
+}

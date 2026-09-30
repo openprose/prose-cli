@@ -1,0 +1,55 @@
+{
+  "id": "alias-share-with-email-json",
+  "feature": "framework",
+  "operation": "run.share",
+  "description": "`cli run share RUN_ID --with EMAIL --yes` never hands back a public-link argv: the Action says the link is public and unrevocable and names `cli org invite`, and the suggestion is `--preview` without `--yes`. (JSON envelope)",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "share",
+    "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+    "--with",
+    "bob@example.com",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "run.share",
+      "operation": "run.share",
+      "problem": {
+        "action": "`cli run share` makes a public, unrevocable 24-hour link, and `cli org invite` gives one person access; preview the link first: `prose --output json cli run share run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c --preview`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "unknown option --with for `cli run share`; `cli run share` mints a public, unrevocable 24-hour link that anyone who has it can open; it is not shared with one person",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "share",
+            "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+            "--preview"
+          ]
+        },
+        "exitCode": 2,
+        "message": "Unknown option.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

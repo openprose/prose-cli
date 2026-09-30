@@ -1,0 +1,32 @@
+{
+  "id": "create-slug-option-suggests-argument",
+  "feature": "organizations",
+  "operation": "org.create",
+  "description": "`--slug` names the SLUG argument of `cli org create`; the suggestion passes it as the argument.",
+  "argv": [
+    "cli",
+    "org",
+    "create",
+    "--name",
+    "Acme Research",
+    "--slug",
+    "acme-research",
+    "--preview"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: Unknown option.\nDetail: unknown option --slug for `cli org create`; <SLUG> is an argument, not an option\nAction: Pass <SLUG> as an argument: `prose cli org create acme-research --name 'Acme Research' --preview`.\n"
+  },
+  "suggestedArgvReaches": true
+}

@@ -1,0 +1,51 @@
+{
+  "id": "package-list-invalid-org",
+  "feature": "account",
+  "operation": "package.list",
+  "description": "An ORG that is not a slug is INVOCATION_INVALID naming the value and the slug rule, in the service-operation envelope (both ports).",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "package",
+    "list",
+    "Acme_Research"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "registry.gateway",
+      "operation": "package.list",
+      "problem": {
+        "action": "Correct the value named in Detail; `prose --output json cli package list --help` shows the accepted syntax.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "ORG \"Acme_Research\" is not a valid slug (lowercase letters, digits and inner hyphens, at most 63 characters)",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "package",
+            "list",
+            "--help"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

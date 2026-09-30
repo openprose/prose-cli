@@ -451,11 +451,11 @@ Additional local qualification leases at 14:45 Eastern: weave_parity owns the no
 
 The user extended local implementation through20:00Eastern. Root owns Git and integration on codex/imp-026-local; no publication/backend changes. weave_onboarding owns exactly `experiments/weave-seed/distribution/install.py`, `test_install.py`, and `INSTALL.md`: explicit offline integrity-checked private installation into a fresh destination, side-by-side upgrades only, no PATH mutation, provider execution or implicit configuration migration. Root owns links/packaging integration and qualification. weave_parity is read-only reviewing reserved-namespace integration until a separate exact lease and corpus are recorded.
 
-At16:05Eastern root assigns weave_parity exactly `cli/SPEC.md`, `cli/protocol/decisions/imp026-weave-host.md`, and `cli/shared/fixtures/weave-host-v1.json` for corpus-first reserved `cli weave --host-binding` bridge design. No parser implementation yet. The bridge delegates opaque local operations to an explicit digest-pinned executable, independent of language initialization. Root owns integration and subsequent per-port leases; existing contributor records remain unchanged.
+At16:05Eastern root assigns weave_parity exactly `cli/SPEC.md`, `cli/protocol/decisions/weave-host.md`, and `cli/shared/fixtures/weave-host-v1.json` for corpus-first reserved `cli weave --host-binding` bridge design. No parser implementation yet. The bridge delegates opaque local operations to an explicit digest-pinned executable, independent of language initialization. Root owns integration and subsequent per-port leases; existing contributor records remain unchanged.
 
 ## IMP-026 bridge implementation — September 18, 16:20 Eastern
 
-Root accepts the corpus-first host bridge contract in `cli/protocol/decisions/imp026-weave-host.md` and `cli/shared/fixtures/weave-host-v1.json` for isolated implementation, not release. Root owns Git, shared corpus and integration. Exact superseding leases in this worktree only:
+Root accepts the corpus-first host bridge contract in `cli/protocol/decisions/weave-host.md` and `cli/shared/fixtures/weave-host-v1.json` for isolated implementation, not release. Root owns Git, shared corpus and integration. Exact superseding leases in this worktree only:
 - weave_parity: `cli/rust/crates/prose-runner-core/src/invocation.rs`, `cli/rust/crates/prose-cli/src/main.rs`, new `cli/rust/crates/prose-cli/src/weave_host.rs`, and new `cli/rust/crates/prose-cli/tests/weave_host.rs`. No dependency changes without root coordination.
 - weave_stress: `cli/bun/src/core/args.ts`, `cli/bun/src/core/types.ts`, `cli/bun/src/cli.ts`, new `cli/bun/src/core/weave-host.ts`, and new `cli/bun/test/weave-host.test.ts`.
 - weave_onboarding: new `cli/shared/tests/weave_host_process.py` and its fixture-only helper file `cli/shared/tests/weave_host_fixture.py`; independent black-box corpus consumer.
@@ -511,10 +511,37 @@ Root integration also owns `docs/staging-account.md`, `cli/conformance/runner/se
 
 ## IMP-034 registry CLI implementation
 
-Root owns Git, shared fixtures/spec/protocol/schemas/corpus, docs and integration on codex/imp-034-registry-cli (stacked on environment candidate). `environment_bun` owns `cli/bun/src/` and `cli/bun/test/`; `environment_rust` owns Rust runner-core/prose-cli source and tests, for package publish/fetch/list/withdraw per `protocol/decisions/imp034-registry-cli.md`. No dependency changes without root coordination. No live credentials, paid calls, publication or deployment. Existing environment implementation is the starting point and must remain intact.
+Root owns Git, shared fixtures/spec/protocol/schemas/corpus, docs and integration on codex/imp-034-registry-cli (stacked on environment candidate). `environment_bun` owns `cli/bun/src/` and `cli/bun/test/`; `environment_rust` owns Rust runner-core/prose-cli source and tests, for package publish/fetch/list/withdraw per `protocol/decisions/registry-cli.md`. No dependency changes without root coordination. No live credentials, paid calls, publication or deployment. Existing environment implementation is the starting point and must remain intact.
 
 Root adds the fs feature to already pinned rustix in runner-core Cargo.toml for safe no-clobber materialization; no new dependency/version.
 
 Root additionally assigns `environment_bun` `cli/README.md`, `cli/conformance/runner/README.md`, `cli/conformance/cases/fixtures/runner-help.txt`, `cli/ci/check_architecture.py` (exact module builtin admissions only), `cli/ci/run_local.py` (registry oracle gates), and `cli/shared/schemas/README.md` for registry developer documentation and shared integration gates. Rust help/source changes remain coordinated with `environment_rust`; root retains Git and schema/taxonomy validation.
 
 Root extends the integration lease to `cli/ci/test_run_local.py` for the explicit service/environment/registry gate inventory assertion.
+
+## IMP-061 isolated corrective review — September 30, 2026
+
+Codex is the user-assigned lead in this isolated corrective branch. The lead owns Git/index operations, this registry, and the following exact corrective paths: `cli/bun/src/core/service/http.ts`, `cli/bun/src/core/service/proxy.ts`, `cli/bun/test/proxy-selection.test.ts`, `cli/bun/test/service-proxy.test.ts`, `cli/shared/fixtures/transport/proxy-selection.json`, `cli/conformance/runner/service_operations.py`, `cli/rust/crates/prose-runner-core/src/service/journal.rs`, `cli/bun/src/core/service/journal.ts`, `docs/cli-pr-review.md`, `docs/validation/**`, `cli/ci/check_public_surface.py`, `cli/ci/public_surface_denylist.py`, `cli/ci/test_check_public_surface.py`. Existing historical leases are preserved; no shared worktree is being edited. Scope is provider-free qualification and fixes for PRs 10/11; no merge, release, deployment, or model run is assigned.
+
+Lease extension: `cli/bun/src/core/service-account.ts` for the same explicit proxy selection, and `docs/validation/imp-014/README.md`, `docs/validation/imp-034/README.md` for immutable historical evidence navigation.
+
+Lease extension: `cli/bun/src/core/service/fetch.ts` for a direct Node transport that cannot inherit Bun proxy defaults.
+
+Lease extension: `cli/bun/package.json`, `cli/bun/bun.lock`, `cli/ci/check_dependencies.py`, `cli/ci/check_architecture.py`, `cli/ci/test_check_dependencies.py`, `cli/ci/test_check_architecture.py` for an exact HTTP transport dependency. Pinned Bun proxy behavior cannot implement the existing shared rules; this dependency is necessary to this fix and does not upgrade the runtime.
+
+Lease extension: `cli/bun/test/service-account.test.ts` to inject the explicit service transport instead of the replaced global fetch.
+
+Lease extension: `cli/rust/crates/prose-runner-core/src/service/runs.rs` for clearer recovery-argument construction at the falsely classified CodeQL sink.
+
+Lease extension: `docs/hosted-client-qualification.md` for the maintained corrective verification record. The experimental environment-mutation and Node HTTP prototypes were discarded; the final candidate uses the pinned raw transport dependency.
+Codex is the user-assigned lead in this isolated corrective branch. The lead owns Git/index operations, this registry, and the following exact corrective paths: `cli/shared/schemas/adapter-admission-recipe.schema.json`, `cli/conformance/cases/adapters/claude-*.json`, `cli/conformance/runner/run.py`, `cli/conformance/fixtures/installed-adapter-harness.py`, `cli/conformance/runner/test_runner.py`, `docs/cli-pr-review.md`, `cli/CONTRIBUTING.md`. Existing historical leases are preserved; no shared worktree is being edited. Scope is provider-free qualification and fixes for PRs 10/11; no merge, release, deployment, or model run is assigned.
+
+Lease extension: `cli/conformance/cases/case-manifest.schema.json`, `cli/conformance/adversarial/adapter-products/fake_live_harness.py`, `cli/shared/tests/test_contracts.py` for shared Claude compatibility fixture controls and schema tests.
+
+Lease extension: `cli/rust/crates/prose-runner-core/src/installed_adapters.rs` for shared session-rejection diagnostics established by the new negative corpus cases.
+
+Lease extension: `cli/conformance/fixtures/adapter-host-expectations.json` to preserve platform rejection for the two new shared cases.
+
+Lease extension: `docs/claude-compatibility-qualification.md` for the maintained corrective verification record.
+
+IMP-061 local integration: Codex owns conflict resolution and formatting in `cli/rust/crates/prose-runner-core/src/installed_adapters.rs`, plus this ownership record and `docs/integration-qualification.md`. Preserve PR 11 compatibility behavior. No remote merge or publication is authorized.

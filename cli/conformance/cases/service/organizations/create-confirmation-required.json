@@ -1,0 +1,79 @@
+{
+  "id": "create-confirmation-required",
+  "feature": "organizations",
+  "operation": "org.create",
+  "description": "`org create` without --yes sends nothing and exits 2 with the exact planned request (every organization mutation is confirm-class).",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "org",
+    "create",
+    "acme-research",
+    "--name",
+    "Acme Research"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "organizations.manage",
+      "operation": "org.create",
+      "problem": {
+        "action": "Rerun the same command with --yes to confirm, or with --preview to see what it would do without sending anything.",
+        "boundary": "invocation",
+        "code": "CONFIRMATION_REQUIRED",
+        "details": {
+          "confirmArgv": [
+            "--output",
+            "json",
+            "cli",
+            "org",
+            "create",
+            "acme-research",
+            "--name",
+            "Acme Research",
+            "--yes"
+          ],
+          "plannedRequest": {
+            "bodyBytes": 47,
+            "bodySha256": "738711924a44a50369830c1c4f44ff211584e8c135605bffeb591f3afe9653d7",
+            "description": "Create an organization.",
+            "effect": "write",
+            "method": "POST",
+            "operation": "org.create",
+            "summary": {
+              "name": "Acme Research",
+              "slug": "acme-research"
+            }
+          },
+          "previewArgv": [
+            "--output",
+            "json",
+            "cli",
+            "org",
+            "create",
+            "acme-research",
+            "--name",
+            "Acme Research",
+            "--preview"
+          ],
+          "reason": "--yes is required because the organization slug is global and permanent; it cannot be changed or deleted later"
+        },
+        "exitCode": 2,
+        "message": "This service operation requires explicit confirmation.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

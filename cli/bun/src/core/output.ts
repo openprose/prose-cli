@@ -43,6 +43,46 @@ function humanSafe(value: string, preserveLineFeeds: boolean): string {
   return rendered;
 }
 
+/**
+ * Makes a runner-authored reason safe for a human `Detail:` line. Unlike
+ * humanSafeScalar, backslashes are kept: a value inside the reason was already
+ * escaped by {@link quote}, and escaping it again would double every
+ * backslash. Raw control characters are still made visible.
+ */
+export function humanSafeDetail(value: string): string {
+  let rendered = "";
+  for (const character of value) rendered += character === "\\" ? character : humanSafe(character, false);
+  return rendered;
+}
+
+/** Whether {@link quote} escapes a code point as \uXXXX. */
+function quoteEscapes(codePoint: number): boolean {
+  return codePoint <= 0x1f || (codePoint >= 0x7f && codePoint <= 0x9f) || codePoint === 0xad || codePoint === 0x61c
+    || codePoint === 0x180e || (codePoint >= 0x200b && codePoint <= 0x200f) || (codePoint >= 0x2028 && codePoint <= 0x202e)
+    || (codePoint >= 0x2060 && codePoint <= 0x206f) || codePoint === 0xfeff || (codePoint >= 0xfff9 && codePoint <= 0xfffb)
+    || (codePoint >= 0xe0000 && codePoint <= 0xe007f) || (codePoint >= 0xd800 && codePoint <= 0xdfff);
+}
+
+/**
+ * Quotes one user-supplied value inside a reason or message, identically in
+ * both ports (shared/fixtures/human/quoted-strings.json): JSON string
+ * escaping, plus \uXXXX escapes for DEL, C1 controls and the invisible
+ * format, bidi and tag characters (astral ones as a UTF-16 surrogate pair),
+ * and for a lone surrogate.
+ */
+export function quote(value: string): string {
+  const named: Record<string, string> = { "\"": "\\\"", "\\": "\\\\", "\b": "\\b", "\f": "\\f", "\n": "\\n", "\r": "\\r", "\t": "\\t" };
+  let quoted = "\"";
+  for (const character of value) {
+    const escape = named[character];
+    if (escape !== undefined) quoted += escape;
+    else if (quoteEscapes(character.codePointAt(0)!)) {
+      for (let index = 0; index < character.length; index += 1) quoted += `\\u${character.charCodeAt(index).toString(16).padStart(4, "0")}`;
+    } else quoted += character;
+  }
+  return `${quoted}"`;
+}
+
 function hasTerminalControl(value: string): boolean {
   return [...value].some((character) => {
     const codePoint = character.codePointAt(0)!;
@@ -64,15 +104,44 @@ export function humanRunnerExecutable(): string {
 
 let cachedDefaultRunnerInvocation: string | undefined;
 
-function canonicalJson(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
-  if (value !== null && typeof value === "object") {
-    const record = value as Record<string, unknown>;
-    return `{${Object.keys(record).sort().map((key) => `${JSON.stringify(key)}:${canonicalJson(record[key])}`).join(",")}}`;
-  }
-  const encoded = JSON.stringify(value);
+/**
+ * The canonical JSON text both products print:
+ * object keys sorted recursively, which is what Rust's serde_json emits for a
+ * `serde_json::Value` (a BTreeMap). JSON.stringify semantics otherwise:
+ * `toJSON` is honored, undefined/function members are dropped from objects
+ * and become null in arrays. A hand-built walk rather than a sorting replacer,
+ * because a JS object always lists integer-like keys ("2", "10") first in
+ * numeric order, while BTreeMap orders them as strings. `indent` 2 matches
+ * serde_json's `to_string_pretty`.
+ */
+export function canonicalJson(value: unknown, indent = 0): string {
+  const encoded = canonicalValue(value, indent, "");
   if (encoded === undefined) throw new Error("value is not canonical JSON");
   return encoded;
+}
+
+function canonicalValue(input: unknown, indent: number, depth: string): string | undefined {
+  let value = input;
+  if (value !== null && typeof value === "object" && typeof (value as { toJSON?: unknown }).toJSON === "function") {
+    value = (value as { toJSON(): unknown }).toJSON();
+  }
+  if (value === undefined || typeof value === "function" || typeof value === "symbol") return undefined;
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  const inner = indent > 0 ? `${depth}${" ".repeat(indent)}` : "";
+  const open = indent > 0 ? `\n${inner}` : "";
+  const separator = indent > 0 ? `,\n${inner}` : ",";
+  const close = indent > 0 ? `\n${depth}` : "";
+  if (Array.isArray(value)) {
+    if (value.length === 0) return "[]";
+    return `[${open}${value.map((item) => canonicalValue(item, indent, inner) ?? "null").join(separator)}${close}]`;
+  }
+  const record = value as Record<string, unknown>;
+  const members: string[] = [];
+  for (const key of Object.keys(record).sort()) {
+    const encoded = canonicalValue(record[key], indent, inner);
+    if (encoded !== undefined) members.push(`${JSON.stringify(key)}:${indent > 0 ? " " : ""}${encoded}`);
+  }
+  return members.length === 0 ? "{}" : `{${open}${members.join(separator)}${close}}`;
 }
 
 function record(value: unknown): Record<string, unknown> | undefined {
@@ -249,8 +318,9 @@ export function humanRunnerCommand(arguments_: string): string {
     : `${invocation} ${arguments_}`;
 }
 
+/** One JSON or JSONL stdout line: canonical (sorted keys), as Rust prints it. */
 export function jsonLine(value: unknown): string {
-  return `${JSON.stringify(value)}\n`;
+  return `${canonicalJson(value)}\n`;
 }
 
 export function formatHumanError(error: RunnerErrorShape): string {
@@ -260,7 +330,7 @@ export function formatHumanError(error: RunnerErrorShape): string {
     ? `\nSource: ${humanSafeScalar(sourceValue)}`
     : error.boundary === "configuration" ? "\nSource: unavailable" : "";
   const reason = reasonValue !== undefined
-    ? `\nDetail: ${humanSafeScalar(reasonValue)}`
+    ? `\nDetail: ${humanSafeDetail(reasonValue)}`
     : error.boundary === "configuration" ? "\nDetail: unavailable" : "";
   const version = humanVersionRepairDetails(error).map((line) => `\n${line}`).join("");
   const cleanupArgv = error.details?.cleanupArgv;
@@ -273,7 +343,7 @@ export function formatHumanError(error: RunnerErrorShape): string {
     && validRecoveryHandle(cleanupArgv[3])
     ? `\nRecovery: preserve the original temporary-root environment, then run: ${humanRunnerCommand(`cli cleanup prime ${cleanupArgv[3]}`)}`
     : "";
-  return `[${humanSafeScalar(error.boundary)}] ${humanSafeScalar(error.code)}: ${humanSafeScalar(error.message)}${source}${reason}${version}\nAction: ${humanAction(error)}${recovery}\n`;
+  return `${humanSafeScalar(error.code)} at ${humanSafeScalar(error.boundary)}: ${humanSafeScalar(error.message)}${source}${reason}${version}\nAction: ${humanAction(error)}${recovery}\n`;
 }
 
 export function humanAction(error: Pick<RunnerErrorShape, "action">): string {
@@ -362,4 +432,36 @@ export function humanConfiguration(config: EffectiveConfiguration): string {
 
 export function machineMode(mode: OutputMode): boolean {
   return mode === "json" || mode === "jsonl";
+}
+
+/**
+ * Renders a shared human layout (for example shared/fixtures/human/dry-run.v1.txt):
+ * `{name}` placeholders take already terminal-safe values, a line starting
+ * with `?` is printed only when every placeholder in it has a value, and a
+ * line starting with `*` repeats once per item of its single list
+ * placeholder. The Rust port implements the same rules.
+ */
+export function renderHumanTemplate(template: string, values: Readonly<Record<string, string | undefined>>, lists: Readonly<Record<string, readonly string[]>> = {}): string {
+  const names = (line: string) => [...line.matchAll(/\{([^{}]*)\}/gu)].map((match) => match[1]!);
+  let output = "";
+  for (const raw of template.split("\n")) {
+    if (raw === "") continue;
+    if (raw.startsWith("*")) {
+      const line = raw.slice(1);
+      const name = names(line)[0] ?? "";
+      for (const item of lists[name] ?? []) output += `${line.split(`{${name}}`).join(item)}\n`;
+      continue;
+    }
+    const optional = raw.startsWith("?");
+    const line = optional ? raw.slice(1) : raw;
+    let rendered = line;
+    let complete = true;
+    for (const name of names(line)) {
+      const value = values[name];
+      if (value === undefined) complete = false;
+      else rendered = rendered.split(`{${name}}`).join(value);
+    }
+    if (complete || !optional) output += `${rendered}\n`;
+  }
+  return output;
 }

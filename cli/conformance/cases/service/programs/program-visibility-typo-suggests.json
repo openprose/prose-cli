@@ -1,0 +1,58 @@
+{
+  "id": "program-visibility-typo-suggests",
+  "feature": "programs",
+  "operation": "program.visibility",
+  "description": "A misspelt VISIBILITY is INVOCATION_INVALID before any request and names the nearest value.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "program",
+    "visibility",
+    "demo",
+    "pubic",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "program.set_visibility",
+      "operation": "program.visibility",
+      "problem": {
+        "action": "Use public: `prose --output json cli program visibility demo public --yes`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "VISIBILITY \"pubic\" must be public or private; did you mean public?",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "program",
+            "visibility",
+            "demo",
+            "public",
+            "--yes"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

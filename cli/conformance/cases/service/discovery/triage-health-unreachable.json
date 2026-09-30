@@ -1,0 +1,84 @@
+{
+  "id": "triage-health-unreachable",
+  "feature": "discovery",
+  "operation": "service.triage",
+  "description": "When /health gets no response at all the service is unreachable: account sections are skipped (null, no further requests) and the next step retries `service status`; exit 0.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "service",
+    "triage"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/health",
+        "requestHeaders": {
+          "Authorization": {
+            "present": false
+          },
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          }
+        },
+        "status": 200,
+        "disconnect": "before-response"
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "health.read",
+      "operation": "service.triage",
+      "problem": null,
+      "result": {
+        "credential": {
+          "problem": null,
+          "source": "store",
+          "state": "unverified",
+          "variable": "OPENPROSE_API_KEY"
+        },
+        "health": {
+          "problem": {
+            "action": "Check your network connection and retry later.",
+            "boundary": "hosted-service",
+            "code": "SERVICE_UNAVAILABLE",
+            "details": {
+              "reason": "the connection to the service failed before a complete response arrived"
+            },
+            "exitCode": 10,
+            "message": "The OpenProse service is unavailable.",
+            "retryable": true,
+            "schema": "openprose.runner-error/1"
+          }
+        },
+        "jobs": null,
+        "nextCommands": [
+          {
+            "argv": [
+              "--output",
+              "json",
+              "cli",
+              "service",
+              "status"
+            ],
+            "env": null,
+            "why": "the service did not respond; check your network connection, then retry"
+          }
+        ],
+        "organization": null,
+        "runs": null,
+        "wallet": null
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

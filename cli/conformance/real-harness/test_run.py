@@ -95,10 +95,10 @@ class RealHarnessRunnerTest(unittest.TestCase):
                 executable=self.fake.resolve(),
                 env_file=None,
                 output_dir=output,
-                route=["prime-openai-luna"],
+                route=["prime-openai"],
             )
             self.assertEqual(0, runner.command_run(args))
-            evidence = runner.read_json(output / "prime-openai-luna.evidence.json")
+            evidence = runner.read_json(output / "prime-openai.evidence.json")
         serialized = json.dumps(evidence)
         self.assertNotIn(str(self.fake.resolve()), serialized)
         self.assertNotIn("/" + "Users/sl/", serialized)

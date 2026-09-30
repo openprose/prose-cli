@@ -6,17 +6,21 @@ import { publishedKernel } from "./core/kernel-startup";
 import {nativeOutputLimits} from "./adapters/output-budget";
 import {nativeLimits} from "./adapters/sdk-limits";
 import { nativeConfiguration } from "./adapters/native-profile";
-import { parseEntrypoint, inferOutputMode } from "./core/args";
+import { parseEntrypoint, inferOutputMode, isValueOption } from "./core/args";
 import { embeddedRuntimeImage } from "./assets/sentinel";
 import runnerHelp from "../../conformance/cases/fixtures/runner-help.txt" with { type: "text" };
+import dryRunTemplate from "../../shared/fixtures/human/dry-run.v1.txt" with { type: "text" };
 import deterministicMockDescriptor from "../../shared/fixtures/transport/deterministic-mock-adapter.json" with { type: "json" };
 import fakeProcessDescriptor from "../../shared/fixtures/transport/mock-adapter.json" with { type: "json" };
-import { resolveConfiguration, resolveServiceEnvironment, writeUserServiceEnvironment, writeUserHarnessSelection } from "./core/config";
+import { resolveConfiguration, writeUserHarnessSelection } from "./core/config";
+import { serviceEnvironment } from "./core/service/endpoint";
 import { failure } from "./core/errors";
+import { argvErrorOutcome, runService } from "./core/service/index";
+import type { ServiceCommand } from "./core/service/manifest";
 import { harnessById, harnesses, type HarnessDescriptor } from "./core/harnesses";
 import { canonicalJson, sha256, verifyRuntimeImage } from "./core/image";
 import { uuidV7 } from "./core/ids";
-import { reportedConfigurationKeys, configurationExplanation, formatHumanError, humanAction, humanConfiguration, humanRunnerCommand, humanSafeMultiline, humanSafeScalar, humanVersionRepairDetails, jsonLine } from "./core/output";
+import { reportedConfigurationKeys, configurationExplanation, renderHumanTemplate, formatHumanError, humanAction, humanConfiguration, humanRunnerCommand, humanSafeMultiline, humanSafeScalar, humanVersionRepairDetails, jsonLine } from "./core/output";
 import { HumanAssistantStream } from "./core/human-stream";
 import { parseDurationMs, runFakeProcessTransport } from "./supervision/fake-transport";
 import { fakeProtocolFailureDetails } from "./supervision/fake-failure";
@@ -40,7 +44,9 @@ import { assertInstalledAdapterPlatform } from "./adapters/admission";
 import providerFreeProbeSource from "../../shared/fixtures/adapters/bin/adapter_probe.py" with { type: "text" };
 import { readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { isAbsolute } from "node:path";
+import { isAbsolute, resolve as resolvePath } from "node:path";
+import { existsSync } from "node:fs";
+import { argvText, product } from "./core/service/render";
 import {
   RUNNER_NAME,
   RunnerFailure,
@@ -55,6 +61,10 @@ import {
   type VerifiedRuntimeImage,
 } from "./core/types";
 import { BUILD_PROFILE, RUNNER_BUILD_COMMIT, RUNNER_VERSION, TEST_SEAMS_ENABLED } from "./core/build";
+
+// Compile-time only (scripts/image-bundle.ts). Guards on it stay inline so a
+// release build folds the test-seam code, and its variable names, away.
+declare const OPENPROSE_TEST_SEAMS: boolean | undefined;
 
 export interface CliDependencies {
   env: Readonly<Record<string, string | undefined>>;
@@ -89,26 +99,39 @@ export async function runCli(args: readonly string[], dependencies: CliDependenc
   let mode = inferOutputMode(args);
   const invocationId = dependencies.ids.invocationId();
   try {
-    const parsed = parseEntrypoint(args);
-    if (parsed.global.serviceEnvironment !== undefined) {
-      mode = parsed.kind === "operation" && parsed.json ? "json" : parsed.global.output ?? "human";
-      if (parsed.kind !== "operation" || !["auth-status", "auth-login", "auth-logout", "org-list", "package"].includes(parsed.operation) || Object.keys(parsed.global).some((key) => !["serviceEnvironment", "output", "color", "verbose"].includes(key))) throw failure("INVOCATION_INVALID");
-    }
-    if (parsed.kind === "operation" && (["auth-status", "auth-login", "auth-logout", "org-list", "package"].includes(parsed.operation) || parsed.operation.startsWith("environment-"))) {
-      mode = parsed.json ? "json" : parsed.global.output ?? "human";
-      if (Object.keys(parsed.global).some((key) => !["serviceEnvironment", "output", "color", "verbose"].includes(key))) throw failure("INVOCATION_INVALID");
-      let selected = await resolveServiceEnvironment(dependencies);
-      if (parsed.operation.startsWith("environment-")) {
-        if (parsed.operation !== "environment-show") {
-          await writeUserServiceEnvironment(selected.path, parsed.operation === "environment-reset" ? null : parsed.value as "production" | "staging");
-          selected = await resolveServiceEnvironment(dependencies);
-        }
-        const report = { schema: "openprose.service-environment/1", environment: selected.environment, source: selected.source, problem: null };
-        dependencies.writeStdout(mode === "human" ? `OpenProse ${selected.environment} environment (${selected.source})\n` : jsonLine(report));
-        return 0;
+    let parsed = parseEntrypoint(args);
+    // Service command words without `cli` are rejected unless one names an
+    // existing file or directory, which makes them a language command. A
+    // language command word (`status`, `help`, `run FILE`) is rejected only
+    // when the default hosted harness would refuse it anyway.
+    let hostedRejection: ServiceCommand | undefined;
+    if (parsed.kind === "language" && parsed.redirect !== undefined) {
+      const base = resolvePath(dependencies.processCwd, parsed.global.cwd ?? ".");
+      if (parsed.redirect.hintOnly !== true && !parsed.redirect.operands.some((operand) => existsSync(resolvePath(base, operand)))) {
+        if (parsed.redirect.language) hostedRejection = parsed.redirect.command;
+        else parsed = { kind: "service", global: parsed.global, command: parsed.redirect.command };
       }
-      if (parsed.operation === "package") return await runPackageCommand(parsed.packageCommand!, mode, dependencies, parsed.global.serviceEnvironment ?? selected.environment);
-      return await runServiceAccount(parsed.operation, mode, dependencies, parsed.global.serviceEnvironment ?? selected.environment);
+    }
+    const serviceCommand = async (command: ServiceCommand, global: GlobalFlags): Promise<number> => {
+      // The JSON envelope names the operation the argv names.
+      if (command.kind === "invalid") command.invalid.argv = [...args];
+      return await runService(command, global, {
+        env: dependencies.env,
+        processCwd: dependencies.processCwd,
+        ...(dependencies.homeDir === undefined ? {} : { homeDir: dependencies.homeDir }),
+        ...(dependencies.platform === undefined ? {} : { platform: dependencies.platform }),
+        ...(dependencies.cancellationSignal === undefined ? {} : { cancellationSignal: dependencies.cancellationSignal }),
+        writeStdout: (text) => dependencies.writeStdout(text),
+        writeStderr: (text) => dependencies.writeStderr(text),
+      });
+    };
+    if (parsed.kind === "service") return await serviceCommand(parsed.command, parsed.global);
+    if (parsed.kind === "operation" && ["auth-status", "auth-login", "auth-logout", "org-list", "package"].includes(parsed.operation)) {
+      mode = parsed.json ? "json" : parsed.global.output ?? "human";
+      if (Object.keys(parsed.global).some((key) => !["output", "color", "verbose"].includes(key))) throw failure("INVOCATION_INVALID");
+      const environment = serviceEnvironment(dependencies.env);
+      if (parsed.operation === "package") return await runPackageCommand(parsed.packageCommand!, mode, dependencies, environment);
+      return await runServiceAccount(parsed.operation, mode, dependencies, environment);
     }
     if (parsed.kind === "weave") return await runWeaveHost(parsed.argv, parsed.global, dependencies);
     if (parsed.kind === "help") {
@@ -125,6 +148,11 @@ export async function runCli(args: readonly string[], dependencies: CliDependenc
     }
 
     const config = await resolveConfiguration(parsed.global, dependencies);
+    // The default hosted harness runs no language command, so a language
+    // command word that also names a service command is that rejection.
+    if (hostedRejection !== undefined && config.values.harness === "openprose" && parsed.global.dryRun !== true) {
+      return await serviceCommand(hostedRejection, parsed.global);
+    }
     mode = parsed.kind === "operation" && parsed.json ? "json" : config.values.output;
     if (parsed.kind === "operation") {
       return await runOperation(parsed.operation, parsed.value, parsed.global, config, mode, dependencies);
@@ -150,6 +178,8 @@ export async function runCli(args: readonly string[], dependencies: CliDependenc
         mode,
         parsed.global.dryRun === true,
         dependencies,
+        parsed.redirect?.argv,
+        parsed.redirect?.hintOnly === true,
       );
       if (verboseHuman) {
         dependencies.writeStderr(
@@ -168,6 +198,10 @@ export async function runCli(args: readonly string[], dependencies: CliDependenc
     }
   } catch (caught) {
     const error = normalizeFailure(caught);
+    // A service argv's invocation error is the service envelope in JSON
+    // modes, never a bare runner error.
+    const handled = await argvErrorOutcome(args, error, mode, isValueOption, dependencies);
+    if (handled !== undefined) return handled;
     emitFailure(error, mode, invocationId, dependencies);
     return error.exitCode;
   }
@@ -315,9 +349,9 @@ async function runOperation(
       `status: ${humanReadiness}`,
       `harness: ${humanSafeScalar(selected.id)}`,
       `transport: ${humanSafeScalar(transport)}`,
+      // The readiness summary only: the language image and billing owner stay
+      // in `--output json` (`image`, `billingOwner`).
       `auth readiness: ${humanSafeScalar(report.selectedAuthReadiness)}`,
-      `billing owner: ${humanSafeScalar(selected.billingOwner)}`,
-      PUBLISHED_KERNEL_STARTUP ? "image source: published kernel (resolved on run; not fetched by doctor)" : `image: ${humanSafeScalar(image.manifest.imageVersion)} (${humanSafeScalar(image.aggregateSha256)})`,
       ...(problem === null ? [] : [
         `problem: ${humanSafeScalar(problem.code)} — ${humanSafeScalar(problem.message)}`,
         ...detail,
@@ -490,10 +524,12 @@ async function runLanguage(
   mode: OutputMode,
   dryRun: boolean,
   dependencies: CliDependencies,
+  serviceHint?: readonly string[],
+  hintInDetailsOnly = false,
 ): Promise<number> {
   const harness = selectHarness(config);
   const transport = negotiateTransport(harness, config.values.transport);
-  const admissionProblem = harnessProblem(harness) ?? processTransportProblem(transport, dependencies);
+  const admissionProblem = withCliHint(harnessProblem(harness), serviceHint, hintInDetailsOnly) ?? processTransportProblem(transport, dependencies);
   const adapterProbe = installedAdapterProbe(dependencies, harness, transport);
   const installedDefinition = tryInstalledAdapterDefinition(harness, transport);
   const problem = adapterProbe === null ? admissionProblem : null;
@@ -1558,26 +1594,28 @@ function emitDryRun(
       report.auth.readiness,
       "blocked",
     );
-    dependencies.writeStdout([
-      `Dry run: ${humanReadiness}`,
-      `Harness: ${humanSafeScalar(harness.id)}`,
-      `Transport: ${humanSafeScalar(transport)}`,
-      ...(report.nativeLimits?[`Native limits: ${JSON.stringify(report.nativeLimits)}`]:[]),
-      ...(report.nativeOutputLimits?[`Native output limits: ${JSON.stringify(report.nativeOutputLimits)}`]:[]),
-      ...(report.nativeConfiguration?[`Native profile: ${humanSafeScalar(config.values.nativeProfile??"default")} (requested; observed tools unavailable in dry run)`,`Native configuration: ${humanSafeScalar(JSON.stringify(report.nativeConfiguration))}`]:[]),
-      `Working directory: ${humanSafeScalar(config.cwd)}`,
-      `Prompt placement: ${humanSafeScalar(report.prompt.placement ?? "unavailable")} (${humanSafeScalar(report.prompt.strictness)})`,
-      `Isolation: ${humanSafeScalar(report.isolation)}`,
-      `Auth: ${humanSafeScalar(report.auth.category)} (${humanSafeScalar(report.auth.readiness)})`,
-      `Billing owner: ${humanSafeScalar(harness.billingOwner)}`,
-      `Image: ${humanSafeScalar(image.manifest.imageVersion)} (${humanSafeScalar(image.aggregateSha256)})`,
-      ...(problem === null ? [] : [
-        `Blocking error: ${problem.code}`,
-        ...humanVersionRepairDetails(problem.toJSON()),
-        `Action: ${humanAction(problem)}`,
-      ]),
-      "",
-    ].join("\n"));
+    const native = report.nativeConfiguration !== undefined && (config.values.nativeProfile ?? "default") !== "default";
+    dependencies.writeStdout(renderHumanTemplate(dryRunTemplate, {
+      cwd: humanSafeScalar(config.cwd),
+      harness: humanSafeScalar(harness.id),
+      transport: humanSafeScalar(transport),
+      adapter: humanSafeScalar(report.selection.adapterId),
+      placement: humanSafeScalar(report.prompt.placement ?? "unavailable"),
+      strictness: humanSafeScalar(report.prompt.strictness),
+      isolation: humanSafeScalar(report.isolation),
+      authCategory: humanSafeScalar(report.auth.category),
+      authReadiness: humanSafeScalar(report.auth.readiness),
+      billingOwner: humanSafeScalar(harness.billingOwner),
+      imageVersion: humanSafeScalar(image.manifest.imageVersion),
+      imageSha256: humanSafeScalar(image.aggregateSha256),
+      readiness: humanSafeScalar(humanReadiness),
+      nativeLimits: report.nativeLimits === undefined ? undefined : humanSafeScalar(canonicalJson(report.nativeLimits)),
+      nativeOutputLimits: report.nativeOutputLimits === undefined ? undefined : humanSafeScalar(canonicalJson(report.nativeOutputLimits)),
+      nativeProfile: native ? humanSafeScalar(config.values.nativeProfile ?? "default") : undefined,
+      nativeConfiguration: native ? humanSafeScalar(canonicalJson(report.nativeConfiguration)) : undefined,
+      blockingCode: problem === null ? undefined : problem.code,
+      action: problem === null ? undefined : humanAction(problem),
+    }, { repairDetails: problem === null ? [] : humanVersionRepairDetails(problem.toJSON()) }));
   } else dependencies.writeStdout(jsonLine(report));
   return problem?.exitCode ?? 0;
 }
@@ -1624,6 +1662,12 @@ function emitAttemptFailure(
 }
 
 function fakeProcessOptions(dependencies: CliDependencies): FakeProcessOptions | null {
+  // Inline, so a release build folds this call and the seam function away.
+  if (typeof OPENPROSE_TEST_SEAMS !== "boolean" || OPENPROSE_TEST_SEAMS) return testSeamFakeProcessOptions(dependencies);
+  return null;
+}
+
+function testSeamFakeProcessOptions(dependencies: CliDependencies): FakeProcessOptions | null {
   if (!TEST_SEAMS_ENABLED) return null;
   if (dependencies.fakeProcess !== undefined) {
     return {
@@ -1693,6 +1737,24 @@ function negotiateTransport(harness: HarnessDescriptor, requested: string): stri
 function adapterId(harness: HarnessDescriptor, transport: string): string {
   if (harness.id === "mock") return transport === "fake-process" ? "mock/fake-process" : "mock/in-memory";
   return `${harness.id}/${transport}`;
+}
+
+/**
+ * The HOSTED_UNAVAILABLE refusal of a forwarded argv that also reads as a
+ * service command (a file named like the command word exists): the Action
+ * names the exact `prose cli ...` command as well, and
+ * `details.suggestedArgv` carries it (mirrors Rust `with_cli_hint`). The
+ * refusal of `prose run FILE` keeps its frozen Action; only
+ * `details.suggestedArgv` names `cli run submit FILE --preview`.
+ */
+function withCliHint(problem: RunnerFailure | null, hint: readonly string[] | undefined, detailsOnly: boolean): RunnerFailure | null {
+  if (problem === null || hint === undefined || problem.code !== "HOSTED_UNAVAILABLE") return problem;
+  const { schema: _schema, ...shape } = problem.toJSON();
+  return new RunnerFailure({
+    ...shape,
+    action: detailsOnly ? problem.action : `To use the hosted service, run \`${argvText(hint)}\`; running programs on this machine needs a local harness (\`${product()} cli harness list\`).`,
+    details: { ...(problem.details ?? {}), suggestedArgv: [...hint] },
+  });
 }
 
 function harnessProblem(harness: HarnessDescriptor): RunnerFailure | null {
@@ -1851,6 +1913,18 @@ function installedAdapterProbe(
   harness: HarnessDescriptor,
   transport: string,
 ): NonNullable<CliDependencies["installedAdapterProbe"]> | null {
+  // Inline, so a release build folds this call and the seam function away.
+  if (typeof OPENPROSE_TEST_SEAMS !== "boolean" || OPENPROSE_TEST_SEAMS) {
+    return testSeamInstalledAdapterProbe(dependencies, harness, transport);
+  }
+  return null;
+}
+
+function testSeamInstalledAdapterProbe(
+  dependencies: CliDependencies,
+  harness: HarnessDescriptor,
+  transport: string,
+): NonNullable<CliDependencies["installedAdapterProbe"]> | null {
   if (!TEST_SEAMS_ENABLED) return null;
   const adapterId = `${harness.id}/${transport}`;
   try {
@@ -1983,7 +2057,7 @@ function emitFailure(
 
 export function defaultDependencies(): CliDependencies {
   const cancellation = new AbortController();
-  const cancel = (signal: "SIGINT" | "SIGTERM") => {
+  const cancel = (signal: "SIGINT" | "SIGTERM" | "SIGHUP") => {
     if (!cancellation.signal.aborted) cancellation.abort(signal);
   };
   // Keep both handlers installed after cancellation. A foreground terminal
@@ -1992,6 +2066,9 @@ export function defaultDependencies(): CliDependencies {
   // before original process-group cleanup and terminal normalization finish.
   process.on("SIGINT", () => cancel("SIGINT"));
   process.on("SIGTERM", () => cancel("SIGTERM"));
+  // A closed terminal cancels like Ctrl-C (CANCELLED, exit 24), as in Rust.
+  // Windows Ctrl+Break is handled by neither product.
+  if (process.platform !== "win32") process.on("SIGHUP", () => cancel("SIGHUP"));
   return {
     env: process.env,
     processCwd: process.cwd(),

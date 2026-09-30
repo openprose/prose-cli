@@ -1,0 +1,97 @@
+{
+  "id": "program-show-bare-slug-typo-suggests",
+  "feature": "programs",
+  "operation": "program.show",
+  "description": "A bare SLUG that is not your program, one or two edits from one of yours (from `program list`), suggests the command with that slug.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "program",
+    "show",
+    "lm-mutli-r1"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/programs/lm-mutli-r1/revisions",
+        "status": 404,
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "body": {
+          "error": "Not found"
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/programs",
+        "status": 200,
+        "body": {
+          "programs": [
+            {
+              "owner": "octo",
+              "slug": "lm-multi-r1",
+              "visibility": "private",
+              "rev": 1,
+              "rev_id": "0123456789abcdef",
+              "commit_id": "1111111111111111",
+              "parent_commit_id": null,
+              "updated_at": 1790212199320
+            },
+            {
+              "owner": "octo",
+              "slug": "hello",
+              "visibility": "private",
+              "rev": 1,
+              "rev_id": "fedcba9876543210",
+              "commit_id": "1111111111111111",
+              "parent_commit_id": null,
+              "updated_at": 1790212199320
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "program.read",
+      "operation": "program.show",
+      "problem": {
+        "action": "Run `prose --output json cli program show lm-multi-r1`: lm-multi-r1 is the closest program you have.",
+        "boundary": "hosted-service",
+        "code": "SERVICE_RESOURCE_NOT_FOUND",
+        "details": {
+          "reason": "you have no saved program \"lm-mutli-r1\"; list yours with `prose --output json cli program list`, or pass OWNER/SLUG for another owner's public program; did you mean lm-multi-r1?",
+          "resource": {
+            "id": "lm-mutli-r1",
+            "kind": "program"
+          },
+          "serviceStatus": 404,
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "program",
+            "show",
+            "lm-multi-r1"
+          ]
+        },
+        "exitCode": 10,
+        "message": "The requested OpenProse service resource was not found.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

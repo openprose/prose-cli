@@ -1,0 +1,69 @@
+{
+  "id": "alias-program-rm-needs-yes",
+  "feature": "programs",
+  "operation": "program.delete",
+  "description": "`cli program rm SLUG` still needs --yes: CONFIRMATION_REQUIRED, with the alias kept in confirmArgv.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "program",
+    "rm",
+    "demo"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "program.delete",
+      "operation": "program.delete",
+      "problem": {
+        "action": "Rerun the same command with --yes to confirm, or with --preview to see what it would do without sending anything.",
+        "boundary": "invocation",
+        "code": "CONFIRMATION_REQUIRED",
+        "details": {
+          "confirmArgv": [
+            "--output",
+            "json",
+            "cli",
+            "program",
+            "rm",
+            "demo",
+            "--yes"
+          ],
+          "plannedRequest": {
+            "bodyBytes": null,
+            "bodySha256": null,
+            "description": "Delete a saved program and its revisions.",
+            "effect": "destructive",
+            "method": "DELETE",
+            "operation": "program.delete"
+          },
+          "previewArgv": [
+            "--output",
+            "json",
+            "cli",
+            "program",
+            "rm",
+            "demo",
+            "--preview"
+          ],
+          "reason": "--yes is required because it deletes the program and every revision permanently; it cannot be undone"
+        },
+        "exitCode": 2,
+        "message": "This service operation requires explicit confirmation.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

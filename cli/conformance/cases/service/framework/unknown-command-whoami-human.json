@@ -1,0 +1,25 @@
+{
+  "id": "unknown-command-whoami-human",
+  "feature": "framework",
+  "operation": "auth.status",
+  "description": "`whoami` suggests `auth status`; the same bytes in both ports.",
+  "argv": [
+    "cli",
+    "whoami"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: Unknown command.\nDetail: unknown command `cli whoami`; did you mean `cli auth status`? Commands: auth, cleanup, config, doctor, example, harness, job, model, org, package, program, repo, result, run, service, wallet\nAction: Use `cli auth status`: `prose cli auth status`.\n"
+  }
+}

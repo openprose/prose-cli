@@ -1,0 +1,22 @@
+{
+  "id": "help-service-capabilities-topic",
+  "feature": "framework",
+  "operation": "service.capabilities",
+  "description": "`cli service capabilities --help` prints its generated topic.",
+  "argv": [
+    "cli",
+    "service",
+    "capabilities",
+    "--help"
+  ],
+  "fixture": {
+    "exchanges": []
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "Usage: prose [GLOBAL OPTIONS] cli service capabilities [OPTIONS]\n\nPrint the grammar, exit codes by error code, environment variables and every command on one page. Makes no request.\n\nOptions:\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli service capabilities --json\n  prose cli service capabilities\n\nOutput: openprose.service-capabilities/1 (--json).\nExit codes: 0 success; 2 invalid invocation or configuration.\n"
+  },
+  "stderr": {
+    "text": ""
+  }
+}

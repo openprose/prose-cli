@@ -1,0 +1,90 @@
+{
+  "id": "submit-from-commit-id-names-rev-id",
+  "feature": "runs",
+  "operation": "run.submit",
+  "description": "A commit_id passed as the revision fails in --preview: the reason says it is a commit_id and the suggestion pins the matching rev_id.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "submit",
+    "--from",
+    "hello@2222222222222222",
+    "--preview"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "clock": {
+      "start": "2026-09-24T01:00:00.000Z",
+      "stepMs": 0
+    },
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/programs/hello/revisions",
+        "status": 200,
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "body": {
+          "revisions": [
+            {
+              "owner": "octo",
+              "slug": "hello",
+              "rev": 2,
+              "rev_id": "0123456789abcdef",
+              "commit_id": "1111111111111111",
+              "parent_commit_id": "2222222222222222",
+              "updated_at": 1790212199320
+            },
+            {
+              "owner": "octo",
+              "slug": "hello",
+              "rev": 1,
+              "rev_id": "fedcba9876543210",
+              "commit_id": "2222222222222222",
+              "parent_commit_id": null,
+              "updated_at": 1790212000000
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "run.submit",
+      "operation": "run.submit",
+      "problem": {
+        "action": "Pass the rev_id: `prose --output json cli run submit --from hello@fedcba9876543210 --preview`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "2222222222222222 is the commit_id of octo/hello rev 1, not a rev_id; a program reference pins the rev_id, fedcba9876543210",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "submit",
+            "--from",
+            "hello@fedcba9876543210",
+            "--preview"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

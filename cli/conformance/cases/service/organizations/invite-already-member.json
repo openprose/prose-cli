@@ -1,0 +1,69 @@
+{
+  "id": "invite-already-member",
+  "feature": "organizations",
+  "operation": "org.invite",
+  "description": "already_member (409) is SERVICE_WRITE_CONFLICT with the message.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "org",
+    "invite",
+    "acme-research",
+    "cus_ExampleAdmin01",
+    "--role",
+    "reader",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/organizations/acme-research/invitations",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          },
+          "Accept": "application/json",
+          "Content-Type": "application/json"
+        },
+        "status": 409,
+        "body": {
+          "error": "Account is already a organization member",
+          "code": "already_member"
+        },
+        "expectedBody": {
+          "accountId": "cus_ExampleAdmin01",
+          "role": "reader"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "organizations.manage",
+      "operation": "org.invite",
+      "problem": {
+        "action": "Read the current state of the resource, reconcile the change, then retry.",
+        "boundary": "hosted-service",
+        "code": "SERVICE_WRITE_CONFLICT",
+        "exitCode": 10,
+        "message": "The OpenProse service reported a conflicting write.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1",
+        "details": {
+          "serviceMessage": "Account is already a organization member",
+          "serviceStatus": 409
+        }
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

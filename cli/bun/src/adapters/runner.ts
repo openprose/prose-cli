@@ -31,17 +31,20 @@ import type {
 import type { RawTransportEvent } from "../supervision/types";
 import { TEST_SEAMS_ENABLED } from "../core/build";
 
-const CONFORMANCE_ADAPTER_CLEANUP_FAILURE = "OPENPROSE_CONFORMANCE_ADAPTER_CLEANUP_FAILURE";
-const CONFORMANCE_ADAPTER_CREATION_FAILURE = "OPENPROSE_CONFORMANCE_ADAPTER_CREATION_FAILURE";
+// Compile-time only (scripts/image-bundle.ts). The inline guards below let a
+// release build fold the conformance failure seams, and their names, away.
+declare const OPENPROSE_TEST_SEAMS: boolean | undefined;
 
 export async function runInstalledAdapter(options: InstalledAdapterOptions): Promise<InstalledAdapterResult> {
   if (options.ambient.OPENPROSE_RECURSION_TOKEN !== undefined) {
     throw failure("RECURSIVE_INVOCATION", { reason: "A recursion marker was already present in the wrapper environment." });
   }
   const definition = installedAdapterDefinition(options.adapterId);
-  const creationFailure = TEST_SEAMS_ENABLED && options.observationPath !== undefined
-    ? options.ambient[CONFORMANCE_ADAPTER_CREATION_FAILURE]
-    : undefined;
+  const creationFailure = (typeof OPENPROSE_TEST_SEAMS === "boolean" && !OPENPROSE_TEST_SEAMS)
+    ? undefined
+    : TEST_SEAMS_ENABLED && options.observationPath !== undefined
+      ? options.ambient.OPENPROSE_CONFORMANCE_ADAPTER_CREATION_FAILURE
+      : undefined;
   const afterTransportDirectoryCreated = TEST_SEAMS_ENABLED
     ? options.testHooks?.afterTransportDirectoryCreated
     : undefined;
@@ -73,8 +76,10 @@ export async function runInstalledAdapter(options: InstalledAdapterOptions): Pro
     }
     throw privateTransportCreationFailure(options.adapterId);
   });
-  const injectPrivateCleanupFailure = options.observationPath !== undefined
-    && options.ambient[CONFORMANCE_ADAPTER_CLEANUP_FAILURE] === "1";
+  const injectPrivateCleanupFailure = (typeof OPENPROSE_TEST_SEAMS === "boolean" && !OPENPROSE_TEST_SEAMS)
+    ? false
+    : options.observationPath !== undefined
+      && options.ambient.OPENPROSE_CONFORMANCE_ADAPTER_CLEANUP_FAILURE === "1";
   try {
     let renderedConfigPath: string | undefined;
     try {

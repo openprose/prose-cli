@@ -1,0 +1,45 @@
+{
+  "id": "invitation-revoke-preview",
+  "feature": "organizations",
+  "operation": "org.invitation.revoke",
+  "description": "`org invitation revoke` with --preview returns the plan, exits 0 and sends nothing.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "org",
+    "invitation",
+    "revoke",
+    "acme-research",
+    "7e6d5c4b-3a29-4817-8f6e-5d4c3b2a1908",
+    "--preview"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "organizations.manage",
+      "operation": "org.invitation.revoke",
+      "problem": null,
+      "result": {
+        "plannedRequest": {
+          "bodyBytes": null,
+          "bodySha256": null,
+          "description": "Revoke a pending invitation.",
+          "effect": "destructive",
+          "method": "DELETE",
+          "operation": "org.invitation.revoke"
+        },
+        "preview": true
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

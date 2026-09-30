@@ -1,0 +1,87 @@
+{
+  "id": "invite-confirmation-required",
+  "feature": "organizations",
+  "operation": "org.invite",
+  "description": "`org invite` without --yes sends nothing and exits 2 with the exact planned request (every organization mutation is confirm-class).",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "org",
+    "invite",
+    "acme-research",
+    "cus_ExampleInvitee1",
+    "--role",
+    "developer",
+    "--expires-in",
+    "3600"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "organizations.manage",
+      "operation": "org.invite",
+      "problem": {
+        "action": "Rerun the same command with --yes to confirm, or with --preview to see what it would do without sending anything.",
+        "boundary": "invocation",
+        "code": "CONFIRMATION_REQUIRED",
+        "details": {
+          "confirmArgv": [
+            "--output",
+            "json",
+            "cli",
+            "org",
+            "invite",
+            "acme-research",
+            "cus_ExampleInvitee1",
+            "--role",
+            "developer",
+            "--expires-in",
+            "3600",
+            "--yes"
+          ],
+          "plannedRequest": {
+            "bodyBytes": 78,
+            "bodySha256": "6783cacb42e903b23aa02a32dc8b11f1b83c0009d2167605ebde3c81d32b0ff1",
+            "description": "Invite an account.",
+            "effect": "write",
+            "method": "POST",
+            "operation": "org.invite",
+            "summary": {
+              "role": "developer"
+            }
+          },
+          "previewArgv": [
+            "--output",
+            "json",
+            "cli",
+            "org",
+            "invite",
+            "acme-research",
+            "cus_ExampleInvitee1",
+            "--role",
+            "developer",
+            "--expires-in",
+            "3600",
+            "--preview"
+          ],
+          "reason": "--yes is required because it mints an invitation token that lets that account join with this role"
+        },
+        "exitCode": 2,
+        "message": "This service operation requires explicit confirmation.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

@@ -329,12 +329,12 @@ pid = os.fork()
 if pid == 0:
     time.sleep(30)
     os._exit(0)
-staging = sys.argv[1] + '.tmp'
-with open(staging, 'x', encoding='utf-8') as target:
+scratch = sys.argv[1] + '.tmp'
+with open(scratch, 'x', encoding='utf-8') as target:
     json.dump({'pid':pid,'pgid':os.getpgrp()}, target)
     target.flush()
     os.fsync(target.fileno())
-os.replace(staging, sys.argv[1])
+os.replace(scratch, sys.argv[1])
 print('probe still running', flush=True)
 print('diagnostic still running', file=sys.stderr, flush=True)
 time.sleep(30)
@@ -379,12 +379,12 @@ pid = os.fork()
 if pid == 0:
     time.sleep(30)
     os._exit(0)
-staging = sys.argv[1] + '.tmp'
-with open(staging, 'x', encoding='utf-8') as target:
+scratch = sys.argv[1] + '.tmp'
+with open(scratch, 'x', encoding='utf-8') as target:
     json.dump({'pid':pid,'pgid':os.getpgrp()}, target)
     target.flush()
     os.fsync(target.fileno())
-os.replace(staging, sys.argv[1])
+os.replace(scratch, sys.argv[1])
 print('probe still running', flush=True)
 print('diagnostic still running', file=sys.stderr, flush=True)
 time.sleep(30)

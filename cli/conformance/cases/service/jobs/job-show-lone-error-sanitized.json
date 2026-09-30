@@ -1,0 +1,78 @@
+{
+  "id": "job-show-lone-error-sanitized",
+  "feature": "jobs",
+  "operation": "job.show",
+  "description": "Free service text (lastError) has control characters replaced by spaces; identifiers are kept exactly.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "job",
+    "show",
+    "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/triggers/3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10",
+        "status": 200,
+        "body": {
+          "trigger": {
+            "id": "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10",
+            "type": "webhook",
+            "name": null,
+            "internalRef": "opaque-1",
+            "url": null,
+            "intervalSeconds": null,
+            "mode": null,
+            "repositoryId": null,
+            "repositoryFullName": null,
+            "repositoryBranch": null,
+            "contextRepositoryId": null,
+            "contextRepositoryFullName": null,
+            "contextRepositoryBranch": null,
+            "createdAt": 1790212421024,
+            "adopted": false,
+            "lastError": "Repository context\ncould not be prepared"
+          }
+        },
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "job.read",
+      "operation": "job.show",
+      "problem": null,
+      "result": {
+        "job": {
+          "context_repository_branch": null,
+          "context_repository_full_name": null,
+          "created_at": 1790212421024,
+          "created_at_iso": "2026-09-24T01:13:41.024Z",
+          "id": "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10",
+          "interval_seconds": null,
+          "last_error": "Repository context could not be prepared",
+          "mode": null,
+          "name": null,
+          "repository_branch": null,
+          "repository_full_name": null,
+          "repository_id": null,
+          "type": "webhook",
+          "url": null
+        }
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

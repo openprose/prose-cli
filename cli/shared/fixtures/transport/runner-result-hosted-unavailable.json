@@ -65,8 +65,8 @@
     "schema": "openprose.runner-error/1",
     "code": "HOSTED_UNAVAILABLE",
     "boundary": "hosted-service",
-    "message": "OpenProse-billed execution is not available in this build.",
-    "action": "Select an available BYO harness with the `cli harness use <id>` runner operation, then invoke the `cli doctor` runner operation.",
+    "message": "Programs run here only with a local harness; hosted runs use `prose cli run submit`.",
+    "action": "To use the hosted service, run `cli run submit FILE --preview`; running programs on this machine needs a local harness (`cli harness list`).",
     "exitCode": 10,
     "retryable": false
   }

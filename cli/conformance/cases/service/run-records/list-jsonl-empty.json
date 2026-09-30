@@ -1,0 +1,54 @@
+{
+  "id": "list-jsonl-empty",
+  "feature": "run-records",
+  "operation": "run.list",
+  "description": "An empty `run list --output jsonl` prints only the page trailer: count 0, nextBefore null.",
+  "argv": [
+    "--output",
+    "jsonl",
+    "cli",
+    "run",
+    "list"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/runs",
+        "requestHeaders": {
+          "Authorization": {
+            "pattern": "^Bearer rr_test_[0-9a-f]{32}$"
+          }
+        },
+        "status": 200,
+        "query": {
+          "limit": "20"
+        },
+        "body": {
+          "runs": [],
+          "next_before": null
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "jsonl": [
+      {
+        "collection": "runs",
+        "count": 0,
+        "exitCode": 0,
+        "interaction": "runs.list",
+        "meta": {},
+        "nextBefore": null,
+        "operation": "run.list",
+        "schema": "openprose.service-page/1"
+      }
+    ]
+  }
+}

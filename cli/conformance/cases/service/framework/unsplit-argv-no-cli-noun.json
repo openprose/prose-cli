@@ -1,0 +1,47 @@
+{
+  "id": "unsplit-argv-no-cli-noun",
+  "feature": "framework",
+  "operation": "run.list",
+  "description": "`prose \"run list\"`: a quoted command line that starts with a command group gains `cli` when it is split.",
+  "argv": [
+    "--output",
+    "json",
+    "run list"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": null,
+      "operation": "cli",
+      "problem": {
+        "action": "Pass each word separately: `prose --output json cli run list`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "the word \"run list\" holds a whole command line; the argv looks unsplit (quoted, so the shell passed it as one word): did you mean `prose --output json cli run list`? Nothing was forwarded or sent",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "list"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

@@ -1,0 +1,66 @@
+{
+  "id": "program-show-numeric-rev-other-owner",
+  "feature": "programs",
+  "operation": "program.show",
+  "description": "Another owner's program has no revision listing, so @N is refused with the command that prints the rev_id to pass.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "program",
+    "show",
+    "bob/hello@1"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/programs/hello/revisions",
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "status": 404,
+        "body": {
+          "error": "Not found"
+        }
+      }
+    ]
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "program.read",
+      "operation": "program.show",
+      "problem": {
+        "action": "Correct the value named in Detail; `prose --output json cli program show --help` shows the accepted syntax.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "revision numbers such as @1 resolve only for your own programs; for bob/hello pass the 16-hex-digit rev_id, which `prose --output json cli program show bob/hello --json` prints (latest) as `ref`",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "program",
+            "show",
+            "--help"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

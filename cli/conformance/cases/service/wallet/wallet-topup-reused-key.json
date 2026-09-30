@@ -1,0 +1,71 @@
+{
+  "id": "wallet-topup-reused-key",
+  "feature": "wallet",
+  "operation": "wallet.topup",
+  "description": "--idempotency-key is sent verbatim and no id is minted.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "wallet",
+    "topup",
+    "--amount-cents",
+    "500",
+    "--idempotency-key",
+    "123e4567-e89b-42d3-a456-426614174000",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/wallet/topup",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          },
+          "Idempotency-Key": "123e4567-e89b-42d3-a456-426614174000",
+          "Content-Type": "application/json"
+        },
+        "expectedBody": {
+          "amount_cents": 500
+        },
+        "status": 200,
+        "body": {
+          "checkout_url": "https://checkout.stripe.com/c/pay/cs_test_a1b2c3#fid=x",
+          "session_id": "cs_test_a1b2c3",
+          "amount": {
+            "credits_cents": 500,
+            "fee_cents": 60,
+            "total_cents": 560
+          }
+        }
+      }
+    ],
+    "ids": []
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "wallet.topup",
+      "operation": "wallet.topup",
+      "problem": null,
+      "result": {
+        "amount": {
+          "credits_cents": 500,
+          "fee_cents": 60,
+          "total_cents": 560
+        },
+        "checkout_url": "https://checkout.stripe.com/c/pay/cs_test_a1b2c3#fid=x",
+        "idempotencyKey": "123e4567-e89b-42d3-a456-426614174000",
+        "session_id": "cs_test_a1b2c3"
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

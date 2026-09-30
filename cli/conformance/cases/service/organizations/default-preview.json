@@ -1,0 +1,43 @@
+{
+  "id": "default-preview",
+  "feature": "organizations",
+  "operation": "org.default",
+  "description": "`org default` with --preview returns the plan, exits 0 and sends nothing.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "org",
+    "default",
+    "acme-research",
+    "--preview"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "organizations.manage",
+      "operation": "org.default",
+      "problem": null,
+      "result": {
+        "plannedRequest": {
+          "bodyBytes": 32,
+          "bodySha256": "ba87a167d46f5292faef91447418084023d187cab875bb9121b16844930fa23c",
+          "description": "Choose this account's default organization.",
+          "effect": "write",
+          "method": "PUT",
+          "operation": "org.default"
+        },
+        "preview": true
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

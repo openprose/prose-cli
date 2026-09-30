@@ -1,0 +1,86 @@
+{
+  "id": "program-draft-interrupt-detaches",
+  "feature": "programs",
+  "operation": "program.draft",
+  "description": "An interrupt while the writer runs stops waiting (CANCELLED) and names the run, which continues on the service.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "program",
+    "draft",
+    "write a haiku about rain",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "interruptAfterExchange": 1,
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/write",
+        "requestHeaders": {
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          },
+          "User-Agent": {
+            "pattern": "^prose-cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"
+          },
+          "Accept": "text/event-stream",
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef",
+          "Content-Type": "application/json"
+        },
+        "expectedBody": {
+          "request": "write a haiku about rain"
+        },
+        "status": 200,
+        "sse": {
+          "frames": [
+            {
+              "event": "status",
+              "data": {
+                "type": "status",
+                "status": "running",
+                "run_id": "run_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "message": "reactor model-luna"
+              }
+            },
+            {
+              "comment": "heartbeat"
+            }
+          ],
+          "end": "idle"
+        }
+      }
+    ]
+  },
+  "exitCode": 24,
+  "stdout": {
+    "json": {
+      "schema": "openprose.service-operation/1",
+      "operation": "program.draft",
+      "interaction": "write.author",
+      "result": null,
+      "problem": {
+        "schema": "openprose.runner-error/1",
+        "code": "CANCELLED",
+        "boundary": "process",
+        "message": "The runner was cancelled before semantic completion.",
+        "action": "Retry the command when you are ready to let it complete.",
+        "exitCode": 24,
+        "retryable": true,
+        "details": {
+          "runId": "run_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "reason": "stopped waiting; the draft run continues on the service: `cli run show run_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`"
+        }
+      }
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

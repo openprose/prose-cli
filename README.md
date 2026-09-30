@@ -37,6 +37,10 @@ Exact admitted versions and platforms are checked at readiness; see the product 
 
 Native Claude delegation is available through the opt-in `claude-workspace-tools` native profile. It uses nonbare mode with explicit tools, separate caller-supplied permission rules and directory access, and fresh native configuration for API authentication. The default API profile retains its bare/tool coupling. Native task progress and completion are transported without interpreting their purpose.
 
+## OpenProse service
+
+`prose cli` is also a user client for the hosted OpenProse service: sign in with `prose cli auth login` (or set `OPENPROSE_API_KEY`), then quote, submit, watch and download hosted runs, and manage programs, results, jobs, the wallet and organizations. Public builds talk only to the production service. Start with `prose cli service triage --json`; see [the service client guide](docs/hosted-service-client.md).
+
 ## Development and provenance
 
 [Build Rust](cli/rust/README.md) · [Build Bun](cli/bun/README.md) · [Native output semantics](docs/native-output.md) · [Native task events](docs/native-task-events.md)

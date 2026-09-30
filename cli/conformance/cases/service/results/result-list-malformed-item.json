@@ -1,0 +1,91 @@
+{
+  "id": "result-list-malformed-item",
+  "feature": "results",
+  "operation": "result.list",
+  "description": "A publication that is not completed is a protocol violation naming the field.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "result",
+    "list",
+    "Owner/demo"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/p/Owner/demo/results",
+        "status": 200,
+        "query": {
+          "limit": "20"
+        },
+        "body": {
+          "contract": {
+            "owner": "Owner",
+            "slug": "demo",
+            "rev_id": "0123456789abcdef",
+            "visibility": "public"
+          },
+          "results": [
+            {
+              "id": "AbCdEf012_-x",
+              "published_at": "2026-09-23T20:30:00.000Z",
+              "run_id": "run_abc123abc123abc123abc123abc123abc123abc123abc123abc123abc123abc1",
+              "program_ref": "Owner/demo@0123456789abcdef",
+              "created_at": "2026-09-23T20:26:28.686Z",
+              "model": "model-sol",
+              "status": "completed"
+            },
+            {
+              "id": "Zy9_-8XwVu7t",
+              "published_at": "2026-09-23T20:30:00.000Z",
+              "run_id": "run_abc123abc123abc123abc123abc123abc123abc123abc123abc123abc123abc1",
+              "program_ref": "Owner/demo@0123456789abcdef",
+              "created_at": "2026-09-23T20:26:28.686Z",
+              "model": "model-sol",
+              "status": "error"
+            }
+          ]
+        },
+        "requestHeaders": {
+          "Authorization": {
+            "present": false
+          },
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          }
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "schema": "openprose.service-operation/1",
+      "operation": "result.list",
+      "interaction": "results.list_public",
+      "result": null,
+      "problem": {
+        "schema": "openprose.runner-error/1",
+        "code": "SERVICE_PROTOCOL_INVALID",
+        "boundary": "protocol",
+        "message": "The OpenProse service returned an invalid response.",
+        "action": "Retry later and report the sanitized error code if it persists.",
+        "exitCode": 10,
+        "retryable": false,
+        "details": {
+          "reason": "the service returned an invalid results[1].status"
+        }
+      }
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

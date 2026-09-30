@@ -1,0 +1,24 @@
+{
+  "id": "no-cli-ps-human",
+  "feature": "framework",
+  "operation": "run.list",
+  "description": "`prose ps` (no `cli`) exits 2 with `cli run list`; nothing is forwarded or billed.",
+  "argv": [
+    "ps"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: Unknown command.\nDetail: `ps` is not a command; did you mean `prose cli run list`? Nothing was forwarded or sent. To pass these words to the OpenProse language instead, put `--` before them\nAction: Use `cli run list`: `prose cli run list`.\n"
+  }
+}

@@ -212,7 +212,7 @@ describe("CLI behavior", () => {
       const humanMissing = fixture({ processCwd: root, userConfigPath });
       expect(await runCli(["cli", "harness", "use", harness], humanMissing.deps)).toBe(2);
       expect(humanMissing.stdout()).toBe("");
-      expect(humanMissing.stderr()).toContain(`[invocation] INVOCATION_INVALID: Runner invocation is invalid.\n`);
+      expect(humanMissing.stderr()).toContain(`INVOCATION_INVALID at invocation: Runner invocation is invalid.\n`);
       expect(humanMissing.stderr()).toContain(
         `Action: Use the exact runner invocation ${humanRunnerInvocation()} for runner operations. Invoke the \`cli harness use ${harness}\` runner operation with both the \`--model\` and \`--auth-profile\` options, then retry.\n`,
       );
@@ -503,12 +503,12 @@ describe("CLI behavior", () => {
     expect(io.invocations).toHaveLength(0);
     expect(io.stdout()).toBe("");
     expect(io.stderr()).toContain("HOSTED_UNAVAILABLE");
-    expect(io.stderr()).toContain("OpenProse-billed");
+    expect(io.stderr()).toContain("prose cli run submit");
   });
 
   test("JSON failure emits one object on stdout and no diagnostic contamination", async () => {
     const io = fixture();
-    const exit = await runCli(["--output", "json", "run"], io.deps);
+    const exit = await runCli(["--output", "json", "run", "example.prose.md"], io.deps);
     expect(exit).toBe(10);
     const parsed = JSON.parse(io.stdout());
     expect(parsed).toMatchObject({
@@ -529,7 +529,7 @@ describe("CLI behavior", () => {
 
   test("JSONL failure has exactly one terminal event", async () => {
     const io = fixture();
-    const exit = await runCli(["--output=jsonl", "run"], io.deps);
+    const exit = await runCli(["--output=jsonl", "run", "example.prose.md"], io.deps);
     expect(exit).toBe(10);
     const records = io.stdout().trimEnd().split("\n").map((line) => JSON.parse(line));
     expect(records.at(-1)).toMatchObject({
@@ -869,11 +869,13 @@ describe("CLI behavior", () => {
 
   test.each([
     [["--help"], "OpenProse outer runner"],
-    [["cli", "--help"], "OpenProse outer runner"],
+    [["cli", "--help"], "OpenProse service and account commands"],
     [["cli", "harness", "--help"], "OpenProse outer runner"],
     [["cli", "harness", "use", "--help"], "OpenProse outer runner"],
     [["cli", "config", "explain", "--help"], "OpenProse outer runner"],
-    [["--cwd", "/definitely/missing", "cli", "auth", "--help"], "OpenProse outer runner"],
+    [["--cwd", "/definitely/missing", "cli", "doctor", "--help"], "OpenProse outer runner"],
+    // The frozen service groups print their own topic.
+    [["--cwd", "/definitely/missing", "cli", "auth", "--help"], "Usage: prose [GLOBAL OPTIONS] cli auth <COMMAND>"],
     [["--version"], "prose 0.1.0 (bun)"],
     [["cli", "harness", "list"], "openprose"],
     [["--harness", "mock", "cli", "doctor"], "ready"],
@@ -1122,7 +1124,7 @@ describe("CLI behavior", () => {
     const humanIo = fixture();
     expect(await runCli(["--output=invalid", "cli", "doctor"], humanIo.deps)).toBe(2);
     expect(humanIo.stdout()).toBe("");
-    expect(humanIo.stderr()).toContain("[invocation] INVOCATION_INVALID");
+    expect(humanIo.stderr()).toContain("INVOCATION_INVALID at invocation");
 
     const opaqueIo = fixture();
     expect(await runCli([
@@ -1200,7 +1202,8 @@ describe("CLI behavior", () => {
   });
 
   test.skipIf(process.platform === "win32")("human configuration errors escape a hostile source path and machine output preserves it", async () => {
-    const root = await mkdtemp(join(tmpdir(), "openprose-bun-human-config-"));
+    // Canonical: a configuration source is reported by its real path.
+    const root = await realpath(await mkdtemp(join(tmpdir(), "openprose-bun-human-config-")));
     const configRoot = join(root, "config\nAction: forged\t\u001b\u2028next\u2029paragraph");
     const userConfigPath = join(configRoot, "openprose", "cli.toml");
     try {
@@ -1249,7 +1252,8 @@ describe("CLI behavior", () => {
       const io = operationFixture();
       io.deps.env = { PROSE_TEST_SERVICE_FIXTURE: path };
       expect(await runCli(["--output", "json", "cli", "auth", command], io.deps)).toBe(10);
-      expect(JSON.parse(io.stdout())).toMatchObject({ environment: "production", problem: { code: "CREDENTIAL_STORE_UNAVAILABLE" } });
+      expect(JSON.parse(io.stdout())).toMatchObject({ schema: "openprose.service-operation/1", operation: `auth.${command}`, problem: { code: "CREDENTIAL_STORE_UNAVAILABLE" } });
+      expect(JSON.parse(io.stdout())).not.toHaveProperty("environment");
       expect(io.stderr()).toBe("");
       expect(io.invocations).toHaveLength(0);
     } finally { await rm(root, { recursive: true, force: true }); }

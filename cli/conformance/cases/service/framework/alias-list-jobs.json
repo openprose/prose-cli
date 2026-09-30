@@ -1,0 +1,26 @@
+{
+  "id": "alias-list-jobs",
+  "feature": "framework",
+  "operation": "job.list",
+  "description": "`cli list jobs`: the command word comes first, `cli job list`.",
+  "argv": [
+    "cli",
+    "list",
+    "jobs"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: Unknown command.\nDetail: unknown command `cli list jobs`; the command word comes first: did you mean `cli job list`?\nAction: Use `cli job list`: `prose cli job list`.\n"
+  }
+}

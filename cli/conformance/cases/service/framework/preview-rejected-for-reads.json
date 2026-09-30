@@ -1,0 +1,50 @@
+{
+  "id": "preview-rejected-for-reads",
+  "feature": "framework",
+  "operation": "wallet.balance",
+  "description": "--preview applies only to operations that change state.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "wallet",
+    "balance",
+    "--preview"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "wallet.balance",
+      "operation": "wallet.balance",
+      "problem": {
+        "action": "Drop --preview; `cli wallet balance` only reads: `prose --output json cli wallet balance`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "`cli wallet balance` does not change anything, so --preview does not apply",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "wallet",
+            "balance"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

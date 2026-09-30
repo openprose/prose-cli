@@ -11,7 +11,7 @@ The reviewed native host and Bun coordinator preserve pending attempts after unc
 Commands from the repository root (explicit paths were used in this review because cargo/Bun were not in the shell PATH):
 
 ```sh
-/Users/mm/.cargo/bin/cargo test --offline --manifest-path experiments/weave-seed/rust-local/Cargo.toml
+cargo test --offline --manifest-path experiments/weave-seed/rust-local/Cargo.toml
 /tmp/imp019-bun/bun-darwin-aarch64/bun --no-env-file experiments/weave-seed/local/coordinator.test.mjs
 /tmp/imp019-bun/bun-darwin-aarch64/bun test experiments/weave-seed/providers/jev.test.mjs
 ```
@@ -79,7 +79,7 @@ The next probe used the existing fixed-image executables `/private/tmp/imp014-fi
 Exact argv shape, substituting each retained executable and the temporary ROOT:
 
 ```sh
-BINARY --harness agents-sdk --auth-profile openai-api-key --model gpt-5.6-luna   --native-max-turns 8 --native-timeout 120000ms --native-tool-timeout 15000ms   --timeout 150000ms --cwd ROOT --output-contract native   --dry-run --output json run program.md
+BINARY --harness agents-sdk --auth-profile openai-api-key --model MODEL   --native-max-turns 8 --native-timeout 120000ms --native-tool-timeout 15000ms   --timeout 150000ms --cwd ROOT --output-contract native   --dry-run --output json run program.md
 ```
 
 A separate 50-second subprocess timeout bounded each readiness check. Both exited zero with empty stderr. Observed identity and readiness:
@@ -89,7 +89,7 @@ A separate 50-second subprocess timeout bounded each readiness check. Both exite
 | executable SHA256 | fc19301da383e2ba6162ac71fc10bedcaf2c3af2f03b23e7a87dc8e05bfe540a | e27ac70183c4173aeb1bc8f4a8582dac5241324776975551dfc6a09bed9e1457 |
 | readiness / wouldStartModel | ready / false | ready / false |
 | harness / adapter | agents-sdk / agents-sdk/jsonl | agents-sdk / agents-sdk/jsonl |
-| admitted runtime / model | prose-agents-sdk 0.1.0 / gpt-5.6-luna | same |
+| admitted runtime / model | prose-agents-sdk 0.1.0 / MODEL | same |
 | prompt | system-append / strict | same |
 | billing category | user-provider | user-provider |
 | auth readiness | unknown | unknown |

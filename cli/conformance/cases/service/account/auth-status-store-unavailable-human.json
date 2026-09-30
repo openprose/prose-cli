@@ -1,0 +1,26 @@
+{
+  "id": "auth-status-store-unavailable-human",
+  "feature": "account",
+  "operation": "auth.status",
+  "description": "An unavailable credential store names OPENPROSE_API_KEY in both Detail and Action, with no status line.",
+  "argv": [
+    "cli",
+    "auth",
+    "status"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": false,
+    "exchanges": []
+  },
+  "exitCode": 10,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: CREDENTIAL_STORE_UNAVAILABLE: The operating system credential store is unavailable.\nDetail: the OS credential store is unavailable; set OPENPROSE_API_KEY for this command\nAction: Set OPENPROSE_API_KEY for this command, or unlock or configure the operating system credential store, then retry.\n"
+  }
+}

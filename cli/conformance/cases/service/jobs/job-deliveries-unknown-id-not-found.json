@@ -1,0 +1,78 @@
+{
+  "id": "job-deliveries-unknown-id-not-found",
+  "feature": "jobs",
+  "operation": "job.deliveries",
+  "description": "Deliveries of an unknown job stay SERVICE_RESOURCE_NOT_FOUND after the job read also answers 404.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "job",
+    "deliveries",
+    "00000000-0000-4000-8000-000000000000"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/triggers/00000000-0000-4000-8000-000000000000/deliveries",
+        "status": 404,
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "body": {
+          "error": "Not found"
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/triggers/00000000-0000-4000-8000-000000000000",
+        "status": 404,
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "body": {
+          "error": "Not found"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "job.deliveries",
+      "operation": "job.deliveries",
+      "problem": {
+        "action": "Run `prose --output json cli job list` to find the right job, then retry with it.",
+        "boundary": "hosted-service",
+        "code": "SERVICE_RESOURCE_NOT_FOUND",
+        "details": {
+          "serviceStatus": 404,
+          "reason": "job 00000000-0000-4000-8000-000000000000 was not found",
+          "resource": {
+            "id": "00000000-0000-4000-8000-000000000000",
+            "kind": "job"
+          },
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "job",
+            "list"
+          ]
+        },
+        "exitCode": 10,
+        "message": "The requested OpenProse service resource was not found.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

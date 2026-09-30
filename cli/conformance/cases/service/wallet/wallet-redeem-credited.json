@@ -1,0 +1,70 @@
+{
+  "id": "wallet-redeem-credited",
+  "feature": "wallet",
+  "operation": "wallet.redeem",
+  "description": "A credited code: the body is exactly {code} (trimmed), nanos fields are dropped, the code never appears in output.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "wallet",
+    "redeem",
+    "--code-file",
+    "code.txt",
+    "--yes"
+  ],
+  "files": [
+    {
+      "path": "code.txt",
+      "content": "Q7RC9-V5K2M\n"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/wallet/redeem",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          }
+        },
+        "expectedBody": {
+          "code": "Q7RC9-V5K2M"
+        },
+        "status": 200,
+        "body": {
+          "ok": true,
+          "already_redeemed": false,
+          "amount_nanos": 5000000000,
+          "amount_usd": 5,
+          "available_nanos": 38370000000,
+          "available_usd": 38.37
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "wallet.redeem",
+      "operation": "wallet.redeem",
+      "problem": null,
+      "result": {
+        "already_redeemed": false,
+        "amount_usd": 5,
+        "available_usd": 38.37,
+        "ok": true
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "Q7RC9-V5K2M"
+  ]
+}

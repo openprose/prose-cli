@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.openprose.org/cli/v1/service/responses/organization-members.schema.json",
+  "title": "service response acceptance: GET /organizations/{name}/members",
+  "x-probed": false,
+  "type": "object",
+  "required": [
+    "members"
+  ],
+  "properties": {
+    "members": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "organization_id",
+          "account_id",
+          "role",
+          "created_at"
+        ],
+        "properties": {
+          "organization_id": {
+            "type": "string"
+          },
+          "account_id": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "integer"
+          }
+        }
+      }
+    }
+  }
+}

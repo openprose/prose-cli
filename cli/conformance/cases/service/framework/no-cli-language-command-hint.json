@@ -1,0 +1,24 @@
+{
+  "id": "no-cli-language-command-hint",
+  "feature": "framework",
+  "operation": "service.status",
+  "description": "`status` is a language command (SPEC 7.1), but the default hosted harness runs no language command, so `prose status` exits 2 with `prose cli service triage`; nothing is forwarded.",
+  "argv": [
+    "status"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: That command isn't quite right.\nDetail: `status` is a language command, which runs only with a local harness; did you mean `prose cli service triage`? Nothing was forwarded or sent. To run the language command, select a local harness with `prose cli harness use <id>`\nAction: Use `cli service triage`: `prose cli service triage`.\n"
+  }
+}

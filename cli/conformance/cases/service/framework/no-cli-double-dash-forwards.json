@@ -1,0 +1,30 @@
+{
+  "id": "no-cli-double-dash-forwards",
+  "feature": "framework",
+  "operation": "job.list",
+  "description": "`prose -- job list` always forwards to the language, with no service hint.",
+  "argv": [
+    "--",
+    "job",
+    "list"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 10,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "HOSTED_UNAVAILABLE at hosted-service: Programs run here only with a local harness; hosted runs use `prose cli run submit`.\nAction: Use the exact runner invocation {{RUNNER}} for runner operations. To use the hosted service, run `cli run submit FILE --preview`; running programs on this machine needs a local harness (`cli harness list`).\n"
+  },
+  "forbid": [
+    "`prose cli job list`"
+  ],
+  "languageForwarded": true
+}

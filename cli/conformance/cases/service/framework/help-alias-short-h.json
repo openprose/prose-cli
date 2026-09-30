@@ -1,0 +1,27 @@
+{
+  "id": "help-alias-short-h",
+  "feature": "framework",
+  "operation": "run.list",
+  "description": "`-h` is `--help` for a service command.",
+  "argv": [
+    "cli",
+    "run",
+    "list",
+    "-h"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "Usage: prose [GLOBAL OPTIONS] cli run list [OPTIONS]\n\nList runs, newest first, one page at a time.\n\nOptions:\n  --limit N                   Page size, 1 to 200. Default: 20.\n  --before CURSOR             Opaque cursor from a previous result's nextBefore.\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli run list --limit 10 --json\n\nOutput: openprose.service-operation/1 (--json).\nPaging: pass the result's nextBefore to --before for the next page.\nExit codes: 0 success; 2 invalid invocation or configuration; 10 service or credential error; 24 interrupted.\n"
+  },
+  "stderr": {
+    "text": ""
+  }
+}

@@ -1,0 +1,67 @@
+{
+  "id": "result-publish-program-not-public",
+  "feature": "results",
+  "operation": "result.publish",
+  "description": "A private program is a 409 program_not_public: SERVICE_WRITE_CONFLICT with the service text; the reason names the source exposure and suggests only the --preview of the visibility change, never a --yes.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "result",
+    "publish",
+    "demo",
+    "--run",
+    "run_abc123abc123abc123abc123abc123abc123abc123abc123abc123abc123abc1",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/programs/demo/results",
+        "status": 409,
+        "expectedBody": {
+          "run_id": "run_abc123abc123abc123abc123abc123abc123abc123abc123abc123abc123abc1"
+        },
+        "body": {
+          "error": "Publish the contract before publishing a result.",
+          "code": "program_not_public"
+        },
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "results.publish",
+      "operation": "result.publish",
+      "problem": {
+        "action": "Read the current state of the resource, reconcile the change, then retry.",
+        "boundary": "hosted-service",
+        "code": "SERVICE_WRITE_CONFLICT",
+        "details": {
+          "reason": "program \"demo\" is private and only public programs can publish results; making it public exposes its source to everyone and is the owner's decision; review that change with `prose --output json cli program visibility demo public --preview`",
+          "serviceMessage": "Publish the contract before publishing a result.",
+          "serviceStatus": 409
+        },
+        "exitCode": 10,
+        "message": "The OpenProse service reported a conflicting write.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

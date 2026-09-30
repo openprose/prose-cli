@@ -1,0 +1,28 @@
+{
+  "id": "alias-option-program-only",
+  "feature": "framework",
+  "operation": "job.create",
+  "description": "`--program SLUG` alone folds into the suggested schedule spec as program_ref.",
+  "argv": [
+    "cli",
+    "job",
+    "create",
+    "--program",
+    "demo"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: Unknown option.\nDetail: unknown option --program for `cli job create`; a job names its program in the --spec-file JSON object as program_ref\nAction: Create a schedule job from a JSON spec on standard input, previewing it first: `printf '%s\\\\n' '{\"interval_seconds\":86400,\"program_ref\":\"demo\",\"type\":\"schedule\"}' | prose cli job create --spec-file - --preview`.\n"
+  }
+}

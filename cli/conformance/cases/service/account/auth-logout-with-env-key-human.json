@@ -1,0 +1,33 @@
+{
+  "id": "auth-logout-with-env-key-human",
+  "feature": "account",
+  "operation": "auth.logout",
+  "description": "Human twin of auth-logout-with-env-key: no `signed out` line is printed.",
+  "argv": [
+    "cli",
+    "auth",
+    "logout"
+  ],
+  "environment": {
+    "OPENPROSE_API_KEY": "rr_test_0123456789abcdef0123456789abcdef"
+  },
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_fedcba9876543210fedcba9876543210"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: That command isn't quite right.\nDetail: OPENPROSE_API_KEY is set; `cli auth logout` removes only the stored key, so commands would keep using OPENPROSE_API_KEY\nAction: Unset OPENPROSE_API_KEY to stop using that key; then `prose cli auth logout` removes the stored key.\n"
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef",
+    "rr_test_fedcba9876543210fedcba9876543210"
+  ]
+}

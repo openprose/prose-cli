@@ -1,0 +1,85 @@
+{
+  "id": "program-show-latest",
+  "feature": "programs",
+  "operation": "program.show",
+  "description": "`program show OWNER/SLUG` reads the latest revision; the text is returned byte-exact in file.content (LF preserved) and metadata drops content.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "program",
+    "show",
+    "alice/demo"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/p/alice/demo",
+        "requestHeaders": {
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          },
+          "User-Agent": {
+            "pattern": "^prose-cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"
+          },
+          "Accept": "application/json",
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "status": 200,
+        "body": {
+          "program": {
+            "owner": "alice",
+            "slug": "demo",
+            "visibility": "private",
+            "content": "---\nname: demo\nkind: function\n---\n\n### Returns\n\n- `text`: exactly `ok`\n",
+            "rev": 1,
+            "rev_id": "0123456789abcdef",
+            "commit_id": "1111111111111111",
+            "parent_commit_id": null,
+            "updated_at": 1790212199320
+          },
+          "is_owner": true
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "schema": "openprose.service-operation/1",
+      "operation": "program.show",
+      "interaction": "program.read",
+      "result": {
+        "program": {
+          "owner": "alice",
+          "slug": "demo",
+          "rev": 1,
+          "rev_id": "0123456789abcdef",
+          "commit_id": "1111111111111111",
+          "parent_commit_id": null,
+          "updated_at": 1790212199320,
+          "updated_at_iso": "2026-09-24T01:09:59.320Z",
+          "visibility": "private",
+          "ref": "alice/demo@0123456789abcdef"
+        },
+        "is_owner": true,
+        "file": {
+          "bytes": 71,
+          "sha256": "21be1edbc07387251e649a195675e24a96eaeac3e16fe91f834f3dd7530043ce",
+          "written": false,
+          "content": "---\nname: demo\nkind: function\n---\n\n### Returns\n\n- `text`: exactly `ok`\n"
+        }
+      },
+      "problem": null
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "id": "flag-before-cli-value-option",
+  "feature": "framework",
+  "operation": "run.list",
+  "description": "A value option before `cli` (`--limit 5`) moves after the command path with its value; a runner global after it keeps its place and selects the label.",
+  "argv": [
+    "--limit",
+    "5",
+    "cli",
+    "run",
+    "list"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: That command isn't quite right.\nDetail: `--limit` belongs after the command path, not before `cli`; nothing was forwarded or sent\nAction: Move --limit after the command path: `prose cli run list --limit 5`.\n"
+  },
+  "suggestedArgvReaches": true
+}

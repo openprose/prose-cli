@@ -1,0 +1,75 @@
+{
+  "id": "invitation-revoke-confirmation-required",
+  "feature": "organizations",
+  "operation": "org.invitation.revoke",
+  "description": "`org invitation revoke` without --yes sends nothing and exits 2 with the exact planned request (every organization mutation is confirm-class).",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "org",
+    "invitation",
+    "revoke",
+    "acme-research",
+    "7e6d5c4b-3a29-4817-8f6e-5d4c3b2a1908"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "organizations.manage",
+      "operation": "org.invitation.revoke",
+      "problem": {
+        "action": "Rerun the same command with --yes to confirm, or with --preview to see what it would do without sending anything.",
+        "boundary": "invocation",
+        "code": "CONFIRMATION_REQUIRED",
+        "details": {
+          "confirmArgv": [
+            "--output",
+            "json",
+            "cli",
+            "org",
+            "invitation",
+            "revoke",
+            "acme-research",
+            "7e6d5c4b-3a29-4817-8f6e-5d4c3b2a1908",
+            "--yes"
+          ],
+          "plannedRequest": {
+            "bodyBytes": null,
+            "bodySha256": null,
+            "description": "Revoke a pending invitation.",
+            "effect": "destructive",
+            "method": "DELETE",
+            "operation": "org.invitation.revoke"
+          },
+          "previewArgv": [
+            "--output",
+            "json",
+            "cli",
+            "org",
+            "invitation",
+            "revoke",
+            "acme-research",
+            "7e6d5c4b-3a29-4817-8f6e-5d4c3b2a1908",
+            "--preview"
+          ],
+          "reason": "--yes is required because the invitation token stops working now"
+        },
+        "exitCode": 2,
+        "message": "This service operation requires explicit confirmation.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

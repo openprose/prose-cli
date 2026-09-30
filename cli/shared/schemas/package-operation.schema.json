@@ -1,95 +1,54 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.openprose.org/cli/v1/package-operation.schema.json",
-  "type": "object",
-  "additionalProperties": false,
-  "required": [
-    "schema",
-    "environment",
-    "operation",
-    "result",
-    "problem"
-  ],
-  "properties": {
-    "schema": {
-      "const": "openprose.package-operation/1"
+  "title": "OpenProse package operation result (cli package publish|fetch|list|withdraw)",
+  "description": "The `result` of the openprose.service-operation/1 envelope of `cli package ...`: a publication receipt, a page of receipts, or a withdrawal.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/receipt"
     },
-    "environment": {
-      "enum": [
-        "production",
-        "staging"
-      ]
-    },
-    "operation": {
-      "enum": [
-        "publish",
-        "fetch",
-        "list",
-        "withdraw"
-      ]
-    },
-    "result": {
-      "oneOf": [
-        {
-          "type": "null"
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "packages",
+        "nextCursor"
+      ],
+      "properties": {
+        "packages": {
+          "type": "array",
+          "maxItems": 25,
+          "items": {
+            "$ref": "#/$defs/receipt"
+          }
         },
-        {
+        "nextCursor": {
+          "type": [
+            "null",
+            "string"
+          ],
+          "maxLength": 210,
+          "pattern": "^public:[a-z0-9-]+:[0-9A-Za-z.+-]+$"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "receipt",
+        "withdrawn"
+      ],
+      "properties": {
+        "receipt": {
           "$ref": "#/$defs/receipt"
         },
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "packages",
-            "nextCursor"
-          ],
-          "properties": {
-            "packages": {
-              "type": "array",
-              "maxItems": 25,
-              "items": {
-                "$ref": "#/$defs/receipt"
-              }
-            },
-            "nextCursor": {
-              "type": [
-                "null",
-                "string"
-              ],
-              "maxLength": 210,
-              "pattern": "^public:[a-z0-9-]+:[0-9A-Za-z.+-]+$"
-            }
-          }
-        },
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "receipt",
-            "withdrawn"
-          ],
-          "properties": {
-            "receipt": {
-              "$ref": "#/$defs/receipt"
-            },
-            "withdrawn": {
-              "const": true
-            }
-          }
+        "withdrawn": {
+          "const": true
         }
-      ]
-    },
-    "problem": {
-      "oneOf": [
-        {
-          "type": "null"
-        },
-        {
-          "$ref": "runner-error.schema.json"
-        }
-      ]
+      }
     }
-  },
+  ],
   "$defs": {
     "receipt": {
       "type": "object",
@@ -180,100 +139,5 @@
         }
       }
     }
-  },
-  "allOf": [
-    {
-      "if": {
-        "properties": {
-          "problem": {
-            "type": "null"
-          }
-        }
-      },
-      "then": {
-        "properties": {
-          "result": {
-            "not": {
-              "type": "null"
-            }
-          }
-        }
-      },
-      "else": {
-        "properties": {
-          "result": {
-            "type": "null"
-          }
-        }
-      }
-    },
-    {
-      "if": {
-        "properties": {
-          "problem": {
-            "type": "null"
-          },
-          "operation": {
-            "enum": [
-              "publish",
-              "fetch"
-            ]
-          }
-        }
-      },
-      "then": {
-        "properties": {
-          "result": {
-            "$ref": "#/$defs/receipt"
-          }
-        }
-      }
-    },
-    {
-      "if": {
-        "properties": {
-          "problem": {
-            "type": "null"
-          },
-          "operation": {
-            "const": "list"
-          }
-        }
-      },
-      "then": {
-        "properties": {
-          "result": {
-            "type": "object",
-            "required": [
-              "packages",
-              "nextCursor"
-            ]
-          }
-        }
-      }
-    },
-    {
-      "if": {
-        "properties": {
-          "problem": {
-            "type": "null"
-          },
-          "operation": {
-            "const": "withdraw"
-          }
-        }
-      },
-      "then": {
-        "properties": {
-          "result": {
-            "type": "object",
-            "required": [
-              "receipt",
-              "withdrawn"
-            ]
-          }
-        }
-      }
-    }
-  ]
+  }
 }

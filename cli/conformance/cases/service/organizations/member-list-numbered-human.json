@@ -1,0 +1,62 @@
+{
+  "id": "member-list-numbered-human",
+  "feature": "organizations",
+  "operation": "org.member.list",
+  "description": "Human `org member list` numbers members by when they joined and shows a handle the service sends; account and organization ids are never printed.",
+  "argv": [
+    "cli",
+    "org",
+    "member",
+    "list",
+    "acme-research"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/organizations/acme-research/members",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          },
+          "Accept": "application/json"
+        },
+        "status": 200,
+        "body": {
+          "members": [
+            {
+              "organization_id": "5b0e7c1a-3f2d-4e8b-9a61-2c4d8e0f1a23",
+              "account_id": "cus_ExampleInvitee1",
+              "role": "developer",
+              "created_at": 1790099999000
+            },
+            {
+              "organization_id": "5b0e7c1a-3f2d-4e8b-9a61-2c4d8e0f1a23",
+              "account_id": "cus_ExampleAdmin01",
+              "role": "admin",
+              "created_at": 1790012915257,
+              "handle": "exadmin"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "Members of acme-research (2):\nmember 1 (exadmin)  admin\nmember 2  developer\n"
+  },
+  "stderr": {
+    "text": ""
+  },
+  "forbid": [
+    "cus_ExampleInvitee1",
+    "cus_ExampleAdmin01",
+    "5b0e7c1a-3f2d-4e8b-9a61-2c4d8e0f1a23"
+  ]
+}

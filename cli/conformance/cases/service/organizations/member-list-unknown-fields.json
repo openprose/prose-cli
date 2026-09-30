@@ -1,0 +1,125 @@
+{
+  "id": "member-list-unknown-fields",
+  "feature": "organizations",
+  "operation": "org.member.list",
+  "description": "GET /organizations/{name}/members, projected in service order. Every service record also carries internal fields (runtime, contract, version, adoption, driver, configuration token, reactor, call id, showable, price policy, organization id, an internal path): the output is unchanged and names none of them.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "org",
+    "member",
+    "list",
+    "acme-research"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/organizations/acme-research/members",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          },
+          "Accept": "application/json"
+        },
+        "status": 200,
+        "body": {
+          "members": [
+            {
+              "organization_id": "5b0e7c1a-3f2d-4e8b-9a61-2c4d8e0f1a23",
+              "account_id": "cus_ExampleAdmin01",
+              "role": "admin",
+              "created_at": 1790012915257,
+              "runtime": "x-internal-runtime",
+              "contract": "x-internal-contract",
+              "version": "x-internal-version",
+              "adopted": true,
+              "driver": "x-internal-driver",
+              "configurationToken": "x-internal-configuration-token",
+              "reactor": "x-internal-reactor",
+              "call_id": "x-internal-call",
+              "showable": true,
+              "pricing_policy_id": "x-internal-pricing-policy",
+              "internal_path": "/internal/x-internal-path/state.json"
+            },
+            {
+              "organization_id": "5b0e7c1a-3f2d-4e8b-9a61-2c4d8e0f1a23",
+              "account_id": "cus_ExampleInvitee1",
+              "role": "developer",
+              "created_at": 1790099999000,
+              "runtime": "x-internal-runtime",
+              "contract": "x-internal-contract",
+              "version": "x-internal-version",
+              "adopted": true,
+              "driver": "x-internal-driver",
+              "configurationToken": "x-internal-configuration-token",
+              "reactor": "x-internal-reactor",
+              "call_id": "x-internal-call",
+              "showable": true,
+              "pricing_policy_id": "x-internal-pricing-policy",
+              "internal_path": "/internal/x-internal-path/state.json"
+            }
+          ],
+          "runtime": "x-internal-runtime",
+          "contract": "x-internal-contract",
+          "version": "x-internal-version",
+          "adopted": true,
+          "driver": "x-internal-driver",
+          "configurationToken": "x-internal-configuration-token",
+          "reactor": "x-internal-reactor",
+          "call_id": "x-internal-call",
+          "showable": true,
+          "pricing_policy_id": "x-internal-pricing-policy",
+          "organization_id": "x-internal-organization",
+          "internal_path": "/internal/x-internal-path/state.json"
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "organizations.manage",
+      "operation": "org.member.list",
+      "problem": null,
+      "result": {
+        "members": [
+          {
+            "created_at": 1790012915257,
+            "created_at_iso": "2026-09-21T17:48:35.257Z",
+            "member": "member 1",
+            "role": "admin"
+          },
+          {
+            "created_at": 1790099999000,
+            "created_at_iso": "2026-09-22T17:59:59.000Z",
+            "member": "member 2",
+            "role": "developer"
+          }
+        ]
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "x-internal-",
+    "/internal/",
+    "\"adopted\"",
+    "\"driver\"",
+    "\"showable\"",
+    "\"call_id\"",
+    "\"pricing_policy_id\"",
+    "\"organization_id\"",
+    "\"configurationToken\"",
+    "\"runtime\"",
+    "\"contract\"",
+    "\"reactor\"",
+    "\"internal_path\""
+  ]
+}

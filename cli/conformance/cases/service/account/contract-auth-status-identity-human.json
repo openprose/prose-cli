@@ -1,0 +1,44 @@
+{
+  "id": "contract-auth-status-identity-human",
+  "feature": "account",
+  "operation": "auth.status",
+  "description": "Human `auth status` names the login and default organization when the service provides them.",
+  "argv": [
+    "cli",
+    "auth",
+    "status"
+  ],
+  "fixture": {
+    "credential": "rr_test_11111111111111111111111111111111",
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/organizations",
+        "status": 200,
+        "body": {
+          "login": "octocat",
+          "organizations": [
+            {
+              "id": "org-b",
+              "slug": "beta",
+              "name": "Beta",
+              "role": "reader",
+              "default": true
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "OpenProse account status: authenticated as octocat (organization beta)\n"
+  },
+  "stderr": {
+    "text": ""
+  },
+  "forbid": [
+    "rr_test_11111111111111111111111111111111"
+  ]
+}

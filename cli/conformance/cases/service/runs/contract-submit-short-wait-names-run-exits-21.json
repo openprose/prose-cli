@@ -1,0 +1,119 @@
+{
+  "id": "contract-submit-short-wait-names-run-exits-21",
+  "feature": "runs",
+  "operation": "run.submit",
+  "description": "A --wait that passes before the first event arrives keeps reading until the run id is known, then detaches with SERVICE_WATCH_DEADLINE (21), details.resumable and a `run watch` resumeArgv; never RUN_SUBMISSION_AMBIGUOUS.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "submit",
+    "p.prose.md",
+    "--yes",
+    "--wait",
+    "1s"
+  ],
+  "files": [
+    {
+      "path": "p.prose.md",
+      "content": "---\nname: hello\nkind: function\n---\n\nReply with the word ok.\n"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/run",
+        "query": {
+          "live": "1",
+          "session": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f"
+        },
+        "requestHeaders": {
+          "X-Session-Id": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f",
+          "Accept": "text/event-stream",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "status": 200,
+        "sse": {
+          "frames": [
+            {
+              "id": "1",
+              "event": "status",
+              "data": {
+                "type": "status",
+                "run_id": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+                "sequence": 1,
+                "at": "2026-09-24T01:00:01.000Z",
+                "status": "queued",
+                "session": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f"
+              }
+            }
+          ],
+          "end": "idle"
+        }
+      }
+    ],
+    "ids": [
+      "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f"
+    ],
+    "clock": {
+      "start": "2026-09-24T01:00:00.000Z",
+      "stepMs": 5000
+    }
+  },
+  "exitCode": 21,
+  "stdout": {
+    "json": {
+      "interaction": "run.submit",
+      "operation": "run.submit",
+      "problem": {
+        "action": "Resume with the `cli run watch` runner operation using details.resumeArgv (details.runId and details.afterSequence); never submit the run again to resume it.",
+        "boundary": "hosted-service",
+        "code": "SERVICE_WATCH_DEADLINE",
+        "details": {
+          "afterSequence": 1,
+          "cancelArgv": [
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "cancel",
+            "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+            "--session",
+            "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f",
+            "--yes"
+          ],
+          "reason": "the --wait deadline passed; the run continues. Resume with `prose --output json cli run watch run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c --after 1 --session 5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f`",
+          "resumable": true,
+          "resumeArgv": [
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "watch",
+            "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+            "--after",
+            "1",
+            "--session",
+            "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f"
+          ],
+          "runId": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+          "session": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f"
+        },
+        "exitCode": 21,
+        "message": "The watch deadline elapsed before the hosted run finished; the run continues.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

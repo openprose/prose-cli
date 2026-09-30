@@ -3780,7 +3780,7 @@
         "meta": {
           "source": {
             "type": "path",
-            "value": "/Users/sl/Documents/openprose/lab/runs/alternate-harnesses-v0/omp-haiku-rpc-isolated/workspace/input.md"
+            "value": "/tmp/omp-rpc/workspace/input.md"
           }
         }
       }
@@ -3816,7 +3816,7 @@
         "meta": {
           "source": {
             "type": "path",
-            "value": "/Users/sl/Documents/openprose/lab/runs/alternate-harnesses-v0/omp-haiku-rpc-isolated/workspace/input.md"
+            "value": "/tmp/omp-rpc/workspace/input.md"
           }
         }
       },
@@ -3853,7 +3853,7 @@
         "meta": {
           "source": {
             "type": "path",
-            "value": "/Users/sl/Documents/openprose/lab/runs/alternate-harnesses-v0/omp-haiku-rpc-isolated/workspace/input.md"
+            "value": "/tmp/omp-rpc/workspace/input.md"
           }
         }
       },
@@ -3936,7 +3936,7 @@
           "meta": {
             "source": {
               "type": "path",
-              "value": "/Users/sl/Documents/openprose/lab/runs/alternate-harnesses-v0/omp-haiku-rpc-isolated/workspace/input.md"
+              "value": "/tmp/omp-rpc/workspace/input.md"
             }
           }
         },
@@ -7435,7 +7435,7 @@
         }
       ],
       "details": {
-        "resolvedPath": "/Users/sl/Documents/openprose/lab/runs/alternate-harnesses-v0/omp-haiku-rpc-isolated/workspace/result.md"
+        "resolvedPath": "/tmp/omp-rpc/workspace/result.md"
       }
     }
   },
@@ -7451,7 +7451,7 @@
         }
       ],
       "details": {
-        "resolvedPath": "/Users/sl/Documents/openprose/lab/runs/alternate-harnesses-v0/omp-haiku-rpc-isolated/workspace/result.md"
+        "resolvedPath": "/tmp/omp-rpc/workspace/result.md"
       }
     },
     "isError": false
@@ -7469,7 +7469,7 @@
         }
       ],
       "details": {
-        "resolvedPath": "/Users/sl/Documents/openprose/lab/runs/alternate-harnesses-v0/omp-haiku-rpc-isolated/workspace/result.md"
+        "resolvedPath": "/tmp/omp-rpc/workspace/result.md"
       },
       "isError": false,
       "timestamp": 1789096679221
@@ -7488,7 +7488,7 @@
         }
       ],
       "details": {
-        "resolvedPath": "/Users/sl/Documents/openprose/lab/runs/alternate-harnesses-v0/omp-haiku-rpc-isolated/workspace/result.md"
+        "resolvedPath": "/tmp/omp-rpc/workspace/result.md"
       },
       "isError": false,
       "timestamp": 1789096679221
@@ -7554,7 +7554,7 @@
           }
         ],
         "details": {
-          "resolvedPath": "/Users/sl/Documents/openprose/lab/runs/alternate-harnesses-v0/omp-haiku-rpc-isolated/workspace/result.md"
+          "resolvedPath": "/tmp/omp-rpc/workspace/result.md"
         },
         "isError": false,
         "timestamp": 1789096679221
@@ -10962,7 +10962,7 @@
           "meta": {
             "source": {
               "type": "path",
-              "value": "/Users/sl/Documents/openprose/lab/runs/alternate-harnesses-v0/omp-haiku-rpc-isolated/workspace/input.md"
+              "value": "/tmp/omp-rpc/workspace/input.md"
             }
           }
         },
@@ -11026,7 +11026,7 @@
           }
         ],
         "details": {
-          "resolvedPath": "/Users/sl/Documents/openprose/lab/runs/alternate-harnesses-v0/omp-haiku-rpc-isolated/workspace/result.md"
+          "resolvedPath": "/tmp/omp-rpc/workspace/result.md"
         },
         "isError": false,
         "timestamp": 1789096679221

@@ -1,0 +1,1285 @@
+{
+  "schema": "openprose.service-help/1",
+  "manifestSha256": "0943c951e2d1cb9233e783010e631a841a2310927367edf2bf5f37c89a8d2114",
+  "topics": {
+    "cli": "Usage: prose [GLOBAL OPTIONS] cli <COMMAND> [ARGUMENTS] [OPTIONS]\n\nOpenProse service and account commands. They reach the hosted OpenProse service\nand never prompt. New here? `prose cli service guide` walks through a first\nprogram, a daily schedule, scripting and costs. Commands for this machine\n(doctor, config) are listed by `prose --help`.\n\nCommands:\n  run                         Run a program on the hosted service, then follow, read or cancel it: submit, watch, show, list, cancel, download, input, quote, share.\n  program                     Save your programs and manage their revisions: save, list, show, delete, draft, revisions, visibility.\n  example                     Working example programs to read and copy: list, show.\n  job                         Run a saved program on a schedule or from a webhook: create, list, show, delete, configure, contract, deliveries, rotate-secret, update.\n  wallet                      Balance, usage and credit: balance, usage, events, topup, redeem.\n  auth                        Sign in, check or remove the stored key: login, status, logout.\n  model                       Hosted models: list.\n  result                      Published results of public programs (OWNER/SLUG); a run's own output is `cli run show` or `cli run download`: show, list, publish, unpublish.\n  org                         Organizations, members and invitations: list, show, create, default, invitation, invite, member, rename.\n  repo                        Repositories the service can read: list.\n  package                     Registry packages (no source execution): fetch, list, publish, withdraw.\n  service                     Service status, triage, the guide and the command list: triage, status, guide, capabilities, operations.\n\nExamples:\n  prose cli run submit hello.prose.md --preview\n  prose cli program save hello hello.prose.md --preview\n  prose cli example list --json\n  prose cli job create --spec-file job.json --preview\n  prose cli wallet balance --json\n  prose cli auth login\n  prose cli model list --json\n  prose cli result show exowner1/hello --latest\n  prose cli org list --json\n  prose cli repo list --json\n  prose cli package publish my-package --organization acme --name tool --version 1.0.0 --json\n  prose cli service triage --json\n\nGlobal options:\n  --output human|json|jsonl   Output mode; the same as the PROSE_OUTPUT setting.\n\nRun `prose cli <COMMAND> --help` for details. `prose cli service operations --json` prints every command as JSON.\n",
+    "cli auth": "Usage: prose [GLOBAL OPTIONS] cli auth <COMMAND> [ARGUMENTS] [OPTIONS]\n\nAccount credentials for the OpenProse service. Every other service command\nreads the key these commands manage, or OPENPROSE_API_KEY.\n\nCommands:\n  login                       Sign in with the GitHub device flow and store the key in the OS credential store.\n  status                      Report whether a credential is available and valid.\n  logout                      Remove the stored credential.\n\nExamples:\n  prose cli auth login\n  prose cli auth status --json\n  prose cli auth logout --json\n\nGlobal options:\n  --output human|json|jsonl   Output mode; the same as the PROSE_OUTPUT setting.\n\nCredentials:\n  OPENPROSE_API_KEY           API key; a non-empty value wins over the stored key.\n\nDevice flow: `cli auth login` prints a one-time code and https://github.com/login/device\non stderr, never the key, and never opens a browser. A person approves the code\nthere within 15 minutes. An agent without a person sets the variable instead.\n\nRun `prose cli auth <COMMAND> --help` for details. `prose cli service operations --json` prints every command as JSON.\n",
+    "cli auth login": "Usage: prose [GLOBAL OPTIONS] cli auth login [--json]\n\nSign in with the GitHub device flow and store the new key in the operating\nsystem credential store. There is no plaintext fallback. Login is refused\n(INVOCATION_INVALID naming the variable) while OPENPROSE_API_KEY is set,\nbecause the variable would still win.\n\nArguments: none.\n\nOptions:\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli auth login\n  prose cli auth login --json\n\nGlobal options:\n  --output human|json|jsonl   Output mode; the same as the PROSE_OUTPUT setting.\n\nCredentials:\n  OPENPROSE_API_KEY           API key; a non-empty value wins over the stored key.\n\nDevice flow: `cli auth login` prints a one-time code and https://github.com/login/device\non stderr, never the key, and never opens a browser. A person approves the code\nthere within 15 minutes. An agent without a person sets the variable instead.\n\nOutput: openprose.service-account/1 (--json).\nExit codes: 0 success; 2 invalid invocation or configuration; 10 service or credential error; 24 interrupted.\n",
+    "cli auth logout": "Usage: prose [GLOBAL OPTIONS] cli auth logout [--json]\n\nRemove the stored key from the credential store. The server key is not\nrevoked. Logging out while signed out succeeds. Logout is refused\n(INVOCATION_INVALID naming the variable) while OPENPROSE_API_KEY is set; unset\nit yourself.\n\nArguments: none.\n\nOptions:\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli auth logout --json\n\nGlobal options:\n  --output human|json|jsonl   Output mode; the same as the PROSE_OUTPUT setting.\n\nCredentials:\n  OPENPROSE_API_KEY           API key; a non-empty value wins over the stored key.\n\nDevice flow: `cli auth login` prints a one-time code and https://github.com/login/device\non stderr, never the key, and never opens a browser. A person approves the code\nthere within 15 minutes. An agent without a person sets the variable instead.\n\nOutput: openprose.service-account/1 (--json).\nExit codes: 0 success; 2 invalid invocation or configuration; 10 credential store error; 24 interrupted.\n",
+    "cli auth status": "Usage: prose [GLOBAL OPTIONS] cli auth status [--json]\n\nReport whether a key is available and, when there is one, verify it with\nGET /organizations. Signed out is success\n(authenticated false, exit 0). A malformed or rejected key is\nSERVICE_AUTH_REQUIRED naming details.credentialVariable, credentialSource and\ncredentialProblem; its Action follows the key's source (replace or unset the\nvariable, or log in again). Global options may also follow the command.\n\nArguments: none.\n\nOptions:\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli auth status --json\n\nGlobal options:\n  --output human|json|jsonl   Output mode; the same as the PROSE_OUTPUT setting.\n\nCredentials:\n  OPENPROSE_API_KEY           API key; a non-empty value wins over the stored key.\n\nDevice flow: `cli auth login` prints a one-time code and https://github.com/login/device\non stderr, never the key, and never opens a browser. A person approves the code\nthere within 15 minutes. An agent without a person sets the variable instead.\n\nOutput: openprose.service-account/1 (--json).\nExit codes: 0 success; 2 invalid invocation or configuration; 10 service or credential error; 24 interrupted.\n",
+    "cli example": "Usage: prose [GLOBAL OPTIONS] cli example <COMMAND> [ARGUMENTS] [OPTIONS]\n\nCommands:\n  list                        List the private example programs available to this account.\n  show                        Fetch one private example program.\n\nExamples:\n  prose cli example list --json\n  prose cli example show agent-native\n\nGlobal options:\n  --output human|json|jsonl   Output mode; the same as the PROSE_OUTPUT setting.\n\nRun `prose cli example <COMMAND> --help` for details. `prose cli service operations --json` prints every command as JSON.\n",
+    "cli example list": "Usage: prose [GLOBAL OPTIONS] cli example list [OPTIONS]\n\nList the private example programs available to this account.\n\nOptions:\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli example list --json\n\nOutput: openprose.service-operation/1 (--json).\nExit codes: 0 success; 2 invalid invocation or configuration; 10 service or credential error; 24 interrupted.\n",
+    "cli example show": "Usage: prose [GLOBAL OPTIONS] cli example show <NAME> [OPTIONS]\n\nFetch one private example program. Only same-origin sources listed by `example list` are followed.\n\nArguments:\n  NAME                        Example id from `cli example list`; a label or another letter case of an id also matches.\n\nOptions:\n  --output-file FILE          Write the bytes to FILE, which must not exist, instead of including them in the result.\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli example show agent-native\n  prose cli example show agent-native --output-file agent-native.prose.md\n\nOutput: openprose.service-operation/1 (--json).\nExit codes: 0 success; 2 invalid invocation or configuration, or EXAMPLE_NOT_VIEWABLE (details.webUrl); 10 service or credential error; 24 interrupted.\n",
+    "cli job": "Usage: prose [GLOBAL OPTIONS] cli job <COMMAND> [ARGUMENTS] [OPTIONS]\n\nCommands:\n  create                      Create a job from a JSON spec.\n  list                        List jobs, the account's job limit and the available job types.\n  show                        Show one job and its delivery status.\n  delete                      Delete a job.\n  configure                   Replace a schedule job's cadence and run configuration.\n  contract                    Commands: attach, detach, list.\n  deliveries                  List a webhook job's recent deliveries.\n  rotate-secret               Rotate a webhook job's signing secret.\n  update                      Change a webhook job's settings.\n\nExamples:\n  prose cli job create --spec-file job.json --preview\n  prose cli job list --json\n  prose cli job show 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10 --json\n  prose cli job delete 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10 --preview\n  prose cli job configure 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10 --interval-seconds 3600 --yes\n  prose cli job contract list 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10 --json\n  prose cli job deliveries 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10 --json\n  prose cli job rotate-secret 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10 --yes\n  prose cli job update 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10 --spec-file job.json --yes\n\nGlobal options:\n  --output human|json|jsonl   Output mode; the same as the PROSE_OUTPUT setting.\n\nRun `prose cli job <COMMAND> --help` for details. `prose cli service operations --json` prints every command as JSON.\n",
+    "cli job configure": "Usage: prose [GLOBAL OPTIONS] cli job configure <JOB_ID> [OPTIONS]\n\nReplace a schedule job's cadence and run configuration. Schedule jobs only.\nQuick form: `cli job configure JOB_ID --interval-seconds N` reads the job and resends its current configuration_revision, revision_token and bindings with the new interval.\nFull form: --config-file with the body {\"interval_seconds\":N,\"configuration_revision\":R,\"revision_token\":\"T\",\"bindings\":[{\"program_ref\":\"OWNER/SLUG@REV\",\"run_configuration\":{...}}]}.\nRead the current values with `cli job show JOB_ID --json`: status.configuration_revision, status.revision_token (an opaque token), and each status.contracts[] program_ref and run_configuration, under the same names.\nrun_configuration takes model, environment, reasoning_effort, inputs, files, context_repositories and output as show prints them, except input_entries: move each {name, value} entry into inputs, because every input left out is deleted.\nA stale revision_token is SERVICE_WRITE_CONFLICT; while a run of the schedule is in progress the service answers SERVICE_UNAVAILABLE (retry later).\n\nArguments:\n  JOB_ID                      Job id.\n\nOptions:\n  --config-file FILE          Schedule configuration: a JSON object of at most 64 KiB (see above), or -. Give exactly one of --config-file and --interval-seconds.\n  --interval-seconds N        New interval (60 to 2678400); the current configuration is read and resent unchanged otherwise.\n  --yes                       Confirm this operation; required because it replaces the schedule's cadence and run configuration; the next scheduled run uses them.\n  --preview                   Print the planned request of a mutation and send nothing.\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli job configure 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10 --interval-seconds 3600 --yes\n\nOutput: openprose.service-operation/1 (--json).\nExit codes: 0 success; 2 invalid invocation, configuration or CONFIRMATION_REQUIRED; 10 service or credential error; 24 interrupted.\n",
+    "cli job contract": "Usage: prose [GLOBAL OPTIONS] cli job contract <COMMAND> [ARGUMENTS] [OPTIONS]\n\nCommands:\n  attach                      Attach a pinned program to a job.\n  detach                      Detach a program from a job.\n  list                        List the programs attached to a job.\n\nExamples:\n  prose cli job contract attach 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10 exowner1/hello@0123456789abcdef --yes\n  prose cli job contract detach 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10 exowner1/hello@0123456789abcdef --yes\n  prose cli job contract list 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10 --json\n\nGlobal options:\n  --output human|json|jsonl   Output mode; the same as the PROSE_OUTPUT setting.\n\nRun `prose cli job contract <COMMAND> --help` for details. `prose cli service operations --json` prints every command as JSON.\n",
+    "cli job contract attach": "Usage: prose [GLOBAL OPTIONS] cli job contract attach <JOB_ID> <OWNER/SLUG@REV> [OPTIONS]\n\nAttach a pinned program to a job.\n\nArguments:\n  JOB_ID                      Job id.\n  OWNER/SLUG@REV              Pinned program reference.\n\nOptions:\n  --model MODEL               Hosted model for runs of this program.\n  --yes                       Confirm this operation; required because the job starts running this program, a paid run, each time it fires.\n  --preview                   Print the planned request of a mutation and send nothing.\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli job contract attach 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10 exowner1/hello@0123456789abcdef --yes\n\nOutput: openprose.service-operation/1 (--json).\nExit codes: 0 success; 2 invalid invocation, configuration or CONFIRMATION_REQUIRED; 10 service or credential error; 24 interrupted.\n",
+    "cli job contract detach": "Usage: prose [GLOBAL OPTIONS] cli job contract detach <JOB_ID> <OWNER/SLUG@REV> [OPTIONS]\n\nDetach a program from a job.\n\nArguments:\n  JOB_ID                      Job id.\n  OWNER/SLUG@REV              Pinned program reference.\n\nOptions:\n  --yes                       Confirm this operation; required because the job stops running this program from now on.\n  --preview                   Print the planned request of a mutation and send nothing.\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli job contract detach 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10 exowner1/hello@0123456789abcdef --yes\n\nOutput: openprose.service-operation/1 (--json).\nExit codes: 0 success; 2 invalid invocation, configuration or CONFIRMATION_REQUIRED; 10 service or credential error; 24 interrupted.\n",
+    "cli job contract list": "Usage: prose [GLOBAL OPTIONS] cli job contract list <JOB_ID> [OPTIONS]\n\nList the programs attached to a job.\n\nArguments:\n  JOB_ID                      Job id.\n\nOptions:\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli job contract list 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10 --json\n\nOutput: openprose.service-operation/1 (--json).\nExit codes: 0 success; 2 invalid invocation or configuration; 10 service or credential error; 24 interrupted.\n",
+    "cli job create": "Usage: prose [GLOBAL OPTIONS] cli job create [OPTIONS]\n\nCreate a job from a JSON spec. A job starts paid runs on its own, on a schedule or from webhook events, until it is deleted.\nSpec keys are snake_case. `type` is required; `cli job list` prints every type with its config_fields. Each type accepts the keys listed under this command's `spec` in `cli service operations --json`; every problem is reported at once.\n  Schedule: {\"type\":\"schedule\",\"program_ref\":\"OWNER/SLUG@REV\",\"interval_seconds\":86400}\n    interval_seconds 60 to 2678400 (86400 is once a day). The first run starts about one second after the job is created, then one every interval.\n    Cron expressions and a time of day are not supported.\n    Optional: model, reasoning_effort, environment, inputs (name -> string), files, repository_url, repository_branch, output.\n  Webhook: {\"type\":\"webhook\",\"name\":\"NAME\",\"delivery_mode\":\"test\"}\n    optional name, program_ref, receiver, receiver_secret, reply, reply_secret; delivery_mode test or live. Without program_ref it starts no runs: no hold, effect write.\nREV is the program's program.rev_id (printed by `cli program save` and `cli program show OWNER/SLUG`), not its commit_id.\n\nOptions:\n  --spec-file FILE            Job spec: a JSON object of at most 64 KiB (see above), or - for standard input. Required.\n  --yes                       Confirm this operation; required because the job starts paid runs on its own schedule or events until it is deleted (a webhook with no program starts none until one is attached).\n  --preview                   Print the planned request of a mutation and send nothing.\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli job create --spec-file job.json --preview\n  prose cli job create --spec-file job.json --yes\n\nOutput: openprose.service-operation/1 (--json).\nExit codes: 0 success; 2 invalid invocation, configuration or CONFIRMATION_REQUIRED; 10 service or credential error; 24 interrupted.\n",
+    "cli job delete": "Usage: prose [GLOBAL OPTIONS] cli job delete <JOB_ID> [OPTIONS]\n\nDelete a job. A job that is already gone exits 0 with alreadyAbsent: true; a JOB_ID that is not a UUID is refused (exit 2) before any request.\n\nArguments:\n  JOB_ID                      Job id: a lowercase UUID as `cli job list` prints it; anything else is refused before any request.\n\nOptions:\n  --yes                       Confirm this operation; required because it deletes the job permanently: its schedule or endpoint stops and cannot be restored.\n  --preview                   Print the planned request of a mutation and send nothing.\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli job delete 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10 --preview\n  prose cli job delete 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10 --yes\n\nOutput: openprose.service-operation/1 (--json).\nExit codes: 0 success; 2 invalid invocation, configuration or CONFIRMATION_REQUIRED; 10 service or credential error; 24 interrupted.\n",
+    "cli job deliveries": "Usage: prose [GLOBAL OPTIONS] cli job deliveries <JOB_ID> [OPTIONS]\n\nList a webhook job's recent deliveries. Other job types have none: a schedule's runs are in `cli job show JOB_ID` and `cli run list`.\n\nArguments:\n  JOB_ID                      Job id.\n\nOptions:\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli job deliveries 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10 --json\n\nOutput: openprose.service-operation/1 (--json).\nExit codes: 0 success; 2 invalid invocation or configuration; 10 service or credential error; 24 interrupted.\n",
+    "cli job list": "Usage: prose [GLOBAL OPTIONS] cli job list [OPTIONS]\n\nList jobs, the account's job limit and the available job types.\n\nOptions:\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli job list --json\n\nOutput: openprose.service-operation/1 (--json).\nExit codes: 0 success; 2 invalid invocation or configuration; 10 service or credential error; 24 interrupted.\n",
+    "cli job rotate-secret": "Usage: prose [GLOBAL OPTIONS] cli job rotate-secret <JOB_ID> [OPTIONS]\n\nRotate a webhook job's signing secret. The new secret appears only in this result.\n\nArguments:\n  JOB_ID                      Job id.\n\nOptions:\n  --yes                       Confirm this operation; required because it invalidates the current signing secret now; deliveries signed with the old secret are refused until the sender uses the new one.\n  --preview                   Print the planned request of a mutation and send nothing.\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli job rotate-secret 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10 --yes\n\nOutput: openprose.service-operation/1 (--json).\nExit codes: 0 success; 2 invalid invocation, configuration or CONFIRMATION_REQUIRED; 10 service or credential error; 24 interrupted.\n",
+    "cli job show": "Usage: prose [GLOBAL OPTIONS] cli job show <JOB_ID> [OPTIONS]\n\nShow one job and its delivery status.\n\nArguments:\n  JOB_ID                      Job id.\n\nOptions:\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli job show 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10 --json\n\nOutput: openprose.service-operation/1 (--json).\nExit codes: 0 success; 2 invalid invocation or configuration; 10 service or credential error; 24 interrupted.\n",
+    "cli job update": "Usage: prose [GLOBAL OPTIONS] cli job update <JOB_ID> [OPTIONS]\n\nChange a webhook job's settings. The spec is a partial JSON object with any of name, receiver, receiver_secret, delivery_mode (test or live), reply and reply_secret, for example {\"name\":\"NAME\"} (website-change jobs take url, interval_seconds and mode). Any other key is refused locally.\nSchedules are refused (SERVICE_REQUEST_REJECTED); change them with `cli job configure JOB_ID --interval-seconds N` or `cli job configure JOB_ID --config-file FILE`.\n\nArguments:\n  JOB_ID                      Job id.\n\nOptions:\n  --spec-file FILE            Partial webhook settings: a JSON object of at most 64 KiB, or -. Required.\n  --yes                       Confirm this operation; required because it changes how a live job receives or answers events; the next delivery uses the new settings.\n  --preview                   Print the planned request of a mutation and send nothing.\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli job update 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10 --spec-file job.json --yes\n\nOutput: openprose.service-operation/1 (--json).\nExit codes: 0 success; 2 invalid invocation, configuration or CONFIRMATION_REQUIRED; 10 service or credential error; 24 interrupted.\n",
+    "cli model": "Usage: prose [GLOBAL OPTIONS] cli model <COMMAND> [ARGUMENTS] [OPTIONS]\n\nCommands:\n  list                        List the hosted models and their status: the ones this account may run (default marked), premium ones any wallet top-up unlocks, and older ids still accepted.\n\nExamples:\n  prose cli model list --json\n\nGlobal options:\n  --output human|json|jsonl   Output mode; the same as the PROSE_OUTPUT setting.\n\nRun `prose cli model <COMMAND> --help` for details. `prose cli service operations --json` prints every command as JSON.\n",
+    "cli model list": "Usage: prose [GLOBAL OPTIONS] cli model list [OPTIONS]\n\nList the hosted models and their status: the ones this account may run (default marked), premium ones any wallet top-up unlocks, and older ids still accepted.\n\nOptions:\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli model list --json\n  prose cli model list\n\nOutput: openprose.service-operation/1 (--json).\nExit codes: 0 success; 2 invalid invocation or configuration; 10 service or credential error; 24 interrupted.\n",
+    "cli org": "Usage: prose [GLOBAL OPTIONS] cli org <COMMAND> [ARGUMENTS] [OPTIONS]\n\nCommands:\n  list                        List the organizations this account belongs to.\n  show                        Show one organization; ORG may be default.\n  create                      Create an organization.\n  default                     Choose this account's default organization.\n  invitation                  Commands: accept, revoke.\n  invite                      Invite an account.\n  member                      Commands: list, remove, role.\n  rename                      Change an organization's display name.\n\nExamples:\n  prose cli org list --json\n  prose cli org show acme-research --json\n  prose cli org create acme-research --name 'Acme Research' --yes\n  prose cli org default acme-research --yes\n  prose cli org invitation revoke acme-research 7e6d5c4b-3a29-4817-8f6e-5d4c3b2a1908 --yes\n  prose cli org invite acme-research ACCOUNT_ID --role developer --yes\n  prose cli org member list acme-research --json\n  prose cli org rename acme-research 'Acme Labs' --yes\n\nGlobal options:\n  --output human|json|jsonl   Output mode; the same as the PROSE_OUTPUT setting.\n\nRun `prose cli org <COMMAND> --help` for details. `prose cli service operations --json` prints every command as JSON.\n",
+    "cli org create": "Usage: prose [GLOBAL OPTIONS] cli org create <SLUG> [OPTIONS]\n\nCreate an organization. Slugs are global and permanent.\n\nArguments:\n  SLUG                        New organization slug.\n\nOptions:\n  --name NAME                 Display name.\n  --yes                       Confirm this operation; required because the organization slug is global and permanent; it cannot be changed or deleted later.\n  --preview                   Print the planned request of a mutation and send nothing.\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli org create acme-research --name 'Acme Research' --yes\n\nOutput: openprose.service-operation/1 (--json).\nExit codes: 0 success; 2 invalid invocation, configuration or CONFIRMATION_REQUIRED; 10 service or credential error; 24 interrupted.\n",
+    "cli org default": "Usage: prose [GLOBAL OPTIONS] cli org default <ORG> [OPTIONS]\n\nChoose this account's default organization.\n\nArguments:\n  ORG                         Organization slug or id.\n\nOptions:\n  --yes                       Confirm this operation; required because it changes the organization this account's commands use by default.\n  --preview                   Print the planned request of a mutation and send nothing.\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli org default acme-research --yes\n\nOutput: openprose.service-operation/1 (--json).\nExit codes: 0 success; 2 invalid invocation, configuration or CONFIRMATION_REQUIRED; 10 service or credential error; 24 interrupted.\n",
+    "cli org invitation": "Usage: prose [GLOBAL OPTIONS] cli org invitation <COMMAND> [ARGUMENTS] [OPTIONS]\n\nCommands:\n  accept                      Accept an invitation.\n  revoke                      Revoke a pending invitation.\n\nExamples:\n  prose cli org invitation accept --token-file invite.token --yes\n  prose cli org invitation revoke acme-research 7e6d5c4b-3a29-4817-8f6e-5d4c3b2a1908 --yes\n\nGlobal options:\n  --output human|json|jsonl   Output mode; the same as the PROSE_OUTPUT setting.\n\nRun `prose cli org invitation <COMMAND> --help` for details. `prose cli service operations --json` prints every command as JSON.\n",
+    "cli org invitation accept": "Usage: prose [GLOBAL OPTIONS] cli org invitation accept [OPTIONS]\n\nAccept an invitation.\n\nOptions:\n  --token-file FILE           File containing the invitation token, or - for standard input. Required.\n  --yes                       Confirm this operation; required because it joins this account to the organization with the invitation's role and uses up the token.\n  --preview                   Print the planned request of a mutation and send nothing.\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli org invitation accept --token-file invite.token --yes\n\nOutput: openprose.service-operation/1 (--json).\nExit codes: 0 success; 2 invalid invocation, configuration or CONFIRMATION_REQUIRED; 10 service or credential error; 24 interrupted.\n",
+    "cli org invitation revoke": "Usage: prose [GLOBAL OPTIONS] cli org invitation revoke <ORG> <INVITATION_ID> [OPTIONS]\n\nRevoke a pending invitation.\n\nArguments:\n  ORG                         Organization slug or id.\n  INVITATION_ID               Invitation id.\n\nOptions:\n  --yes                       Confirm this operation; required because the invitation token stops working now.\n  --preview                   Print the planned request of a mutation and send nothing.\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli org invitation revoke acme-research 7e6d5c4b-3a29-4817-8f6e-5d4c3b2a1908 --yes\n\nOutput: openprose.service-operation/1 (--json).\nExit codes: 0 success; 2 invalid invocation, configuration or CONFIRMATION_REQUIRED; 10 service or credential error; 24 interrupted.\n",
+    "cli org invite": "Usage: prose [GLOBAL OPTIONS] cli org invite <ORG> <ACCOUNT_ID> [OPTIONS]\n\nInvite an account. The invitation token appears only in this result.\n\nArguments:\n  ORG                         Organization slug or id.\n  ACCOUNT_ID                  Invited account id.\n\nOptions:\n  --role ROLE                 admin, developer or reader. Required.\n  --expires-in SECONDS        Invitation lifetime in seconds.\n  --yes                       Confirm this operation; required because it mints an invitation token that lets that account join with this role.\n  --preview                   Print the planned request of a mutation and send nothing.\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli org invite acme-research ACCOUNT_ID --role developer --yes\n\nOutput: openprose.service-operation/1 (--json).\nExit codes: 0 success; 2 invalid invocation, configuration or CONFIRMATION_REQUIRED; 10 service or credential error; 24 interrupted.\n",
+    "cli org list": "Usage: prose [GLOBAL OPTIONS] cli org list [--json]\n\nList the organizations this account belongs to: id, slug, name and role. The\nfirst call can create the account's default organization. Human output is one\n`SLUG  ROLE  NAME` line per organization (`-` without a role). Global options\nmay also follow the command. Other organization commands: `prose cli org --help`.\n\nArguments: none.\n\nOptions:\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli org list --json\n\nGlobal options:\n  --output human|json|jsonl   Output mode; the same as the PROSE_OUTPUT setting.\n\nCredentials:\n  OPENPROSE_API_KEY           API key; a non-empty value wins over the stored key.\n\nDevice flow: `cli auth login` prints a one-time code and https://github.com/login/device\non stderr, never the key, and never opens a browser. A person approves the code\nthere within 15 minutes. An agent without a person sets the variable instead.\n\nOutput: openprose.organization-list/1 (--json).\nExit codes: 0 success; 2 invalid invocation or configuration; 10 service or credential error; 24 interrupted.\n",
+    "cli org member": "Usage: prose [GLOBAL OPTIONS] cli org member <COMMAND> [ARGUMENTS] [OPTIONS]\n\nCommands:\n  list                        List an organization's members, numbered by when they joined; account ids are not shown.\n  remove                      Remove a member.\n  role                        Change a member's role.\n\nExamples:\n  prose cli org member list acme-research --json\n  prose cli org member remove acme-research MEMBER --yes\n  prose cli org member role acme-research MEMBER developer --yes\n\nGlobal options:\n  --output human|json|jsonl   Output mode; the same as the PROSE_OUTPUT setting.\n\nRun `prose cli org member <COMMAND> --help` for details. `prose cli service operations --json` prints every command as JSON.\n",
+    "cli org member list": "Usage: prose [GLOBAL OPTIONS] cli org member list [ORG] [OPTIONS]\n\nList an organization's members, numbered by when they joined; account ids are not shown.\n\nArguments:\n  ORG                         Organization slug or id; defaults to your default organization.\n\nOptions:\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli org member list acme-research --json\n  prose cli org member list --json\n\nOutput: openprose.service-operation/1 (--json).\nExit codes: 0 success; 2 invalid invocation or configuration; 10 service or credential error; 24 interrupted.\n",
+    "cli org member remove": "Usage: prose [GLOBAL OPTIONS] cli org member remove <ORG> <MEMBER> [OPTIONS]\n\nRemove a member.\n\nArguments:\n  ORG                         Organization slug or id.\n  MEMBER                      Member number as `cli org member list` prints it (N or \"member N\"), or the member's account id.\n\nOptions:\n  --yes                       Confirm this operation; required because it removes the member's access to the organization now.\n  --preview                   Print the planned request of a mutation and send nothing.\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli org member remove acme-research MEMBER --yes\n\nOutput: openprose.service-operation/1 (--json).\nExit codes: 0 success; 2 invalid invocation, configuration or CONFIRMATION_REQUIRED; 10 service or credential error; 24 interrupted.\n",
+    "cli org member role": "Usage: prose [GLOBAL OPTIONS] cli org member role <ORG> <MEMBER> <ROLE> [OPTIONS]\n\nChange a member's role.\n\nArguments:\n  ORG                         Organization slug or id.\n  MEMBER                      Member number as `cli org member list` prints it (N or \"member N\"), or the member's account id.\n  ROLE                        admin, developer or reader.\n\nOptions:\n  --yes                       Confirm this operation; required because it changes what the member may do in the organization, effective now.\n  --preview                   Print the planned request of a mutation and send nothing.\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli org member role acme-research MEMBER developer --yes\n\nOutput: openprose.service-operation/1 (--json).\nExit codes: 0 success; 2 invalid invocation, configuration or CONFIRMATION_REQUIRED; 10 service or credential error; 24 interrupted.\n",
+    "cli org rename": "Usage: prose [GLOBAL OPTIONS] cli org rename <ORG> [NAME] [OPTIONS]\n\nChange an organization's display name.\n\nArguments:\n  ORG                         Organization slug or id.\n  NAME                        New display name; or give it as --name NAME.\n\nOptions:\n  --name NAME                 New display name, spelled as `org create` takes it; same as NAME.\n  --yes                       Confirm this operation; required because it changes the display name every member sees.\n  --preview                   Print the planned request of a mutation and send nothing.\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli org rename acme-research 'Acme Labs' --yes\n\nOutput: openprose.service-operation/1 (--json).\nExit codes: 0 success; 2 invalid invocation, configuration or CONFIRMATION_REQUIRED; 10 service or credential error; 24 interrupted.\n",
+    "cli org show": "Usage: prose [GLOBAL OPTIONS] cli org show [ORG] [OPTIONS]\n\nShow one organization; ORG may be default.\n\nArguments:\n  ORG                         Organization slug or id; defaults to your default organization.\n\nOptions:\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli org show acme-research --json\n  prose cli org show --json\n\nOutput: openprose.service-operation/1 (--json).\nExit codes: 0 success; 2 invalid invocation or configuration; 10 service or credential error; 24 interrupted.\n",
+    "cli package": "Usage: prose [GLOBAL OPTIONS] cli package <COMMAND> [ARGUMENTS] [OPTIONS]\n\nRegistry package commands (no source execution). Packages are files published\nto an organization's registry namespace; they are not OpenProse service programs\n(see `cli program`).\n\nCommands:\n  fetch                       Download one exact package version into a fresh directory, verifying its hashes.\n  list                        List an organization's public packages, one page at a time.\n  publish                     Publish a file or a package directory as ORG/NAME@VERSION (private by default).\n  withdraw                    Remove a version from discovery; pinned retrieval keeps working.\n\nExamples:\n  prose cli package fetch acme/tool@1.0.0 --output-dir tool --json\n  prose cli package list acme --json\n  prose cli package publish my-package --organization acme --name tool --version 1.0.0 --json\n  prose cli package withdraw acme/tool@1.0.0 --json\n\nGlobal options:\n  --output human|json|jsonl   Output mode; the same as the PROSE_OUTPUT setting.\n\nRun `prose cli package <COMMAND> --help` for details. Output: openprose.service-operation/1 (--json).\n",
+    "cli package fetch": "Usage: prose [GLOBAL OPTIONS] cli package fetch <ORG>/<NAME>@<VERSION> --output-dir <FRESH_DIR> [--sha256 <DIGEST>] [--json]\n\nFetch one exact version, verify canonical bytes and receipt hashes, then create a\nfresh directory. It never overwrites an existing directory. A target without its\nreceipt after an interruption is incomplete; there is no automatic resume.\n\nArguments:\n  ORG/NAME@VERSION            Exact package version.\n\nOptions:\n  --output-dir FRESH_DIR      Directory to create; it must not exist. Required.\n  --sha256 DIGEST             Expected package digest.\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli package fetch acme/tool@1.0.0 --output-dir tool --json\n\nOutput: openprose.package-operation/1 (--json).\nExit codes: 0 success; 2 invalid invocation or configuration; 10 service, credential or registry error; 24 interrupted.\n",
+    "cli package list": "Usage: prose [GLOBAL OPTIONS] cli package list <ORG> [--cursor <CURSOR>] [--json]\n\nList an organization's public packages, one page at a time. An organization with\nno public packages prints `No public packages in ORG.` --output may also follow\nthe command.\n\nArguments:\n  ORG                         Organization slug (see `cli org list`).\n\nOptions:\n  --cursor CURSOR             The next-page cursor printed by the previous page.\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli package list acme --json\n\nOutput: openprose.package-operation/1 (--json).\nExit codes: 0 success; 2 invalid invocation or configuration; 10 service, credential or registry error; 24 interrupted.\n",
+    "cli package publish": "Usage: prose [GLOBAL OPTIONS] cli package publish <FILE|DIR> --organization <ORG> --name <NAME> --version <VERSION> [--public] [--json]\n\nPublish one file, or a directory with prose-package.json listing its files, exports\nand pinned dependencies. Private is the default.\n\nArguments:\n  FILE|DIR                    The file or package directory to publish.\n\nOptions:\n  --organization ORG          Organization that owns the package. Required.\n  --name NAME                 Package name. Required.\n  --version VERSION           Exact version to publish. Required.\n  --public                    Make the version publicly discoverable.\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli package publish my-package --organization acme --name tool --version 1.0.0 --json\n\nOutput: openprose.package-operation/1 (--json).\nExit codes: 0 success; 2 invalid invocation or configuration; 10 service, credential or registry error; 24 interrupted.\n",
+    "cli package withdraw": "Usage: prose [GLOBAL OPTIONS] cli package withdraw <ORG>/<NAME>@<VERSION> [--json]\n\nWithdraw one version from discovery. Pinned retrieval of that exact version keeps\nworking.\n\nArguments:\n  ORG/NAME@VERSION            Exact package version.\n\nOptions:\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli package withdraw acme/tool@1.0.0 --json\n\nOutput: openprose.package-operation/1 (--json).\nExit codes: 0 success; 2 invalid invocation or configuration; 10 service, credential or registry error; 24 interrupted.\n",
+    "cli program": "Usage: prose [GLOBAL OPTIONS] cli program <COMMAND> [ARGUMENTS] [OPTIONS]\n\nCommands:\n  save                        Save a new revision of a program; a new program is private.\n  list                        List this account's saved programs.\n  show                        Show a saved program and its content.\n  delete                      Delete a saved program and its revisions.\n  draft                       Draft a program from a sentence with the hosted writer.\n  revisions                   List a program's revisions, newest first.\n  visibility                  Make a program public or private.\n\nExamples:\n  prose cli program save hello hello.prose.md --preview\n  prose cli program list --json\n  prose cli program show exowner1/hello --json\n  prose cli program delete hello --preview\n  prose cli program draft 'write a haiku about rain' --output-file haiku.prose.md --yes\n  prose cli program revisions hello --json\n  prose cli program visibility hello public --yes\n\nGlobal options:\n  --output human|json|jsonl   Output mode; the same as the PROSE_OUTPUT setting.\n\nRun `prose cli program <COMMAND> --help` for details. `prose cli service operations --json` prints every command as JSON.\n",
+    "cli program delete": "Usage: prose [GLOBAL OPTIONS] cli program delete <SLUG> [OPTIONS]\n\nDelete a saved program and its revisions. A program that is already gone exits 0 with alreadyAbsent: true. OWNER/SLUG is refused (exit 2) unless OWNER is confirmed as you.\n\nArguments:\n  SLUG                        Program slug owned by this account; OWNER/SLUG as `cli program list` prints it is accepted when OWNER is confirmed as you, and refused (exit 2) when it cannot be.\n\nOptions:\n  --yes                       Confirm this operation; required because it deletes the program and every revision permanently; it cannot be undone.\n  --preview                   Print the planned request of a mutation and send nothing.\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli program delete hello --preview\n  prose cli program delete hello --yes\n\nOutput: openprose.service-operation/1 (--json).\nExit codes: 0 success; 2 invalid invocation, configuration or CONFIRMATION_REQUIRED; 10 service or credential error; 24 interrupted.\n",
+    "cli program draft": "Usage: prose [GLOBAL OPTIONS] cli program draft <SENTENCE> [OPTIONS]\n\nDraft a program from a sentence with the hosted writer. This is paid: it reserves the same hold as a run (see `cli run quote`), and --preview shows it.\n\nArguments:\n  SENTENCE                    What the program should do.\n\nOptions:\n  --current FILE              Existing program to revise.\n  --model MODEL               Hosted model id. Default: the service's default_model (`cli model list`).\n  --output-file FILE          Write the bytes to FILE, which must not exist, instead of including them in the result.\n  --yes                       Confirm this operation; required because it starts a paid writer run: a hold is reserved from the wallet now and the run's price is charged when it settles.\n  --preview                   Print the planned request of a mutation and send nothing.\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli program draft 'write a haiku about rain' --output-file haiku.prose.md --yes\n\nOutput: openprose.service-operation/1 (--json).\nExit codes: 0 success; 2 invalid invocation, configuration or CONFIRMATION_REQUIRED; 10 service or credential error; 22 the writer run failed; 24 interrupted (details.runId names the draft run, which continues).\n",
+    "cli program list": "Usage: prose [GLOBAL OPTIONS] cli program list [OPTIONS]\n\nList this account's saved programs.\n\nOptions:\n  --with-content              Include each program's content.\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli program list --json\n\nOutput: openprose.service-operation/1 (--json).\nExit codes: 0 success; 2 invalid invocation or configuration; 10 service or credential error; 24 interrupted.\n",
+    "cli program revisions": "Usage: prose [GLOBAL OPTIONS] cli program revisions <SLUG> [OPTIONS]\n\nList a program's revisions, newest first.\n\nArguments:\n  SLUG                        Program slug owned by this account; OWNER/SLUG as `cli program list` prints it is accepted when OWNER is confirmed as you, and refused (exit 2) when it cannot be.\n\nOptions:\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli program revisions hello --json\n\nOutput: openprose.service-operation/1 (--json).\nExit codes: 0 success; 2 invalid invocation or configuration; 10 service or credential error; 24 interrupted.\n",
+    "cli program save": "Usage: prose [GLOBAL OPTIONS] cli program save <SLUG> <FILE> [OPTIONS]\n\nSave a new revision of a program; a new program is private. Visibility is never changed by save (use `cli program visibility`).\n\nArguments:\n  SLUG                        Program slug owned by this account; OWNER/SLUG as `cli program list` prints it is accepted when OWNER is confirmed as you, and refused (exit 2) when it cannot be.\n  FILE                        Program file, or - for standard input.\n\nOptions:\n  --message TEXT              Revision message.\n  --base COMMIT_ID            Expected current commit id; a newer revision yields SERVICE_WRITE_CONFLICT.\n  --preview                   Print the planned request of a mutation and send nothing.\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli program save hello hello.prose.md --preview\n  prose cli program save hello hello.prose.md --message 'First draft'\n\nOutput: openprose.service-operation/1 (--json).\nExit codes: 0 success; 2 invalid invocation or configuration; 10 service or credential error; 24 interrupted.\n",
+    "cli program show": "Usage: prose [GLOBAL OPTIONS] cli program show <OWNER/SLUG[@REV]> [OPTIONS]\n\nShow a saved program and its content.\n\nArguments:\n  OWNER/SLUG[@REV]            Program reference. A bare SLUG[@REV] is your own program: its owner is looked up from its revisions. Without @REV the latest revision is used; @REV is the 16-hex-digit rev_id, or a revision number such as @1 of your own program, resolved through the same revisions list.\n\nOptions:\n  --output-file FILE          Write the bytes to FILE, which must not exist, instead of including them in the result.\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli program show exowner1/hello --json\n  prose cli program show exowner1/hello@0123456789abcdef --output-file hello.prose.md\n\nOutput: openprose.service-operation/1 (--json).\nExit codes: 0 success; 2 invalid invocation or configuration; 10 service or credential error; 24 interrupted.\n",
+    "cli program visibility": "Usage: prose [GLOBAL OPTIONS] cli program visibility <SLUG> <VISIBILITY> [OPTIONS]\n\nMake a program public or private.\n\nArguments:\n  SLUG                        Program slug owned by this account; OWNER/SLUG as `cli program list` prints it is accepted when OWNER is confirmed as you, and refused (exit 2) when it cannot be.\n  VISIBILITY                  public or private (any letter case).\n\nOptions:\n  --yes                       Confirm this operation; required because it changes who can read the program; public makes it readable by anyone.\n  --preview                   Print the planned request of a mutation and send nothing.\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli program visibility hello public --yes\n\nOutput: openprose.service-operation/1 (--json).\nExit codes: 0 success; 2 invalid invocation, configuration or CONFIRMATION_REQUIRED; 10 service or credential error; 24 interrupted.\n",
+    "cli repo": "Usage: prose [GLOBAL OPTIONS] cli repo <COMMAND> [ARGUMENTS] [OPTIONS]\n\nCommands:\n  list                        List GitHub repositories reachable through the account's GitHub link.\n\nExamples:\n  prose cli repo list --json\n\nGlobal options:\n  --output human|json|jsonl   Output mode; the same as the PROSE_OUTPUT setting.\n\nRun `prose cli repo <COMMAND> --help` for details. `prose cli service operations --json` prints every command as JSON.\n",
+    "cli repo list": "Usage: prose [GLOBAL OPTIONS] cli repo list [OPTIONS]\n\nList GitHub repositories reachable through the account's GitHub link.\n\nOptions:\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli repo list --json\n\nOutput: openprose.service-operation/1 (--json).\nExit codes: 0 success; 2 invalid invocation or configuration; 10 service or credential error; 24 interrupted.\n",
+    "cli result": "Usage: prose [GLOBAL OPTIONS] cli result <COMMAND> [ARGUMENTS] [OPTIONS]\n\nPublished results: outputs an owner chose to publish from a public program OWNER/SLUG.\nThey are not run records. Read a run's own output with `cli run show RUN_ID`,\n`cli run show RUN_ID --file outputs/result.json` or `cli run download RUN_ID --output-dir DIR`.\n\nCommands:\n  show                        Show one published result, or the latest.\n  list                        List a public program's published results.\n  publish                     Publish a completed run as a public result of a program.\n  unpublish                   Remove a published result.\n\nExamples:\n  prose cli result show exowner1/hello --latest\n  prose cli result list exowner1/hello --json\n  prose cli result publish hello --run run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c --yes\n  prose cli result unpublish hello AbCdEf012_-x --yes\n\nGlobal options:\n  --output human|json|jsonl   Output mode; the same as the PROSE_OUTPUT setting.\n\nRun `prose cli result <COMMAND> --help` for details. `prose cli service operations --json` prints every command as JSON.\n",
+    "cli result list": "Usage: prose [GLOBAL OPTIONS] cli result list <OWNER/SLUG> [OPTIONS]\n\nList a public program's published results. Anonymous.\n\nArguments:\n  OWNER/SLUG                  Public program, or a bare SLUG for your own program (its owner is looked up from its revisions).\n\nOptions:\n  --limit N                   Page size, 1 to 100. Default: 20.\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli result list exowner1/hello --json\n\nOutput: openprose.service-operation/1 (--json).\nExit codes: 0 success; 2 invalid invocation or configuration; 10 service or credential error; 24 interrupted.\n",
+    "cli result publish": "Usage: prose [GLOBAL OPTIONS] cli result publish <SLUG> [OPTIONS]\n\nPublish a completed run as a public result of a program.\n\nArguments:\n  SLUG                        Program slug owned by this account; OWNER/SLUG as `cli program list` prints it is accepted when OWNER is confirmed as you, and refused (exit 2) when it cannot be.\n\nOptions:\n  --run RUN_ID                Completed run of this program. Required.\n  --yes                       Confirm this operation; required because it puts the run's result on a public page that anyone can open.\n  --preview                   Print the planned request of a mutation and send nothing.\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli result publish hello --run run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c --yes\n\nOutput: openprose.service-operation/1 (--json).\nExit codes: 0 success; 2 invalid invocation, configuration or CONFIRMATION_REQUIRED; 10 service or credential error; 24 interrupted.\n",
+    "cli result show": "Usage: prose [GLOBAL OPTIONS] cli result show <OWNER/SLUG> [PUBLICATION_ID] [OPTIONS]\n\nShow one published result, or the latest. Anonymous.\n\nArguments:\n  OWNER/SLUG                  Public program, or a bare SLUG for your own program (its owner is looked up from its revisions).\n  PUBLICATION_ID              Publication id; omit it, or pass `latest`, for the newest publication.\n\nOptions:\n  --latest                    Use the newest publication (also the default without PUBLICATION_ID).\n  --raw                       Fetch the raw result bytes.\n  --output-file FILE          Write the bytes to FILE, which must not exist, instead of including them in the result.\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli result show exowner1/hello --latest\n  prose cli result show exowner1/hello AbCdEf012_-x --json\n\nOutput: openprose.service-operation/1 (--json).\nExit codes: 0 success; 2 invalid invocation or configuration; 10 service or credential error; 24 interrupted.\n",
+    "cli result unpublish": "Usage: prose [GLOBAL OPTIONS] cli result unpublish <SLUG> <PUBLICATION_ID> [OPTIONS]\n\nRemove a published result.\n\nArguments:\n  SLUG                        Program slug owned by this account; OWNER/SLUG as `cli program list` prints it is accepted when OWNER is confirmed as you, and refused (exit 2) when it cannot be.\n  PUBLICATION_ID              Publication id.\n\nOptions:\n  --yes                       Confirm this operation; required because it removes the public result page now; its link stops working.\n  --preview                   Print the planned request of a mutation and send nothing.\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli result unpublish hello AbCdEf012_-x --yes\n\nOutput: openprose.service-operation/1 (--json).\nExit codes: 0 success; 2 invalid invocation, configuration or CONFIRMATION_REQUIRED; 10 service or credential error; 24 interrupted.\n",
+    "cli run": "Usage: prose [GLOBAL OPTIONS] cli run <COMMAND> [ARGUMENTS] [OPTIONS]\n\nCommands:\n  submit                      Run a program on the hosted service and stream it until it finishes, detaches or the deadline passes.\n  watch                       Replay and follow a live run's events from a sequence number.\n  show                        Show a run manifest (status, files, price), or one output file with --file.\n  list                        List runs, newest first, one page at a time.\n  cancel                      Cancel a live run, then report the wallet's available and reserved balance.\n  download                    Download every file listed in a run manifest into a new directory (./RUN_ID unless --output-dir).\n  input                       Send an instruction to a live run.\n  quote                       Report the hold a run reserves: money set aside from the wallet while the run is live.\n  share                       Create a public link to a run's outputs.\n\nExamples:\n  prose cli run submit hello.prose.md --preview\n  prose cli run watch run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c --json\n  prose cli run show run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c --json\n  prose cli run list --limit 10 --json\n  prose cli run cancel run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c --preview\n  prose cli run download run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c\n  prose cli run input run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c 'Also write a haiku.' --yes\n  prose cli run quote --json\n  prose cli run share run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c --yes\n\nGlobal options:\n  --output human|json|jsonl   Output mode; the same as the PROSE_OUTPUT setting.\n\nRun `prose cli run <COMMAND> --help` for details. `prose cli service operations --json` prints every command as JSON.\n",
+    "cli run cancel": "Usage: prose [GLOBAL OPTIONS] cli run cancel <RUN_ID> [OPTIONS]\n\nCancel a live run, then report the wallet's available and reserved balance. A run that already ended is reported as already_ended (exit 0), also when it was started on another machine.\n\nArguments:\n  RUN_ID                      Run id (run_...).\n\nOptions:\n  --session UUID              Live session to use instead of the one recorded in the local run journal.\n  --yes                       Confirm this operation; required because it stops the live run now; unfinished work is lost and the run cannot be resumed.\n  --preview                   Print the planned request of a mutation and send nothing.\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli run cancel run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c --preview\n  prose cli run cancel run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c --yes\n\nOutput: openprose.service-operation/1 (--json).\nExit codes: 0 success; 2 invalid invocation, configuration or CONFIRMATION_REQUIRED; 10 service or credential error; 24 interrupted.\n",
+    "cli run download": "Usage: prose [GLOBAL OPTIONS] cli run download <RUN_ID> [OPTIONS]\n\nDownload every file listed in a run manifest into a new directory (./RUN_ID unless --output-dir).\n\nArguments:\n  RUN_ID                      Run id (run_ and 64 hex digits), or latest for your newest run.\n\nOptions:\n  --output-dir DIR            Destination directory; it must not exist. Default: ./RUN_ID.\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli run download run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c\n  prose cli run download run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c --output-dir run-output\n\nOutput: openprose.service-operation/1 (--json).\nExit codes: 0 success; 2 invalid invocation or configuration; 10 service or credential error; 24 interrupted.\n",
+    "cli run input": "Usage: prose [GLOBAL OPTIONS] cli run input <RUN_ID> <TEXT> [OPTIONS]\n\nSend an instruction to a live run. The instruction id makes retries idempotent. Without a live session on this machine the run record is read first: an ended run is refused as SERVICE_WRITE_CONFLICT (not retryable).\n\nArguments:\n  RUN_ID                      Run id (run_...).\n  TEXT                        Instruction text, 1 to 4000 characters.\n\nOptions:\n  --id UUID                   Instruction id to reuse when retrying; a new UUID is minted otherwise.\n  --session UUID              Live session to use instead of the one recorded in the local run journal.\n  --yes                       Confirm this operation; required because the live run acts on the instruction as soon as it arrives, and it cannot be taken back.\n  --preview                   Print the planned request of a mutation and send nothing.\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli run input run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c 'Also write a haiku.' --yes\n\nOutput: openprose.service-operation/1 (--json).\nExit codes: 0 success; 2 invalid invocation, configuration or CONFIRMATION_REQUIRED; 10 service or credential error; 24 interrupted.\n",
+    "cli run list": "Usage: prose [GLOBAL OPTIONS] cli run list [OPTIONS]\n\nList runs, newest first, one page at a time.\n\nOptions:\n  --limit N                   Page size, 1 to 200. Default: 20.\n  --before CURSOR             Opaque cursor from a previous result's nextBefore.\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli run list --limit 10 --json\n\nOutput: openprose.service-operation/1 (--json).\nPaging: pass the result's nextBefore to --before for the next page.\nExit codes: 0 success; 2 invalid invocation or configuration; 10 service or credential error; 24 interrupted.\n",
+    "cli run quote": "Usage: prose [GLOBAL OPTIONS] cli run quote [FILE] [OPTIONS]\n\nReport the hold a run reserves: money set aside from the wallet while the run is live. It is not the price. The environment is checked first.\nThe hold is flat, the same for every program and model, and what the run does not use is released when it settles. A run's price is known only after it settles (`cli run show RUN_ID`, price_cents). The program, inputs and model `cli run submit` takes are accepted, so you can quote the exact command you will submit.\n\nArguments:\n  FILE                        Program file, or - for standard input, as `cli run submit` takes it. Accepted so a quote names the same command as `cli run submit`; the hold does not depend on it.\n\nOptions:\n  --from [OWNER/]SLUG[@REV]   Run a saved program; a bare SLUG is your own program. @REV is a rev_id, or @N (@revN) for revision N of your own program; without @REV the latest revision is pinned. Accepted so a quote names the same command as `cli run submit`; the hold does not depend on it.\n  --input KEY=VALUE|KEY=@FILE\n                              Program input; @FILE reads UTF-8 text of at most 1 MiB. Accepted so a quote names the same command as `cli run submit`; the hold does not depend on it. Repeatable.\n  --inputs-file FILE          JSON object of string inputs. Accepted so a quote names the same command as `cli run submit`; the hold does not depend on it.\n  --model MODEL               Hosted model id (see `cli model list`). Accepted so a quote names the same command as `cli run submit`; the hold does not depend on it. Default: the service's default_model (`cli model list`).\n  --reasoning-effort EFFORT   Reasoning effort supported by the model. Accepted so a quote names the same command as `cli run submit`; the hold does not depend on it. One of: minimal, low, medium, high, xhigh.\n  --environment ENV           Execution environment offered by the service (for example builtin or linux). Default: the service's default environment.\n  --runtime RUNTIME           Runtime offered by the service. Accepted so a quote names the same command as `cli run submit`; the hold does not depend on it. Default: the service's default runtime.\n  --repo OWNER/NAME[@BRANCH]  Read-only repository context. Accepted so a quote names the same command as `cli run submit`; the hold does not depend on it. Repeatable.\n  --commit-output OWNER/NAME[@BRANCH]\n                              Writable repository that receives the run's commit. Accepted so a quote names the same command as `cli run submit`; the hold does not depend on it.\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli run quote --json\n  prose cli run quote hello.prose.md --input topic=cats --json\n\nOutput: openprose.service-operation/1 (--json).\nExit codes: 0 success; 2 invalid invocation or configuration; 10 service or credential error; 24 interrupted.\n",
+    "cli run share": "Usage: prose [GLOBAL OPTIONS] cli run share <RUN_ID> [OPTIONS]\n\nCreate a public link to a run's outputs. Anyone with the link can open it for 24 hours, and it cannot be revoked.\nTo give specific people access instead, invite them to your organization (`cli org invite`).\n\nArguments:\n  RUN_ID                      Run id (run_ and 64 hex digits), or latest for your newest run.\n\nOptions:\n  --yes                       Confirm this operation; required because it creates a public link to the run's outputs that anyone who has it can open for 24 hours, and it cannot be revoked.\n  --preview                   Print the planned request of a mutation and send nothing.\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli run share run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c --yes\n\nOutput: openprose.service-operation/1 (--json).\nExit codes: 0 success; 2 invalid invocation, configuration or CONFIRMATION_REQUIRED; 10 service or credential error; 24 interrupted.\n",
+    "cli run show": "Usage: prose [GLOBAL OPTIONS] cli run show <RUN_ID> [OPTIONS]\n\nShow a run manifest (status, files, price), or one output file with --file. Signed file URLs are never printed.\nThe manifest has no final response text. Read the run's outputs with `cli run show RUN_ID --file outputs/result.json` or `cli run download RUN_ID --output-dir DIR`; replay the stream, whose terminal event carries the response, with `cli run watch RUN_ID --after 0` (runs submitted from this machine, or pass --session).\n\nArguments:\n  RUN_ID                      Run id (run_ and 64 hex digits), or latest for your newest run.\n\nOptions:\n  --file PATH                 Output file path exactly as listed in the manifest.\n  --output-file FILE          Write the bytes to FILE, which must not exist, instead of including them in the result.\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli run show run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c --json\n  prose cli run show run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c --file outputs/result.json\n  prose cli run show latest --json\n\nOutput: openprose.service-operation/1 (--json).\nExit codes: 0 success; 2 invalid invocation or configuration; 10 service or credential error, or no such run or --file (SERVICE_RESOURCE_NOT_FOUND); 24 interrupted.\n",
+    "cli run submit": "Usage: prose [GLOBAL OPTIONS] cli run submit [FILE] [OPTIONS]\n\nRun a program on the hosted service and stream it until it finishes, detaches or the deadline passes.\nInputs: --input KEY=VALUE overrides the same key from --inputs-file.\nA --wait shorter than the run exits 21 with details.resumeArgv: the run continues, and that command follows it again. Never submit again to resume; that starts a second paid run.\n\nArguments:\n  FILE                        Program file, or - for standard input. Omit when --from is given.\n\nOptions:\n  --from [OWNER/]SLUG[@REV]   Run a saved program; a bare SLUG is your own program. @REV is a rev_id, or @N (@revN) for revision N of your own program; without @REV the latest revision is pinned.\n  --input KEY=VALUE|KEY=@FILE\n                              Program input; @FILE reads UTF-8 text of at most 1 MiB. It overrides the same key from --inputs-file. Repeatable.\n  --inputs-file FILE          JSON object of string inputs; an --input of the same key wins.\n  --model MODEL               Hosted model id (see `cli model list`). Default: the service's default_model (`cli model list`).\n  --reasoning-effort EFFORT   Reasoning effort supported by the model. One of: minimal, low, medium, high, xhigh.\n  --environment ENV           Where the run executes (for example builtin: file tools only; linux: a shell without network access). Web access is through the browser:interact tool. Default: the service's default environment.\n  --runtime RUNTIME           Runtime offered by the service. Default: the service's default runtime.\n  --repo OWNER/NAME[@BRANCH]  Read-only repository context. Repeatable.\n  --commit-output OWNER/NAME[@BRANCH]\n                              Writable repository that receives the run's commit.\n  --detach                    Return as soon as the run id is known.\n  --wait DURATION             Stop following after this long and exit 21 (for example 90s, 10m, 2h; maximum 6h). The run continues. Default: 30m.\n  --session UUID              Use this session UUID instead of a new one (recovery only).\n  --yes                       Confirm this operation; required because it starts a paid run: a hold (money set aside from the wallet, not the price) is reserved now, and the run's price is charged when it settles.\n  --preview                   Print the planned request of a mutation and send nothing.\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli run submit hello.prose.md --preview\n  prose cli run submit hello.prose.md --yes\n  prose cli run submit --from exowner1/hello --input topic=rain --yes --detach --json\n\nOutput: openprose.service-operation/1 (--json) or openprose.service-event/1 lines (--output jsonl). The run id is result.runId (and result.run.run_id once the run ends); the answer is result.run.response.\nExit codes: 0 success; 2 invalid invocation, configuration or CONFIRMATION_REQUIRED; 10 service or credential error; 21 deadline or detached: the run id is known and the run continues (resume with details.resumeArgv); 22 run failed, or submission ambiguous (recover with details.resumeArgv: the same session with --detach, never a new run); 24 cancelled on the service.\n",
+    "cli run watch": "Usage: prose [GLOBAL OPTIONS] cli run watch <RUN_ID> [OPTIONS]\n\nReplay and follow a live run's events from a sequence number. Without a live session on this machine, an ended run's outcome is read from its record.\n\nArguments:\n  RUN_ID                      Run id (run_ and 64 hex digits), or latest for your newest run.\n\nOptions:\n  --after N                   Replay events after this sequence number. Default: 0.\n  --wait DURATION             Stop following after this long and exit 21 (for example 90s, 10m, 2h; maximum 6h). The run continues. Default: 30m.\n  --session UUID              Live session to use instead of the one recorded in the local run journal.\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli run watch run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c --json\n  prose cli run watch run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c --wait 10m\n\nOutput: openprose.service-operation/1 (--json) or openprose.service-event/1 lines (--output jsonl). The run id is result.runId (and result.run.run_id once the run ends); the answer is result.run.response.\nExit codes: 0 success; 2 invalid invocation or configuration, or a truncated run id; 10 service or credential error, or no run with this id (SERVICE_RESOURCE_NOT_FOUND); 21 deadline or detached: the run continues (resume with details.resumeArgv); 22 run failed; 24 cancelled on the service.\n",
+    "cli service": "Usage: prose [GLOBAL OPTIONS] cli service <COMMAND> [ARGUMENTS] [OPTIONS]\n\nCommands:\n  triage                      Diagnose a session in one call: service health, credential, balance, default organization, recent runs, jobs and the next commands to run.\n  status                      Report whether the OpenProse service is reachable and which models you can run.\n  guide                       Print the agent guide: grammar, key precedence, confirmation, exit codes with resume and detach, paging, reading a run's answer and recipes.\n  capabilities                Print the grammar, exit codes by error code, environment variables and every command on one page.\n  operations                  Print every command: a summary table, the manifest as the result of one JSON line (--json), or one record line per operation (--output jsonl).\n\nExamples:\n  prose cli service triage --json\n  prose cli service status --json\n  prose cli service guide\n  prose cli service capabilities --json\n  prose cli service operations\n\nGlobal options:\n  --output human|json|jsonl   Output mode; the same as the PROSE_OUTPUT setting.\n\nRun `prose cli service <COMMAND> --help` for details. `prose cli service operations --json` prints every command as JSON.\n",
+    "cli service capabilities": "Usage: prose [GLOBAL OPTIONS] cli service capabilities [OPTIONS]\n\nPrint the grammar, exit codes by error code, environment variables and every command on one page. Makes no request.\n\nOptions:\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli service capabilities --json\n  prose cli service capabilities\n\nOutput: openprose.service-capabilities/1 (--json).\nExit codes: 0 success; 2 invalid invocation or configuration.\n",
+    "cli service guide": "Usage: prose [GLOBAL OPTIONS] cli service guide [OPTIONS]\n\nPrint the agent guide: grammar, key precedence, confirmation, exit codes with resume and detach, paging, reading a run's answer and recipes. Makes no request.\n\nOptions:\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli service guide\n  prose cli service guide --json\n\nOutput: the guide as Markdown (shared/service/guide.v1.md); with --json, its sections as openprose.service-operation/1 result {sections: [{id, title, body}]}.\nExit codes: 0 success; 2 invalid invocation or configuration.\n",
+    "cli service operations": "Usage: prose [GLOBAL OPTIONS] cli service operations [OPTIONS]\n\nPrint every command: a summary table, the manifest as the result of one JSON line (--json), or one record line per operation (--output jsonl). Makes no request.\n\nOptions:\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli service operations\n  prose cli service operations --json\n  prose --output jsonl cli service operations\n\nOutput: a summary table; the manifest (openprose.service-operations/1) byte for byte with --json; one compact operation per line with --output jsonl.\nExit codes: 0 success; 2 invalid invocation or configuration.\n",
+    "cli service status": "Usage: prose [GLOBAL OPTIONS] cli service status [OPTIONS]\n\nReport whether the OpenProse service is reachable and which models you can run. Anonymous.\n\nOptions:\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli service status --json\n  prose cli service status\n\nOutput: openprose.service-operation/1 (--json).\nExit codes: 0 success; 2 invalid invocation or configuration; 10 service or credential error; 24 interrupted.\n",
+    "cli service triage": "Usage: prose [GLOBAL OPTIONS] cli service triage [OPTIONS]\n\nDiagnose a session in one call: service health, credential, balance, default organization, recent runs, jobs and the next commands to run.\n\nOptions:\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli service triage --json\n  prose cli service triage\n\nOutput: openprose.service-operation/1 (--json).\nExit codes: 0 success, including a report whose sections carry problems; 2 invalid invocation or configuration; 24 interrupted.\n",
+    "cli wallet": "Usage: prose [GLOBAL OPTIONS] cli wallet <COMMAND> [ARGUMENTS] [OPTIONS]\n\nCommands:\n  balance                     Show the wallet: available to spend, reserved (held for runs in progress) and the balance.\n  usage                       Summarize run usage and prices by day.\n  events                      List wallet events, newest first, one page at a time.\n  topup                       Start a Checkout session to add credit.\n  redeem                      Redeem a one-time credit code.\n\nExamples:\n  prose cli wallet balance --json\n  prose cli wallet usage --start 2026-09-01 --end 2026-09-24 --json\n  prose cli wallet events --limit 20 --json\n  prose cli wallet topup --amount-cents 500 --preview\n  prose cli wallet redeem --code-file code.txt --yes\n\nGlobal options:\n  --output human|json|jsonl   Output mode; the same as the PROSE_OUTPUT setting.\n\nRun `prose cli wallet <COMMAND> --help` for details. `prose cli service operations --json` prints every command as JSON.\n",
+    "cli wallet balance": "Usage: prose [GLOBAL OPTIONS] cli wallet balance [OPTIONS]\n\nShow the wallet: available to spend, reserved (held for runs in progress) and the balance.\n\nOptions:\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli wallet balance --json\n\nOutput: openprose.service-operation/1 (--json).\nExit codes: 0 success; 2 invalid invocation or configuration; 10 service or credential error; 24 interrupted.\n",
+    "cli wallet events": "Usage: prose [GLOBAL OPTIONS] cli wallet events [OPTIONS]\n\nList wallet events, newest first, one page at a time.\n\nOptions:\n  --limit N                   Page size, 1 to 100. Default: 20.\n  --before CURSOR             Opaque cursor from a previous result's nextBefore.\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli wallet events --limit 20 --json\n\nOutput: openprose.service-operation/1 (--json).\nPaging: pass the result's nextBefore to --before for the next page.\nExit codes: 0 success; 2 invalid invocation or configuration; 10 service or credential error; 24 interrupted.\n",
+    "cli wallet redeem": "Usage: prose [GLOBAL OPTIONS] cli wallet redeem [OPTIONS]\n\nRedeem a one-time credit code.\n\nOptions:\n  --code-file FILE            File containing the code, or - for standard input. Required.\n  --yes                       Confirm this operation; required because it uses up the one-time code; a redeemed code cannot be redeemed again.\n  --preview                   Print the planned request of a mutation and send nothing.\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli wallet redeem --code-file code.txt --yes\n\nOutput: openprose.service-operation/1 (--json).\nExit codes: 0 success; 2 invalid invocation, configuration or CONFIRMATION_REQUIRED; 10 service or credential error; 24 interrupted.\n",
+    "cli wallet topup": "Usage: prose [GLOBAL OPTIONS] cli wallet topup [OPTIONS]\n\nStart a Checkout session to add credit. Prints the Checkout URL and never opens a browser.\n\nOptions:\n  --amount-cents N            Credit to add, in cents. Required.\n  --idempotency-key UUID      Reuse to retry the same top-up; a UUIDv4 is minted otherwise.\n  --yes                       Confirm this operation; required because it opens a Checkout session for this amount; your payment method is charged when the Checkout page is paid.\n  --preview                   Print the planned request of a mutation and send nothing.\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli wallet topup --amount-cents 500 --preview\n  prose cli wallet topup --amount-cents 500 --yes\n\nOutput: openprose.service-operation/1 (--json).\nExit codes: 0 success; 2 invalid invocation, configuration or CONFIRMATION_REQUIRED; 10 service or credential error; 24 interrupted.\n",
+    "cli wallet usage": "Usage: prose [GLOBAL OPTIONS] cli wallet usage [OPTIONS]\n\nSummarize run usage and prices by day.\n\nOptions:\n  --start YYYY-MM-DD          First day. Default: 30 days ago (UTC).\n  --end YYYY-MM-DD            Last day. Default: today (UTC).\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli wallet usage --start 2026-09-01 --end 2026-09-24 --json\n\nOutput: openprose.service-operation/1 (--json).\nExit codes: 0 success; 2 invalid invocation or configuration; 10 service or credential error; 24 interrupted.\n"
+  },
+  "capabilities": {
+    "schema": "openprose.service-capabilities/1",
+    "contract": "service/1",
+    "manifest": {
+      "schema": "openprose.service-operations/1",
+      "sha256": "40813b94d3ec38153a3b012ec1eb187681e9791692f65490cff211b0c0b73f2c",
+      "argv": [
+        "cli",
+        "service",
+        "operations",
+        "--json"
+      ]
+    },
+    "grammar": {
+      "usage": "prose [--output human|json|jsonl] cli <command> [ARGUMENTS] [OPTIONS]",
+      "placement": "Global options precede `cli`; operation options follow the command path. A rejected global option is an INVOCATION_INVALID error only in the global position; an operation may define its own option of the same name (for example `cli run submit --model`). An operation option or common flag before `cli` (`prose --json cli run list`) is never forwarded to the language: it is an INVOCATION_INVALID error whose suggestedArgv moves it after the command path. In --json and --output json|jsonl every error of a `cli` command line, including an invocation error for a near miss, a misplaced flag or an invalid global, is the openprose.service-operation/1 envelope with the error as `problem`: `operation` is `cli` when the argv names no operation. A bare openprose.runner-error/1 is only for the language and the runner commands (`cli doctor`, `cli harness`, `cli config`, `cli cleanup`).",
+      "globalOptions": [
+        "--output"
+      ],
+      "rejectedGlobalOptions": [
+        "--model",
+        "--harness",
+        "--dry-run"
+      ],
+      "commonOptions": [
+        "--json",
+        "--yes",
+        "--preview",
+        "--help",
+        "--no-color"
+      ],
+      "outputModes": [
+        "human",
+        "json",
+        "jsonl"
+      ],
+      "help": "prose cli <COMMAND> --help"
+    },
+    "exitCodes": {
+      "CANCELLED": {
+        "exit": 24,
+        "retryable": true,
+        "meaning": "The runner was cancelled before semantic completion."
+      },
+      "CONFIG_INVALID": {
+        "exit": 2,
+        "retryable": false,
+        "meaning": "Runner configuration is invalid."
+      },
+      "CONFIRMATION_REQUIRED": {
+        "exit": 2,
+        "retryable": false,
+        "meaning": "This service operation requires explicit confirmation."
+      },
+      "CREDENTIAL_STORE_UNAVAILABLE": {
+        "exit": 10,
+        "retryable": false,
+        "meaning": "The operating system credential store is unavailable."
+      },
+      "DEVICE_AUTH_EXPIRED": {
+        "exit": 10,
+        "retryable": true,
+        "meaning": "Device authorization expired."
+      },
+      "DEVICE_AUTH_FAILED": {
+        "exit": 10,
+        "retryable": false,
+        "meaning": "Device authorization failed."
+      },
+      "EXAMPLE_NOT_VIEWABLE": {
+        "exit": 2,
+        "retryable": false,
+        "meaning": "This example is published outside the OpenProse service and cannot be shown here."
+      },
+      "GITHUB_LINK_REQUIRED": {
+        "exit": 10,
+        "retryable": false,
+        "meaning": "This operation needs a linked GitHub account on the OpenProse account."
+      },
+      "HOSTED_RUN_CANCELLED": {
+        "exit": 24,
+        "retryable": false,
+        "meaning": "The hosted run was cancelled on the service and will not continue."
+      },
+      "HOSTED_RUN_DETACHED": {
+        "exit": 21,
+        "retryable": false,
+        "meaning": "The client stopped following the hosted run before its outcome arrived; the run was not cancelled."
+      },
+      "HOSTED_RUN_FAILED": {
+        "exit": 22,
+        "retryable": false,
+        "meaning": "The hosted run finished without completing successfully."
+      },
+      "INTERNAL_ERROR": {
+        "exit": 70,
+        "retryable": false,
+        "meaning": "The runner encountered an internal fault."
+      },
+      "INVOCATION_INVALID": {
+        "exit": 2,
+        "retryable": false,
+        "meaning": "Runner invocation is invalid."
+      },
+      "RUN_SUBMISSION_AMBIGUOUS": {
+        "exit": 22,
+        "retryable": false,
+        "meaning": "The run submission could not be confirmed and was not repeated."
+      },
+      "SERVICE_ACCOUNT_SUSPENDED": {
+        "exit": 10,
+        "retryable": false,
+        "meaning": "The OpenProse account is suspended."
+      },
+      "SERVICE_AUTH_REQUIRED": {
+        "exit": 10,
+        "retryable": false,
+        "meaning": "OpenProse service authentication is required."
+      },
+      "SERVICE_BALANCE_INSUFFICIENT": {
+        "exit": 10,
+        "retryable": false,
+        "meaning": "The OpenProse wallet balance is insufficient for this operation."
+      },
+      "SERVICE_FEATURE_DISABLED": {
+        "exit": 10,
+        "retryable": false,
+        "meaning": "This capability is not available for this account."
+      },
+      "SERVICE_PREMIUM_MODEL_LOCKED": {
+        "exit": 10,
+        "retryable": false,
+        "meaning": "This model is a premium model that unlocks with any wallet top-up."
+      },
+      "SERVICE_PROTOCOL_INVALID": {
+        "exit": 10,
+        "retryable": false,
+        "meaning": "The OpenProse service returned an invalid response."
+      },
+      "SERVICE_REQUEST_REJECTED": {
+        "exit": 10,
+        "retryable": false,
+        "meaning": "The OpenProse service rejected the request."
+      },
+      "SERVICE_RESOURCE_NOT_FOUND": {
+        "exit": 10,
+        "retryable": false,
+        "meaning": "The requested OpenProse service resource was not found."
+      },
+      "SERVICE_RESPONSE_TOO_LARGE": {
+        "exit": 10,
+        "retryable": false,
+        "meaning": "The OpenProse service response exceeded the client limit."
+      },
+      "SERVICE_UNAVAILABLE": {
+        "exit": 10,
+        "retryable": true,
+        "meaning": "The OpenProse service is unavailable."
+      },
+      "SERVICE_WATCH_DEADLINE": {
+        "exit": 21,
+        "retryable": false,
+        "meaning": "The watch deadline elapsed before the hosted run finished; the run continues."
+      },
+      "SERVICE_WRITE_CONFLICT": {
+        "exit": 10,
+        "retryable": false,
+        "meaning": "The OpenProse service reported a conflicting write."
+      }
+    },
+    "envVars": [
+      {
+        "name": "OPENPROSE_API_KEY",
+        "description": "API key; a non-empty value wins over the stored key."
+      },
+      {
+        "name": "PROSE_OUTPUT",
+        "description": "Output mode (human, json or jsonl) when neither --output nor --json is given."
+      },
+      {
+        "name": "XDG_STATE_HOME",
+        "description": "Base directory of the local run journal."
+      },
+      {
+        "name": "PROSE_DEBUG",
+        "description": "Set to 1 to print a hosted run's error text as the service sent it instead of its mapped message."
+      }
+    ],
+    "nouns": {
+      "auth": [
+        "login",
+        "logout",
+        "status"
+      ],
+      "example": [
+        "list",
+        "show"
+      ],
+      "job": [
+        "configure",
+        "contract attach",
+        "contract detach",
+        "contract list",
+        "create",
+        "delete",
+        "deliveries",
+        "list",
+        "rotate-secret",
+        "show",
+        "update"
+      ],
+      "model": [
+        "list"
+      ],
+      "org": [
+        "create",
+        "default",
+        "invitation accept",
+        "invitation revoke",
+        "invite",
+        "list",
+        "member list",
+        "member remove",
+        "member role",
+        "rename",
+        "show"
+      ],
+      "package": [
+        "fetch",
+        "list",
+        "publish",
+        "withdraw"
+      ],
+      "program": [
+        "delete",
+        "draft",
+        "list",
+        "revisions",
+        "save",
+        "show",
+        "visibility"
+      ],
+      "repo": [
+        "list"
+      ],
+      "result": [
+        "list",
+        "publish",
+        "show",
+        "unpublish"
+      ],
+      "run": [
+        "cancel",
+        "download",
+        "input",
+        "list",
+        "quote",
+        "share",
+        "show",
+        "submit",
+        "watch"
+      ],
+      "service": [
+        "capabilities",
+        "guide",
+        "operations",
+        "status",
+        "triage"
+      ],
+      "wallet": [
+        "balance",
+        "events",
+        "redeem",
+        "topup",
+        "usage"
+      ]
+    },
+    "operations": [
+      {
+        "id": "service.operations",
+        "command": [
+          "cli",
+          "service",
+          "operations"
+        ],
+        "summary": "Print every command: a summary table, the manifest as the result of one JSON line (--json), or one record line per operation (--output jsonl). Makes no request.",
+        "effect": "read",
+        "confirm": false,
+        "examples": [
+          "prose cli service operations",
+          "prose cli service operations --json",
+          "prose --output jsonl cli service operations"
+        ]
+      },
+      {
+        "id": "service.capabilities",
+        "command": [
+          "cli",
+          "service",
+          "capabilities"
+        ],
+        "summary": "Print the grammar, exit codes by error code, environment variables and every command on one page. Makes no request.",
+        "effect": "read",
+        "confirm": false,
+        "examples": [
+          "prose cli service capabilities --json",
+          "prose cli service capabilities"
+        ]
+      },
+      {
+        "id": "service.guide",
+        "command": [
+          "cli",
+          "service",
+          "guide"
+        ],
+        "summary": "Print the agent guide: grammar, key precedence, confirmation, exit codes with resume and detach, paging, reading a run's answer and recipes. Makes no request.",
+        "effect": "read",
+        "confirm": false,
+        "examples": [
+          "prose cli service guide",
+          "prose cli service guide --json"
+        ]
+      },
+      {
+        "id": "service.status",
+        "command": [
+          "cli",
+          "service",
+          "status"
+        ],
+        "summary": "Report whether the OpenProse service is reachable and which models you can run. Anonymous.",
+        "effect": "read",
+        "confirm": false,
+        "examples": [
+          "prose cli service status --json",
+          "prose cli service status"
+        ]
+      },
+      {
+        "id": "service.triage",
+        "command": [
+          "cli",
+          "service",
+          "triage"
+        ],
+        "summary": "Diagnose a session in one call: service health, credential, balance, default organization, recent runs, jobs and the next commands to run.",
+        "effect": "read",
+        "confirm": false,
+        "examples": [
+          "prose cli service triage --json",
+          "prose cli service triage"
+        ]
+      },
+      {
+        "id": "model.list",
+        "command": [
+          "cli",
+          "model",
+          "list"
+        ],
+        "summary": "List the hosted models and their status: the ones this account may run (default marked), premium ones any wallet top-up unlocks, and older ids still accepted.",
+        "effect": "read",
+        "confirm": false,
+        "examples": [
+          "prose cli model list --json",
+          "prose cli model list"
+        ]
+      },
+      {
+        "id": "example.list",
+        "command": [
+          "cli",
+          "example",
+          "list"
+        ],
+        "summary": "List the private example programs available to this account.",
+        "effect": "read",
+        "confirm": false,
+        "examples": [
+          "prose cli example list --json"
+        ]
+      },
+      {
+        "id": "example.show",
+        "command": [
+          "cli",
+          "example",
+          "show"
+        ],
+        "summary": "Fetch one private example program. Only same-origin sources listed by `example list` are followed.",
+        "effect": "read",
+        "confirm": false,
+        "examples": [
+          "prose cli example show agent-native",
+          "prose cli example show agent-native --output-file agent-native.prose.md"
+        ]
+      },
+      {
+        "id": "repo.list",
+        "command": [
+          "cli",
+          "repo",
+          "list"
+        ],
+        "summary": "List GitHub repositories reachable through the account's GitHub link.",
+        "effect": "read",
+        "confirm": false,
+        "examples": [
+          "prose cli repo list --json"
+        ]
+      },
+      {
+        "id": "run.quote",
+        "command": [
+          "cli",
+          "run",
+          "quote"
+        ],
+        "summary": "Report the hold a run reserves: money set aside from the wallet while the run is live. It is not the price. The environment is checked first.\nThe hold is flat, the same for every program and model, and what the run does not use is released when it settles. A run's price is known only after it settles (`cli run show RUN_ID`, price_cents). The program, inputs and model `cli run submit` takes are accepted, so you can quote the exact command you will submit.",
+        "effect": "read",
+        "confirm": false,
+        "examples": [
+          "prose cli run quote --json",
+          "prose cli run quote hello.prose.md --input topic=cats --json"
+        ]
+      },
+      {
+        "id": "run.submit",
+        "command": [
+          "cli",
+          "run",
+          "submit"
+        ],
+        "summary": "Run a program on the hosted service and stream it until it finishes, detaches or the deadline passes.\nInputs: --input KEY=VALUE overrides the same key from --inputs-file.\nA --wait shorter than the run exits 21 with details.resumeArgv: the run continues, and that command follows it again. Never submit again to resume; that starts a second paid run.",
+        "effect": "money",
+        "confirm": true,
+        "examples": [
+          "prose cli run submit hello.prose.md --preview",
+          "prose cli run submit hello.prose.md --yes",
+          "prose cli run submit --from exowner1/hello --input topic=rain --yes --detach --json"
+        ]
+      },
+      {
+        "id": "run.watch",
+        "command": [
+          "cli",
+          "run",
+          "watch"
+        ],
+        "summary": "Replay and follow a live run's events from a sequence number. Without a live session on this machine, an ended run's outcome is read from its record.",
+        "effect": "read",
+        "confirm": false,
+        "examples": [
+          "prose cli run watch run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c --json",
+          "prose cli run watch run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c --wait 10m"
+        ]
+      },
+      {
+        "id": "run.input",
+        "command": [
+          "cli",
+          "run",
+          "input"
+        ],
+        "summary": "Send an instruction to a live run. The instruction id makes retries idempotent. Without a live session on this machine the run record is read first: an ended run is refused as SERVICE_WRITE_CONFLICT (not retryable).",
+        "effect": "write",
+        "confirm": true,
+        "examples": [
+          "prose cli run input run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c 'Also write a haiku.' --yes"
+        ]
+      },
+      {
+        "id": "run.cancel",
+        "command": [
+          "cli",
+          "run",
+          "cancel"
+        ],
+        "summary": "Cancel a live run, then report the wallet's available and reserved balance. A run that already ended is reported as already_ended (exit 0), also when it was started on another machine.",
+        "effect": "write",
+        "confirm": true,
+        "examples": [
+          "prose cli run cancel run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c --preview",
+          "prose cli run cancel run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c --yes"
+        ]
+      },
+      {
+        "id": "run.list",
+        "command": [
+          "cli",
+          "run",
+          "list"
+        ],
+        "summary": "List runs, newest first, one page at a time.",
+        "effect": "read",
+        "confirm": false,
+        "examples": [
+          "prose cli run list --limit 10 --json"
+        ]
+      },
+      {
+        "id": "run.show",
+        "command": [
+          "cli",
+          "run",
+          "show"
+        ],
+        "summary": "Show a run manifest (status, files, price), or one output file with --file. Signed file URLs are never printed.\nThe manifest has no final response text. Read the run's outputs with `cli run show RUN_ID --file outputs/result.json` or `cli run download RUN_ID --output-dir DIR`; replay the stream, whose terminal event carries the response, with `cli run watch RUN_ID --after 0` (runs submitted from this machine, or pass --session).",
+        "effect": "read",
+        "confirm": false,
+        "examples": [
+          "prose cli run show run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c --json",
+          "prose cli run show run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c --file outputs/result.json",
+          "prose cli run show latest --json"
+        ]
+      },
+      {
+        "id": "run.download",
+        "command": [
+          "cli",
+          "run",
+          "download"
+        ],
+        "summary": "Download every file listed in a run manifest into a new directory (./RUN_ID unless --output-dir).",
+        "effect": "read",
+        "confirm": false,
+        "examples": [
+          "prose cli run download run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+          "prose cli run download run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c --output-dir run-output"
+        ]
+      },
+      {
+        "id": "run.share",
+        "command": [
+          "cli",
+          "run",
+          "share"
+        ],
+        "summary": "Create a public link to a run's outputs. Anyone with the link can open it for 24 hours, and it cannot be revoked.\nTo give specific people access instead, invite them to your organization (`cli org invite`).",
+        "effect": "outward",
+        "confirm": true,
+        "examples": [
+          "prose cli run share run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c --yes"
+        ]
+      },
+      {
+        "id": "program.list",
+        "command": [
+          "cli",
+          "program",
+          "list"
+        ],
+        "summary": "List this account's saved programs.",
+        "effect": "read",
+        "confirm": false,
+        "examples": [
+          "prose cli program list --json"
+        ]
+      },
+      {
+        "id": "program.show",
+        "command": [
+          "cli",
+          "program",
+          "show"
+        ],
+        "summary": "Show a saved program and its content.",
+        "effect": "read",
+        "confirm": false,
+        "examples": [
+          "prose cli program show exowner1/hello --json",
+          "prose cli program show exowner1/hello@0123456789abcdef --output-file hello.prose.md"
+        ]
+      },
+      {
+        "id": "program.save",
+        "command": [
+          "cli",
+          "program",
+          "save"
+        ],
+        "summary": "Save a new revision of a program; a new program is private. Visibility is never changed by save (use `cli program visibility`).",
+        "effect": "write",
+        "confirm": false,
+        "examples": [
+          "prose cli program save hello hello.prose.md --preview",
+          "prose cli program save hello hello.prose.md --message 'First draft'"
+        ]
+      },
+      {
+        "id": "program.visibility",
+        "command": [
+          "cli",
+          "program",
+          "visibility"
+        ],
+        "summary": "Make a program public or private.",
+        "effect": "outward",
+        "confirm": true,
+        "examples": [
+          "prose cli program visibility hello public --yes"
+        ]
+      },
+      {
+        "id": "program.delete",
+        "command": [
+          "cli",
+          "program",
+          "delete"
+        ],
+        "summary": "Delete a saved program and its revisions. A program that is already gone exits 0 with alreadyAbsent: true. OWNER/SLUG is refused (exit 2) unless OWNER is confirmed as you.",
+        "effect": "destructive",
+        "confirm": true,
+        "examples": [
+          "prose cli program delete hello --preview",
+          "prose cli program delete hello --yes"
+        ]
+      },
+      {
+        "id": "program.revisions",
+        "command": [
+          "cli",
+          "program",
+          "revisions"
+        ],
+        "summary": "List a program's revisions, newest first.",
+        "effect": "read",
+        "confirm": false,
+        "examples": [
+          "prose cli program revisions hello --json"
+        ]
+      },
+      {
+        "id": "program.draft",
+        "command": [
+          "cli",
+          "program",
+          "draft"
+        ],
+        "summary": "Draft a program from a sentence with the hosted writer. This is paid: it reserves the same hold as a run (see `cli run quote`), and --preview shows it.",
+        "effect": "money",
+        "confirm": true,
+        "examples": [
+          "prose cli program draft 'write a haiku about rain' --output-file haiku.prose.md --yes"
+        ]
+      },
+      {
+        "id": "result.list",
+        "command": [
+          "cli",
+          "result",
+          "list"
+        ],
+        "summary": "List a public program's published results. Anonymous.",
+        "effect": "read",
+        "confirm": false,
+        "examples": [
+          "prose cli result list exowner1/hello --json"
+        ]
+      },
+      {
+        "id": "result.show",
+        "command": [
+          "cli",
+          "result",
+          "show"
+        ],
+        "summary": "Show one published result, or the latest. Anonymous.",
+        "effect": "read",
+        "confirm": false,
+        "examples": [
+          "prose cli result show exowner1/hello --latest",
+          "prose cli result show exowner1/hello AbCdEf012_-x --json"
+        ]
+      },
+      {
+        "id": "result.publish",
+        "command": [
+          "cli",
+          "result",
+          "publish"
+        ],
+        "summary": "Publish a completed run as a public result of a program.",
+        "effect": "outward",
+        "confirm": true,
+        "examples": [
+          "prose cli result publish hello --run run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c --yes"
+        ]
+      },
+      {
+        "id": "result.unpublish",
+        "command": [
+          "cli",
+          "result",
+          "unpublish"
+        ],
+        "summary": "Remove a published result.",
+        "effect": "write",
+        "confirm": true,
+        "examples": [
+          "prose cli result unpublish hello AbCdEf012_-x --yes"
+        ]
+      },
+      {
+        "id": "job.list",
+        "command": [
+          "cli",
+          "job",
+          "list"
+        ],
+        "summary": "List jobs, the account's job limit and the available job types.",
+        "effect": "read",
+        "confirm": false,
+        "examples": [
+          "prose cli job list --json"
+        ]
+      },
+      {
+        "id": "job.show",
+        "command": [
+          "cli",
+          "job",
+          "show"
+        ],
+        "summary": "Show one job and its delivery status.",
+        "effect": "read",
+        "confirm": false,
+        "examples": [
+          "prose cli job show 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10 --json"
+        ]
+      },
+      {
+        "id": "job.create",
+        "command": [
+          "cli",
+          "job",
+          "create"
+        ],
+        "summary": "Create a job from a JSON spec. A job starts paid runs on its own, on a schedule or from webhook events, until it is deleted.\nSpec keys are snake_case. `type` is required; `cli job list` prints every type with its config_fields. Each type accepts the keys listed under this command's `spec` in `cli service operations --json`; every problem is reported at once.\n  Schedule: {\"type\":\"schedule\",\"program_ref\":\"OWNER/SLUG@REV\",\"interval_seconds\":86400}\n    interval_seconds 60 to 2678400 (86400 is once a day). The first run starts about one second after the job is created, then one every interval.\n    Cron expressions and a time of day are not supported.\n    Optional: model, reasoning_effort, environment, inputs (name -> string), files, repository_url, repository_branch, output.\n  Webhook: {\"type\":\"webhook\",\"name\":\"NAME\",\"delivery_mode\":\"test\"}\n    optional name, program_ref, receiver, receiver_secret, reply, reply_secret; delivery_mode test or live. Without program_ref it starts no runs: no hold, effect write.\nREV is the program's program.rev_id (printed by `cli program save` and `cli program show OWNER/SLUG`), not its commit_id.",
+        "effect": "money",
+        "confirm": true,
+        "examples": [
+          "prose cli job create --spec-file job.json --preview",
+          "prose cli job create --spec-file job.json --yes"
+        ]
+      },
+      {
+        "id": "job.update",
+        "command": [
+          "cli",
+          "job",
+          "update"
+        ],
+        "summary": "Change a webhook job's settings. The spec is a partial JSON object with any of name, receiver, receiver_secret, delivery_mode (test or live), reply and reply_secret, for example {\"name\":\"NAME\"} (website-change jobs take url, interval_seconds and mode). Any other key is refused locally.\nSchedules are refused (SERVICE_REQUEST_REJECTED); change them with `cli job configure JOB_ID --interval-seconds N` or `cli job configure JOB_ID --config-file FILE`.",
+        "effect": "write",
+        "confirm": true,
+        "examples": [
+          "prose cli job update 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10 --spec-file job.json --yes"
+        ]
+      },
+      {
+        "id": "job.configure",
+        "command": [
+          "cli",
+          "job",
+          "configure"
+        ],
+        "summary": "Replace a schedule job's cadence and run configuration. Schedule jobs only.\nQuick form: `cli job configure JOB_ID --interval-seconds N` reads the job and resends its current configuration_revision, revision_token and bindings with the new interval.\nFull form: --config-file with the body {\"interval_seconds\":N,\"configuration_revision\":R,\"revision_token\":\"T\",\"bindings\":[{\"program_ref\":\"OWNER/SLUG@REV\",\"run_configuration\":{...}}]}.\nRead the current values with `cli job show JOB_ID --json`: status.configuration_revision, status.revision_token (an opaque token), and each status.contracts[] program_ref and run_configuration, under the same names.\nrun_configuration takes model, environment, reasoning_effort, inputs, files, context_repositories and output as show prints them, except input_entries: move each {name, value} entry into inputs, because every input left out is deleted.\nA stale revision_token is SERVICE_WRITE_CONFLICT; while a run of the schedule is in progress the service answers SERVICE_UNAVAILABLE (retry later).",
+        "effect": "write",
+        "confirm": true,
+        "examples": [
+          "prose cli job configure 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10 --interval-seconds 3600 --yes"
+        ]
+      },
+      {
+        "id": "job.delete",
+        "command": [
+          "cli",
+          "job",
+          "delete"
+        ],
+        "summary": "Delete a job. A job that is already gone exits 0 with alreadyAbsent: true; a JOB_ID that is not a UUID is refused (exit 2) before any request.",
+        "effect": "destructive",
+        "confirm": true,
+        "examples": [
+          "prose cli job delete 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10 --preview",
+          "prose cli job delete 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10 --yes"
+        ]
+      },
+      {
+        "id": "job.deliveries",
+        "command": [
+          "cli",
+          "job",
+          "deliveries"
+        ],
+        "summary": "List a webhook job's recent deliveries. Other job types have none: a schedule's runs are in `cli job show JOB_ID` and `cli run list`.",
+        "effect": "read",
+        "confirm": false,
+        "examples": [
+          "prose cli job deliveries 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10 --json"
+        ]
+      },
+      {
+        "id": "job.rotate-secret",
+        "command": [
+          "cli",
+          "job",
+          "rotate-secret"
+        ],
+        "summary": "Rotate a webhook job's signing secret. The new secret appears only in this result.",
+        "effect": "write",
+        "confirm": true,
+        "examples": [
+          "prose cli job rotate-secret 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10 --yes"
+        ]
+      },
+      {
+        "id": "job.contract.list",
+        "command": [
+          "cli",
+          "job",
+          "contract",
+          "list"
+        ],
+        "summary": "List the programs attached to a job.",
+        "effect": "read",
+        "confirm": false,
+        "examples": [
+          "prose cli job contract list 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10 --json"
+        ]
+      },
+      {
+        "id": "job.contract.attach",
+        "command": [
+          "cli",
+          "job",
+          "contract",
+          "attach"
+        ],
+        "summary": "Attach a pinned program to a job.",
+        "effect": "write",
+        "confirm": true,
+        "examples": [
+          "prose cli job contract attach 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10 exowner1/hello@0123456789abcdef --yes"
+        ]
+      },
+      {
+        "id": "job.contract.detach",
+        "command": [
+          "cli",
+          "job",
+          "contract",
+          "detach"
+        ],
+        "summary": "Detach a program from a job.",
+        "effect": "write",
+        "confirm": true,
+        "examples": [
+          "prose cli job contract detach 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10 exowner1/hello@0123456789abcdef --yes"
+        ]
+      },
+      {
+        "id": "wallet.balance",
+        "command": [
+          "cli",
+          "wallet",
+          "balance"
+        ],
+        "summary": "Show the wallet: available to spend, reserved (held for runs in progress) and the balance.",
+        "effect": "read",
+        "confirm": false,
+        "examples": [
+          "prose cli wallet balance --json"
+        ]
+      },
+      {
+        "id": "wallet.events",
+        "command": [
+          "cli",
+          "wallet",
+          "events"
+        ],
+        "summary": "List wallet events, newest first, one page at a time.",
+        "effect": "read",
+        "confirm": false,
+        "examples": [
+          "prose cli wallet events --limit 20 --json"
+        ]
+      },
+      {
+        "id": "wallet.usage",
+        "command": [
+          "cli",
+          "wallet",
+          "usage"
+        ],
+        "summary": "Summarize run usage and prices by day.",
+        "effect": "read",
+        "confirm": false,
+        "examples": [
+          "prose cli wallet usage --start 2026-09-01 --end 2026-09-24 --json"
+        ]
+      },
+      {
+        "id": "wallet.redeem",
+        "command": [
+          "cli",
+          "wallet",
+          "redeem"
+        ],
+        "summary": "Redeem a one-time credit code.",
+        "effect": "money",
+        "confirm": true,
+        "examples": [
+          "prose cli wallet redeem --code-file code.txt --yes"
+        ]
+      },
+      {
+        "id": "wallet.topup",
+        "command": [
+          "cli",
+          "wallet",
+          "topup"
+        ],
+        "summary": "Start a Checkout session to add credit. Prints the Checkout URL and never opens a browser.",
+        "effect": "money",
+        "confirm": true,
+        "examples": [
+          "prose cli wallet topup --amount-cents 500 --preview",
+          "prose cli wallet topup --amount-cents 500 --yes"
+        ]
+      },
+      {
+        "id": "org.list",
+        "command": [
+          "cli",
+          "org",
+          "list"
+        ],
+        "summary": "List the organizations this account belongs to.",
+        "effect": "read",
+        "confirm": false,
+        "examples": [
+          "prose cli org list --json"
+        ]
+      },
+      {
+        "id": "org.show",
+        "command": [
+          "cli",
+          "org",
+          "show"
+        ],
+        "summary": "Show one organization; ORG may be default.",
+        "effect": "read",
+        "confirm": false,
+        "examples": [
+          "prose cli org show acme-research --json",
+          "prose cli org show --json"
+        ]
+      },
+      {
+        "id": "org.create",
+        "command": [
+          "cli",
+          "org",
+          "create"
+        ],
+        "summary": "Create an organization. Slugs are global and permanent.",
+        "effect": "write",
+        "confirm": true,
+        "examples": [
+          "prose cli org create acme-research --name 'Acme Research' --yes"
+        ]
+      },
+      {
+        "id": "org.rename",
+        "command": [
+          "cli",
+          "org",
+          "rename"
+        ],
+        "summary": "Change an organization's display name.",
+        "effect": "write",
+        "confirm": true,
+        "examples": [
+          "prose cli org rename acme-research 'Acme Labs' --yes"
+        ]
+      },
+      {
+        "id": "org.default",
+        "command": [
+          "cli",
+          "org",
+          "default"
+        ],
+        "summary": "Choose this account's default organization.",
+        "effect": "write",
+        "confirm": true,
+        "examples": [
+          "prose cli org default acme-research --yes"
+        ]
+      },
+      {
+        "id": "org.member.list",
+        "command": [
+          "cli",
+          "org",
+          "member",
+          "list"
+        ],
+        "summary": "List an organization's members, numbered by when they joined; account ids are not shown.",
+        "effect": "read",
+        "confirm": false,
+        "examples": [
+          "prose cli org member list acme-research --json",
+          "prose cli org member list --json"
+        ]
+      },
+      {
+        "id": "org.member.role",
+        "command": [
+          "cli",
+          "org",
+          "member",
+          "role"
+        ],
+        "summary": "Change a member's role.",
+        "effect": "write",
+        "confirm": true,
+        "examples": [
+          "prose cli org member role acme-research MEMBER developer --yes"
+        ]
+      },
+      {
+        "id": "org.member.remove",
+        "command": [
+          "cli",
+          "org",
+          "member",
+          "remove"
+        ],
+        "summary": "Remove a member.",
+        "effect": "destructive",
+        "confirm": true,
+        "examples": [
+          "prose cli org member remove acme-research MEMBER --yes"
+        ]
+      },
+      {
+        "id": "org.invite",
+        "command": [
+          "cli",
+          "org",
+          "invite"
+        ],
+        "summary": "Invite an account. The invitation token appears only in this result.",
+        "effect": "write",
+        "confirm": true,
+        "examples": [
+          "prose cli org invite acme-research ACCOUNT_ID --role developer --yes"
+        ]
+      },
+      {
+        "id": "org.invitation.revoke",
+        "command": [
+          "cli",
+          "org",
+          "invitation",
+          "revoke"
+        ],
+        "summary": "Revoke a pending invitation.",
+        "effect": "destructive",
+        "confirm": true,
+        "examples": [
+          "prose cli org invitation revoke acme-research 7e6d5c4b-3a29-4817-8f6e-5d4c3b2a1908 --yes"
+        ]
+      },
+      {
+        "id": "org.invitation.accept",
+        "command": [
+          "cli",
+          "org",
+          "invitation",
+          "accept"
+        ],
+        "summary": "Accept an invitation.",
+        "effect": "write",
+        "confirm": true,
+        "examples": [
+          "prose cli org invitation accept --token-file invite.token --yes"
+        ]
+      },
+      {
+        "id": "auth.login",
+        "command": [
+          "cli",
+          "auth",
+          "login"
+        ],
+        "summary": "Sign in with the GitHub device flow and store the key in the OS credential store.",
+        "effect": "write",
+        "confirm": false,
+        "examples": [
+          "prose cli auth login",
+          "prose cli auth login --json"
+        ]
+      },
+      {
+        "id": "auth.status",
+        "command": [
+          "cli",
+          "auth",
+          "status"
+        ],
+        "summary": "Report whether a credential is available and valid.",
+        "effect": "read",
+        "confirm": false,
+        "examples": [
+          "prose cli auth status --json"
+        ]
+      },
+      {
+        "id": "auth.logout",
+        "command": [
+          "cli",
+          "auth",
+          "logout"
+        ],
+        "summary": "Remove the stored credential. The server key is not revoked.",
+        "effect": "write",
+        "confirm": false,
+        "examples": [
+          "prose cli auth logout --json"
+        ]
+      },
+      {
+        "id": "package.publish",
+        "command": [
+          "cli",
+          "package",
+          "publish"
+        ],
+        "summary": "Publish a package version to an organization registry.",
+        "effect": "write",
+        "confirm": false,
+        "examples": [
+          "prose cli package publish my-package --organization acme --name tool --version 1.0.0 --json"
+        ]
+      },
+      {
+        "id": "package.fetch",
+        "command": [
+          "cli",
+          "package",
+          "fetch"
+        ],
+        "summary": "Fetch and verify a package version into a new directory.",
+        "effect": "read",
+        "confirm": false,
+        "examples": [
+          "prose cli package fetch acme/tool@1.0.0 --output-dir tool --json"
+        ]
+      },
+      {
+        "id": "package.list",
+        "command": [
+          "cli",
+          "package",
+          "list"
+        ],
+        "summary": "List an organization's public packages.",
+        "effect": "read",
+        "confirm": false,
+        "examples": [
+          "prose cli package list acme --json"
+        ]
+      },
+      {
+        "id": "package.withdraw",
+        "command": [
+          "cli",
+          "package",
+          "withdraw"
+        ],
+        "summary": "Withdraw a package version from discovery.",
+        "effect": "write",
+        "confirm": false,
+        "examples": [
+          "prose cli package withdraw acme/tool@1.0.0 --json"
+        ]
+      }
+    ]
+  },
+  "views": {
+    "cli service capabilities": "OpenProse service commands: capabilities. `prose cli service capabilities --json` prints this page as one JSON document.\n\nUsage: prose [--output human|json|jsonl] cli <command> [ARGUMENTS] [OPTIONS]\nGlobal options such as --output go before `cli`; command options go after the command. A mistyped or misplaced word is never guessed: the command exits 2 and its error shows the corrected command to run instead.\nCommon options: --json, --yes, --preview, --help, --no-color.\n\nEnvironment variables:\n  OPENPROSE_API_KEY           API key; a non-empty value wins over the stored key.\n  PROSE_OUTPUT                Output mode (human, json or jsonl) when neither --output nor --json is given.\n  XDG_STATE_HOME              Base directory of the local run journal.\n  PROSE_DEBUG                 Set to 1 to print a hosted run's error text as the service sent it instead of its mapped message.\n\nExit codes (0 is success; with --json, the error's code is in problem.code):\n  0   success\n  2   CONFIG_INVALID                Runner configuration is invalid.\n  2   CONFIRMATION_REQUIRED         This service operation requires explicit confirmation.\n  2   EXAMPLE_NOT_VIEWABLE          This example is published outside the OpenProse service and cannot be shown here.\n  2   INVOCATION_INVALID            Runner invocation is invalid.\n  10  CREDENTIAL_STORE_UNAVAILABLE  The operating system credential store is unavailable.\n  10  DEVICE_AUTH_EXPIRED           Device authorization expired. Retryable.\n  10  DEVICE_AUTH_FAILED            Device authorization failed.\n  10  GITHUB_LINK_REQUIRED          This operation needs a linked GitHub account on the OpenProse account.\n  10  SERVICE_ACCOUNT_SUSPENDED     The OpenProse account is suspended.\n  10  SERVICE_AUTH_REQUIRED         OpenProse service authentication is required.\n  10  SERVICE_BALANCE_INSUFFICIENT  The OpenProse wallet balance is insufficient for this operation.\n  10  SERVICE_FEATURE_DISABLED      This capability is not available for this account.\n  10  SERVICE_PREMIUM_MODEL_LOCKED  This model is a premium model that unlocks with any wallet top-up.\n  10  SERVICE_PROTOCOL_INVALID      The OpenProse service returned an invalid response.\n  10  SERVICE_REQUEST_REJECTED      The OpenProse service rejected the request.\n  10  SERVICE_RESOURCE_NOT_FOUND    The requested OpenProse service resource was not found.\n  10  SERVICE_RESPONSE_TOO_LARGE    The OpenProse service response exceeded the client limit.\n  10  SERVICE_UNAVAILABLE           The OpenProse service is unavailable. Retryable.\n  10  SERVICE_WRITE_CONFLICT        The OpenProse service reported a conflicting write.\n  21  HOSTED_RUN_DETACHED           The client stopped following the hosted run before its outcome arrived; the run was not cancelled.\n  21  SERVICE_WATCH_DEADLINE        The watch deadline elapsed before the hosted run finished; the run continues.\n  22  HOSTED_RUN_FAILED             The hosted run finished without completing successfully.\n  22  RUN_SUBMISSION_AMBIGUOUS      The run submission could not be confirmed and was not repeated.\n  24  CANCELLED                     The runner was cancelled before semantic completion. Retryable.\n  24  HOSTED_RUN_CANCELLED          The hosted run was cancelled on the service and will not continue.\n  70  INTERNAL_ERROR                The runner encountered an internal fault.\n\nCommands:\n  auth                        login, logout, status.\n  example                     list, show.\n  job                         configure, contract attach, contract detach, contract list, create, delete, deliveries, list, rotate-secret, show, update.\n  model                       list.\n  org                         create, default, invitation accept, invitation revoke, invite, list, member list, member remove, member role, rename, show.\n  package                     fetch, list, publish, withdraw.\n  program                     delete, draft, list, revisions, save, show, visibility.\n  repo                        list.\n  result                      list, publish, show, unpublish.\n  run                         cancel, download, input, list, quote, share, show, submit, watch.\n  service                     capabilities, guide, operations, status, triage.\n  wallet                      balance, events, redeem, topup, usage.\n\nRun `prose cli <COMMAND> --help` for one command, `prose cli service operations` for every command with its effect and usage, and `prose cli service operations --json` for every command as JSON.\n",
+    "cli service operations": "OPERATION              EFFECT       CONFIRM  USAGE\nauth.login             write        no       cli auth login [--json]\nauth.logout            write        no       cli auth logout [--json]\nauth.status            read         no       cli auth status [--json]\nexample.list           read         no       cli example list [OPTIONS]\nexample.show           read         no       cli example show <NAME> [OPTIONS]\njob.configure          write        yes      cli job configure <JOB_ID> [OPTIONS]\njob.contract.attach    write        yes      cli job contract attach <JOB_ID> <OWNER/SLUG@REV> [OPTIONS]\njob.contract.detach    write        yes      cli job contract detach <JOB_ID> <OWNER/SLUG@REV> [OPTIONS]\njob.contract.list      read         no       cli job contract list <JOB_ID> [OPTIONS]\njob.create             money        yes      cli job create --spec-file FILE [OPTIONS]\njob.delete             destructive  yes      cli job delete <JOB_ID> [OPTIONS]\njob.deliveries         read         no       cli job deliveries <JOB_ID> [OPTIONS]\njob.list               read         no       cli job list [OPTIONS]\njob.rotate-secret      write        yes      cli job rotate-secret <JOB_ID> [OPTIONS]\njob.show               read         no       cli job show <JOB_ID> [OPTIONS]\njob.update             write        yes      cli job update <JOB_ID> --spec-file FILE [OPTIONS]\nmodel.list             read         no       cli model list [OPTIONS]\norg.create             write        yes      cli org create <SLUG> [OPTIONS]\norg.default            write        yes      cli org default <ORG> [OPTIONS]\norg.invitation.accept  write        yes      cli org invitation accept --token-file FILE [OPTIONS]\norg.invitation.revoke  destructive  yes      cli org invitation revoke <ORG> <INVITATION_ID> [OPTIONS]\norg.invite             write        yes      cli org invite <ORG> <ACCOUNT_ID> --role ROLE [OPTIONS]\norg.list               read         no       cli org list [--json]\norg.member.list        read         no       cli org member list [ORG] [OPTIONS]\norg.member.remove      destructive  yes      cli org member remove <ORG> <MEMBER> [OPTIONS]\norg.member.role        write        yes      cli org member role <ORG> <MEMBER> <ROLE> [OPTIONS]\norg.rename             write        yes      cli org rename <ORG> [NAME] [OPTIONS]\norg.show               read         no       cli org show [ORG] [OPTIONS]\npackage.fetch          read         no       cli package fetch <ORG>/<NAME>@<VERSION> --output-dir <FRESH_DIR> [--sha256 <DIGEST>] [--json]\npackage.list           read         no       cli package list <ORG> [--cursor <CURSOR>] [--json]\npackage.publish        write        no       cli package publish <FILE|DIR> --organization <ORG> --name <NAME> --version <VERSION> [--public] [--json]\npackage.withdraw       write        no       cli package withdraw <ORG>/<NAME>@<VERSION> [--json]\nprogram.delete         destructive  yes      cli program delete <SLUG> [OPTIONS]\nprogram.draft          money        yes      cli program draft <SENTENCE> [OPTIONS]\nprogram.list           read         no       cli program list [OPTIONS]\nprogram.revisions      read         no       cli program revisions <SLUG> [OPTIONS]\nprogram.save           write        no       cli program save <SLUG> <FILE> [OPTIONS]\nprogram.show           read         no       cli program show <OWNER/SLUG[@REV]> [OPTIONS]\nprogram.visibility     outward      yes      cli program visibility <SLUG> <VISIBILITY> [OPTIONS]\nrepo.list              read         no       cli repo list [OPTIONS]\nresult.list            read         no       cli result list <OWNER/SLUG> [OPTIONS]\nresult.publish         outward      yes      cli result publish <SLUG> --run RUN_ID [OPTIONS]\nresult.show            read         no       cli result show <OWNER/SLUG> [PUBLICATION_ID] [OPTIONS]\nresult.unpublish       write        yes      cli result unpublish <SLUG> <PUBLICATION_ID> [OPTIONS]\nrun.cancel             write        yes      cli run cancel <RUN_ID> [OPTIONS]\nrun.download           read         no       cli run download <RUN_ID> [OPTIONS]\nrun.input              write        yes      cli run input <RUN_ID> <TEXT> [OPTIONS]\nrun.list               read         no       cli run list [OPTIONS]\nrun.quote              read         no       cli run quote [FILE] [OPTIONS]\nrun.share              outward      yes      cli run share <RUN_ID> [OPTIONS]\nrun.show               read         no       cli run show <RUN_ID> [OPTIONS]\nrun.submit             money        yes      cli run submit [FILE] [OPTIONS]\nrun.watch              read         no       cli run watch <RUN_ID> [OPTIONS]\nservice.capabilities   read         no       cli service capabilities [OPTIONS]\nservice.guide          read         no       cli service guide [OPTIONS]\nservice.operations     read         no       cli service operations [OPTIONS]\nservice.status         read         no       cli service status [OPTIONS]\nservice.triage         read         no       cli service triage [OPTIONS]\nwallet.balance         read         no       cli wallet balance [OPTIONS]\nwallet.events          read         no       cli wallet events [OPTIONS]\nwallet.redeem          money        yes      cli wallet redeem --code-file FILE [OPTIONS]\nwallet.topup           money        yes      cli wallet topup --amount-cents N [OPTIONS]\nwallet.usage           read         no       cli wallet usage [OPTIONS]\n\nDetails: `prose cli <COMMAND> --help`. Every field as JSON: `prose cli service operations --json`; one operation per line: `prose --output jsonl cli service operations`.\n"
+  }
+}

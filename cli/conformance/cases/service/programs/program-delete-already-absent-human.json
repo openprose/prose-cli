@@ -1,0 +1,40 @@
+{
+  "id": "program-delete-already-absent-human",
+  "feature": "programs",
+  "operation": "program.delete",
+  "description": "Human form of an idempotent confirmed program delete.",
+  "argv": [
+    "cli",
+    "program",
+    "delete",
+    "demo",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "DELETE",
+        "path": "/programs/demo",
+        "status": 404,
+        "body": {
+          "error": "Not found"
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "Program demo was already absent; nothing was deleted.\n"
+  },
+  "stderr": {
+    "text": ""
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

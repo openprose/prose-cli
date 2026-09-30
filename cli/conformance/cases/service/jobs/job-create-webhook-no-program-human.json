@@ -1,0 +1,35 @@
+{
+  "id": "job-create-webhook-no-program-human",
+  "feature": "jobs",
+  "operation": "job.create",
+  "description": "Human preview of a webhook with no program: Summary, Effect write, no Hold line.",
+  "argv": [
+    "cli",
+    "job",
+    "create",
+    "--spec-file",
+    "spec.json",
+    "--preview"
+  ],
+  "files": [
+    {
+      "path": "spec.json",
+      "content": "{\"type\": \"webhook\", \"name\": \"hook\", \"delivery_mode\": \"test\"}"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "Preview: Create a job from a JSON spec.\nSummary: type webhook; name hook; delivery mode test\nEffect: creates a job that starts no runs\nNothing was changed.\n"
+  },
+  "stderr": {
+    "text": ""
+  }
+}

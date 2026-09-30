@@ -1,0 +1,36 @@
+{
+  "id": "human-error-service-details",
+  "feature": "framework",
+  "operation": "repo.list",
+  "description": "Human errors go to stderr only, labeled with the environment, with the service status and message.",
+  "argv": [
+    "cli",
+    "repo",
+    "list"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/repos",
+        "status": 409,
+        "body": {
+          "error": "already linked",
+          "code": "write_conflict"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: SERVICE_WRITE_CONFLICT: The OpenProse service reported a conflicting write.\nService code: write_conflict\nService message: already linked\nAction: Read the current state of the resource, reconcile the change, then retry.\n"
+  }
+}

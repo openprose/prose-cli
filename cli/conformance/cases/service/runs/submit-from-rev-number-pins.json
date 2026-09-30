@@ -1,0 +1,101 @@
+{
+  "id": "submit-from-rev-number-pins",
+  "feature": "runs",
+  "operation": "run.submit",
+  "description": "`--from SLUG@N` resolves revision N of your own program through its revisions, like `program show`; the preview shows the pinned OWNER/SLUG@REV.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "submit",
+    "--from",
+    "hello@1",
+    "--preview"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "clock": {
+      "start": "2026-09-24T01:00:00.000Z",
+      "stepMs": 0
+    },
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/programs/hello/revisions",
+        "status": 200,
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "body": {
+          "revisions": [
+            {
+              "owner": "octo",
+              "slug": "hello",
+              "rev": 2,
+              "rev_id": "0123456789abcdef",
+              "commit_id": "1111111111111111",
+              "parent_commit_id": "2222222222222222",
+              "updated_at": 1790212199320
+            },
+            {
+              "owner": "octo",
+              "slug": "hello",
+              "rev": 1,
+              "rev_id": "fedcba9876543210",
+              "commit_id": "2222222222222222",
+              "parent_commit_id": null,
+              "updated_at": 1790212000000
+            }
+          ]
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/run/quote",
+        "status": 200,
+        "body": {
+          "hold": {
+            "hold_usd": "1.02",
+            "ttl_seconds": 900
+          },
+          "pricing_policy_id": "policy-2026-09"
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "run.submit",
+      "operation": "run.submit",
+      "problem": null,
+      "result": {
+        "plannedRequest": {
+          "bodyBytes": 45,
+          "bodySha256": "c223a3f080d5b558d64d0344c03bf5d95a30681c542a7daaa4bd40bbe6d190fa",
+          "description": "Run a program on the hosted service and stream it until it finishes, detaches or the deadline passes.",
+          "effect": "money",
+          "method": "POST",
+          "operation": "run.submit",
+          "quote": {
+            "hold": {
+              "hold_cents": 102,
+              "hold_usd": "1.02",
+              "ttl_seconds": 900
+            }
+          },
+          "summary": {
+            "programRef": "octo/hello@fedcba9876543210"
+          }
+        },
+        "preview": true
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

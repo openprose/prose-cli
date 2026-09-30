@@ -1,9 +1,17 @@
 import { describe, expect, test } from "bun:test";
 import scalarFixture from "../../shared/fixtures/human/human-safe-scalars.json" with { type: "json" };
-import { failure } from "../src/core/errors";
-import { formatHumanError, humanRunnerCommand, humanRunnerInvocation, humanSafeMultiline, humanSafeScalar } from "../src/core/output";
+import { failure, hostedRunFailed, runFailureAction } from "../src/core/errors";
+import runFailureActions from "../../shared/fixtures/human/run-failure-actions.json" with { type: "json" };
+import { canonicalJson, formatHumanError, humanRunnerCommand, jsonLine, humanRunnerInvocation, humanSafeMultiline, humanSafeScalar } from "../src/core/output";
 
 describe("human error output", () => {
+  test("a failed run's Action follows its cause as the shared fixture shows", () => {
+    for (const fixture of runFailureActions.cases) {
+      expect(runFailureAction(fixture.reason) ?? null, fixture.id).toBe(fixture.action);
+      expect(hostedRunFailed({ reason: fixture.reason }).action, fixture.id).toBe(fixture.action ?? failure("HOSTED_RUN_FAILED").action);
+    }
+  });
+
   test("implements the shared terminal-safe scalar contract", () => {
     for (const fixture of scalarFixture.cases) {
       expect(humanSafeScalar(fixture.input)).toBe(fixture.rendered);
@@ -139,8 +147,90 @@ describe("human error output", () => {
       fallbackSelected: false,
     }).toJSON());
     expect(rendered).toContain(humanRunnerInvocation());
-    expect(rendered).toContain("Select an available BYO harness with the `cli harness use <id>` runner operation, then invoke the `cli doctor` runner operation.");
+    expect(rendered).toContain("To use the hosted service, run `cli run submit FILE --preview`; running programs on this machine needs a local harness (`cli harness list`).");
     expect(rendered).not.toContain("Wait for OpenProse-hosted execution");
     expect(rendered).not.toContain("--harness <id>");
   });
+});
+
+describe("canonical JSON", () => {
+  test("sorts keys recursively as strings, like serde_json's BTreeMap", () => {
+    const value = { zeta: { 10: "ten", 2: "two", b: [{ y: 1, x: 0 }], a: null }, alpha: "café ✓" };
+    expect(canonicalJson(value)).toBe('{"alpha":"café ✓","zeta":{"10":"ten","2":"two","a":null,"b":[{"x":0,"y":1}]}}');
+    expect(jsonLine({ schema: "s", environment: "production", problem: null })).toBe('{"environment":"production","problem":null,"schema":"s"}\n');
+  });
+
+  test("keeps JSON.stringify semantics for toJSON, undefined and functions", () => {
+    const error = failure("INVOCATION_INVALID");
+    expect(JSON.parse(canonicalJson({ problem: error }))).toEqual(JSON.parse(JSON.stringify({ problem: error })));
+    expect(canonicalJson({ b: undefined, a: () => 1, c: [undefined, 1] })).toBe('{"c":[null,1]}');
+    expect(() => canonicalJson(undefined)).toThrow();
+  });
+
+  test("indent 2 matches serde_json to_string_pretty", () => {
+    expect(canonicalJson({ b: [], a: {}, c: [{ z: 1, y: [2] }] }, 2))
+      .toBe('{\n  "a": {},\n  "b": [],\n  "c": [\n    {\n      "y": [\n        2\n      ],\n      "z": 1\n    }\n  ]\n}');
+  });
+});
+
+test("human runner errors match the shared fixture", async () => {
+  const { formatHumanError, humanRunnerInvocation } = await import("../src/core/output");
+  const { readFileSync } = await import("node:fs");
+  const { join } = await import("node:path");
+  const fixture = JSON.parse(readFileSync(join(import.meta.dir, "../../shared/fixtures/human/runner-errors.json"), "utf8"));
+  for (const item of fixture.cases) {
+    const rendered = formatHumanError({ schema: "openprose.runner-error/1", exitCode: 2, retryable: false, ...item.error });
+    expect({ id: item.id, rendered }).toEqual({ id: item.id, rendered: item.rendered.split("{{RUNNER}}").join(humanRunnerInvocation()) });
+  }
+});
+
+test("the human dry-run template matches the shared vectors", async () => {
+  const { renderHumanTemplate } = await import("../src/core/output");
+  const { readFileSync } = await import("node:fs");
+  const { join } = await import("node:path");
+  const root = join(import.meta.dir, "../../shared/fixtures/human");
+  const fixture = JSON.parse(readFileSync(join(root, "dry-run.v1.json"), "utf8"));
+  const template = readFileSync(join(root, "dry-run.v1.txt"), "utf8");
+  for (const item of fixture.cases) {
+    const values: Record<string, string> = {};
+    const lists: Record<string, string[]> = {};
+    for (const [name, value] of Object.entries(item.values)) {
+      if (Array.isArray(value)) lists[name] = value as string[];
+      else values[name] = value as string;
+    }
+    expect({ id: item.id, rendered: renderHumanTemplate(template, values, lists) }).toEqual({ id: item.id, rendered: item.rendered });
+  }
+});
+
+test("quote and the Detail renderer match the shared fixture", async () => {
+  const { humanSafeDetail, quote } = await import("../src/core/output");
+  const { readFileSync } = await import("node:fs");
+  const { join } = await import("node:path");
+  const fixture = JSON.parse(readFileSync(join(import.meta.dir, "../../shared/fixtures/human/quoted-strings.json"), "utf8"));
+  for (const item of fixture.cases) expect({ id: item.id, quoted: quote(item.input) }).toEqual({ id: item.id, quoted: item.quoted });
+  for (const item of fixture.detailCases) expect({ id: item.id, rendered: humanSafeDetail(item.input) }).toEqual({ id: item.id, rendered: item.rendered });
+  for (const [start, end] of fixture.escapedCodePointRanges as Array<[number, number]>) {
+    for (let code = start; code <= end; code += 1) {
+      if (code >= 0xd800 && code <= 0xdfff) continue;
+      expect(quote(String.fromCodePoint(code)).includes(String.fromCodePoint(code))).toBe(false);
+    }
+  }
+  // A lone surrogate (which a Rust string cannot hold) is escaped too.
+  expect(quote("a\ud800b")).toBe("\"a\\ud800b\"");
+});
+
+test("canonical JSON and service JSON parsing match the shared vectors", async () => {
+  const { canonicalJson } = await import("../src/core/output");
+  const { parseJson } = await import("../src/core/service/http");
+  const { readFileSync } = await import("node:fs");
+  const { join } = await import("node:path");
+  const shared = join(import.meta.dir, "../../shared/fixtures");
+  const output = JSON.parse(readFileSync(join(shared, "human/json-output.json"), "utf8"));
+  for (const item of output.cases) expect({ id: item.id, output: canonicalJson(JSON.parse(item.input)) }).toEqual({ id: item.id, output: item.output });
+  const parse = JSON.parse(readFileSync(join(shared, "transport/json-parse.json"), "utf8"));
+  expect(parse.maxSafeInteger).toBe(Number.MAX_SAFE_INTEGER);
+  for (const item of parse.cases) {
+    const bytes = typeof item.text === "string" ? new TextEncoder().encode(item.text) : Buffer.from(item.bytesHex, "hex");
+    expect({ id: item.id, accepted: parseJson(bytes) !== undefined }).toEqual({ id: item.id, accepted: item.accepted });
+  }
 });

@@ -1,0 +1,57 @@
+{
+  "id": "fix-wallet-usage-unpadded-date",
+  "feature": "framework",
+  "operation": "wallet.usage",
+  "description": "An unpadded date (`2026-9-1`) suggests the padded one.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "wallet",
+    "usage",
+    "--start",
+    "2026-9-1",
+    "--end",
+    "2026-09-05"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "wallet.usage",
+      "operation": "wallet.usage",
+      "problem": {
+        "action": "Use the corrected dates: `prose --output json cli wallet usage --start 2026-09-01 --end 2026-09-05`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "--start must be a calendar date as YYYY-MM-DD, got \"2026-9-1\"",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "wallet",
+            "usage",
+            "--start",
+            "2026-09-01",
+            "--end",
+            "2026-09-05"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

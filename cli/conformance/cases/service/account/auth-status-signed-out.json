@@ -1,0 +1,34 @@
+{
+  "id": "auth-status-signed-out",
+  "feature": "account",
+  "operation": "auth.status",
+  "description": "Signed out is success: no key anywhere reports authenticated false and credentialSource none, exit 0. Ported from the account corpus.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "auth",
+    "status"
+  ],
+  "fixture": {
+    "credential": null,
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "schema": "openprose.service-operation/1",
+      "operation": "auth.status",
+      "interaction": "cli.auth_status",
+      "result": {
+        "authenticated": false,
+        "credentialSource": "none"
+      },
+      "problem": null
+    }
+  },
+  "stderr": {
+    "empty": true
+  }
+}

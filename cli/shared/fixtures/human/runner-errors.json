@@ -1,0 +1,56 @@
+{
+  "schema": "openprose.human-runner-errors/1",
+  "summary": "The human rendering of a runner error on stderr, identical in both ports: `CODE at boundary: message`, then Source and Detail (configuration errors always carry both), then Action prefixed with the exact runner invocation. {{RUNNER}} stands for the shell-quoted invocation of the running product.",
+  "cases": [
+    {
+      "id": "invocation",
+      "error": {
+        "code": "INVOCATION_INVALID",
+        "boundary": "invocation",
+        "message": "Runner invocation is invalid.",
+        "action": "Correct the command, then retry.",
+        "details": {
+          "reason": "Unknown option."
+        }
+      },
+      "rendered": "INVOCATION_INVALID at invocation: Runner invocation is invalid.\nDetail: Unknown option.\nAction: Use the exact runner invocation {{RUNNER}} for runner operations. Correct the command, then retry.\n"
+    },
+    {
+      "id": "configuration-without-details",
+      "error": {
+        "code": "CONFIG_INVALID",
+        "boundary": "configuration",
+        "message": "Configuration is invalid.",
+        "action": "Fix it."
+      },
+      "rendered": "CONFIG_INVALID at configuration: Configuration is invalid.\nSource: unavailable\nDetail: unavailable\nAction: Use the exact runner invocation {{RUNNER}} for runner operations. Fix it.\n"
+    },
+    {
+      "id": "configuration-with-source",
+      "error": {
+        "code": "CONFIG_INVALID",
+        "boundary": "configuration",
+        "message": "Configuration is invalid.",
+        "action": "Fix it.",
+        "details": {
+          "source": "PROSE_OUTPUT",
+          "reason": "output must be human, json, or jsonl."
+        }
+      },
+      "rendered": "CONFIG_INVALID at configuration: Configuration is invalid.\nSource: PROSE_OUTPUT\nDetail: output must be human, json, or jsonl.\nAction: Use the exact runner invocation {{RUNNER}} for runner operations. Fix it.\n"
+    },
+    {
+      "id": "hostile-scalars",
+      "error": {
+        "code": "HOSTED_UNAVAILABLE",
+        "boundary": "hosted-service",
+        "message": "line\nbreak",
+        "action": "act\u001b[31m",
+        "details": {
+          "reason": "tab\there"
+        }
+      },
+      "rendered": "HOSTED_UNAVAILABLE at hosted-service: line\\nbreak\nDetail: tab\\there\nAction: Use the exact runner invocation {{RUNNER}} for runner operations. act\\u{001B}[31m\n"
+    }
+  ]
+}

@@ -8,6 +8,8 @@ import subprocess
 import sys
 import tempfile
 
+from canonical_json import canonicality_problem
+
 FIXTURES = Path(__file__).resolve().parents[2] / 'shared' / 'fixtures' / 'registry'
 TOKEN = 'rr_test_' + '1' * 32
 
@@ -21,7 +23,7 @@ def run(command):
         m = source['manifest']
         prefix = '/registry/v1/organizations/' + m['organization'] + '/packages/' + m['package']
         exact = prefix + '/versions/' + m['version']
-        for selected in ('production', 'staging'):
+        for selected in ('production',):
             with tempfile.TemporaryDirectory(prefix='prose-registry-oracle-') as directory:
                 root = Path(directory).resolve()
                 directory = str(root)
@@ -36,16 +38,17 @@ def run(command):
                 env = {'PATH':os.environ.get('PATH','/usr/bin:/bin'),'HOME':directory,'XDG_CONFIG_HOME':str(root/'config'),'TMPDIR':directory,'HTTP_PROXY':'http://127.0.0.1:9','HTTPS_PROXY':'http://127.0.0.1:9','ALL_PROXY':'http://127.0.0.1:9','NO_PROXY':''}
                 fixture = root / 'service.json'; env['PROSE_TEST_SERVICE_FIXTURE'] = str(fixture)
                 def invoke(args, exchanges, expected_code=0, human=False):
-                    fixture.write_text(json.dumps({'environment':selected,'credentials':{'production':TOKEN if selected=='production' else None,'staging':TOKEN if selected=='staging' else None},'storeAvailable':True,'exchanges':exchanges}))
-                    p = subprocess.run([*command,'--service-environment',selected,'--output','human' if human else 'json','cli','package',*args],cwd=root,env=env,capture_output=True,timeout=15)
+                    fixture.write_text(json.dumps({'environment':'production','credentials':{'production':TOKEN},'storeAvailable':True,'exchanges':exchanges}))
+                    p = subprocess.run([*command,'--output','human' if human else 'json','cli','package',*args],cwd=root,env=env,capture_output=True,timeout=15)
                     assert p.returncode == expected_code, (args,p.returncode,p.stdout.decode(),p.stderr.decode())
                     if human:
-                        assert p.stderr.decode() == ("OpenProse staging environment\n" if selected == "staging" else "")
+                        assert p.stderr.decode() == ""
                         return p.stdout.decode()
                     report = json.loads(p.stdout)
-                    assert report['schema']=='openprose.package-operation/1' and report['environment']==selected
+                    assert canonicality_problem(p.stdout) is None, (args, canonicality_problem(p.stdout))
+                    assert report['schema']=='openprose.service-operation/1' and report['operation']=='package.'+args[0]
                     assert TOKEN.encode() not in p.stdout+p.stderr and not p.stderr
-                    assert set(report)=={'schema','environment','operation','result','problem'}
+                    assert set(report)=={'schema','operation','interaction','result','problem'}
                     if expected_code==0: assert report['problem'] is None
                     return report
                 post={'method':'POST','path':prefix+'/versions','status':201,'body':receipt,'expectedBody':canonical,'expectedSha256':receipt['reference']['sha256']}
@@ -68,9 +71,18 @@ def run(command):
                 for status in (404, 413, 429):
                     absent=root/('absent-'+str(status))
                     error=invoke(['fetch',ref,'--output-dir',str(absent)],[{'method':'GET','path':exact,'status':status,'body':{'message':'untrusted upstream details'}}],10)
-                    assert error['problem']['code']=='SERVICE_UNAVAILABLE' and not absent.exists();count+=1
-                assert invoke(['withdraw',ref],[{'method':'POST','path':exact+'/withdraw','status':200,'body':result}],human=True)==f'OpenProse {selected} package withdraw: {ref}\n';count+=1
-                expected_list=ref+'\n' if receipt['visibility']=='public' else ''
+                    # A 404 names the missing version and is not retryable.
+                    if status == 404:
+                        problem=error['problem']
+                        assert problem['code']=='SERVICE_RESOURCE_NOT_FOUND' and problem['retryable'] is False, problem
+                        assert problem['details']['resource']=={'kind':'package','id':ref}, problem
+                        assert problem['details']['suggestedArgv']==['--output','json','cli','package','list',m['organization']], problem
+                        assert ref in problem['details']['reason'], problem
+                    else:
+                        assert error['problem']['code']=='SERVICE_UNAVAILABLE'
+                    assert not absent.exists();count+=1
+                assert invoke(['withdraw',ref],[{'method':'POST','path':exact+'/withdraw','status':200,'body':result}],human=True)==f'OpenProse package withdraw: {ref}\n';count+=1
+                expected_list=ref+'\n' if receipt['visibility']=='public' else 'No public packages in '+m['organization']+'.\n'
                 assert invoke(['list',m['organization']],[{'method':'GET','path':'/registry/v1/organizations/'+m['organization']+'/packages','status':200,'body':listing}],human=True)==expected_list;count+=1
                 if name=='directory':
                     manifest=package/'prose-package.json'

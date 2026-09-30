@@ -1,0 +1,69 @@
+{
+  "id": "example-show-cross-origin-human",
+  "feature": "discovery",
+  "operation": "example.show",
+  "description": "Human mode explains the refusal on stderr and prints nothing on stdout.",
+  "argv": [
+    "cli",
+    "example",
+    "show",
+    "agent-native"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/examples/private",
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef",
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          },
+          "Accept": "application/json"
+        },
+        "status": 200,
+        "body": {
+          "examples": [
+            {
+              "id": "private-example",
+              "label": "Private example",
+              "source": "/examples/private/private-example"
+            },
+            {
+              "id": "private-agent-browser",
+              "label": "Persona Website Feedback",
+              "source": "/examples/private/private-agent-browser"
+            },
+            {
+              "id": "agent-native",
+              "label": "Agent-native",
+              "source": "https://examples.example.org/examples/agent-native.prose.md"
+            },
+            {
+              "id": "agent-native-change",
+              "label": "Agent-native change",
+              "source": "https://examples.example.org/examples/agent-native-change.prose.md"
+            },
+            {
+              "id": "slack-hello",
+              "label": "Slack hello",
+              "source": "/examples/private/slack-hello"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: EXAMPLE_NOT_VIEWABLE: This example is published outside the OpenProse service and cannot be shown here.\nDetail: example \"agent-native\" is published outside the OpenProse service, so its source cannot be shown here; view it on the web\nWeb: https://examples.example.org/examples/agent-native.prose.md\nAction: Read the example at the Web address above when one is printed, or pick an example that `cli example list` does not mark for viewing on the web.\n"
+  }
+}

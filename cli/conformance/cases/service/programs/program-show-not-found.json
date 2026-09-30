@@ -1,0 +1,77 @@
+{
+  "id": "program-show-not-found",
+  "feature": "programs",
+  "operation": "program.show",
+  "description": "A missing or private program is SERVICE_RESOURCE_NOT_FOUND (the service does not distinguish them).",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "program",
+    "show",
+    "alice/nope"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/p/alice/nope",
+        "requestHeaders": {
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          },
+          "User-Agent": {
+            "pattern": "^prose-cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"
+          },
+          "Accept": "application/json",
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "status": 404,
+        "body": {
+          "error": "Not found"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "schema": "openprose.service-operation/1",
+      "operation": "program.show",
+      "interaction": "program.read",
+      "result": null,
+      "problem": {
+        "schema": "openprose.runner-error/1",
+        "code": "SERVICE_RESOURCE_NOT_FOUND",
+        "boundary": "hosted-service",
+        "message": "The requested OpenProse service resource was not found.",
+        "action": "Run `prose --output json cli program list` to find the right program, then retry with it.",
+        "exitCode": 10,
+        "retryable": false,
+        "details": {
+          "serviceStatus": 404,
+          "reason": "program alice/nope was not found",
+          "resource": {
+            "id": "alice/nope",
+            "kind": "program"
+          },
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "program",
+            "list"
+          ]
+        }
+      }
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

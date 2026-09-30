@@ -11,7 +11,7 @@ class PlanTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
-        self.evidence = 'https://github.com/openprose/openprose-expedition/tree/'+'b'*40+'/case'
+        self.evidence = 'https://github.com/openprose/example-evidence/tree/'+'b'*40+'/case'
         self.manifest = {'schema':'openprose.local-release-manifest/1','version':'0.15.0-dev.1','source':{'revision':'a'*40},'platform':'darwin-arm64','artifacts':[]}
         for impl in ['bun','rust']:
             data = impl.encode()

@@ -1,0 +1,278 @@
+{
+  "id": "watch-replay-from-zero-unknown-fields",
+  "feature": "runs",
+  "operation": "run.watch",
+  "description": "watch defaults to --after 0 and replays every event of a finished run. Every service record also carries internal fields (runtime, contract, version, adoption, driver, configuration token, reactor, call id, showable, price policy, organization id, an internal path): the output is unchanged and names none of them.",
+  "argv": [
+    "--output",
+    "jsonl",
+    "cli",
+    "run",
+    "watch",
+    "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "journal": [
+      {
+        "session": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f",
+        "runId": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+        "createdAt": "2026-09-24T00:59:00.000Z",
+        "lastSequence": 3,
+        "sourceSha256": null
+      }
+    ],
+    "clock": {
+      "start": "2026-09-24T01:00:00.000Z",
+      "stepMs": 0
+    },
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/run/run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c/events",
+        "query": {
+          "after": "0",
+          "session": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f"
+        },
+        "requestHeaders": {
+          "Accept": "text/event-stream",
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "status": 200,
+        "sse": {
+          "frames": [
+            {
+              "id": "1",
+              "event": "status",
+              "data": {
+                "type": "status",
+                "run_id": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+                "sequence": 1,
+                "at": "2026-09-24T01:00:01.000Z",
+                "status": "running",
+                "message": "reactor model-luna",
+                "session": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f",
+                "controls": {
+                  "steer": true,
+                  "stop": true,
+                  "runtime": "x-internal-runtime",
+                  "contract": "x-internal-contract",
+                  "version": "x-internal-version",
+                  "adopted": true,
+                  "driver": "x-internal-driver",
+                  "configurationToken": "x-internal-configuration-token",
+                  "reactor": "x-internal-reactor",
+                  "call_id": "x-internal-call",
+                  "showable": true,
+                  "pricing_policy_id": "x-internal-pricing-policy",
+                  "organization_id": "x-internal-organization",
+                  "internal_path": "/internal/x-internal-path/state.json"
+                },
+                "runtime": "x-internal-runtime",
+                "contract": "x-internal-contract",
+                "version": "x-internal-version",
+                "adopted": true,
+                "driver": "x-internal-driver",
+                "configurationToken": "x-internal-configuration-token",
+                "reactor": "x-internal-reactor",
+                "call_id": "x-internal-call",
+                "showable": true,
+                "pricing_policy_id": "x-internal-pricing-policy",
+                "organization_id": "x-internal-organization",
+                "internal_path": "/internal/x-internal-path/state.json"
+              }
+            },
+            {
+              "id": "2",
+              "event": "text_chunk",
+              "data": {
+                "type": "text_chunk",
+                "run_id": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+                "sequence": 2,
+                "at": "2026-09-24T01:00:01.000Z",
+                "text": "ok",
+                "runtime": "x-internal-runtime",
+                "contract": "x-internal-contract",
+                "version": "x-internal-version",
+                "adopted": true,
+                "driver": "x-internal-driver",
+                "configurationToken": "x-internal-configuration-token",
+                "reactor": "x-internal-reactor",
+                "call_id": "x-internal-call",
+                "showable": true,
+                "pricing_policy_id": "x-internal-pricing-policy",
+                "organization_id": "x-internal-organization",
+                "internal_path": "/internal/x-internal-path/state.json"
+              }
+            },
+            {
+              "id": "3",
+              "event": "run_complete",
+              "data": {
+                "type": "run_complete",
+                "run_id": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+                "sequence": 3,
+                "at": "2026-09-24T01:00:01.000Z",
+                "status": "completed",
+                "runtime": "reactor",
+                "environment": {
+                  "id": "builtin",
+                  "version": "1.0.0",
+                  "runtime_contract": 1,
+                  "runtime": "x-internal-runtime",
+                  "contract": "x-internal-contract",
+                  "adopted": true,
+                  "driver": "x-internal-driver",
+                  "configurationToken": "x-internal-configuration-token",
+                  "reactor": "x-internal-reactor",
+                  "call_id": "x-internal-call",
+                  "showable": true,
+                  "pricing_policy_id": "x-internal-pricing-policy",
+                  "organization_id": "x-internal-organization",
+                  "internal_path": "/internal/x-internal-path/state.json"
+                },
+                "response": "ok",
+                "files": [
+                  "outputs/result.json"
+                ],
+                "price_cents": 2,
+                "environment_price_cents": 1,
+                "billing_status": "settled",
+                "usage": {
+                  "input_tokens": 100,
+                  "output_tokens": 5,
+                  "runtime": "x-internal-runtime",
+                  "contract": "x-internal-contract",
+                  "version": "x-internal-version",
+                  "adopted": true,
+                  "driver": "x-internal-driver",
+                  "configurationToken": "x-internal-configuration-token",
+                  "reactor": "x-internal-reactor",
+                  "call_id": "x-internal-call",
+                  "showable": true,
+                  "pricing_policy_id": "x-internal-pricing-policy",
+                  "organization_id": "x-internal-organization",
+                  "internal_path": "/internal/x-internal-path/state.json"
+                },
+                "file_urls": {
+                  "outputs/result.json": "https://example.invalid/x?tok=SECRET_SIGNED_TOKEN",
+                  "runtime": "x-internal-runtime",
+                  "contract": "x-internal-contract",
+                  "version": "x-internal-version",
+                  "adopted": true,
+                  "driver": "x-internal-driver",
+                  "configurationToken": "x-internal-configuration-token",
+                  "reactor": "x-internal-reactor",
+                  "call_id": "x-internal-call",
+                  "showable": true,
+                  "pricing_policy_id": "x-internal-pricing-policy",
+                  "organization_id": "x-internal-organization",
+                  "internal_path": "/internal/x-internal-path/state.json"
+                },
+                "contract": "x-internal-contract",
+                "version": "x-internal-version",
+                "adopted": true,
+                "driver": "x-internal-driver",
+                "configurationToken": "x-internal-configuration-token",
+                "reactor": "x-internal-reactor",
+                "call_id": "x-internal-call",
+                "showable": true,
+                "pricing_policy_id": "x-internal-pricing-policy",
+                "organization_id": "x-internal-organization",
+                "internal_path": "/internal/x-internal-path/state.json"
+              }
+            }
+          ],
+          "end": "close"
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "jsonl": [
+      {
+        "at": "2026-09-24T01:00:01.000Z",
+        "data": {
+          "controls": {
+            "steer": true,
+            "stop": true
+          },
+          "message": "Running on model-luna",
+          "status": "running"
+        },
+        "runId": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+        "schema": "openprose.service-event/1",
+        "sequence": 1,
+        "type": "status"
+      },
+      {
+        "at": "2026-09-24T01:00:01.000Z",
+        "data": {
+          "text": "ok"
+        },
+        "runId": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+        "schema": "openprose.service-event/1",
+        "sequence": 2,
+        "type": "text_chunk"
+      },
+      {
+        "at": null,
+        "data": {
+          "interaction": "run.observe",
+          "operation": "run.watch",
+          "problem": null,
+          "result": {
+            "afterSequence": 3,
+            "detached": false,
+            "run": {
+              "billing_status": "settled",
+              "cancelled": false,
+              "environment": "builtin",
+              "environment_price_cents": 1,
+              "files": [
+                "outputs/result.json"
+              ],
+              "price_cents": 2,
+              "response": "ok",
+              "run_id": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+              "status": "completed",
+              "usage": {
+                "input_tokens": 100,
+                "output_tokens": 5
+              }
+            },
+            "runId": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+            "run_id": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+            "session": "5f0c8a1e-3b2d-4c6e-9f70-1a2b3c4d5e6f"
+          },
+          "schema": "openprose.service-operation/1"
+        },
+        "exitCode": 0,
+        "runId": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+        "schema": "openprose.service-event/1",
+        "sequence": null,
+        "type": "service.completed"
+      }
+    ]
+  },
+  "forbid": [
+    "x-internal-",
+    "/internal/",
+    "\"adopted\"",
+    "\"driver\"",
+    "\"showable\"",
+    "\"call_id\"",
+    "\"pricing_policy_id\"",
+    "\"organization_id\"",
+    "\"configurationToken\"",
+    "\"runtime\"",
+    "\"contract\"",
+    "\"reactor\"",
+    "\"internal_path\""
+  ]
+}

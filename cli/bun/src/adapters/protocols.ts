@@ -229,7 +229,11 @@ class ClaudeProtocol extends InstalledProtocol {
       return this.complete();
     }
     if (record.type === "user" || record.type === "tool_progress") return null;
-    malformed(`Claude emitted an unsupported event type: ${String(record.type)}.`);
+    // Newer Claude releases add informational records (e.g. rate_limit_event, new
+    // system subtypes). They are session-bound but never settle the invocation.
+    if (typeof record.type !== "string" || !record.type) malformed("Claude record type is invalid.");
+    if (record.type === "system" && (typeof record.subtype !== "string" || !record.subtype)) malformed("Claude system subtype is invalid.");
+    return null;
   }
 
   private requireSession(record: Record<string, unknown>): void {

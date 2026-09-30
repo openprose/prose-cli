@@ -1,0 +1,55 @@
+{
+  "id": "invitation-revoke-id-too-long",
+  "feature": "organizations",
+  "operation": "org.invitation.revoke",
+  "description": "INVITATION_ID over 128 code points is INVOCATION_INVALID.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "org",
+    "invitation",
+    "revoke",
+    "acme-research",
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "organizations.manage",
+      "operation": "org.invitation.revoke",
+      "problem": {
+        "action": "Correct the value named in Detail; `prose --output json cli org invitation revoke --help` shows the accepted syntax.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "<INVITATION_ID> must be 1-128 characters with no control characters",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "org",
+            "invitation",
+            "revoke",
+            "--help"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

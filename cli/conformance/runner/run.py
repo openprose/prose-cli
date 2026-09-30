@@ -1521,6 +1521,8 @@ def execute(
             bun_runtime = harness_bin / "bun"
             bun_runtime.write_bytes(BUN_RUNTIME_FIXTURE)
             bun_runtime.chmod(0o700)
+        if adapter_id == "claude/print-stream-json" and ("version" in installed_adapter or "telemetryScenario" in installed_adapter):
+            (cwd / ".claude-compatibility-fixture.json").write_text(json.dumps(installed_adapter), encoding="utf-8")
         additions["PATH"] = str(harness_bin)
         if adapter_id in {"prime/rpc", "omp/rpc"}:
             additions["OPENROUTER_API_KEY"] = "fixture-provider-free-openrouter-key"

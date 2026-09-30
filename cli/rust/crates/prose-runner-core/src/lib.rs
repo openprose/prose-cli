@@ -28,5 +28,7 @@ pub use runtime::{Clock, IdSource, SystemClock, SystemIdSource};
 
 pub mod kernel_startup;
 
-pub mod service_account;
+mod credential_store;
 pub mod registry;
+pub mod service;
+pub mod service_account;

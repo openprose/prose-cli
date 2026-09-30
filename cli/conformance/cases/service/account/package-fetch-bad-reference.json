@@ -1,0 +1,53 @@
+{
+  "id": "package-fetch-bad-reference",
+  "feature": "account",
+  "operation": "package.fetch",
+  "description": "A fetch reference that is not ORG/NAME@VERSION says so with an example.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "package",
+    "fetch",
+    "acme-research/tool",
+    "--output-dir",
+    "out"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "registry.gateway",
+      "operation": "package.fetch",
+      "problem": {
+        "action": "Correct the value named in Detail; `prose --output json cli package fetch --help` shows the accepted syntax.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "\"acme-research/tool\" is not ORG/NAME@VERSION (for example acme/tool@1.2.0)",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "package",
+            "fetch",
+            "--help"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

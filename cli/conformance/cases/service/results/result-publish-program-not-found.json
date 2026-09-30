@@ -1,0 +1,76 @@
+{
+  "id": "result-publish-program-not-found",
+  "feature": "results",
+  "operation": "result.publish",
+  "description": "A program this account does not own is a bare 404 with a reason.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "result",
+    "publish",
+    "demo",
+    "--run",
+    "run_abc123abc123abc123abc123abc123abc123abc123abc123abc123abc123abc1",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/programs/demo/results",
+        "status": 404,
+        "expectedBody": {
+          "run_id": "run_abc123abc123abc123abc123abc123abc123abc123abc123abc123abc123abc1"
+        },
+        "body": {
+          "error": "Not found"
+        },
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "results.publish",
+      "operation": "result.publish",
+      "problem": {
+        "action": "Run `prose --output json cli program list` to find the right program, then retry with it.",
+        "boundary": "hosted-service",
+        "code": "SERVICE_RESOURCE_NOT_FOUND",
+        "details": {
+          "reason": "no program \"demo\" owned by this account; list yours with `prose --output json cli program list`",
+          "serviceStatus": 404,
+          "resource": {
+            "id": "demo",
+            "kind": "program"
+          },
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "program",
+            "list"
+          ]
+        },
+        "exitCode": 10,
+        "message": "The requested OpenProse service resource was not found.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

@@ -1,0 +1,53 @@
+{
+  "id": "fix-program-delete-without-rev",
+  "feature": "framework",
+  "operation": "program.delete",
+  "description": "`cli program delete SLUG@N` suggests the slug without its revision.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "program",
+    "delete",
+    "hello@1",
+    "--preview"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "program.delete",
+      "operation": "program.delete",
+      "problem": {
+        "action": "Pass hello: `prose --output json cli program delete hello --preview`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "<SLUG> names a program, not a revision; pass \"hello\" without @1",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "program",
+            "delete",
+            "hello",
+            "--preview"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

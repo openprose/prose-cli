@@ -1,0 +1,59 @@
+{
+  "id": "option-alias-background-to-detach",
+  "feature": "framework",
+  "operation": "run.submit",
+  "description": "`--background` suggests `--detach`.",
+  "argv": [
+    "cli",
+    "run",
+    "submit",
+    "hello.prose.md",
+    "--background",
+    "--preview",
+    "--json"
+  ],
+  "files": [
+    {
+      "path": "hello.prose.md",
+      "content": "# Hello\n\nSay hello.\n"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "run.submit",
+      "operation": "run.submit",
+      "problem": {
+        "action": "Replace --background with --detach: `prose cli run submit hello.prose.md --detach --preview --json`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "unknown option --background for `cli run submit`; did you mean --detach?",
+          "suggestedArgv": [
+            "cli",
+            "run",
+            "submit",
+            "hello.prose.md",
+            "--detach",
+            "--preview",
+            "--json"
+          ]
+        },
+        "exitCode": 2,
+        "message": "Unknown option.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

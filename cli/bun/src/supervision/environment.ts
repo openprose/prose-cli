@@ -2,7 +2,6 @@ const operatingSystemNames = new Set([
   "PATH", "HOME", "USERPROFILE", "SystemRoot", "WINDIR", "COMSPEC",
   "TMP", "TEMP", "TMPDIR", "LANG", "LC_ALL", "LC_CTYPE",
   "XDG_CONFIG_HOME", "XDG_CACHE_HOME",
-  "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY",
 ]);
 
 const versionProbeOperatingSystemNames = new Set([
@@ -28,7 +27,7 @@ export function buildChildEnvironment(
   const permitted = new Set([...operatingSystemNames, ...additionalNames]);
   const result: Record<string, string> = {};
   for (const name of permitted) {
-    if (["OPENPROSE_STAGING_API_KEY", "OPENPROSE_API_KEY"].includes(name.toUpperCase())) continue;
+    if (name.toUpperCase() === "OPENPROSE_API_KEY") continue;
     const value = ambient[name];
     if (value !== undefined) result[name] = value;
   }

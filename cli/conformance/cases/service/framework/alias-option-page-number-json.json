@@ -1,0 +1,51 @@
+{
+  "id": "alias-option-page-number-json",
+  "feature": "framework",
+  "operation": "run.list",
+  "description": "`--page 2` on a paged listing: pages are cursors, so the suggestion lists the first page and the Action names result.nextBefore. (JSON envelope)",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "list",
+    "--page",
+    "2"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "runs.list",
+      "operation": "run.list",
+      "problem": {
+        "action": "List the first page with `prose --output json cli run list`, then pass its result.nextBefore to --before for the next page.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "unknown option --page for `cli run list`; pages are cursors, not numbers: --before takes the result.nextBefore of the previous page",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "list"
+          ]
+        },
+        "exitCode": 2,
+        "message": "Unknown option.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

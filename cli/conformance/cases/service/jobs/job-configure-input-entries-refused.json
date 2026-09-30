@@ -1,0 +1,63 @@
+{
+  "id": "job-configure-input-entries-refused",
+  "feature": "jobs",
+  "operation": "job.configure",
+  "description": "run_configuration copied from `job show` with inputEntries is refused locally with the merge instruction, so no input is silently deleted.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "job",
+    "configure",
+    "7b2e4d19-6a3c-4e85-b1f0-9c4d8e2a6b73",
+    "--config-file",
+    "config.json",
+    "--yes"
+  ],
+  "files": [
+    {
+      "path": "config.json",
+      "content": "{\"interval_seconds\": 3600, \"configuration_revision\": 3, \"revision_token\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"bindings\": [{\"program_ref\": \"exowner1/jobs-example@0123456789abcdef\", \"run_configuration\": {\"model\": \"model-luna\", \"inputs\": {\"topic\": \"t\"}, \"inputEntries\": [{\"name\": \"Cost_Center\", \"value\": \"cc-1\"}]}}]}"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "job.update",
+      "operation": "job.configure",
+      "problem": {
+        "action": "Correct the value named in Detail; `prose --output json cli job configure --help` shows the accepted syntax.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "bindings[0].run_configuration.inputEntries appears only in results: move each {name, value} entry into bindings[0].run_configuration.inputs as \"name\": \"value\" and remove inputEntries (an input left out is deleted)",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "job",
+            "configure",
+            "--help"
+          ],
+          "violations": [
+            "bindings[0].run_configuration.inputEntries appears only in results: move each {name, value} entry into bindings[0].run_configuration.inputs as \"name\": \"value\" and remove inputEntries (an input left out is deleted)"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

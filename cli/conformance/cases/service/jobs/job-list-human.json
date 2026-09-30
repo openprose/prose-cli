@@ -1,0 +1,110 @@
+{
+  "id": "job-list-human",
+  "feature": "jobs",
+  "operation": "job.list",
+  "description": "Human `job list` prints one line per job with id, type, name, program, interval and next fire time.",
+  "argv": [
+    "cli",
+    "job",
+    "list"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/triggers",
+        "status": 200,
+        "body": {
+          "triggers": [
+            {
+              "id": "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10",
+              "type": "webhook",
+              "name": "test-slack",
+              "internalRef": "opaque-1",
+              "url": null,
+              "intervalSeconds": null,
+              "mode": null,
+              "repositoryId": null,
+              "repositoryFullName": null,
+              "repositoryBranch": null,
+              "contextRepositoryId": null,
+              "contextRepositoryFullName": null,
+              "contextRepositoryBranch": null,
+              "createdAt": 1790212421024,
+              "adopted": false,
+              "contextRepository": null,
+              "contracts": [
+                {
+                  "programRef": "exowner1/slack-hello@97ddf3a447f534a7",
+                  "programSlug": "slack-hello",
+                  "enabled": true,
+                  "model": "model-luna",
+                  "contextRepositoryFullName": null,
+                  "contextRepositoryBranch": null
+                }
+              ],
+              "programRef": "exowner1/slack-hello@97ddf3a447f534a7",
+              "programSlug": "slack-hello",
+              "model": "model-luna",
+              "lastRunId": "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c",
+              "lastError": null,
+              "nextFireAt": null,
+              "lastEventAt": 1789504569023
+            },
+            {
+              "id": "7b2e4d19-6a3c-4e85-b1f0-9c4d8e2a6b73",
+              "type": "schedule",
+              "name": null,
+              "internalRef": "opaque-1",
+              "url": null,
+              "intervalSeconds": 86400,
+              "mode": null,
+              "repositoryId": null,
+              "repositoryFullName": null,
+              "repositoryBranch": null,
+              "contextRepositoryId": 1000001,
+              "contextRepositoryFullName": "exowner1/example-repo",
+              "contextRepositoryBranch": "main",
+              "createdAt": 1788438667830,
+              "adopted": false
+            }
+          ],
+          "max_triggers": 5,
+          "trigger_limit": {
+            "kind": "unlimited"
+          },
+          "types": [
+            {
+              "id": "schedule",
+              "label": "On a schedule",
+              "description": "Runs a contract on a recurring timer.",
+              "config_fields": [
+                "interval_seconds",
+                "program_ref"
+              ],
+              "emits": [
+                "fired_at"
+              ],
+              "driver": "scheduled"
+            }
+          ]
+        },
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "Jobs: 2 of 5 allowed\n3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10 webhook name=test-slack program=exowner1/slack-hello@97ddf3a447f534a7 interval=- next=-\n7b2e4d19-6a3c-4e85-b1f0-9c4d8e2a6b73 schedule name=- program=- interval=86400 next=-\nTypes: schedule\n"
+  },
+  "stderr": {
+    "text": ""
+  }
+}

@@ -1,0 +1,65 @@
+{
+  "id": "job-create-all-violations",
+  "feature": "jobs",
+  "operation": "job.create",
+  "description": "Every violation is reported at once, in order, in details.violations.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "job",
+    "create",
+    "--spec-file",
+    "spec.json",
+    "--yes"
+  ],
+  "files": [
+    {
+      "path": "spec.json",
+      "content": "{\"type\": \"schedule\", \"program_ref\": \"exowner1/jobs-example\", \"interval_seconds\": 30, \"inputs\": {\"topic\": \"cats\", \"count\": 3}, \"modle\": \"model-luna\", \"colour\": \"blue\"}"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "job.deploy",
+      "operation": "job.create",
+      "problem": {
+        "action": "Correct the value named in Detail; `prose --output json cli job create --help` shows the accepted syntax.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "4 problems in --spec-file \"spec.json\": (1) unknown key colour in a schedule job spec (accepted: environment, files, inputs, interval_seconds, model, output, program_ref, reasoning_effort, repository_branch, repository_url, type) (2) inputs.count must be a string (got number) (3) interval_seconds must be an integer from 60 to 2678400 (4) unknown key modle; did you mean model?",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "job",
+            "create",
+            "--help"
+          ],
+          "violations": [
+            "unknown key colour in a schedule job spec (accepted: environment, files, inputs, interval_seconds, model, output, program_ref, reasoning_effort, repository_branch, repository_url, type)",
+            "inputs.count must be a string (got number)",
+            "interval_seconds must be an integer from 60 to 2678400",
+            "unknown key modle; did you mean model?"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

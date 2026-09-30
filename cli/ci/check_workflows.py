@@ -1173,9 +1173,11 @@ def audit(ci: str, release: str, draft_helper: str | None = None) -> list[str]:
     )
     require(
         'SOURCE_ROOT="$(pwd -P)"' in build
-        and 'CARGO_INCREMENTAL=0 RUSTFLAGS="--remap-path-prefix=$SOURCE_ROOT=/openprose-source"'
+        and 'CARGO_HOME_ROOT="$(cd "${CARGO_HOME:-$HOME/.cargo}" && pwd -P)"' in build
+        and 'CARGO_INCREMENTAL=0 RUSTFLAGS="--remap-path-prefix=$SOURCE_ROOT=/openprose-source'
+        ' --remap-path-prefix=$CARGO_HOME_ROOT=/cargo-home"'
         in build,
-        "release: Rust build must disable incrementality and canonically remap its physical source root",
+        "release: Rust build must disable incrementality and canonically remap its physical source root and Cargo home",
         failures,
     )
     require(
@@ -1880,9 +1882,11 @@ def audit_alpha(
     )
     require(
         'SOURCE_ROOT="$(pwd -P)"' in package
+        and 'CARGO_HOME_ROOT="$(cd "${CARGO_HOME:-$HOME/.cargo}" && pwd -P)"' in package
         and 'CARGO_INCREMENTAL=0 RUSTC="$RUSTC_TOOL"' in package
-        and 'RUSTFLAGS="--remap-path-prefix=$SOURCE_ROOT=/openprose-source"' in package,
-        "alpha: Rust build must disable incrementality and canonically remap its physical source root",
+        and 'RUSTFLAGS="--remap-path-prefix=$SOURCE_ROOT=/openprose-source'
+        ' --remap-path-prefix=$CARGO_HOME_ROOT=/cargo-home"' in package,
+        "alpha: Rust build must disable incrementality and canonically remap its physical source root and Cargo home",
         failures,
     )
     require(

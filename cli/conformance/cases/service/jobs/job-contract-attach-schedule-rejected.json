@@ -1,0 +1,59 @@
+{
+  "id": "job-contract-attach-schedule-rejected",
+  "feature": "jobs",
+  "operation": "job.contract.attach",
+  "description": "Schedules change contracts only through configure: 405 is SERVICE_REQUEST_REJECTED.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "job",
+    "contract",
+    "attach",
+    "7b2e4d19-6a3c-4e85-b1f0-9c4d8e2a6b73",
+    "exowner1/jobs-example@0123456789abcdef",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/triggers/7b2e4d19-6a3c-4e85-b1f0-9c4d8e2a6b73/contracts",
+        "status": 405,
+        "body": {
+          "error": "Schedule contracts must be changed with unified execution settings."
+        },
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "job.contracts",
+      "operation": "job.contract.attach",
+      "problem": {
+        "action": "Correct the request as details.serviceMessage describes, then retry.",
+        "boundary": "hosted-service",
+        "code": "SERVICE_REQUEST_REJECTED",
+        "details": {
+          "serviceMessage": "Schedule contracts must be changed with unified execution settings.",
+          "serviceStatus": 405
+        },
+        "exitCode": 10,
+        "message": "The OpenProse service rejected the request.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "id": "job-show-not-found-human",
+  "feature": "jobs",
+  "operation": "job.show",
+  "description": "Human form of a job 404: Detail names the id and the environment; the Action quotes `cli job list`.",
+  "argv": [
+    "cli",
+    "job",
+    "show",
+    "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/triggers/3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10",
+        "status": 404,
+        "body": {
+          "error": "Not found"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "text": ""
+  },
+  "stderr": {
+    "text": "OpenProse: SERVICE_RESOURCE_NOT_FOUND: The requested OpenProse service resource was not found.\nDetail: job 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10 was not found\nAction: Run `prose cli job list` to find the right job, then retry with it.\n"
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

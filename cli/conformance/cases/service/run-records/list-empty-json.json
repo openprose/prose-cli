@@ -1,0 +1,52 @@
+{
+  "id": "list-empty-json",
+  "feature": "run-records",
+  "operation": "run.list",
+  "description": "An empty page is success: runs [] and nextBefore null, exit 0.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "list"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/runs",
+        "requestHeaders": {
+          "Authorization": {
+            "pattern": "^Bearer rr_test_[0-9a-f]{32}$"
+          }
+        },
+        "status": 200,
+        "query": {
+          "limit": "20"
+        },
+        "body": {
+          "runs": [],
+          "next_before": null
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "runs.list",
+      "operation": "run.list",
+      "problem": null,
+      "result": {
+        "runs": [],
+        "nextBefore": null
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

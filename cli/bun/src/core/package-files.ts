@@ -122,8 +122,8 @@ export async function materializePackage(prepared: PreparedPackage, receipt: Pac
   const destination = resolve(cwd, outputDir), parent = dirname(destination);
   await safeAncestors(parent);
   try { await lstat(destination); return invalidPackage(); } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
-  const staging = await mkdtemp(join(parent, ".prose-package-"));
-  const staged: Owned[] = [await identity(staging, true)];
+  const scratch = await mkdtemp(join(parent, ".prose-package-"));
+  const staged: Owned[] = [await identity(scratch, true)];
   const reserved: Owned[] = [];
   const paths = [...prepared.files.map(file => ({ path: file.path, bytes: file.bytes })), { path: ".prose-package-receipt.json", bytes: new TextEncoder().encode(`${canonicalPackageJSON(receipt)}\n`) }];
   const writeOwned = async (root: string, entries: Owned[], path: string, bytes: Uint8Array) => {
@@ -147,7 +147,7 @@ export async function materializePackage(prepared: PreparedPackage, receipt: Pac
     } finally { await handle.close(); }
   };
   try {
-    for (const file of paths) await writeOwned(staging, staged, file.path, file.bytes);
+    for (const file of paths) await writeOwned(scratch, staged, file.path, file.bytes);
     await safeAncestors(parent);
     // Exclusive reservation never replaces even an empty destination. Visibility is
     // deliberately non-atomic on hosts lacking an exposed NOREPLACE directory rename.

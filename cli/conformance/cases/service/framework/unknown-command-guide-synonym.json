@@ -1,0 +1,43 @@
+{
+  "id": "unknown-command-guide-synonym",
+  "feature": "framework",
+  "operation": "service.guide",
+  "description": "`guide` is a noun synonym of `service guide`; nothing runs and suggestedArgv is the corrected command.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "guide"
+  ],
+  "fixture": {
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": null,
+      "operation": "cli",
+      "problem": {
+        "action": "Use `cli service guide`: `prose --output json cli service guide`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "unknown command `cli guide`; did you mean `cli service guide`? Commands: auth, cleanup, config, doctor, example, harness, job, model, org, package, program, repo, result, run, service, wallet",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "service",
+            "guide"
+          ]
+        },
+        "exitCode": 2,
+        "message": "Unknown command.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

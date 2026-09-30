@@ -1,0 +1,45 @@
+{
+  "id": "no-cli-lone-synonym-models-json",
+  "feature": "framework",
+  "operation": "model.list",
+  "description": "`prose models --json` completes the one-verb group: `prose cli model list --json`.",
+  "argv": [
+    "models",
+    "--json"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": null,
+      "operation": "cli",
+      "problem": {
+        "action": "Use `cli model list`: `prose cli model list --json`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "`models` is not a command; did you mean `prose cli model list --json`? Nothing was forwarded or sent. To pass these words to the OpenProse language instead, put `--` before them",
+          "suggestedArgv": [
+            "cli",
+            "model",
+            "list",
+            "--json"
+          ]
+        },
+        "exitCode": 2,
+        "message": "Unknown command.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

@@ -1,0 +1,53 @@
+{
+  "id": "option-alias-dry-run",
+  "feature": "framework",
+  "operation": "run.cancel",
+  "description": "`--dry-run` after the command is an alias of `--preview`.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "cancel",
+    "run_1111111111111111111111111111111111111111111111111111111111111111",
+    "--dry-run"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "run.cancel",
+      "operation": "run.cancel",
+      "problem": {
+        "action": "Replace --dry-run with --preview: `prose --output json cli run cancel run_1111111111111111111111111111111111111111111111111111111111111111 --preview`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "unknown option --dry-run for `cli run cancel`; did you mean --preview?",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "cancel",
+            "run_1111111111111111111111111111111111111111111111111111111111111111",
+            "--preview"
+          ]
+        },
+        "exitCode": 2,
+        "message": "Unknown option.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

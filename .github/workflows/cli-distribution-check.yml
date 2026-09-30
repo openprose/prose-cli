@@ -57,6 +57,37 @@ jobs:
           python3 -m pip install --require-hashes --only-binary=:all: -r cli/ci/requirements-test.txt
           cd cli/bun
           bun install --frozen-lockfile --ignore-scripts
+      - name: Check the public surface
+        # prose-cli is a public user client: no internal service detail or
+        # developer-only surface in tracked files, release help or binaries.
+        # Same check as the public-surface gate in cli/ci/run_local.py.
+        if: matrix.os == 'ubuntu-22.04'
+        run: |
+          python3 -m unittest discover -s cli/ci -p test_check_public_surface.py
+          python3 cli/ci/check_public_surface.py --build-release
+      - name: Check hosted service parity between the Rust and Bun ports
+        # One shared corpus drives both ports through the test-seam fixture
+        # transport; no network. Same checks as the service-* and
+        # registry-service-* gates in cli/ci/run_local.py.
+        if: matrix.os == 'ubuntu-22.04'
+        run: >-
+          python3 cli/ci/run_local.py
+          --only shared-contracts
+          --only service-operations-corpus
+          --only service-coverage
+          --only service-help
+          --only service-operations-rust-build
+          --only service-operations-rust
+          --only registry-service-rust
+          --only service-operations-bun-build
+          --only service-operations-bun
+          --only registry-service-bun
+      - name: Build and test the developer endpoint build
+        # The dev-endpoint cargo feature is never in a public build; keep it
+        # compiling and tested. Same checks as the rust-build-dev-endpoint and
+        # rust-tests-dev-endpoint gates in cli/ci/run_local.py.
+        if: matrix.os == 'ubuntu-22.04'
+        run: python3 cli/ci/run_local.py --only rust-build-dev-endpoint --only rust-tests-dev-endpoint
       - name: Test distribution plan adapter
         run: |
           python3 -m unittest discover -s cli/conformance/runner -p test_runner.py

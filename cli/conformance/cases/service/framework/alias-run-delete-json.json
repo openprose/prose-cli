@@ -1,0 +1,51 @@
+{
+  "id": "alias-run-delete-json",
+  "feature": "framework",
+  "operation": "program.delete",
+  "description": "`cli run delete RUN_ID` explains that runs cannot be deleted and points to `cli program delete` and `cli job delete`. (JSON envelope)",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "delete",
+    "run_4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c4f1c2d3e4f5a6b7c"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": null,
+      "operation": "cli",
+      "problem": {
+        "action": "Runs cannot be deleted; a job is deleted with `cli job delete JOB_ID`. Use `cli program delete`: `prose --output json cli program delete --help`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "unknown command `cli run delete`; did you mean `cli program delete --help`? runs cannot be deleted; a saved program is deleted with `cli program delete SLUG` and a job with `cli job delete JOB_ID`, and a run in progress is cancelled with `cli run cancel RUN_ID`",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "program",
+            "delete",
+            "--help"
+          ]
+        },
+        "exitCode": 2,
+        "message": "Unknown command.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

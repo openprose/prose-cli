@@ -15,7 +15,7 @@ class PublicationTests(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
-        self.plan = {'schema': 'openprose.cli-publication/1', 'version': '0.15.0-rc.1', 'source': 'a'*40, 'qualification': {'status': 'kernel-smoke-qualified', 'evidence': 'https://github.com/openprose/openprose-expedition/tree/' + 'b'*40 + '/test'}, 'artifacts': [], 'preflight': 'preflight.json', 'macos': {}, 'npmProvenance': True, 'signing': 'apple-notarized'}
+        self.plan = {'schema': 'openprose.cli-publication/1', 'version': '0.15.0-rc.1', 'source': 'a'*40, 'qualification': {'status': 'kernel-smoke-qualified', 'evidence': 'https://github.com/openprose/example-evidence/tree/' + 'b'*40 + '/test'}, 'artifacts': [], 'preflight': 'preflight.json', 'macos': {}, 'npmProvenance': True, 'signing': 'apple-notarized'}
         self.image = {'formatVersion': 1, 'version': 'test', 'sha256': 'c'*64, 'manifestSha256': 'd'*64, 'purpose': 'canonical-language-runtime', 'releaseEligible': True}
         self.add('preflight.json', json.dumps({'schema': 'openprose.release-preflight-report/1', 'status': 'pass', 'failures': [], 'sourceSha': 'a'*40, 'version': self.plan['version'], 'protectedAuthority': {'status': 'pass'}, 'image': {'imageSha256': 'c'*64, 'manifestSha256': 'd'*64, 'version': 'test', 'purpose': 'canonical-language-runtime', 'releaseEligible': True}}).encode())
         for platform in p.PLATFORMS:

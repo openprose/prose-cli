@@ -1,0 +1,92 @@
+{
+  "id": "submit-from-unknown-rev-not-found",
+  "feature": "runs",
+  "operation": "run.submit",
+  "description": "An unknown rev_id of your own program fails in --preview with SERVICE_RESOURCE_NOT_FOUND naming `program revisions`; nothing is quoted or sent.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "submit",
+    "--from",
+    "hello@aaaaaaaaaaaaaaaa",
+    "--preview"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "clock": {
+      "start": "2026-09-24T01:00:00.000Z",
+      "stepMs": 0
+    },
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/programs/hello/revisions",
+        "status": 200,
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "body": {
+          "revisions": [
+            {
+              "owner": "octo",
+              "slug": "hello",
+              "rev": 2,
+              "rev_id": "0123456789abcdef",
+              "commit_id": "1111111111111111",
+              "parent_commit_id": "2222222222222222",
+              "updated_at": 1790212199320
+            },
+            {
+              "owner": "octo",
+              "slug": "hello",
+              "rev": 1,
+              "rev_id": "fedcba9876543210",
+              "commit_id": "2222222222222222",
+              "parent_commit_id": null,
+              "updated_at": 1790212000000
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "run.submit",
+      "operation": "run.submit",
+      "problem": {
+        "action": "Run `prose --output json cli program revisions hello` to find the right revision, then retry with it.",
+        "boundary": "hosted-service",
+        "code": "SERVICE_RESOURCE_NOT_FOUND",
+        "details": {
+          "reason": "octo/hello has no revision aaaaaaaaaaaaaaaa; the newest is rev 2; list them with `prose --output json cli program revisions hello`",
+          "resource": {
+            "id": "aaaaaaaaaaaaaaaa",
+            "kind": "revision"
+          },
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "program",
+            "revisions",
+            "hello"
+          ]
+        },
+        "exitCode": 10,
+        "message": "The requested OpenProse service resource was not found.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

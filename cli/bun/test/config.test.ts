@@ -11,7 +11,9 @@ afterEach(async () => {
 });
 
 async function root(): Promise<string> {
-  const value = await mkdtemp(join(tmpdir(), "openprose-bun-config-"));
+  // Canonical, as reported sources are (a symlinked temporary directory
+  // resolves, as in the Rust port).
+  const value = await realpath(await mkdtemp(join(tmpdir(), "openprose-bun-config-")));
   roots.push(value);
   return value;
 }
@@ -308,4 +310,41 @@ describe("configuration", () => {
       .rejects.toMatchObject({ code: "CONFIG_INVALID" });
     expect(await readFile(nonDirectoryParent, "utf8")).toBe("preserve me\n");
   });
+});
+
+test("the shared config values corpus resolves identically", async () => {
+  const { mkdtempSync, mkdirSync, writeFileSync, realpathSync, rmSync, readFileSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const corpus = JSON.parse(readFileSync(join(import.meta.dir, "../../shared/fixtures/config/values-v1.json"), "utf8"));
+  for (const item of corpus.cases) {
+    const root = realpathSync(mkdtempSync(join(tmpdir(), "prose-config-values-")));
+    try {
+      mkdirSync(join(root, ".git"));
+      mkdirSync(join(root, ".prose"));
+      if (typeof item.files?.project === "string") writeFileSync(join(root, ".prose/cli.toml"), item.files.project);
+      if (item.files?.projectDirectory === true) mkdirSync(join(root, ".prose/cli.toml"));
+      const fill = (text: string) => text.split("{ROOT}").join(root);
+      let outcome: { values?: Record<string, unknown>; error?: unknown };
+      try {
+        const config = await resolveConfiguration({}, { processCwd: root, env: item.environment ?? {}, userConfigPath: join(root, "xdg/openprose/cli.toml") });
+        outcome = { values: config.values as unknown as Record<string, unknown> };
+      } catch (error) { outcome = { error }; }
+      if (item.expected.values !== undefined) {
+        expect({ id: item.id, error: outcome.error }).toEqual({ id: item.id, error: undefined });
+        for (const [key, value] of Object.entries(item.expected.values)) expect({ id: item.id, key, value: outcome.values![key] }).toEqual({ id: item.id, key, value });
+      } else {
+        const details = (outcome.error as { details?: Record<string, unknown> } | undefined)?.details;
+        expect({ id: item.id, reason: details?.reason, source: details?.source }).toEqual({ id: item.id, reason: fill(item.expected.error.reason), source: fill(item.expected.error.source) });
+      }
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  }
+});
+
+test("the maximum timeout matches the transport limits", async () => {
+  const { MAX_TIMEOUT_MS, timeoutMs } = await import("../src/core/config");
+  const limits = await import("../../shared/capabilities/transport-limits.v1.json", { with: { type: "json" } });
+  expect(limits.default.maxTimeoutMs).toBe(MAX_TIMEOUT_MS);
+  expect(timeoutMs("24h")).toBe(MAX_TIMEOUT_MS);
+  expect(typeof timeoutMs("1441m")).toBe("string");
 });

@@ -1,0 +1,144 @@
+{
+  "id": "wallet-events-default-limit-unknown-fields",
+  "feature": "wallet",
+  "operation": "wallet.events",
+  "description": "Without --limit the page size 20 is sent explicitly; next_before becomes nextBefore; description control characters become spaces; customer_id is dropped. Every service record also carries internal fields (runtime, contract, version, adoption, driver, configuration token, reactor, call id, showable, price policy, organization id, an internal path): the output is unchanged and names none of them.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "wallet",
+    "events"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/wallet/events",
+        "query": {
+          "limit": "20"
+        },
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          }
+        },
+        "status": 200,
+        "body": {
+          "customer_id": "cus_ExampleOwner01",
+          "events": [
+            {
+              "id": "charge:40",
+              "type": "run_charge",
+              "occurred_at": "2026-09-23T20:31:43.779Z",
+              "description": "Contract run\nmodel-luna",
+              "amount_cents": -2,
+              "balance_after_cents": 3337,
+              "ref": "run_01K5ZZZZZZZZZZZZZZZZZZZZZZ",
+              "runtime": "x-internal-runtime",
+              "contract": "x-internal-contract",
+              "version": "x-internal-version",
+              "adopted": true,
+              "driver": "x-internal-driver",
+              "configurationToken": "x-internal-configuration-token",
+              "reactor": "x-internal-reactor",
+              "call_id": "x-internal-call",
+              "showable": true,
+              "pricing_policy_id": "x-internal-pricing-policy",
+              "organization_id": "x-internal-organization",
+              "internal_path": "/internal/x-internal-path/state.json"
+            },
+            {
+              "id": "charge:39",
+              "type": "credit",
+              "occurred_at": "2026-09-23T20:31:42.174Z",
+              "description": "Credit code",
+              "amount_cents": 500,
+              "balance_after_cents": 3339,
+              "ref": null,
+              "runtime": "x-internal-runtime",
+              "contract": "x-internal-contract",
+              "version": "x-internal-version",
+              "adopted": true,
+              "driver": "x-internal-driver",
+              "configurationToken": "x-internal-configuration-token",
+              "reactor": "x-internal-reactor",
+              "call_id": "x-internal-call",
+              "showable": true,
+              "pricing_policy_id": "x-internal-pricing-policy",
+              "organization_id": "x-internal-organization",
+              "internal_path": "/internal/x-internal-path/state.json"
+            }
+          ],
+          "next_before": "charge:39",
+          "note": "Informational view. Stripe receipts and your card statement are the authoritative record of payments.",
+          "runtime": "x-internal-runtime",
+          "contract": "x-internal-contract",
+          "version": "x-internal-version",
+          "adopted": true,
+          "driver": "x-internal-driver",
+          "configurationToken": "x-internal-configuration-token",
+          "reactor": "x-internal-reactor",
+          "call_id": "x-internal-call",
+          "showable": true,
+          "pricing_policy_id": "x-internal-pricing-policy",
+          "organization_id": "x-internal-organization",
+          "internal_path": "/internal/x-internal-path/state.json"
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "wallet.events",
+      "operation": "wallet.events",
+      "problem": null,
+      "result": {
+        "events": [
+          {
+            "amount_cents": -2,
+            "balance_after_cents": 3337,
+            "description": "Contract run model-luna",
+            "id": "charge:40",
+            "occurred_at": "2026-09-23T20:31:43.779Z",
+            "ref": "run_01K5ZZZZZZZZZZZZZZZZZZZZZZ",
+            "type": "run_charge"
+          },
+          {
+            "amount_cents": 500,
+            "balance_after_cents": 3339,
+            "description": "Credit code",
+            "id": "charge:39",
+            "occurred_at": "2026-09-23T20:31:42.174Z",
+            "ref": null,
+            "type": "credit"
+          }
+        ],
+        "nextBefore": "charge:39",
+        "note": "Informational view. Stripe receipts and your card statement are the authoritative record of payments."
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "x-internal-",
+    "/internal/",
+    "\"adopted\"",
+    "\"driver\"",
+    "\"showable\"",
+    "\"call_id\"",
+    "\"pricing_policy_id\"",
+    "\"organization_id\"",
+    "\"configurationToken\"",
+    "\"runtime\"",
+    "\"contract\"",
+    "\"reactor\"",
+    "\"internal_path\""
+  ]
+}

@@ -1,0 +1,150 @@
+{
+  "id": "job-deliveries-schedule-type-mismatch",
+  "feature": "jobs",
+  "operation": "job.deliveries",
+  "description": "Deliveries of a schedule job: the service's 404 is explained by reading the job; the result is SERVICE_REQUEST_REJECTED naming the job type.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "job",
+    "deliveries",
+    "7b2e4d19-6a3c-4e85-b1f0-9c4d8e2a6b73"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/triggers/7b2e4d19-6a3c-4e85-b1f0-9c4d8e2a6b73/deliveries",
+        "status": 404,
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "body": {
+          "error": "Not found"
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/triggers/7b2e4d19-6a3c-4e85-b1f0-9c4d8e2a6b73",
+        "status": 200,
+        "body": {
+          "trigger": {
+            "id": "7b2e4d19-6a3c-4e85-b1f0-9c4d8e2a6b73",
+            "type": "schedule",
+            "name": null,
+            "internalRef": "opaque-1",
+            "url": null,
+            "intervalSeconds": 86400,
+            "mode": null,
+            "repositoryId": null,
+            "repositoryFullName": null,
+            "repositoryBranch": null,
+            "contextRepositoryId": 1000001,
+            "contextRepositoryFullName": "exowner1/example-repo",
+            "contextRepositoryBranch": "main",
+            "createdAt": 1788438667830,
+            "adopted": false
+          },
+          "status": {
+            "configured": true,
+            "active": true,
+            "intervalSeconds": 86400,
+            "configurationRevision": 3,
+            "nextFireAt": 1790253069281,
+            "lastFiredAt": null,
+            "lastRunId": null,
+            "lastError": null,
+            "counts": {
+              "pending": 0,
+              "completed": 2,
+              "cost_units": 9
+            },
+            "configurationToken": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "contracts": [
+              {
+                "programRef": "exowner1/jobs-example@0123456789abcdef",
+                "programSlug": "jobs-example",
+                "enabled": true,
+                "model": "model-luna",
+                "contextRepositoryFullName": "exowner1/example-repo",
+                "contextRepositoryBranch": "main",
+                "runConfiguration": {
+                  "model": "model-luna",
+                  "environment": "builtin",
+                  "inputs": {
+                    "topic": "weekly\nsummary",
+                    "Cost_Center": "cc-1"
+                  },
+                  "inputEntries": [
+                    {
+                      "name": "Cost_Center",
+                      "value": "cc-1"
+                    }
+                  ],
+                  "files": [
+                    {
+                      "name": "brief.md",
+                      "content": "# Brief\nhello\n",
+                      "size": 14,
+                      "mime": "text/markdown"
+                    }
+                  ],
+                  "contextRepositories": [
+                    {
+                      "url": "https://github.com/exowner1/example-repo",
+                      "branch": "main"
+                    }
+                  ],
+                  "output": {
+                    "type": "commit",
+                    "repository": "https://github.com/exowner1/example-repo",
+                    "extra": true
+                  }
+                }
+              }
+            ],
+            "programRef": "exowner1/jobs-example@0123456789abcdef",
+            "programSlug": "jobs-example",
+            "model": "model-luna",
+            "contextRepository": {
+              "id": 1000001,
+              "owner": "exowner1",
+              "name": "example-repo"
+            }
+          }
+        },
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "job.deliveries",
+      "operation": "job.deliveries",
+      "problem": {
+        "action": "Correct the request as details.reason describes, then retry.",
+        "boundary": "hosted-service",
+        "code": "SERVICE_REQUEST_REJECTED",
+        "details": {
+          "reason": "job 7b2e4d19-6a3c-4e85-b1f0-9c4d8e2a6b73 is a schedule job; deliveries exist only for webhook jobs. See its runs with `cli job show 7b2e4d19-6a3c-4e85-b1f0-9c4d8e2a6b73` and `cli run list`",
+          "serviceStatus": 404
+        },
+        "exitCode": 10,
+        "message": "The OpenProse service rejected the request.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

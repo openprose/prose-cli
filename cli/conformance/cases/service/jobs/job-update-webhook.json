@@ -1,0 +1,134 @@
+{
+  "id": "job-update-webhook",
+  "feature": "jobs",
+  "operation": "job.update",
+  "description": "`job update --yes` PUTs the spec bytes unchanged; the inbound endpoint is dropped from the result.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "job",
+    "update",
+    "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10",
+    "--spec-file",
+    "spec.json",
+    "--yes"
+  ],
+  "files": [
+    {
+      "path": "spec.json",
+      "content": "{\"name\":\"renamed\",\"delivery_mode\":\"live\"}"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "PUT",
+        "path": "/triggers/3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10",
+        "status": 200,
+        "expectedSha256": "24331b912edc582f84a0f963fa8782f7ab67c1852f37e4f1a90381368669e05d",
+        "body": {
+          "trigger": {
+            "id": "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10",
+            "type": "webhook",
+            "name": "renamed",
+            "internalRef": "opaque-1",
+            "url": null,
+            "intervalSeconds": null,
+            "mode": null,
+            "repositoryId": null,
+            "repositoryFullName": null,
+            "repositoryBranch": null,
+            "contextRepositoryId": null,
+            "contextRepositoryFullName": null,
+            "contextRepositoryBranch": null,
+            "createdAt": 1790212421024,
+            "adopted": false
+          },
+          "status": {
+            "configured": true,
+            "active": true,
+            "receiver": {
+              "profile": "openprose"
+            },
+            "receiverSecretConfigured": false,
+            "reply": null,
+            "replySecretConfigured": false,
+            "replies": [],
+            "replyDeliveries": [],
+            "deliveryMode": "live",
+            "secretRotatedAt": 1790212422203,
+            "lastEventAt": null,
+            "lastRunId": null,
+            "lastError": null,
+            "counts": {
+              "pending": 0,
+              "pending_funds": 0,
+              "claimed": 0,
+              "completed": 0,
+              "failed": 0,
+              "billing_pending": 0,
+              "ambiguous": 0
+            }
+          },
+          "endpoint": "/webhooks/triggers/x"
+        },
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "job.update",
+      "operation": "job.update",
+      "problem": null,
+      "result": {
+        "job": {
+          "context_repository_branch": null,
+          "context_repository_full_name": null,
+          "created_at": 1790212421024,
+          "created_at_iso": "2026-09-24T01:13:41.024Z",
+          "id": "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10",
+          "interval_seconds": null,
+          "mode": null,
+          "name": "renamed",
+          "repository_branch": null,
+          "repository_full_name": null,
+          "repository_id": null,
+          "type": "webhook",
+          "url": null
+        },
+        "status": {
+          "active": true,
+          "configured": true,
+          "counts": {
+            "awaiting_billing": 0,
+            "cancelled": 0,
+            "completed": 0,
+            "failed": 0,
+            "queued": 0,
+            "running": 0
+          },
+          "delivery_mode": "live",
+          "last_error": null,
+          "last_event_at": null,
+          "last_event_at_iso": null,
+          "last_run_id": null,
+          "receiver_secret_configured": false,
+          "reply_secret_configured": false,
+          "secret_rotated_at": 1790212422203,
+          "secret_rotated_at_iso": "2026-09-24T01:13:42.203Z"
+        }
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

@@ -1,0 +1,57 @@
+{
+  "id": "service-message-key-redacted",
+  "feature": "framework",
+  "operation": "repo.list",
+  "description": "serviceMessage (400/409/422 only) is sanitized: controls become spaces and the key is redacted.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "repo",
+    "list"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/repos",
+        "status": 400,
+        "body": {
+          "error": "bad\nrequest for rr_test_0123456789abcdef0123456789abcdef",
+          "code": "invalid_request"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "repos.list",
+      "operation": "repo.list",
+      "problem": {
+        "action": "Correct the request as details.serviceMessage and details.serviceCode describe, then retry.",
+        "boundary": "hosted-service",
+        "code": "SERVICE_REQUEST_REJECTED",
+        "details": {
+          "serviceCode": "invalid_request",
+          "serviceMessage": "bad request for [REDACTED]",
+          "serviceStatus": 400
+        },
+        "exitCode": 10,
+        "message": "The OpenProse service rejected the request.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

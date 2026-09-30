@@ -23,7 +23,7 @@ class PriorMetadataTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as raw:
             source = Path(raw) / "private.jsonl"
             source.write_bytes(
-                b"secret prompt openai/gpt-5.6-luna api_key=do-not-copy\n"
+                b"secret prompt openai/gpt-5.4 api_key=do-not-copy\n"
                 + b"openrouter/deepseek/deepseek-v4-flash more private text\n"
                 + b"x" * 100
             )
@@ -33,7 +33,7 @@ class PriorMetadataTest(unittest.TestCase):
         self.assertLessEqual(result["bytesScanned"], 140)
         self.assertTrue(result["scanTruncated"])
         self.assertEqual(
-            ["openai/gpt-5.6-luna", "openrouter/deepseek/deepseek-v4-flash"],
+            ["openai/gpt-5.4", "openrouter/deepseek/deepseek-v4-flash"],
             result["modelIds"],
         )
         self.assertNotIn("secret prompt", serialized)

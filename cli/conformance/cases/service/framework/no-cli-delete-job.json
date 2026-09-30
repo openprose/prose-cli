@@ -1,0 +1,50 @@
+{
+  "id": "no-cli-delete-job",
+  "feature": "framework",
+  "operation": "job.delete",
+  "description": "`prose delete job JOB_ID` puts the command word first: `prose cli job delete JOB_ID`.",
+  "argv": [
+    "--output",
+    "json",
+    "delete",
+    "job",
+    "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": null,
+      "operation": "cli",
+      "problem": {
+        "action": "Use `cli job delete`: `prose --output json cli job delete 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "`delete job` is not a command; did you mean `prose --output json cli job delete 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10`? Nothing was forwarded or sent. To pass these words to the OpenProse language instead, put `--` before them",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "job",
+            "delete",
+            "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10"
+          ]
+        },
+        "exitCode": 2,
+        "message": "Unknown command.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

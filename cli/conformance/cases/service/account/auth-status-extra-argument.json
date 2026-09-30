@@ -1,0 +1,48 @@
+{
+  "id": "auth-status-extra-argument",
+  "feature": "account",
+  "operation": "auth.status",
+  "description": "An extra argument after `cli auth status` is the service parser's rejection in both products (not a runner error): nothing is read or sent.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "auth",
+    "status",
+    "extra"
+  ],
+  "fixture": {
+    "credential": null,
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "cli.auth_status",
+      "operation": "auth.status",
+      "problem": {
+        "action": "`prose --output json cli auth status --help` shows the syntax.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "missing or invalid arguments for `cli auth status`",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "auth",
+            "status",
+            "--help"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

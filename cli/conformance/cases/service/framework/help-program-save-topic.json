@@ -1,0 +1,22 @@
+{
+  "id": "help-program-save-topic",
+  "feature": "framework",
+  "operation": "program.save",
+  "description": "`cli program save --help` says a new program is private and that save never changes visibility.",
+  "argv": [
+    "cli",
+    "program",
+    "save",
+    "--help"
+  ],
+  "fixture": {
+    "exchanges": []
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "Usage: prose [GLOBAL OPTIONS] cli program save <SLUG> <FILE> [OPTIONS]\n\nSave a new revision of a program; a new program is private. Visibility is never changed by save (use `cli program visibility`).\n\nArguments:\n  SLUG                        Program slug owned by this account; OWNER/SLUG as `cli program list` prints it is accepted when OWNER is confirmed as you, and refused (exit 2) when it cannot be.\n  FILE                        Program file, or - for standard input.\n\nOptions:\n  --message TEXT              Revision message.\n  --base COMMIT_ID            Expected current commit id; a newer revision yields SERVICE_WRITE_CONFLICT.\n  --preview                   Print the planned request of a mutation and send nothing.\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli program save hello hello.prose.md --preview\n  prose cli program save hello hello.prose.md --message 'First draft'\n\nOutput: openprose.service-operation/1 (--json).\nExit codes: 0 success; 2 invalid invocation or configuration; 10 service or credential error; 24 interrupted.\n"
+  },
+  "stderr": {
+    "text": ""
+  }
+}

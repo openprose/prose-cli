@@ -1,0 +1,69 @@
+{
+  "id": "wallet-topup-key-conflict",
+  "feature": "wallet",
+  "operation": "wallet.topup",
+  "description": "Reusing a key with different terms (409) is SERVICE_WRITE_CONFLICT carrying the key.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "wallet",
+    "topup",
+    "--amount-cents",
+    "600",
+    "--idempotency-key",
+    "123e4567-e89b-42d3-a456-426614174000",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/wallet/topup",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          },
+          "Idempotency-Key": "123e4567-e89b-42d3-a456-426614174000",
+          "Content-Type": "application/json"
+        },
+        "expectedBody": {
+          "amount_cents": 600
+        },
+        "status": 409,
+        "body": {
+          "error": "Idempotency key already has different top-up terms"
+        }
+      }
+    ],
+    "ids": []
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "wallet.topup",
+      "operation": "wallet.topup",
+      "problem": {
+        "action": "Read the current state of the resource, reconcile the change, then retry.",
+        "boundary": "hosted-service",
+        "code": "SERVICE_WRITE_CONFLICT",
+        "details": {
+          "idempotencyKey": "123e4567-e89b-42d3-a456-426614174000",
+          "serviceMessage": "Idempotency key already has different top-up terms",
+          "serviceStatus": 409
+        },
+        "exitCode": 10,
+        "message": "The OpenProse service reported a conflicting write.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

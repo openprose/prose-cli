@@ -1,0 +1,28 @@
+{
+  "id": "alias-option-cron-job-create",
+  "feature": "framework",
+  "operation": "job.create",
+  "description": "`cli job create --cron EXPR`: cron is not supported; details.suggestedSpec is a daily schedule spec and suggestedArgv reads it with `--spec-file - --preview`.",
+  "argv": [
+    "cli",
+    "job",
+    "create",
+    "--cron",
+    "0 9 * * *"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: Unknown option.\nDetail: unknown option --cron for `cli job create`; cron expressions are not supported; a schedule job runs every interval_seconds seconds (3600 = hourly, 86400 = daily), set in the --spec-file JSON object\nAction: Create a schedule job from a JSON spec on standard input (replace your-program with your program's slug; `cli program list` lists them), previewing it first: `printf '%s\\\\n' '{\"interval_seconds\":86400,\"program_ref\":\"your-program\",\"type\":\"schedule\"}' | prose cli job create --spec-file - --preview`.\n"
+  }
+}

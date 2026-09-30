@@ -1,0 +1,53 @@
+{
+  "id": "error-action-dry-run-becomes-preview",
+  "feature": "framework",
+  "operation": "program.delete",
+  "description": "The runner --dry-run before cli is corrected to --preview after the command.",
+  "argv": [
+    "--dry-run",
+    "--output",
+    "json",
+    "cli",
+    "program",
+    "delete",
+    "demo"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "program.delete",
+      "operation": "program.delete",
+      "problem": {
+        "action": "Use --preview after the command instead: `prose --output json cli program delete demo --preview`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "the runner option --dry-run does not apply to service operations; use --preview after the command",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "program",
+            "delete",
+            "demo",
+            "--preview"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

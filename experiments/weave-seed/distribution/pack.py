@@ -20,7 +20,7 @@ EXCLUDED = {'target', 'node_modules', 'results', 'receipts', 'dist', 'build', '_
 # No recursive CLI/harness code selection and no generated evidence or credentials.
 SUPPORTING_FILES = (
     'docs/weave-v1-readiness.md', 'docs/kernel-startup.md',
-    'cli/protocol/decisions/imp026-weave-host.md',
+    'cli/protocol/decisions/weave-host.md',
     'cli/shared/tests/weave_host_process.py',
     'cli/shared/tests/weave_host_fixture.py',
     'cli/shared/fixtures/weave-host-v1.json',

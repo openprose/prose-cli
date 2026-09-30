@@ -1,0 +1,77 @@
+{
+  "id": "job-list-empty-human",
+  "feature": "jobs",
+  "operation": "job.list",
+  "description": "An empty job list is exit 0 with an explicit count, the limit and the available types.",
+  "argv": [
+    "cli",
+    "job",
+    "list"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/triggers",
+        "status": 200,
+        "body": {
+          "triggers": [],
+          "max_triggers": 5,
+          "trigger_limit": {
+            "kind": "limited",
+            "limit": 5
+          },
+          "types": [
+            {
+              "id": "schedule",
+              "label": "On a schedule",
+              "description": "Runs a contract on a recurring timer.",
+              "config_fields": [
+                "interval_seconds",
+                "program_ref"
+              ],
+              "emits": [
+                "fired_at"
+              ],
+              "driver": "scheduled"
+            },
+            {
+              "id": "webhook",
+              "label": "Webhook",
+              "description": "Receives events from your code.",
+              "config_fields": [
+                "program_ref"
+              ],
+              "emits": [
+                "webhook_payload_json"
+              ],
+              "driver": "webhook",
+              "webhook": {
+                "receivers": [
+                  {
+                    "id": "slack"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "Jobs: 0 of 5 allowed\nNo jobs.\nTypes: schedule, webhook\n"
+  },
+  "stderr": {
+    "text": ""
+  }
+}

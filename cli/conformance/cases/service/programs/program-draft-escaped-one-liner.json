@@ -1,0 +1,109 @@
+{
+  "id": "program-draft-escaped-one-liner",
+  "feature": "programs",
+  "operation": "program.draft",
+  "description": "An escaped one-liner (literal \\n sequences, no real newline, stray wrapping quote so it is not valid JSON) is decoded with the service's backstop.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "program",
+    "draft",
+    "write a haiku about rain",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/write",
+        "requestHeaders": {
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          },
+          "User-Agent": {
+            "pattern": "^prose-cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"
+          },
+          "Accept": "text/event-stream",
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef",
+          "Content-Type": "application/json"
+        },
+        "expectedBody": {
+          "request": "write a haiku about rain"
+        },
+        "status": 200,
+        "sse": {
+          "frames": [
+            {
+              "event": "status",
+              "data": {
+                "type": "status",
+                "status": "running",
+                "run_id": "run_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "message": "reactor model-luna"
+              }
+            },
+            {
+              "comment": "heartbeat"
+            },
+            {
+              "event": "text_chunk",
+              "data": {
+                "type": "text_chunk",
+                "text": "\"---\\nname: haiku\\nkind: function\\n---\\n\\n### Returns\\n\\n- `haiku`: a haiku\\n"
+              }
+            },
+            {
+              "event": "run_complete",
+              "data": {
+                "type": "run_complete",
+                "run_id": "run_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "status": "completed",
+                "runtime": "reactor",
+                "response": "\"---\\nname: haiku\\nkind: function\\n---\\n\\n### Returns\\n\\n- `haiku`: a haiku\\n",
+                "files": [],
+                "price_cents": 7,
+                "environment_price_cents": 3,
+                "billing_status": "settled",
+                "usage": {
+                  "input_tokens": 1,
+                  "output_tokens": 1
+                }
+              }
+            }
+          ],
+          "end": "close"
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "schema": "openprose.service-operation/1",
+      "operation": "program.draft",
+      "interaction": "write.author",
+      "result": {
+        "file": {
+          "bytes": 68,
+          "sha256": "f45f1402fd72254f31f7b92969e629a4c2893ca9248ecde68f3e6f5c8803812b",
+          "written": false,
+          "content": "---\nname: haiku\nkind: function\n---\n\n### Returns\n\n- `haiku`: a haiku\n"
+        },
+        "runId": "run_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "price_cents": 7,
+        "environment_price_cents": 3,
+        "billing_status": "settled"
+      },
+      "problem": null
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

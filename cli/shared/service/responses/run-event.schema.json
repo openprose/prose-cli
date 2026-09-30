@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.openprose.org/cli/v1/service/responses/run-event.schema.json",
+  "title": "service response acceptance: SSE /run",
+  "x-probed": true,
+  "description": "One SSE data payload from POST /run or GET /run/{id}/events. Live frames carry sequence and at.",
+  "type": "object",
+  "required": [
+    "type"
+  ],
+  "properties": {
+    "type": {
+      "type": "string"
+    },
+    "sequence": {
+      "type": "integer"
+    },
+    "at": {
+      "type": "string"
+    },
+    "run_id": {
+      "type": "string"
+    }
+  }
+}

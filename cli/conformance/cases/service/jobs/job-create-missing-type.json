@@ -1,0 +1,62 @@
+{
+  "id": "job-create-missing-type",
+  "feature": "jobs",
+  "operation": "job.create",
+  "description": "A spec without type is rejected locally (the service would default it to a website monitor), pointing at the help's minimal specs.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "job",
+    "create",
+    "--spec-file",
+    "spec.json",
+    "--yes"
+  ],
+  "files": [
+    {
+      "path": "spec.json",
+      "content": "{\"program_ref\":\"exowner1/jobs-example@0123456789abcdef\",\"interval_seconds\":86400}"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "job.deploy",
+      "operation": "job.create",
+      "problem": {
+        "action": "Correct the value named in Detail; `prose --output json cli job create --help` shows the accepted syntax.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "a job spec needs type (schedule or webhook, for example); `prose --output json cli job create --help` shows minimal specs and `prose --output json cli job list` prints every type with its config_fields",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "job",
+            "create",
+            "--help"
+          ],
+          "violations": [
+            "a job spec needs type (schedule or webhook, for example); `prose --output json cli job create --help` shows minimal specs and `prose --output json cli job list` prints every type with its config_fields"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

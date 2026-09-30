@@ -1,0 +1,133 @@
+{
+  "id": "triage-key-rejected",
+  "feature": "discovery",
+  "operation": "service.triage",
+  "description": "A 401 on the first key-authenticated read marks the credential rejected (with a reason naming the variable) and skips the remaining account reads; exit 0.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "service",
+    "triage"
+  ],
+  "environment": {
+    "OPENPROSE_API_KEY": "rr_test_0123456789abcdef0123456789abcdef"
+  },
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/health",
+        "requestHeaders": {
+          "Authorization": {
+            "present": false
+          },
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          }
+        },
+        "status": 200,
+        "body": {
+          "status": "ok",
+          "environments": {
+            "default": "builtin",
+            "available": [
+              "builtin",
+              "linux"
+            ]
+          },
+          "models": [
+            "model-sol",
+            "model-luna"
+          ],
+          "default_model": "model-sol",
+          "version": "9.9.9-extra",
+          "capabilities": {
+            "web:search": {
+              "available": true,
+              "tool": "web_search"
+            }
+          }
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/wallet/balance",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          },
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          }
+        },
+        "status": 401,
+        "body": {
+          "error": "Unauthorized"
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "health.read",
+      "operation": "service.triage",
+      "problem": null,
+      "result": {
+        "credential": {
+          "problem": {
+            "action": "Replace or unset OPENPROSE_API_KEY, then retry.",
+            "boundary": "authentication",
+            "code": "SERVICE_AUTH_REQUIRED",
+            "details": {
+              "credentialProblem": "rejected",
+              "credentialSource": "environment",
+              "credentialVariable": "OPENPROSE_API_KEY",
+              "reason": "the service rejected the API key in OPENPROSE_API_KEY (unknown or revoked); replace or unset OPENPROSE_API_KEY: an environment key takes precedence over `prose --output json cli auth login`",
+              "serviceStatus": 401
+            },
+            "exitCode": 10,
+            "message": "OpenProse service authentication is required.",
+            "retryable": false,
+            "schema": "openprose.runner-error/1"
+          },
+          "source": "environment",
+          "state": "rejected",
+          "variable": "OPENPROSE_API_KEY"
+        },
+        "health": {
+          "default_model": "model-sol",
+          "models": [
+            "model-sol",
+            "model-luna"
+          ],
+          "problem": null,
+          "status": "ok"
+        },
+        "jobs": null,
+        "nextCommands": [
+          {
+            "argv": null,
+            "env": "OPENPROSE_API_KEY",
+            "why": "the service rejected the API key in OPENPROSE_API_KEY (unknown or revoked); replace or unset OPENPROSE_API_KEY: an environment key takes precedence over `prose --output json cli auth login`"
+          }
+        ],
+        "organization": null,
+        "runs": null,
+        "wallet": null
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef",
+    "9.9.9-extra",
+    "web_search"
+  ]
+}

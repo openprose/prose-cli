@@ -1,0 +1,49 @@
+{
+  "id": "option-removal-jq-drops-filter",
+  "feature": "framework",
+  "operation": "run.list",
+  "description": "`--jq FILTER` is dropped with its filter, and the reason says to pipe --json output to jq.",
+  "argv": [
+    "cli",
+    "run",
+    "list",
+    "--jq",
+    ".result.runs",
+    "--json"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "runs.list",
+      "operation": "run.list",
+      "problem": {
+        "action": "Drop --jq: `prose cli run list --json`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "unknown option --jq for `cli run list`; --json prints one JSON line; pipe it to jq instead",
+          "suggestedArgv": [
+            "cli",
+            "run",
+            "list",
+            "--json"
+          ]
+        },
+        "exitCode": 2,
+        "message": "Unknown option.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

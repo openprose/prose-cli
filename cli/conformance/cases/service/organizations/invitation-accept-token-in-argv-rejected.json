@@ -1,0 +1,59 @@
+{
+  "id": "invitation-accept-token-in-argv-rejected",
+  "feature": "organizations",
+  "operation": "org.invitation.accept",
+  "description": "The token is never taken from argv: a positional token is INVOCATION_INVALID.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "org",
+    "invitation",
+    "accept",
+    "sometoken",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "organizations.manage",
+      "operation": "org.invitation.accept",
+      "problem": {
+        "action": "Pipe the token in on standard input: `printf '%s\\n' \"$TOKEN\" | prose --output json cli org invitation accept --token-file - --yes`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "`cli org invitation accept` never takes the token as an argument, so the argument was not echoed; it reads --token-file, a file or - for standard input",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "org",
+            "invitation",
+            "accept",
+            "--token-file",
+            "-",
+            "--yes"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "sometoken"
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "id": "alias-logs",
+  "feature": "framework",
+  "operation": "run.list",
+  "description": "`cli logs` suggests `cli run list --limit 1`; `cli logs RUN_ID` would name `cli run watch RUN_ID`.",
+  "argv": [
+    "cli",
+    "logs"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: Unknown command.\nDetail: unknown command `cli logs`; did you mean `cli run list --limit 1`? `cli run watch RUN_ID` replays a run's events; `cli run list --limit 1` finds the latest run\nAction: Use `cli run list`: `prose cli run list --limit 1`.\n"
+  }
+}

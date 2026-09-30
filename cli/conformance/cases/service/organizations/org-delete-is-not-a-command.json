@@ -1,0 +1,51 @@
+{
+  "id": "org-delete-is-not-a-command",
+  "feature": "organizations",
+  "operation": "org.show",
+  "description": "There is no `org delete` (the service always refuses it): a bare INVOCATION_INVALID listing the org commands, nothing sent.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "org",
+    "delete",
+    "acme-research",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": null,
+      "operation": "cli",
+      "problem": {
+        "action": "Choose one of the `cli org` commands; `prose --output json cli org --help` describes them.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "unknown command `cli org delete`. Commands: create, default, invitation, invite, list, member, rename, show",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "org",
+            "--help"
+          ]
+        },
+        "exitCode": 2,
+        "message": "Unknown command.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "id": "show-control-argument-rejected",
+  "feature": "organizations",
+  "operation": "org.show",
+  "description": "An ORG argument with a control character is INVOCATION_INVALID before any request.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "org",
+    "show",
+    "acme\u0007"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "organizations.manage",
+      "operation": "org.show",
+      "problem": {
+        "action": "Correct the value named in Detail; `prose --output json cli org show --help` shows the accepted syntax.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "<ORG> must be 1-256 characters with no control characters",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "org",
+            "show",
+            "--help"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

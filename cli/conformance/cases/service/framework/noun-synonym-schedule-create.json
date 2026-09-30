@@ -1,0 +1,59 @@
+{
+  "id": "noun-synonym-schedule-create",
+  "feature": "framework",
+  "operation": "job.create",
+  "description": "`cli schedule create` (a rewrite word followed by a verb of its group) suggests `cli job create`.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "schedule",
+    "create",
+    "--spec-file",
+    "job.json"
+  ],
+  "files": [
+    {
+      "path": "job.json",
+      "content": "{\"type\": \"schedule\", \"interval_seconds\": 3600, \"program_ref\": \"exowner1/slack-hello@97ddf3a447f534a7\"}\n"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": null,
+      "operation": "cli",
+      "problem": {
+        "action": "Use `cli job create`: `prose --output json cli job create --spec-file job.json`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "unknown command `cli schedule create`; did you mean `cli job create`?",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "job",
+            "create",
+            "--spec-file",
+            "job.json"
+          ]
+        },
+        "exitCode": 2,
+        "message": "Unknown command.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "id": "environment-key-rejected-403",
+  "feature": "framework",
+  "operation": "model.list",
+  "description": "A 403 `Invalid API key.` for an environment key is credentialProblem rejected with credentialSource environment; the reason says login does not replace it.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "model",
+    "list"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/models",
+        "status": 403,
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_fedcba9876543210fedcba9876543210"
+        },
+        "body": {
+          "error": "Invalid API key."
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "models.list",
+      "operation": "model.list",
+      "problem": {
+        "action": "Replace or unset OPENPROSE_API_KEY, then retry.",
+        "boundary": "authentication",
+        "code": "SERVICE_AUTH_REQUIRED",
+        "details": {
+          "credentialProblem": "rejected",
+          "credentialSource": "environment",
+          "credentialVariable": "OPENPROSE_API_KEY",
+          "reason": "the service rejected the API key in OPENPROSE_API_KEY (unknown or revoked); replace or unset OPENPROSE_API_KEY: an environment key takes precedence over `prose --output json cli auth login`",
+          "serviceStatus": 403
+        },
+        "exitCode": 10,
+        "message": "OpenProse service authentication is required.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "environment": {
+    "OPENPROSE_API_KEY": "rr_test_fedcba9876543210fedcba9876543210"
+  },
+  "forbid": [
+    "rr_test_fedcba9876543210fedcba9876543210"
+  ]
+}

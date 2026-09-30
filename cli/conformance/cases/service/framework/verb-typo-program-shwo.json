@@ -1,0 +1,51 @@
+{
+  "id": "verb-typo-program-shwo",
+  "feature": "framework",
+  "operation": "program.show",
+  "description": "A transposition is one edit: `shwo` suggests `show` and keeps the argument.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "program",
+    "shwo",
+    "exowner1/hello"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": null,
+      "operation": "cli",
+      "problem": {
+        "action": "Use `cli program show`: `prose --output json cli program show exowner1/hello`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "unknown command `cli program shwo`; did you mean `cli program show`? Commands: delete, draft, list, revisions, save, show, visibility",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "program",
+            "show",
+            "exowner1/hello"
+          ]
+        },
+        "exitCode": 2,
+        "message": "Unknown command.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

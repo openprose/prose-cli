@@ -21,7 +21,7 @@ const recipeValues = [codexJson, claudeJson, primeJson, ompJson, sdkJson] as unk
 const recipeDigests: Record<InstalledAdapterId, string> = {
   "agents-sdk/jsonl": "1141c7ed0040d8f0783e5f8870f174c1b66a0eb3299d12e4edebfa98c29228e6",
   "codex/exec-json": "41c1fd72796defe256a338f92f5ebf850e6522d2eb265c8746512a40a2a03f82",
-  "claude/print-stream-json": "491790b0857f9db771c4cb72ad3f852586d41bb3b8362d2467b0272c212e4afd",
+  "claude/print-stream-json": "25440e90c81774619f937d36a79786b9fd4bcb85b8ecfbc486f825307429213c",
   "prime/rpc": "7a9f69497424e56ca214d6cbcd7946b74dbbc03a61f4c110cde8d28a3ad562e1",
   "omp/rpc": "8347937e721cfd2a18a25636519a6cce7707ddaf7bdac8e337992e1b918fd35f",
 };

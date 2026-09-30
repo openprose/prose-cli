@@ -1,0 +1,22 @@
+{
+  "id": "help-run-submit-topic",
+  "feature": "framework",
+  "operation": "run.submit",
+  "description": "`--help` after a command path prints the generated help topic exactly.",
+  "argv": [
+    "cli",
+    "run",
+    "submit",
+    "--help"
+  ],
+  "fixture": {
+    "exchanges": []
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "Usage: prose [GLOBAL OPTIONS] cli run submit [FILE] [OPTIONS]\n\nRun a program on the hosted service and stream it until it finishes, detaches or the deadline passes.\nInputs: --input KEY=VALUE overrides the same key from --inputs-file.\nA --wait shorter than the run exits 21 with details.resumeArgv: the run continues, and that command follows it again. Never submit again to resume; that starts a second paid run.\n\nArguments:\n  FILE                        Program file, or - for standard input. Omit when --from is given.\n\nOptions:\n  --from [OWNER/]SLUG[@REV]   Run a saved program; a bare SLUG is your own program. @REV is a rev_id, or @N (@revN) for revision N of your own program; without @REV the latest revision is pinned.\n  --input KEY=VALUE|KEY=@FILE\n                              Program input; @FILE reads UTF-8 text of at most 1 MiB. It overrides the same key from --inputs-file. Repeatable.\n  --inputs-file FILE          JSON object of string inputs; an --input of the same key wins.\n  --model MODEL               Hosted model id (see `cli model list`). Default: the service's default_model (`cli model list`).\n  --reasoning-effort EFFORT   Reasoning effort supported by the model. One of: minimal, low, medium, high, xhigh.\n  --environment ENV           Where the run executes (for example builtin: file tools only; linux: a shell without network access). Web access is through the browser:interact tool. Default: the service's default environment.\n  --runtime RUNTIME           Runtime offered by the service. Default: the service's default runtime.\n  --repo OWNER/NAME[@BRANCH]  Read-only repository context. Repeatable.\n  --commit-output OWNER/NAME[@BRANCH]\n                              Writable repository that receives the run's commit.\n  --detach                    Return as soon as the run id is known.\n  --wait DURATION             Stop following after this long and exit 21 (for example 90s, 10m, 2h; maximum 6h). The run continues. Default: 30m.\n  --session UUID              Use this session UUID instead of a new one (recovery only).\n  --yes                       Confirm this operation; required because it starts a paid run: a hold (money set aside from the wallet, not the price) is reserved now, and the run's price is charged when it settles.\n  --preview                   Print the planned request of a mutation and send nothing.\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli run submit hello.prose.md --preview\n  prose cli run submit hello.prose.md --yes\n  prose cli run submit --from exowner1/hello --input topic=rain --yes --detach --json\n\nOutput: openprose.service-operation/1 (--json) or openprose.service-event/1 lines (--output jsonl). The run id is result.runId (and result.run.run_id once the run ends); the answer is result.run.response.\nExit codes: 0 success; 2 invalid invocation, configuration or CONFIRMATION_REQUIRED; 10 service or credential error; 21 deadline or detached: the run id is known and the run continues (resume with details.resumeArgv); 22 run failed, or submission ambiguous (recover with details.resumeArgv: the same session with --detach, never a new run); 24 cancelled on the service.\n"
+  },
+  "stderr": {
+    "text": ""
+  }
+}

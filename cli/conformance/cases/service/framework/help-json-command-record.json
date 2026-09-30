@@ -1,0 +1,99 @@
+{
+  "id": "help-json-command-record",
+  "feature": "framework",
+  "operation": "run.list",
+  "description": "`--output json cli run list --help` prints one envelope line: result.help is the help text and result.operations the run.list manifest record, so a suggested help command still parses.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "list",
+    "--help"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "runs.list",
+      "operation": "run.list",
+      "problem": null,
+      "result": {
+        "help": "Usage: prose [GLOBAL OPTIONS] cli run list [OPTIONS]\n\nList runs, newest first, one page at a time.\n\nOptions:\n  --limit N                   Page size, 1 to 200. Default: 20.\n  --before CURSOR             Opaque cursor from a previous result's nextBefore.\n  --json                      Print one JSON result; the same as the global --output json.\n  --help                      Show help for this command.\n\nExamples:\n  prose cli run list --limit 10 --json\n\nOutput: openprose.service-operation/1 (--json).\nPaging: pass the result's nextBefore to --before for the next page.\nExit codes: 0 success; 2 invalid invocation or configuration; 10 service or credential error; 24 interrupted.\n",
+        "operations": [
+          {
+            "arguments": [],
+            "command": [
+              "cli",
+              "run",
+              "list"
+            ],
+            "confirm": false,
+            "contract": "service/1",
+            "effect": "read",
+            "examples": [
+              "prose cli run list --limit 10 --json"
+            ],
+            "exitCodes": [
+              {
+                "exit": 0,
+                "meaning": "success"
+              },
+              {
+                "exit": 2,
+                "meaning": "invalid invocation or configuration"
+              },
+              {
+                "exit": 10,
+                "meaning": "service or credential error"
+              },
+              {
+                "codes": [
+                  "CANCELLED"
+                ],
+                "exit": 24,
+                "meaning": "interrupted"
+              }
+            ],
+            "feature": "run-records",
+            "id": "run.list",
+            "mutation": false,
+            "options": [
+              {
+                "default": "20",
+                "description": "Page size, 1 to 200.",
+                "name": "--limit",
+                "repeatable": false,
+                "required": false,
+                "value": "N"
+              },
+              {
+                "description": "Opaque cursor from a previous result's nextBefore.",
+                "name": "--before",
+                "repeatable": false,
+                "required": false,
+                "value": "CURSOR"
+              }
+            ],
+            "output": {
+              "paged": true,
+              "records": "runs",
+              "schema": "service/run-records.schema.json#/$defs/runList",
+              "stream": false
+            },
+            "preview": false,
+            "summary": "List runs, newest first, one page at a time."
+          }
+        ]
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

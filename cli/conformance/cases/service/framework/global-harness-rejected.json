@@ -1,0 +1,44 @@
+{
+  "id": "global-harness-rejected",
+  "feature": "framework",
+  "operation": "wallet.balance",
+  "description": "The runner-global --harness is INVOCATION_INVALID before a service operation.",
+  "argv": [
+    "--harness",
+    "codex",
+    "cli",
+    "wallet",
+    "balance",
+    "--json"
+  ],
+  "fixture": {
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "wallet.balance",
+      "operation": "wallet.balance",
+      "problem": {
+        "action": "Drop --harness; the hosted service chooses where a run executes: `prose cli wallet balance --json`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "the runner option --harness does not apply to service operations; hosted runs use `cli run submit`",
+          "suggestedArgv": [
+            "cli",
+            "wallet",
+            "balance",
+            "--json"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

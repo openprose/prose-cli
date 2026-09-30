@@ -1,0 +1,75 @@
+{
+  "id": "job-contract-detach-confirmation-required",
+  "feature": "jobs",
+  "operation": "job.contract.detach",
+  "description": "detach (a DELETE) without --yes is CONFIRMATION_REQUIRED with the encoded path.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "job",
+    "contract",
+    "detach",
+    "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10",
+    "exowner1/jobs-example@0123456789abcdef"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "job.contracts",
+      "operation": "job.contract.detach",
+      "problem": {
+        "action": "Rerun the same command with --yes to confirm, or with --preview to see what it would do without sending anything.",
+        "boundary": "invocation",
+        "code": "CONFIRMATION_REQUIRED",
+        "details": {
+          "confirmArgv": [
+            "--output",
+            "json",
+            "cli",
+            "job",
+            "contract",
+            "detach",
+            "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10",
+            "exowner1/jobs-example@0123456789abcdef",
+            "--yes"
+          ],
+          "plannedRequest": {
+            "bodyBytes": null,
+            "bodySha256": null,
+            "description": "Detach a program from a job.",
+            "effect": "write",
+            "method": "DELETE",
+            "operation": "job.contract.detach"
+          },
+          "previewArgv": [
+            "--output",
+            "json",
+            "cli",
+            "job",
+            "contract",
+            "detach",
+            "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10",
+            "exowner1/jobs-example@0123456789abcdef",
+            "--preview"
+          ],
+          "reason": "--yes is required because the job stops running this program from now on"
+        },
+        "exitCode": 2,
+        "message": "This service operation requires explicit confirmation.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

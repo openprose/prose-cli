@@ -1,0 +1,31 @@
+{
+  "schema": "openprose.run-failure-actions/1",
+  "description": "The Action of HOSTED_RUN_FAILED follows the cause its details.reason names; any other reason keeps the taxonomy Action. Matching ignores ASCII letter case. Both ports apply this rule (Rust `error::run_failure_action`, Bun `runFailureAction`).",
+  "cases": [
+    {
+      "id": "budget",
+      "reason": "the run finished with status error: run exceeded its budget",
+      "action": "Raise the run budget, choose another environment, or check `cli wallet balance`, then submit again."
+    },
+    {
+      "id": "budget-letter-case",
+      "reason": "the run finished with status error: Budget exhausted",
+      "action": "Raise the run budget, choose another environment, or check `cli wallet balance`, then submit again."
+    },
+    {
+      "id": "step-limit",
+      "reason": "the run finished with status error: step limit reached (40 steps)",
+      "action": "Simplify the program or split it into steps, then submit again."
+    },
+    {
+      "id": "max-steps",
+      "reason": "the event stream ended after an error: MAX_STEPS exceeded",
+      "action": "Simplify the program or split it into steps, then submit again."
+    },
+    {
+      "id": "other-cause",
+      "reason": "the run finished with status error: the model returned no answer",
+      "action": null
+    }
+  ]
+}

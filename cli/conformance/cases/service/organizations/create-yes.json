@@ -1,0 +1,69 @@
+{
+  "id": "create-yes",
+  "feature": "organizations",
+  "operation": "org.create",
+  "description": "POST /organizations with {slug, name}; the 201 organization is projected (no role on create).",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "org",
+    "create",
+    "acme-research",
+    "--name",
+    "Acme Research",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/organizations",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          },
+          "Accept": "application/json",
+          "Content-Type": "application/json"
+        },
+        "status": 201,
+        "body": {
+          "organization": {
+            "id": "5b0e7c1a-3f2d-4e8b-9a61-2c4d8e0f1a23",
+            "slug": "acme-research",
+            "name": "Acme Research",
+            "created_by": "cus_ExampleAdmin01",
+            "created_at": 1790012915257
+          }
+        },
+        "expectedBody": {
+          "name": "Acme Research",
+          "slug": "acme-research"
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "organizations.manage",
+      "operation": "org.create",
+      "problem": null,
+      "result": {
+        "organization": {
+          "id": "5b0e7c1a-3f2d-4e8b-9a61-2c4d8e0f1a23",
+          "slug": "acme-research",
+          "name": "Acme Research",
+          "created_at": 1790012915257,
+          "created_at_iso": "2026-09-21T17:48:35.257Z"
+        }
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

@@ -1,0 +1,67 @@
+{
+  "id": "auth-login-expired",
+  "feature": "account",
+  "operation": "auth.login",
+  "description": "Device flow: an expired code is DEVICE_AUTH_EXPIRED and nothing is stored. Ported from the account corpus.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "auth",
+    "login"
+  ],
+  "fixture": {
+    "credential": null,
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/auth/device",
+        "status": 200,
+        "body": {
+          "device_code": "fixture-device-secret",
+          "user_code": "ABCD-EFGH",
+          "verification_uri": "https://github.com/login/device",
+          "expires_in": 60,
+          "interval": 1
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/auth/device/poll",
+        "status": 400,
+        "body": {
+          "status": "error",
+          "error": "expired_token"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "schema": "openprose.service-operation/1",
+      "operation": "auth.login",
+      "interaction": "auth.device_flow",
+      "result": null,
+      "problem": {
+        "action": "Run login again to obtain a new code.",
+        "boundary": "authentication",
+        "code": "DEVICE_AUTH_EXPIRED",
+        "exitCode": 10,
+        "message": "Device authorization expired.",
+        "retryable": true,
+        "schema": "openprose.runner-error/1",
+        "details": {
+          "reason": "the device code expired before it was approved; nothing was stored"
+        }
+      }
+    }
+  },
+  "stderr": {
+    "text": "Go to https://github.com/login/device and enter code: ABCD-EFGH\n"
+  },
+  "forbid": [
+    "fixture-device-secret"
+  ]
+}

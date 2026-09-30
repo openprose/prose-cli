@@ -12,7 +12,10 @@ fn main() {
         "OPENPROSE_IMAGE_BUNDLE",
         "OPENPROSE_IMAGE_BUNDLE_CHECKSUM",
     ];
-    for key in image_inputs.iter().chain(["CARGO_FEATURE_TEST_SEAMS"].iter()) {
+    for key in image_inputs
+        .iter()
+        .chain(["CARGO_FEATURE_TEST_SEAMS"].iter())
+    {
         println!("cargo:rerun-if-env-changed={key}");
     }
     let published = env::var_os("CARGO_FEATURE_TEST_SEAMS").is_none()

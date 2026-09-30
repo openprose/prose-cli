@@ -28,6 +28,7 @@ BUN_RELEASE_BUILD = f"{BUN_ORDINARY_BUILD} --require-release-eligible"
 BUN_CHECK = "bun run typecheck && bun run test && bun run build"
 BUN_PRODUCTION_DEPENDENCIES = {
     "ajv": "8.20.0",
+    "undici": "7.30.0",
 }
 BUN_DEVELOPMENT_DEPENDENCIES = {
     "@types/bun": "1.3.5",

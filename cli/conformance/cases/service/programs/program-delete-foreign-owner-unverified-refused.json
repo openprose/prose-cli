@@ -1,0 +1,66 @@
+{
+  "id": "program-delete-foreign-owner-unverified-refused",
+  "feature": "programs",
+  "operation": "program.delete",
+  "description": "OWNER/SLUG whose OWNER cannot be confirmed as the caller (the caller has no program SLUG: revisions 404) is refused with exit 2 before any DELETE, never mapped to alreadyAbsent.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "program",
+    "delete",
+    "exowner1/demo",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/programs/demo/revisions",
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "status": 404,
+        "body": {
+          "error": "Not found"
+        }
+      }
+    ]
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "program.delete",
+      "operation": "program.delete",
+      "problem": {
+        "action": "Pass the bare slug \"demo\" to act on your own program; `prose --output json cli program list` lists yours as OWNER/SLUG.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "OWNER \"exowner1\" is not confirmed as you: you have no saved program \"demo\" to check it against, and <SLUG> names a program in your own account; nothing was changed. Pass the bare slug \"demo\" for your own program; another owner's program cannot be changed from this account",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "program",
+            "list"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

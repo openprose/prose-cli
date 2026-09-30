@@ -1,0 +1,49 @@
+{
+  "id": "member-role-preview",
+  "feature": "organizations",
+  "operation": "org.member.role",
+  "description": "`org member role` with --preview returns the plan, exits 0 and sends nothing.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "org",
+    "member",
+    "role",
+    "acme-research",
+    "cus_ExampleInvitee1",
+    "reader",
+    "--preview"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "organizations.manage",
+      "operation": "org.member.role",
+      "problem": null,
+      "result": {
+        "plannedRequest": {
+          "bodyBytes": 17,
+          "bodySha256": "2f2520d0c63f77525f1f0289687fe6285a07b8dc4f6a072654689592bf875c43",
+          "description": "Change a member's role.",
+          "effect": "write",
+          "method": "PATCH",
+          "operation": "org.member.role",
+          "summary": {
+            "role": "reader"
+          }
+        },
+        "preview": true
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

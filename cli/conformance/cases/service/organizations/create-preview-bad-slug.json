@@ -1,0 +1,57 @@
+{
+  "id": "create-preview-bad-slug",
+  "feature": "organizations",
+  "operation": "org.create",
+  "description": "An organization slug outside the service rule is refused locally with a corrected argv; nothing is sent.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "org",
+    "create",
+    "Acme_Research",
+    "--name",
+    "Acme_Research",
+    "--preview"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "organizations.manage",
+      "operation": "org.create",
+      "problem": {
+        "action": "Choose a slug that fits the rule, for example `prose --output json cli org create acme-research --name Acme_Research --preview`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "organization slug \"Acme_Research\" must be 1-63 lowercase letters, digits or interior hyphens; slugs are global and permanent",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "org",
+            "create",
+            "acme-research",
+            "--name",
+            "Acme_Research",
+            "--preview"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

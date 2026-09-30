@@ -149,7 +149,7 @@ def _cleanup_exact_fixture_group(identities: dict[str, Any] | None) -> None:
     _wait_for_fixture_exit(identities, 2.0)
 
 
-def probe(product: host.Product) -> SignalOracleResult:
+def probe(product: host.Product, signal_number: int = signal.SIGINT) -> SignalOracleResult:
     if not supported():
         raise RuntimeError("direct SIGINT oracle is unsupported on this platform")
     failures: list[str] = []
@@ -218,7 +218,7 @@ def probe(product: host.Product) -> SignalOracleResult:
                         )
 
             if process.poll() is None:
-                os.kill(process.pid, signal.SIGINT)
+                os.kill(process.pid, signal_number)
                 try:
                     exit_code = process.wait(timeout=8.0)
                 except subprocess.TimeoutExpired:
@@ -291,15 +291,20 @@ def main() -> int:
                 file=sys.stderr,
             )
             return 1
+        # SIGHUP (a closed terminal) cancels exactly like SIGINT in both products.
         for product in products:
-            result = probe(product)
-            failures.extend(f"{product.name}: {failure}" for failure in result.failures)
+            for signal_number in (signal.SIGINT, signal.SIGHUP):
+                result = probe(product, signal_number)
+                failures.extend(
+                    f"{product.name} {signal.Signals(signal_number).name}: {failure}"
+                    for failure in result.failures
+                )
     if failures:
         print(f"FAIL: {len(failures)} direct SIGINT oracle failure(s)", file=sys.stderr)
         for failure in failures:
             print(f"- {failure}", file=sys.stderr)
         return 1
-    print("PASS: Rust and Bun direct SIGINT cancellation and descendants settled")
+    print("PASS: Rust and Bun direct SIGINT and SIGHUP cancellation and descendants settled")
     return 0
 
 

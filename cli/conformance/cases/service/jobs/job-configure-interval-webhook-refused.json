@@ -1,0 +1,109 @@
+{
+  "id": "job-configure-interval-webhook-refused",
+  "feature": "jobs",
+  "operation": "job.configure",
+  "description": "`--interval-seconds` on a webhook job is INVOCATION_INVALID after reading the job; nothing is written.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "job",
+    "configure",
+    "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10",
+    "--interval-seconds",
+    "3600",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/triggers/3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10",
+        "status": 200,
+        "body": {
+          "trigger": {
+            "id": "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10",
+            "type": "webhook",
+            "name": "renamed",
+            "internalRef": "opaque-1",
+            "url": null,
+            "intervalSeconds": null,
+            "mode": null,
+            "repositoryId": null,
+            "repositoryFullName": null,
+            "repositoryBranch": null,
+            "contextRepositoryId": null,
+            "contextRepositoryFullName": null,
+            "contextRepositoryBranch": null,
+            "createdAt": 1790212421024,
+            "adopted": false
+          },
+          "status": {
+            "configured": true,
+            "active": true,
+            "receiver": {
+              "profile": "openprose"
+            },
+            "receiverSecretConfigured": false,
+            "reply": null,
+            "replySecretConfigured": false,
+            "replies": [],
+            "replyDeliveries": [],
+            "deliveryMode": "live",
+            "secretRotatedAt": 1790212422203,
+            "lastEventAt": null,
+            "lastRunId": null,
+            "lastError": null,
+            "counts": {
+              "pending": 0,
+              "pending_funds": 0,
+              "claimed": 0,
+              "completed": 0,
+              "failed": 0,
+              "billing_pending": 0,
+              "ambiguous": 0
+            }
+          },
+          "endpoint": "/webhooks/triggers/x"
+        },
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        }
+      }
+    ]
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "job.update",
+      "operation": "job.configure",
+      "problem": {
+        "action": "Correct the value named in Detail; `prose --output json cli job configure --help` shows the accepted syntax.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "--interval-seconds applies to schedule jobs only; job 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10 is a webhook job (change webhook settings with `cli job update`)",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "job",
+            "configure",
+            "--help"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

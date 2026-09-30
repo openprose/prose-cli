@@ -1,0 +1,28 @@
+{
+  "id": "error-action-global-option-after-cli",
+  "feature": "framework",
+  "operation": "run.list",
+  "description": "A global option right after cli is the one case whose Action says to place global options before cli; it names the moved command.",
+  "argv": [
+    "cli",
+    "--output",
+    "human",
+    "run",
+    "list"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: That command isn't quite right.\nDetail: the global option --output must come before `cli`, not after it\nAction: Place global options before cli: `prose --output human cli run list`.\n"
+  }
+}

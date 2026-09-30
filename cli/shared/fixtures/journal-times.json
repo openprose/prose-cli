@@ -1,0 +1,101 @@
+{
+  "schema": "openprose.journal-times/1",
+  "summary": "The createdAt and now values the run journal prunes by: RFC 3339 date-times only (T, t or a space between date and time; Z, z or a numeric offset below 24:00; a leap second counts as the next second). `millis` is the instant in Unix milliseconds, or null when the value is not RFC 3339 and never causes pruning.",
+  "cases": [
+    {
+      "id": "z",
+      "value": "2026-01-01T00:00:00Z",
+      "millis": 1767225600000
+    },
+    {
+      "id": "lower",
+      "value": "2026-01-01t00:00:00z",
+      "millis": 1767225600000
+    },
+    {
+      "id": "space",
+      "value": "2026-01-01 00:00:00Z",
+      "millis": 1767225600000
+    },
+    {
+      "id": "offset",
+      "value": "2026-01-01T00:00:00+05:30",
+      "millis": 1767205800000
+    },
+    {
+      "id": "fraction",
+      "value": "2026-01-01T00:00:00.123Z",
+      "millis": 1767225600123
+    },
+    {
+      "id": "feb-30",
+      "value": "2026-02-30T00:00:00Z",
+      "millis": null
+    },
+    {
+      "id": "hour-24",
+      "value": "2026-01-01T24:00:00Z",
+      "millis": null
+    },
+    {
+      "id": "leap-second",
+      "value": "2026-01-01T23:59:60Z",
+      "millis": 1767312000000
+    },
+    {
+      "id": "offset-24",
+      "value": "2026-01-01T00:00:00+24:00",
+      "millis": null
+    },
+    {
+      "id": "offset-23-59",
+      "value": "2026-01-01T00:00:00+23:59",
+      "millis": 1767139260000
+    },
+    {
+      "id": "no-zone",
+      "value": "2026-01-01T00:00:00",
+      "millis": null
+    },
+    {
+      "id": "date-only",
+      "value": "2026-01-01",
+      "millis": null
+    },
+    {
+      "id": "http-date",
+      "value": "Thu, 01 Jan 2026 00:00:00 GMT",
+      "millis": null
+    },
+    {
+      "id": "empty-fraction",
+      "value": "2026-01-01T00:00:00.Z",
+      "millis": null
+    },
+    {
+      "id": "signed-year",
+      "value": "+2026-01-01T00:00:00Z",
+      "millis": null
+    },
+    {
+      "id": "no-seconds",
+      "value": "2026-01-01T00:00Z",
+      "millis": null
+    },
+    {
+      "id": "negative-zero",
+      "value": "2026-01-01T00:00:00-00:00",
+      "millis": 1767225600000
+    },
+    {
+      "id": "leap-day",
+      "value": "2024-02-29T00:00:00Z",
+      "millis": 1709164800000
+    },
+    {
+      "id": "century-no-leap",
+      "value": "1900-02-29T00:00:00Z",
+      "millis": null
+    }
+  ]
+}

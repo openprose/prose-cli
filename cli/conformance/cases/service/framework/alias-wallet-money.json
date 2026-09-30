@@ -1,0 +1,26 @@
+{
+  "id": "alias-wallet-money",
+  "feature": "framework",
+  "operation": "wallet.balance",
+  "description": "`cli wallet money` suggests `cli wallet balance`.",
+  "argv": [
+    "cli",
+    "wallet",
+    "money"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: Unknown command.\nDetail: unknown command `cli wallet money`; did you mean `cli wallet balance`? Commands: balance, events, redeem, topup, usage\nAction: Use `cli wallet balance`: `prose cli wallet balance`.\n"
+  }
+}

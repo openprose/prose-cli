@@ -1,0 +1,49 @@
+{
+  "id": "alias-delete-json",
+  "feature": "framework",
+  "operation": "program.delete",
+  "description": "`cli delete` suggests `cli program delete --help`, and the Action names `cli job delete`. (JSON envelope)",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "delete"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": null,
+      "operation": "cli",
+      "problem": {
+        "action": "A job is deleted with `cli job delete JOB_ID`. Use `cli program delete SLUG`; `prose --output json cli program delete --help` shows its arguments.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "unknown command `cli delete`; did you mean `cli program delete SLUG`? runs are never deleted; a saved program is deleted with `cli program delete SLUG` and a job with `cli job delete JOB_ID`",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "program",
+            "delete",
+            "--help"
+          ]
+        },
+        "exitCode": 2,
+        "message": "Unknown command.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

@@ -1,0 +1,65 @@
+{
+  "id": "result-unpublish-missing-404",
+  "feature": "results",
+  "operation": "result.unpublish",
+  "description": "An unknown (or already removed) publication is SERVICE_RESOURCE_NOT_FOUND.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "result",
+    "unpublish",
+    "demo",
+    "AbCdEf012_-x",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "DELETE",
+        "path": "/programs/demo/results/AbCdEf012_-x",
+        "status": 404,
+        "body": {
+          "error": "Not found"
+        },
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "results.unpublish",
+      "operation": "result.unpublish",
+      "problem": {
+        "action": "Check the publication identifier named in Detail, then retry with the right one.",
+        "boundary": "hosted-service",
+        "code": "SERVICE_RESOURCE_NOT_FOUND",
+        "details": {
+          "reason": "no publication AbCdEf012_-x on your program \"demo\"; list them with `prose --output json cli result list demo`",
+          "serviceStatus": 404,
+          "resource": {
+            "id": "AbCdEf012_-x",
+            "kind": "publication"
+          }
+        },
+        "exitCode": 10,
+        "message": "The requested OpenProse service resource was not found.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

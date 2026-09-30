@@ -1,0 +1,53 @@
+{
+  "id": "job-contract-detach",
+  "feature": "jobs",
+  "operation": "job.contract.detach",
+  "description": "`contract detach --yes` DELETEs the encoded pinned reference and returns the contract the service unbound.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "job",
+    "contract",
+    "detach",
+    "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10",
+    "exowner1/jobs-example@0123456789abcdef",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "DELETE",
+        "path": "/triggers/3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10/contracts/exowner1%2Fjobs-example%400123456789abcdef",
+        "status": 200,
+        "body": {
+          "unbound": "exowner1/jobs-example@0123456789abcdef"
+        },
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "job.contracts",
+      "operation": "job.contract.detach",
+      "problem": null,
+      "result": {
+        "contracts": [
+          {
+            "program_ref": "exowner1/jobs-example@0123456789abcdef"
+          }
+        ]
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

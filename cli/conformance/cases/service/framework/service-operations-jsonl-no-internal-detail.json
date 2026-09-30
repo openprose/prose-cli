@@ -1,0 +1,29 @@
+{
+  "id": "service-operations-jsonl-no-internal-detail",
+  "feature": "framework",
+  "operation": "service.operations",
+  "description": "`--output jsonl` of `cli service operations` prints the public projection too: no service route or catalog detail in any record or the page trailer.",
+  "argv": [
+    "--output",
+    "jsonl",
+    "cli",
+    "service",
+    "operations"
+  ],
+  "fixture": {
+    "exchanges": []
+  },
+  "exitCode": 0,
+  "stdout": {
+    "manifestOperations": true
+  },
+  "forbid": [
+    "/triggers/",
+    "/examples/private",
+    "workers.dev",
+    "rr_test_",
+    "credit_grants_misconfigured",
+    "catalogRoute",
+    "\"requests\""
+  ]
+}

@@ -1,2 +1,0 @@
-# Preserve exact captured test output.
-*.log whitespace=-blank-at-eof

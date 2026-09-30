@@ -1,0 +1,58 @@
+{
+  "id": "wallet-usage-invalid-non-leap-day",
+  "feature": "wallet",
+  "operation": "wallet.usage",
+  "description": "2025-02-29 (not a leap year) is INVOCATION_INVALID even inside an ordered window.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "wallet",
+    "usage",
+    "--start",
+    "2025-02-29",
+    "--end",
+    "2025-03-01"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [],
+    "clock": {
+      "start": "2026-09-23T12:00:00.000Z",
+      "stepMs": 0
+    }
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "wallet.usage",
+      "operation": "wallet.usage",
+      "problem": {
+        "action": "Correct the value named in Detail; `prose --output json cli wallet usage --help` shows the accepted syntax.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "--start must be a calendar date as YYYY-MM-DD, got \"2025-02-29\"",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "wallet",
+            "usage",
+            "--help"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

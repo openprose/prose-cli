@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.openprose.org/cli/v1/service-page.schema.json",
+  "title": "OpenProse service list page trailer v1",
+  "description": "The last line of a successful list operation in --output jsonl: the number of record lines before it, nextBefore (the cursor for the next page, null when there is none or the operation is not paged) meta, the JSON result without its collection, and exitCode (0). nextBefore is opaque: pass it back to --before unchanged. A failed list operation prints the openprose.service-operation/1 envelope instead.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "operation",
+    "interaction",
+    "collection",
+    "count",
+    "nextBefore",
+    "meta",
+    "exitCode"
+  ],
+  "properties": {
+    "schema": {
+      "const": "openprose.service-page/1"
+    },
+    "operation": {
+      "type": "string",
+      "pattern": "^[a-z]+(?:\\.[a-z][a-z-]*)*$"
+    },
+    "interaction": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "collection": {
+      "type": "string",
+      "pattern": "^[a-z][A-Za-z_]*$"
+    },
+    "count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "nextBefore": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+        }
+      ],
+      "description": "Opaque cursor for the next page, or null on the last page. Pass it unchanged to `--before`; its content is not part of the contract and may change without notice."
+    },
+    "meta": {
+      "type": "object"
+    },
+    "exitCode": {
+      "description": "The process exit code: the trailer ends a successful listing.",
+      "const": 0
+    }
+  }
+}

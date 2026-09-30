@@ -1,0 +1,103 @@
+{
+  "id": "wallet-balance-projection-unknown-fields",
+  "feature": "wallet",
+  "operation": "wallet.balance",
+  "description": "Balance projection keeps available, posted and reserved in cents and dollars; customer_id and *_nanos are dropped. Every service record also carries internal fields (runtime, contract, version, adoption, driver, configuration token, reactor, call id, showable, price policy, organization id, an internal path): the output is unchanged and names none of them.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "wallet",
+    "balance"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/wallet/balance",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          }
+        },
+        "status": 200,
+        "body": {
+          "customer_id": "cus_ExampleOwner01",
+          "balance": {
+            "available_cents": 3235,
+            "available_dollars": "32.35",
+            "available_nanos": 32350000000,
+            "posted_cents": 3337,
+            "posted_dollars": "33.37",
+            "reserved_cents": 102,
+            "reserved_dollars": "1.02",
+            "reserved_nanos": 1020000000,
+            "runtime": "x-internal-runtime",
+            "contract": "x-internal-contract",
+            "version": "x-internal-version",
+            "adopted": true,
+            "driver": "x-internal-driver",
+            "configurationToken": "x-internal-configuration-token",
+            "reactor": "x-internal-reactor",
+            "call_id": "x-internal-call",
+            "showable": true,
+            "pricing_policy_id": "x-internal-pricing-policy",
+            "organization_id": "x-internal-organization",
+            "internal_path": "/internal/x-internal-path/state.json"
+          },
+          "runtime": "x-internal-runtime",
+          "contract": "x-internal-contract",
+          "version": "x-internal-version",
+          "adopted": true,
+          "driver": "x-internal-driver",
+          "configurationToken": "x-internal-configuration-token",
+          "reactor": "x-internal-reactor",
+          "call_id": "x-internal-call",
+          "showable": true,
+          "pricing_policy_id": "x-internal-pricing-policy",
+          "organization_id": "x-internal-organization",
+          "internal_path": "/internal/x-internal-path/state.json"
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "wallet.balance",
+      "operation": "wallet.balance",
+      "problem": null,
+      "result": {
+        "balance": {
+          "available_cents": 3235,
+          "available_dollars": "32.35",
+          "posted_cents": 3337,
+          "posted_dollars": "33.37",
+          "reserved_cents": 102,
+          "reserved_dollars": "1.02"
+        }
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "x-internal-",
+    "/internal/",
+    "\"adopted\"",
+    "\"driver\"",
+    "\"showable\"",
+    "\"call_id\"",
+    "\"pricing_policy_id\"",
+    "\"organization_id\"",
+    "\"configurationToken\"",
+    "\"runtime\"",
+    "\"contract\"",
+    "\"reactor\"",
+    "\"internal_path\""
+  ]
+}

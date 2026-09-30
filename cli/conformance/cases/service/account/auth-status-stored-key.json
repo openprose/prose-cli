@@ -1,0 +1,53 @@
+{
+  "id": "auth-status-stored-key",
+  "feature": "account",
+  "operation": "auth.status",
+  "description": "A stored key is verified with GET /organizations and reported as authenticated from the OS credential store; the key is never echoed. Ported from the account corpus.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "auth",
+    "status"
+  ],
+  "fixture": {
+    "credential": "rr_test_11111111111111111111111111111111",
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/organizations",
+        "status": 200,
+        "body": {
+          "organizations": [
+            {
+              "id": "org-fixture",
+              "slug": "fixture",
+              "name": "Fixture",
+              "role": "admin"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "schema": "openprose.service-operation/1",
+      "operation": "auth.status",
+      "interaction": "cli.auth_status",
+      "result": {
+        "authenticated": true,
+        "credentialSource": "store"
+      },
+      "problem": null
+    }
+  },
+  "stderr": {
+    "empty": true
+  },
+  "forbid": [
+    "rr_test_11111111111111111111111111111111"
+  ]
+}

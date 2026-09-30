@@ -30,7 +30,6 @@ describe("supervision security policy", () => {
       PATH: "/bin",
       HOME: "/home/fixture",
       LANG: "en_US.UTF-8",
-      HTTPS_PROXY: "http://127.0.0.1:9",
       OPENPROSE_INVOCATION_ID: "id",
       OPENPROSE_RECURSION_TOKEN: "recursion",
       OPENPROSE_RUN_NONCE: "nonce",

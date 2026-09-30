@@ -49,12 +49,12 @@
     "sha256": "8e3ddfe3dff60ef7ba9df67133214ed7cd265839d363c5d4c76589eebf7b9de4"
   },
   "oneFieldFraming": {
-    "id": "imp-008-unused-framing/1",
+    "id": "kernel-startup-unused-framing/1",
     "path": "contracts/framing.txt",
     "sha256": "93cdd25d1c29aecfdfe529a1b40f5a95a28a6bbd6e4da21d943e0db1cb3797cf"
   },
   "terminalEnvelope": {
-    "schemaId": "imp-008-unused-terminal/1",
+    "schemaId": "kernel-startup-unused-terminal/1",
     "path": "contracts/terminal.schema.json",
     "sha256": "26e8c88a98a9cda715ad0cfdc050005c58035b727508310a7cb01f1c0bfcee3b"
   },

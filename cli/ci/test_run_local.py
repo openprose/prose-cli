@@ -79,6 +79,9 @@ class LocalAdmissionTest(unittest.TestCase):
                 "rust-format",
                 "rust-clippy",
                 "rust-tests",
+                "rust-clippy-dev-endpoint",
+                "rust-tests-dev-endpoint",
+                "rust-build-dev-endpoint",
                 "package-lifecycle",
                 "rust-build",
                 "bun-typecheck",
@@ -86,15 +89,17 @@ class LocalAdmissionTest(unittest.TestCase):
                 "bun-build",
                 "adapter-product-adversary",
                 "differential-conformance",
-                "staging-service-corpus",
-                "staging-service-rust-build",
-                "staging-service-rust",
-                "staging-service-bun-build",
-                "staging-service-bun",
-                "service-environment-rust",
-                "service-environment-bun",
+                "service-operations-corpus",
+                "service-coverage",
+                "service-help",
+                "service-operations-rust-build",
+                "service-operations-rust",
                 "registry-service-rust",
+                "service-operations-bun-build",
+                "service-operations-bun",
                 "registry-service-bun",
+                "public-surface-files",
+                "public-surface",
                 "conformance-host",
                 "package-local",
                 "alpha-package-admission",
@@ -117,6 +122,21 @@ class LocalAdmissionTest(unittest.TestCase):
                 rust_gate.argv[rust_gate.argv.index("--features") + 1],
                 "prose-cli/test-seams",
             )
+        for name in ("rust-clippy-dev-endpoint", "rust-tests-dev-endpoint"):
+            dev_gate = next(gate for gate in plan if gate.name == name)
+            self.assertEqual(
+                dev_gate.argv[dev_gate.argv.index("--features") + 1],
+                "prose-cli/test-seams,prose-cli/dev-endpoint",
+            )
+            self.assertFalse(dev_gate.quick)
+        dev_build = next(gate for gate in plan if gate.name == "rust-build-dev-endpoint")
+        self.assertEqual(dev_build.argv[dev_build.argv.index("--features") + 1], "dev-endpoint")
+        self.assertNotIn("test-seams", " ".join(dev_build.argv))
+        self.assertEqual(
+            dev_build.argv[dev_build.argv.index("--target-dir") + 1],
+            "target/openprose-dev-endpoint",
+        )
+        self.assertFalse(dev_build.quick)
         self.assertIn("cli/conformance/real-harness", " ".join(flattened))
         self.assertIn("test_*.py", flattened)
         self.assertIn("direct-skill-real", " ".join(flattened))
@@ -145,6 +165,8 @@ class LocalAdmissionTest(unittest.TestCase):
         self.assertNotIn("package-local", [gate.name for gate in quick])
         self.assertIn("alpha-package-admission", [gate.name for gate in quick])
         self.assertNotIn("package-lifecycle", [gate.name for gate in quick])
+        self.assertIn("public-surface-files", [gate.name for gate in quick])
+        self.assertNotIn("public-surface", [gate.name for gate in quick])
         self.assertIn("installed-package-benchmark", [gate.name for gate in quick])
         self.assertIn("release-package-admission", [gate.name for gate in quick])
         self.assertIn("release-rehearsal-contract", [gate.name for gate in quick])

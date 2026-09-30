@@ -1,0 +1,52 @@
+{
+  "id": "quote-malformed-environment-no-request",
+  "feature": "runs",
+  "operation": "run.quote",
+  "description": "A syntactically invalid environment is rejected before any request.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "quote",
+    "--environment",
+    "Linux!"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "run.quote",
+      "operation": "run.quote",
+      "problem": {
+        "action": "Correct the value named in Detail; `prose --output json cli run quote --help` shows the accepted syntax.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "--environment \"Linux!\" is not an environment id (lowercase letters, digits, _ and -)",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "quote",
+            "--help"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

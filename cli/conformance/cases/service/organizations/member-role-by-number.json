@@ -1,0 +1,99 @@
+{
+  "id": "member-role-by-number",
+  "feature": "organizations",
+  "operation": "org.member.role",
+  "description": "`org member role ORG \"member 2\" ROLE --yes` reads the member list (sorted by when members joined), changes that member's role, and never prints an account id.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "org",
+    "member",
+    "role",
+    "acme-research",
+    "member 2",
+    "reader",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/organizations/acme-research/members",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          },
+          "Accept": "application/json"
+        },
+        "status": 200,
+        "body": {
+          "members": [
+            {
+              "organization_id": "5b0e7c1a-3f2d-4e8b-9a61-2c4d8e0f1a23",
+              "account_id": "cus_ExampleInvitee1",
+              "role": "developer",
+              "created_at": 1790099999000
+            },
+            {
+              "organization_id": "5b0e7c1a-3f2d-4e8b-9a61-2c4d8e0f1a23",
+              "account_id": "cus_ExampleAdmin01",
+              "role": "admin",
+              "created_at": 1790012915257,
+              "handle": "exadmin"
+            }
+          ]
+        }
+      },
+      {
+        "method": "PATCH",
+        "path": "/organizations/acme-research/members/cus_ExampleInvitee1",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          },
+          "Accept": "application/json",
+          "Content-Type": "application/json"
+        },
+        "status": 200,
+        "body": {
+          "member": {
+            "organization_id": "5b0e7c1a-3f2d-4e8b-9a61-2c4d8e0f1a23",
+            "account_id": "cus_ExampleInvitee1",
+            "role": "reader",
+            "created_at": 1790099999000
+          }
+        },
+        "expectedBody": {
+          "role": "reader"
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "organizations.manage",
+      "operation": "org.member.role",
+      "problem": null,
+      "result": {
+        "member": {
+          "created_at": 1790099999000,
+          "created_at_iso": "2026-09-22T17:59:59.000Z",
+          "member": "member 2",
+          "role": "reader"
+        }
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "cus_ExampleInvitee1",
+    "cus_ExampleAdmin01"
+  ]
+}

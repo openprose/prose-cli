@@ -1,0 +1,64 @@
+{
+  "id": "member-list-account-id-128",
+  "feature": "organizations",
+  "operation": "org.member.list",
+  "description": "A member account_id of exactly 128 code points is accepted; the member is shown by number, never by account id.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "org",
+    "member",
+    "list",
+    "acme-research"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/organizations/acme-research/members",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          },
+          "Accept": "application/json"
+        },
+        "status": 200,
+        "body": {
+          "members": [
+            {
+              "organization_id": "5b0e7c1a-3f2d-4e8b-9a61-2c4d8e0f1a23",
+              "account_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "role": "developer",
+              "created_at": 1790099999000
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "organizations.manage",
+      "operation": "org.member.list",
+      "problem": null,
+      "result": {
+        "members": [
+          {
+            "created_at": 1790099999000,
+            "created_at_iso": "2026-09-22T17:59:59.000Z",
+            "member": "member 1",
+            "role": "developer"
+          }
+        ]
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

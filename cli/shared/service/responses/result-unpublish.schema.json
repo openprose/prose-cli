@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.openprose.org/cli/v1/service/responses/result-unpublish.schema.json",
+  "title": "service response acceptance: DELETE /programs/{slug}/results/{publication_id}",
+  "x-probed": false,
+  "type": "object",
+  "required": [
+    "unpublished",
+    "id"
+  ],
+  "properties": {
+    "unpublished": {
+      "const": true
+    },
+    "id": {
+      "type": "string"
+    }
+  }
+}

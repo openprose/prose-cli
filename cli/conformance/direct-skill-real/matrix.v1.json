@@ -59,9 +59,9 @@
   ],
   "routes": [
     {
-      "id": "prime-openai-luna",
+      "id": "prime-openai",
       "provider": "prime-inference",
-      "model": "openai/gpt-5.6-luna",
+      "model": "openai/gpt-5.4",
       "credentialEnvironment": [],
       "plannedTotalCostCeilingUsd": 0.6
     },

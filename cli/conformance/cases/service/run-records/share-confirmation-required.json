@@ -1,0 +1,69 @@
+{
+  "id": "share-confirmation-required",
+  "feature": "run-records",
+  "operation": "run.share",
+  "description": "share without --yes sends nothing and exits 2 with the planned POST.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "share",
+    "run_5e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f68"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "run.share",
+      "operation": "run.share",
+      "problem": {
+        "action": "Rerun the same command with --yes to confirm, or with --preview to see what it would do without sending anything.",
+        "boundary": "invocation",
+        "code": "CONFIRMATION_REQUIRED",
+        "details": {
+          "confirmArgv": [
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "share",
+            "run_5e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f68",
+            "--yes"
+          ],
+          "plannedRequest": {
+            "bodyBytes": null,
+            "bodySha256": null,
+            "description": "Create a public link to a run's outputs.",
+            "effect": "outward",
+            "method": "POST",
+            "operation": "run.share"
+          },
+          "previewArgv": [
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "share",
+            "run_5e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f685e2a7c91d04b3f68",
+            "--preview"
+          ],
+          "reason": "--yes is required because it creates a public link to the run's outputs that anyone who has it can open for 24 hours, and it cannot be revoked"
+        },
+        "exitCode": 2,
+        "message": "This service operation requires explicit confirmation.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

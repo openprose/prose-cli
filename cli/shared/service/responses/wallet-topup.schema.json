@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.openprose.org/cli/v1/service/responses/wallet-topup.schema.json",
+  "title": "service response acceptance: POST /wallet/topup",
+  "x-probed": false,
+  "type": "object",
+  "required": [
+    "checkout_url",
+    "session_id",
+    "amount"
+  ],
+  "properties": {
+    "checkout_url": {
+      "type": "string"
+    },
+    "session_id": {
+      "type": "string"
+    },
+    "amount": {
+      "type": "object",
+      "required": [
+        "credits_cents",
+        "fee_cents",
+        "total_cents"
+      ],
+      "properties": {
+        "credits_cents": {
+          "type": "integer"
+        },
+        "fee_cents": {
+          "type": "integer"
+        },
+        "total_cents": {
+          "type": "integer"
+        }
+      }
+    }
+  }
+}

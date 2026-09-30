@@ -1,0 +1,56 @@
+{
+  "id": "submit-preview-unknown-model-human",
+  "feature": "runs",
+  "operation": "run.submit",
+  "description": "Human form of the unknown --model refusal: Detail lists the nearest models, Action is the corrected command.",
+  "argv": [
+    "cli",
+    "run",
+    "submit",
+    "p.prose.md",
+    "--model",
+    "model-lnua"
+  ],
+  "files": [
+    {
+      "path": "p.prose.md",
+      "content": "---\nname: demo\nkind: program\n---\nSay hi.\n"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/models",
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef",
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          },
+          "Accept": "application/json"
+        },
+        "status": 200,
+        "body": {
+          "models": [
+            "model-astra",
+            "model-sol",
+            "model-luna"
+          ],
+          "default_model": "model-sol"
+        }
+      }
+    ]
+  },
+  "exitCode": 2,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "text": "OpenProse: INVOCATION_INVALID: That command isn't quite right.\nDetail: --model \"model-lnua\" is not a model this account may run; nearest: model-luna, model-astra, model-sol; `prose cli model list` lists them all\nAction: Rerun with a model the service offers, for example `prose cli run submit p.prose.md --model model-luna`.\n"
+  }
+}

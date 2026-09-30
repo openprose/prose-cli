@@ -1,0 +1,272 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.openprose.org/cli/v1/service/runs.schema.json",
+  "title": "OpenProse service run lifecycle results",
+  "description": "Closed per-operation result projections. Referenced from shared/service/operations.v1.json by $defs name; no property name may match /cost/i.",
+  "$defs": {
+    "quote": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "environment",
+        "hold",
+        "holdBasis",
+        "note"
+      ],
+      "properties": {
+        "environment": {
+          "type": "string",
+          "maxLength": 64,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+        },
+        "hold": {
+          "$ref": "common.schema.json#/$defs/holdQuote"
+        },
+        "holdBasis": {
+          "description": "The hold is a flat reservation, not a price estimate.",
+          "const": "flat hold, independent of program and model; a run's price is known only after it settles"
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 512,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+        }
+      }
+    },
+    "runTerminal": {
+      "description": "Projection of the service's terminal run_complete frame. `cancelled` is true only when the service reported a cancel.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "run_id",
+        "status",
+        "cancelled",
+        "files"
+      ],
+      "properties": {
+        "run_id": {
+          "$ref": "common.schema.json#/$defs/runId"
+        },
+        "status": {
+          "type": "string",
+          "maxLength": 32,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+        },
+        "cancelled": {
+          "type": "boolean"
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "$ref": "common.schema.json#/$defs/relativePath"
+          },
+          "maxItems": 10000
+        },
+        "environment": {
+          "$ref": "common.schema.json#/$defs/environmentProvenance"
+        },
+        "response": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "common.schema.json#/$defs/text"
+            }
+          ]
+        },
+        "price_cents": {
+          "$ref": "common.schema.json#/$defs/cents"
+        },
+        "environment_price_cents": {
+          "$ref": "common.schema.json#/$defs/cents"
+        },
+        "billing_status": {
+          "description": "The run's billing state: `settled` (final), `settling` (charged, not settled yet) or `unknown` (any other service state).",
+          "enum": [
+            "settled",
+            "settling",
+            "unknown"
+          ]
+        },
+        "usage": {
+          "$ref": "common.schema.json#/$defs/usage"
+        },
+        "output": {
+          "$ref": "common.schema.json#/$defs/commitOutput"
+        },
+        "error": {
+          "type": "string",
+          "maxLength": 4096,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+        }
+      }
+    },
+    "runStream": {
+      "description": "Result of run submit and run watch. `run_id` repeats `runId` (both are kept). `run` is the terminal record when the run ended, and `{run_id, status}` after --detach or a reused session (`status` is the last status the stream reported, `running` when none, or `unknown` for a reused session). `run watch` without a live session on this machine reads an ended run's record instead: `session` is null, `afterSequence` 0 and `source` is `record`.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "runId",
+        "run_id",
+        "session",
+        "detached",
+        "afterSequence",
+        "run"
+      ],
+      "properties": {
+        "runId": {
+          "$ref": "common.schema.json#/$defs/runId"
+        },
+        "run_id": {
+          "description": "The same run id as runId.",
+          "$ref": "common.schema.json#/$defs/runId"
+        },
+        "session": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "common.schema.json#/$defs/session"
+            }
+          ]
+        },
+        "detached": {
+          "type": "boolean"
+        },
+        "afterSequence": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "run": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/runTerminal"
+            },
+            {
+              "$ref": "#/$defs/runRef"
+            }
+          ]
+        },
+        "source": {
+          "description": "Present only when the outcome was read from the run record rather than the event stream.",
+          "const": "record"
+        },
+        "resumeArgv": {
+          "description": "Present when detached: the argv (after the product name) that follows the run again with `cli run watch`; never a resubmission.",
+          "$ref": "../runner-error.schema.json#/properties/details/properties/resumeArgv"
+        },
+        "cancelArgv": {
+          "description": "Present when detached: the argv (after the product name) that cancels the run.",
+          "$ref": "../runner-error.schema.json#/properties/details/properties/cancelArgv"
+        },
+        "reused": {
+          "description": "True when `--session` named a run this machine already submitted: the result is that run and nothing was submitted again.",
+          "const": true
+        }
+      }
+    },
+    "runInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "runId",
+        "id",
+        "status"
+      ],
+      "properties": {
+        "runId": {
+          "$ref": "common.schema.json#/$defs/runId"
+        },
+        "id": {
+          "$ref": "common.schema.json#/$defs/uuid"
+        },
+        "status": {
+          "const": "queued"
+        }
+      }
+    },
+    "runCancel": {
+      "description": "Either the cancel was accepted (the wallet balance read after it; a hold may stay reserved until the service releases it), or the run had already ended: `status` is `already_ended`, nothing was cancelled, the wallet is not read, and `runStatus` is the run record's status (null while the record is not written yet).",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "runId",
+            "status",
+            "balance"
+          ],
+          "properties": {
+            "runId": {
+              "$ref": "common.schema.json#/$defs/runId"
+            },
+            "status": {
+              "type": "string",
+              "maxLength": 32,
+              "pattern": "^[^\\u0000-\\u001f\\u007f]*$",
+              "not": {
+                "const": "already_ended"
+              }
+            },
+            "balance": {
+              "$ref": "common.schema.json#/$defs/balance"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "runId",
+            "status",
+            "runStatus"
+          ],
+          "properties": {
+            "runId": {
+              "$ref": "common.schema.json#/$defs/runId"
+            },
+            "status": {
+              "const": "already_ended"
+            },
+            "runStatus": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "string",
+                  "maxLength": 32,
+                  "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "runRef": {
+      "description": "A run that continues (or a reused session's run): its id and the last status known to this command.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "run_id",
+        "status"
+      ],
+      "properties": {
+        "run_id": {
+          "$ref": "common.schema.json#/$defs/runId"
+        },
+        "status": {
+          "type": "string",
+          "maxLength": 32,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+        }
+      }
+    }
+  }
+}

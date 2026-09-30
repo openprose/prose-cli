@@ -1,0 +1,101 @@
+{
+  "id": "wallet-usage-window",
+  "feature": "wallet",
+  "operation": "wallet.usage",
+  "description": "--start and --end are sent as start/end; the summary is projected verbatim (prices only).",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "wallet",
+    "usage",
+    "--start",
+    "2026-09-01",
+    "--end",
+    "2026-09-03"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/wallet/usage",
+        "query": {
+          "start": "2026-09-01",
+          "end": "2026-09-03"
+        },
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          }
+        },
+        "status": 200,
+        "body": {
+          "period": {
+            "start": "2026-09-01",
+            "end": "2026-09-03"
+          },
+          "total_runs": 3,
+          "total_input_tokens": 1200,
+          "total_output_tokens": 45,
+          "total_price_cents": 4,
+          "daily": [
+            {
+              "date": "2026-09-01",
+              "runs": 1,
+              "input_tokens": 400,
+              "output_tokens": 15,
+              "price_cents": 2
+            },
+            {
+              "date": "2026-09-03",
+              "runs": 2,
+              "input_tokens": 800,
+              "output_tokens": 30,
+              "price_cents": 2
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "wallet.usage",
+      "operation": "wallet.usage",
+      "problem": null,
+      "result": {
+        "daily": [
+          {
+            "date": "2026-09-01",
+            "input_tokens": 400,
+            "output_tokens": 15,
+            "price_cents": 2,
+            "runs": 1
+          },
+          {
+            "date": "2026-09-03",
+            "input_tokens": 800,
+            "output_tokens": 30,
+            "price_cents": 2,
+            "runs": 2
+          }
+        ],
+        "period": {
+          "end": "2026-09-03",
+          "start": "2026-09-01"
+        },
+        "total_input_tokens": 1200,
+        "total_output_tokens": 45,
+        "total_price_cents": 4,
+        "total_runs": 3
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

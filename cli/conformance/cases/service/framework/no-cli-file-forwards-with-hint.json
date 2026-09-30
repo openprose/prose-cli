@@ -1,0 +1,36 @@
+{
+  "id": "no-cli-file-forwards-with-hint",
+  "feature": "framework",
+  "operation": "run.submit",
+  "description": "A file named like the command word makes the words a language command: they are forwarded unchanged, and the HOSTED_UNAVAILABLE Action also names the exact `prose cli ...` command.",
+  "files": [
+    {
+      "path": "submit",
+      "content": ""
+    }
+  ],
+  "argv": [
+    "run",
+    "submit",
+    "hello.prose"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 10,
+  "stdout": {
+    "empty": true
+  },
+  "stderr": {
+    "contains": [
+      "HOSTED_UNAVAILABLE",
+      "To use the hosted service, run `prose cli run submit hello.prose`; running programs on this machine needs a local harness (`prose cli harness list`)."
+    ]
+  },
+  "languageForwarded": true
+}

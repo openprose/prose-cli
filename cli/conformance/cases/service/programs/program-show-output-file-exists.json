@@ -1,0 +1,68 @@
+{
+  "id": "program-show-output-file-exists",
+  "feature": "programs",
+  "operation": "program.show",
+  "description": "An existing --output-file is refused before any request, so nothing is fetched or overwritten.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "program",
+    "show",
+    "alice/demo",
+    "--output-file",
+    "demo.prose.md"
+  ],
+  "files": [
+    {
+      "path": "demo.prose.md",
+      "content": "keep me\n"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "program.read",
+      "operation": "program.show",
+      "problem": {
+        "action": "Correct the value named in Detail; `prose --output json cli program show --help` shows the accepted syntax.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "output file \"demo.prose.md\" already exists; choose a new path",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "program",
+            "show",
+            "--help"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "expectFiles": [
+    {
+      "path": "demo.prose.md",
+      "content": "keep me\n"
+    }
+  ],
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

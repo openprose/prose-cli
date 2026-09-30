@@ -1,0 +1,49 @@
+{
+  "id": "verb-synonym-run-ls",
+  "feature": "framework",
+  "operation": "run.list",
+  "description": "`ls` is a synonym of `list`: exit 2 with the corrected argv, never executed.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "ls"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": null,
+      "operation": "cli",
+      "problem": {
+        "action": "Use `cli run list`: `prose --output json cli run list`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "unknown command `cli run ls`; did you mean `cli run list`? Commands: cancel, download, input, list, quote, share, show, submit, watch",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "list"
+          ]
+        },
+        "exitCode": 2,
+        "message": "Unknown command.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "id": "missing-required-option",
+  "feature": "framework",
+  "operation": "wallet.topup",
+  "description": "A missing required option is INVOCATION_INVALID in an envelope for the known operation.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "wallet",
+    "topup"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "wallet.topup",
+      "operation": "wallet.topup",
+      "problem": {
+        "action": "Add --amount-cents N; `prose --output json cli wallet topup --help` shows the options of `cli wallet topup`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "missing required option --amount-cents for `cli wallet topup`",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "wallet",
+            "topup",
+            "--help"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

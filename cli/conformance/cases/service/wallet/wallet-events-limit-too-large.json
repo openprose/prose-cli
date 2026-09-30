@@ -1,0 +1,53 @@
+{
+  "id": "wallet-events-limit-too-large",
+  "feature": "wallet",
+  "operation": "wallet.events",
+  "description": "--limit above 100 is INVOCATION_INVALID and sends nothing.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "wallet",
+    "events",
+    "--limit",
+    "101"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "wallet.events",
+      "operation": "wallet.events",
+      "problem": {
+        "action": "Use --limit 100, the largest value `cli wallet events` accepts: `prose --output json cli wallet events --limit 100`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "--limit must be an integer from 1 to 100, got \"101\"",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "wallet",
+            "events",
+            "--limit",
+            "100"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

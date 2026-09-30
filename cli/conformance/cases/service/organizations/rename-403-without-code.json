@@ -1,0 +1,66 @@
+{
+  "id": "rename-403-without-code",
+  "feature": "organizations",
+  "operation": "org.rename",
+  "description": "A 403 without a body code falls through to SERVICE_AUTH_REQUIRED.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "org",
+    "rename",
+    "acme-research",
+    "Acme Labs",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "PATCH",
+        "path": "/organizations/acme-research",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          },
+          "Accept": "application/json",
+          "Content-Type": "application/json"
+        },
+        "status": 403,
+        "body": {
+          "error": "Forbidden"
+        },
+        "expectedBody": {
+          "name": "Acme Labs"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "organizations.manage",
+      "operation": "org.rename",
+      "problem": {
+        "action": "Run cli auth login, then retry.",
+        "boundary": "authentication",
+        "code": "SERVICE_AUTH_REQUIRED",
+        "details": {
+          "credentialSource": "store",
+          "credentialVariable": "OPENPROSE_API_KEY",
+          "serviceStatus": 403
+        },
+        "exitCode": 10,
+        "message": "OpenProse service authentication is required.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

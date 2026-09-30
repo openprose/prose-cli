@@ -1,0 +1,76 @@
+{
+  "id": "wallet-topup-confirmation-required",
+  "feature": "wallet",
+  "operation": "wallet.topup",
+  "description": "Without --yes top-up sends nothing, mints no key and exits 2 with the planned body digest.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "wallet",
+    "topup",
+    "--amount-cents",
+    "500"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [],
+    "ids": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "wallet.topup",
+      "operation": "wallet.topup",
+      "problem": {
+        "action": "Rerun the same command with --yes to confirm, or with --preview to see what it would do without sending anything.",
+        "boundary": "invocation",
+        "code": "CONFIRMATION_REQUIRED",
+        "details": {
+          "confirmArgv": [
+            "--output",
+            "json",
+            "cli",
+            "wallet",
+            "topup",
+            "--amount-cents",
+            "500",
+            "--yes"
+          ],
+          "plannedRequest": {
+            "bodyBytes": 20,
+            "bodySha256": "6b86216b32dc861a886324aabd10416211e76f71a4e22b7ff39d6b8ee8022f00",
+            "description": "Start a Checkout session to add credit.",
+            "effect": "money",
+            "method": "POST",
+            "operation": "wallet.topup",
+            "summary": {
+              "amount_cents": 500
+            }
+          },
+          "previewArgv": [
+            "--output",
+            "json",
+            "cli",
+            "wallet",
+            "topup",
+            "--amount-cents",
+            "500",
+            "--preview"
+          ],
+          "reason": "--yes is required because it opens a Checkout session for this amount; your payment method is charged when the Checkout page is paid"
+        },
+        "exitCode": 2,
+        "message": "This service operation requires explicit confirmation.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

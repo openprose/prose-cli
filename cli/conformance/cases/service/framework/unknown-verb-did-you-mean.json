@@ -1,0 +1,45 @@
+{
+  "id": "unknown-verb-did-you-mean",
+  "feature": "framework",
+  "operation": "run.submit",
+  "description": "An unknown verb of a known noun is a bare INVOCATION_INVALID with a suggestion and the noun's commands.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "submt"
+  ],
+  "fixture": {
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": null,
+      "operation": "cli",
+      "problem": {
+        "action": "Use `cli run submit`; `prose --output json cli run submit --help` shows what it needs.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "unknown command `cli run submt`; did you mean `cli run submit`? Commands: cancel, download, input, list, quote, share, show, submit, watch",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "submit",
+            "--help"
+          ]
+        },
+        "exitCode": 2,
+        "message": "Unknown command.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

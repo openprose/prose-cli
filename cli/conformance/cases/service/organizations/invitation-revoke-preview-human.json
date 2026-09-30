@@ -1,0 +1,30 @@
+{
+  "id": "invitation-revoke-preview-human",
+  "feature": "organizations",
+  "operation": "org.invitation.revoke",
+  "description": "Human --preview of `org invitation revoke` names the organization and invitation; the effect cannot be undone.",
+  "argv": [
+    "cli",
+    "org",
+    "invitation",
+    "revoke",
+    "acme-research",
+    "7e6d5c4b-3a29-4817-8f6e-5d4c3b2a1908",
+    "--preview"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "Preview: Revoke a pending invitation.\nOrganization: acme-research\nInvitation: 7e6d5c4b-3a29-4817-8f6e-5d4c3b2a1908\nEffect: cannot be undone\nNothing was changed.\n"
+  },
+  "stderr": {
+    "text": ""
+  }
+}

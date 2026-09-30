@@ -1,0 +1,51 @@
+{
+  "id": "alias-account-org-list-trailing-output",
+  "feature": "framework",
+  "operation": "org.list",
+  "description": "`--output json` after an account command path chooses JSON for its grammar error too.",
+  "argv": [
+    "cli",
+    "org",
+    "list",
+    "--output",
+    "json",
+    "extra"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "organizations.manage",
+      "operation": "org.list",
+      "problem": {
+        "action": "`prose --output json cli org list --help` shows the syntax.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "missing or invalid arguments for `cli org list`",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "org",
+            "list",
+            "--help"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

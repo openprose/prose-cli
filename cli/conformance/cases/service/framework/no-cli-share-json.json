@@ -1,0 +1,48 @@
+{
+  "id": "no-cli-share-json",
+  "feature": "framework",
+  "operation": "run.share",
+  "description": "`prose --output json share` prints the INVOCATION_INVALID envelope whose suggestedArgv is `cli run share --help`, and the Action says the link is public and `cli org invite` gives one person access.",
+  "argv": [
+    "--output",
+    "json",
+    "share"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": null,
+      "operation": "cli",
+      "problem": {
+        "action": "`cli run share` makes a public, unrevocable 24-hour link; `cli org invite` gives one person access. Use `cli run share RUN_ID --preview`; `prose --output json cli run share --help` shows its arguments.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "`share` is not a command; did you mean `prose --output json cli run share --help`? `cli run share RUN_ID` mints a public, unrevocable 24-hour link to a run's artifacts; `cli org invite` gives one person access. Nothing was forwarded or sent. To pass these words to the OpenProse language instead, put `--` before them",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "share",
+            "--help"
+          ]
+        },
+        "exitCode": 2,
+        "message": "Unknown command.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

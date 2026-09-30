@@ -46,7 +46,23 @@
         "SERVICE_PROTOCOL_INVALID",
         "CREDENTIAL_STORE_UNAVAILABLE",
         "DEVICE_AUTH_FAILED",
-        "DEVICE_AUTH_EXPIRED"
+        "DEVICE_AUTH_EXPIRED",
+        "CONFIRMATION_REQUIRED",
+        "SERVICE_REQUEST_REJECTED",
+        "SERVICE_RESOURCE_NOT_FOUND",
+        "SERVICE_FEATURE_DISABLED",
+        "SERVICE_BALANCE_INSUFFICIENT",
+        "SERVICE_PREMIUM_MODEL_LOCKED",
+        "SERVICE_ACCOUNT_SUSPENDED",
+        "SERVICE_WRITE_CONFLICT",
+        "GITHUB_LINK_REQUIRED",
+        "SERVICE_RESPONSE_TOO_LARGE",
+        "SERVICE_WATCH_DEADLINE",
+        "HOSTED_RUN_FAILED",
+        "RUN_SUBMISSION_AMBIGUOUS",
+        "HOSTED_RUN_DETACHED",
+        "HOSTED_RUN_CANCELLED",
+        "EXAMPLE_NOT_VIEWABLE"
       ]
     },
     "boundary": {
@@ -134,6 +150,180 @@
         },
         "runtimePrerequisite": {
           "$ref": "common.schema.json#/$defs/runtimePrerequisiteObservation"
+        },
+        "serviceStatus": {
+          "description": "HTTP status of the classified service response.",
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 599
+        },
+        "serviceCode": {
+          "description": "Allowlisted service body code; other codes are dropped.",
+          "enum": [
+            "account_suspended",
+            "credit_grants_misconfigured",
+            "feature_disabled",
+            "immutable_organization_identity",
+            "invalid_account",
+            "invalid_cursor",
+            "invalid_environment",
+            "invalid_name",
+            "invalid_or_unavailable_code",
+            "invalid_reasoning_effort",
+            "invalid_request",
+            "invalid_role",
+            "invalid_slug",
+            "invalid_timestamp",
+            "model_deprecated",
+            "model_entitlement_unavailable",
+            "model_not_allowed",
+            "model_not_found",
+            "model_policy_mismatch",
+            "organization_deletion_unsupported",
+            "organization_forbidden",
+            "organization_not_found",
+            "paid_model_required",
+            "paid_top_up_required",
+            "provider_tier_unavailable",
+            "rate_limited",
+            "reserved_slug",
+            "slug_taken",
+            "wallet_exhausted",
+            "write_conflict"
+          ]
+        },
+        "serviceMessage": {
+          "description": "Sanitized service error text for HTTP 400, 409 and 422 on operations only; the API key is redacted.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+        },
+        "model": {
+          "description": "The premium model the service refused until the wallet is topped up (SERVICE_PREMIUM_MODEL_LOCKED).",
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9.-]{0,63}$"
+        },
+        "tier": {
+          "description": "The service tier of that premium model.",
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,31}$"
+        },
+        "runId": {
+          "type": "string",
+          "pattern": "^run_[A-Za-z0-9_-]{1,128}$"
+        },
+        "afterSequence": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "remote": {
+          "description": "True when a hosted run was cancelled by the service rather than by this process.",
+          "type": "boolean"
+        },
+        "session": {
+          "description": "Live-run session UUID recorded in the local run journal.",
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "resumable": {
+          "description": "True when the run continues on the service after the client stopped following it (exit 21); details.resumeArgv follows it again and details.cancelArgv stops it. Never resubmit to resume.",
+          "const": true
+        },
+        "resumeArgv": {
+          "description": "Arguments after the product name that recover this run without starting a second one: for exit 21, `cli run watch` of the run; for RUN_SUBMISSION_AMBIGUOUS (exit 22), the same `cli run submit` with the same --session and --detach, which the service answers with the session's existing run.",
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 256,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+          }
+        },
+        "suggestedArgv": {
+          "description": "Arguments after the product name of the command the Action names: a corrected copy of the rejected invocation, or a follow-up such as a listing or help rendered by the same renderer as resumeArgv. For machine output it keeps the invocation's --output. Present only on errors whose Action names one command. It is complete, so running it (with details.suggestedStdin on standard input when present) is never itself INVOCATION_INVALID.",
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 256,
+          "items": {
+            "type": "string"
+          }
+        },
+        "suggestedStdin": {
+          "description": "What to pipe into details.suggestedArgv when it reads a --spec-file from standard input: the JSON object of the settings given as options, then a newline. Never present for a secret.",
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 65536
+        },
+        "cancelArgv": {
+          "description": "Arguments after the product name that cancel this run with `cli run cancel --yes`.",
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 16,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+          }
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "plannedRequest": {
+          "$ref": "service-operation.schema.json#/$defs/plannedRequest"
+        },
+        "credentialSource": {
+          "description": "Where the API key of a SERVICE_AUTH_REQUIRED failure came from: the environment variable, the OS credential store, or none.",
+          "enum": [
+            "environment",
+            "store",
+            "none"
+          ]
+        },
+        "credentialVariable": {
+          "description": "The environment variable that supplies the API key.",
+          "enum": [
+            "OPENPROSE_API_KEY"
+          ]
+        },
+        "credentialProblem": {
+          "description": "Why authentication failed: no key, a key that fails the strict predicate, or a key the service rejected.",
+          "enum": [
+            "missing",
+            "malformed",
+            "rejected"
+          ]
+        },
+        "resource": {
+          "description": "The resource a SERVICE_RESOURCE_NOT_FOUND names: its kind (from the operation's manifest notFound entry, or the handler) and the identifier as the caller gave it.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "id"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "pattern": "^[a-z]+$"
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1024
+            }
+          }
+        },
+        "webUrl": {
+          "description": "EXAMPLE_NOT_VIEWABLE: the https address where the example can be read on the web.",
+          "type": "string",
+          "minLength": 9,
+          "maxLength": 2048,
+          "pattern": "^https://[!-~]+$"
         }
       }
     }
@@ -187,7 +377,13 @@
             "const": "invocation"
           },
           "message": {
-            "const": "Runner invocation is invalid."
+            "description": "`Runner invocation is invalid.` for the language and runner commands; a `cli` service command says what was wrong: an unknown command, an unknown option, or another mistake in the command line.",
+            "enum": [
+              "Runner invocation is invalid.",
+              "Unknown command.",
+              "Unknown option.",
+              "That command isn't quite right."
+            ]
           },
           "exitCode": {
             "const": 2
@@ -224,7 +420,7 @@
             "const": "The OpenProse service is unavailable."
           },
           "action": {
-            "const": "Check the selected service environment and retry later."
+            "const": "Check your network connection and retry later."
           }
         }
       }
@@ -255,7 +451,24 @@
             "const": "OpenProse service authentication is required."
           },
           "action": {
-            "const": "Run cli auth login for the selected service environment, then retry."
+            "description": "The taxonomy Action, or the credential-source-specific Action that names the environment variable: an environment key is replaced or unset, a stored key is renewed with login, a missing key names both ways to supply one, an unavailable store names the variable to set instead.",
+            "anyOf": [
+              {
+                "const": "Run cli auth login, then retry."
+              },
+              {
+                "pattern": "^Replace or unset OPENPROSE_API_KEY, then retry\\.$"
+              },
+              {
+                "pattern": "^Set OPENPROSE_API_KEY, then retry\\.$"
+              },
+              {
+                "pattern": "^Set OPENPROSE_API_KEY or run `prose (?:[^`]+ )?cli auth login`, then retry\\.$"
+              },
+              {
+                "pattern": "^Run `prose (?:[^`]+ )?cli auth login` again, or set OPENPROSE_API_KEY, then retry\\.$"
+              }
+            ]
           }
         }
       }
@@ -317,7 +530,19 @@
             "const": "The operating system credential store is unavailable."
           },
           "action": {
-            "const": "Unlock or configure the operating system credential store, then retry."
+            "description": "The taxonomy Action, or the credential-source-specific Action that names the environment variable: an environment key is replaced or unset, a stored key is renewed with login, a missing key names both ways to supply one, an unavailable store names the variable to set instead.",
+            "anyOf": [
+              {
+                "const": "Unlock or configure the operating system credential store, then retry."
+              },
+              {
+                "pattern": "^Set OPENPROSE_API_KEY for this command, or unlock or configure the operating system credential store, then retry\\.$"
+              },
+              {
+                "description": "macOS: a key saved by an earlier build that the keychain will not release without a prompt (shared/fixtures/credentials/macos-security.v1.json).",
+                "const": "Run the command in a desktop session and allow access in the macOS keychain prompt once, or set OPENPROSE_API_KEY for this command."
+              }
+            ]
           }
         }
       }
@@ -348,7 +573,7 @@
             "const": "Device authorization failed."
           },
           "action": {
-            "const": "Run login again for the selected service environment and authorize the displayed code."
+            "const": "Run login again and authorize the displayed code."
           }
         }
       }
@@ -379,7 +604,558 @@
             "const": "Device authorization expired."
           },
           "action": {
-            "const": "Run login again for the selected service environment to obtain a new code."
+            "const": "Run login again to obtain a new code."
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "code": {
+            "const": "CONFIRMATION_REQUIRED"
+          }
+        },
+        "required": [
+          "code"
+        ]
+      },
+      "then": {
+        "properties": {
+          "boundary": {
+            "const": "invocation"
+          },
+          "exitCode": {
+            "const": 2
+          },
+          "retryable": {
+            "const": false
+          },
+          "message": {
+            "const": "This service operation requires explicit confirmation."
+          },
+          "action": {
+            "const": "Rerun the same command with --yes to confirm, or with --preview to see what it would do without sending anything."
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "code": {
+            "const": "SERVICE_REQUEST_REJECTED"
+          }
+        },
+        "required": [
+          "code"
+        ]
+      },
+      "then": {
+        "properties": {
+          "boundary": {
+            "const": "hosted-service"
+          },
+          "exitCode": {
+            "const": 10
+          },
+          "retryable": {
+            "const": false
+          },
+          "message": {
+            "const": "The OpenProse service rejected the request."
+          },
+          "action": {
+            "description": "The taxonomy Action, or one that names only the details present (reason, serviceMessage, serviceCode), or, when none is present, the operation's help (also details.suggestedArgv).",
+            "anyOf": [
+              {
+                "const": "Correct the request using whichever of details.reason, details.serviceMessage and details.serviceCode are present, then retry."
+              },
+              {
+                "pattern": "^Correct the request as details\\.(reason|serviceMessage|serviceCode)((, | and )details\\.(serviceMessage|serviceCode))* describes?, then retry\\.$"
+              },
+              {
+                "pattern": "^The service gave no reason; check the command against `prose [^`]*`, then retry\\.$"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "code": {
+            "const": "SERVICE_RESOURCE_NOT_FOUND"
+          }
+        },
+        "required": [
+          "code"
+        ]
+      },
+      "then": {
+        "properties": {
+          "boundary": {
+            "const": "hosted-service"
+          },
+          "exitCode": {
+            "const": 10
+          },
+          "retryable": {
+            "const": false
+          },
+          "message": {
+            "const": "The requested OpenProse service resource was not found."
+          },
+          "action": {
+            "description": "The taxonomy Action, or one that quotes details.suggestedArgv, the listing command of the missing resource, or names the resource kind when no command lists it. Or, for a name with a close match among your own, the command with that name.",
+            "anyOf": [
+              {
+                "const": "Check the identifier, then retry."
+              },
+              {
+                "pattern": "^Run `prose [^`]*` to find the right [a-z]+, then retry with it\\.$"
+              },
+              {
+                "pattern": "^Check the [a-z]+ identifier named in Detail, then retry with the right one\\.$"
+              },
+              {
+                "pattern": "^Run `prose [^`]*`: [a-z0-9-]+ is the closest [a-z]+ you have\\.$"
+              },
+              {
+                "pattern": "^Use the listed path [^`]*: `prose [^`]*`\\.$"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "code": {
+            "const": "SERVICE_FEATURE_DISABLED"
+          }
+        },
+        "required": [
+          "code"
+        ]
+      },
+      "then": {
+        "properties": {
+          "boundary": {
+            "const": "hosted-service"
+          },
+          "exitCode": {
+            "const": 10
+          },
+          "retryable": {
+            "const": false
+          },
+          "message": {
+            "const": "This capability is not available for this account."
+          },
+          "action": {
+            "const": "Check your plan or organization, or contact OpenProse support."
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "code": {
+            "const": "SERVICE_BALANCE_INSUFFICIENT"
+          }
+        },
+        "required": [
+          "code"
+        ]
+      },
+      "then": {
+        "properties": {
+          "boundary": {
+            "const": "hosted-service"
+          },
+          "exitCode": {
+            "const": 10
+          },
+          "retryable": {
+            "const": false
+          },
+          "message": {
+            "const": "The OpenProse wallet balance is insufficient for this operation."
+          },
+          "action": {
+            "const": "Add credit with the `cli wallet topup` or `cli wallet redeem` runner operation, then retry."
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "code": {
+            "const": "SERVICE_PREMIUM_MODEL_LOCKED"
+          }
+        },
+        "required": [
+          "code"
+        ]
+      },
+      "then": {
+        "properties": {
+          "boundary": {
+            "const": "hosted-service"
+          },
+          "exitCode": {
+            "const": 10
+          },
+          "retryable": {
+            "const": false
+          },
+          "message": {
+            "const": "This model is a premium model that unlocks with any wallet top-up."
+          },
+          "action": {
+            "description": "The taxonomy Action, or the top-up preview that unlocks the model (also details.suggestedArgv), for details.serviceCode paid_top_up_required (or paid_model_required from older servers) or a premium model in the `cli model list` catalog.",
+            "anyOf": [
+              {
+                "const": "Top up the wallet with any amount using the `cli wallet topup` runner operation, then retry."
+              },
+              {
+                "pattern": "^Top up the wallet with any amount to unlock premium models; preview a top-up with `prose [^`]*`\\.$"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "code": {
+            "const": "SERVICE_ACCOUNT_SUSPENDED"
+          }
+        },
+        "required": [
+          "code"
+        ]
+      },
+      "then": {
+        "properties": {
+          "boundary": {
+            "const": "authentication"
+          },
+          "exitCode": {
+            "const": 10
+          },
+          "retryable": {
+            "const": false
+          },
+          "message": {
+            "const": "The OpenProse account is suspended."
+          },
+          "action": {
+            "const": "Contact OpenProse support; retrying will not succeed."
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "code": {
+            "const": "SERVICE_WRITE_CONFLICT"
+          }
+        },
+        "required": [
+          "code"
+        ]
+      },
+      "then": {
+        "properties": {
+          "boundary": {
+            "const": "hosted-service"
+          },
+          "exitCode": {
+            "const": 10
+          },
+          "retryable": {
+            "const": false
+          },
+          "message": {
+            "const": "The OpenProse service reported a conflicting write."
+          },
+          "action": {
+            "description": "The taxonomy Action, or the ended-run Action of `cli run input`: the run takes no more instructions, so it names `cli run show RUN_ID` (also details.suggestedArgv) instead of a retry.",
+            "anyOf": [
+              {
+                "const": "Read the current state of the resource, reconcile the change, then retry."
+              },
+              {
+                "pattern": "^Do not retry; the run takes no more instructions\\. Read its outcome with `prose [^`]* cli run show run_[A-Za-z0-9_-]{1,128}`\\.$"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "code": {
+            "const": "GITHUB_LINK_REQUIRED"
+          }
+        },
+        "required": [
+          "code"
+        ]
+      },
+      "then": {
+        "properties": {
+          "boundary": {
+            "const": "authentication"
+          },
+          "exitCode": {
+            "const": 10
+          },
+          "retryable": {
+            "const": false
+          },
+          "message": {
+            "const": "This operation needs a linked GitHub account on the OpenProse account."
+          },
+          "action": {
+            "const": "Link or reconnect GitHub for this account in the OpenProse web app, then retry; the API key itself is valid."
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "code": {
+            "const": "SERVICE_RESPONSE_TOO_LARGE"
+          }
+        },
+        "required": [
+          "code"
+        ]
+      },
+      "then": {
+        "properties": {
+          "boundary": {
+            "const": "protocol"
+          },
+          "exitCode": {
+            "const": 10
+          },
+          "retryable": {
+            "const": false
+          },
+          "message": {
+            "const": "The OpenProse service response exceeded the client limit."
+          },
+          "action": {
+            "const": "Narrow the request, for example with --limit or a more specific identifier, then retry."
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "code": {
+            "const": "SERVICE_WATCH_DEADLINE"
+          }
+        },
+        "required": [
+          "code"
+        ]
+      },
+      "then": {
+        "properties": {
+          "boundary": {
+            "const": "hosted-service"
+          },
+          "exitCode": {
+            "const": 21
+          },
+          "retryable": {
+            "const": false
+          },
+          "message": {
+            "const": "The watch deadline elapsed before the hosted run finished; the run continues."
+          },
+          "action": {
+            "const": "Resume with the `cli run watch` runner operation using details.resumeArgv (details.runId and details.afterSequence); never submit the run again to resume it."
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "code": {
+            "const": "HOSTED_RUN_FAILED"
+          }
+        },
+        "required": [
+          "code"
+        ]
+      },
+      "then": {
+        "properties": {
+          "boundary": {
+            "const": "hosted-service"
+          },
+          "exitCode": {
+            "const": 22
+          },
+          "retryable": {
+            "const": false
+          },
+          "message": {
+            "const": "The hosted run finished without completing successfully."
+          },
+          "action": {
+            "description": "The taxonomy Action, or the Action of the cause details.reason names (shared/fixtures/human/run-failure-actions.json): a run that ran out of budget or hit the step limit.",
+            "anyOf": [
+              {
+                "const": "Inspect the run with the `cli run show` runner operation, correct the program or inputs, then submit again."
+              },
+              {
+                "const": "Raise the run budget, choose another environment, or check `cli wallet balance`, then submit again."
+              },
+              {
+                "const": "Simplify the program or split it into steps, then submit again."
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "code": {
+            "const": "RUN_SUBMISSION_AMBIGUOUS"
+          }
+        },
+        "required": [
+          "code"
+        ]
+      },
+      "then": {
+        "properties": {
+          "boundary": {
+            "const": "protocol"
+          },
+          "exitCode": {
+            "const": 22
+          },
+          "retryable": {
+            "const": false
+          },
+          "message": {
+            "const": "The run submission could not be confirmed and was not repeated."
+          },
+          "action": {
+            "const": "List recent runs with the `cli run list` runner operation before submitting again; the local run journal keeps details.session."
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "code": {
+            "const": "HOSTED_RUN_DETACHED"
+          }
+        },
+        "required": [
+          "code"
+        ]
+      },
+      "then": {
+        "properties": {
+          "boundary": {
+            "const": "hosted-service"
+          },
+          "exitCode": {
+            "const": 21
+          },
+          "retryable": {
+            "const": false
+          },
+          "message": {
+            "const": "The client stopped following the hosted run before its outcome arrived; the run was not cancelled."
+          },
+          "action": {
+            "const": "Resume with the `cli run watch` runner operation using details.resumeArgv (details.runId and details.afterSequence); never submit the run again to resume it."
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "code": {
+            "const": "HOSTED_RUN_CANCELLED"
+          }
+        },
+        "required": [
+          "code"
+        ]
+      },
+      "then": {
+        "properties": {
+          "boundary": {
+            "const": "hosted-service"
+          },
+          "exitCode": {
+            "const": 24
+          },
+          "retryable": {
+            "const": false
+          },
+          "message": {
+            "const": "The hosted run was cancelled on the service and will not continue."
+          },
+          "action": {
+            "const": "Read the cancelled run with the `cli run show` runner operation using details.runId; submit again only to start a new run."
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "code": {
+            "const": "EXAMPLE_NOT_VIEWABLE"
+          }
+        },
+        "required": [
+          "code"
+        ]
+      },
+      "then": {
+        "properties": {
+          "boundary": {
+            "const": "invocation"
+          },
+          "exitCode": {
+            "const": 2
+          },
+          "retryable": {
+            "const": false
+          },
+          "message": {
+            "const": "This example is published outside the OpenProse service and cannot be shown here."
+          },
+          "action": {
+            "const": "Read the example on the web at details.webUrl when it is present, or pick an example that the `cli example list` runner operation does not mark viewOnWeb."
           }
         }
       }

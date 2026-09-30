@@ -1,0 +1,51 @@
+{
+  "id": "flag-before-cli-json",
+  "feature": "framework",
+  "operation": "run.list",
+  "description": "`--json` before `cli` is never forwarded to the language: INVOCATION_INVALID in JSON, with the argv that moves it after the command path.",
+  "argv": [
+    "--json",
+    "cli",
+    "run",
+    "list"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": null
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "runs.list",
+      "operation": "run.list",
+      "problem": {
+        "action": "Move --json after the command path: `prose cli run list --json`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "`--json` belongs after the command path, not before `cli`; nothing was forwarded or sent",
+          "suggestedArgv": [
+            "cli",
+            "run",
+            "list",
+            "--json"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "stderr": {
+    "empty": true
+  },
+  "suggestedArgvReaches": true
+}

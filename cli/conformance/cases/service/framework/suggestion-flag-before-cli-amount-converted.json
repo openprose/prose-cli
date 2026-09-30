@@ -1,0 +1,55 @@
+{
+  "id": "suggestion-flag-before-cli-amount-converted",
+  "feature": "framework",
+  "operation": "wallet.topup",
+  "description": "`--amount 5` before `cli` moves as `--amount-cents 500` (dollars converted to cents), never as `--amount-cents 5`.",
+  "argv": [
+    "--output",
+    "json",
+    "--amount",
+    "5",
+    "cli",
+    "wallet",
+    "topup",
+    "--preview"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "wallet.topup",
+      "operation": "wallet.topup",
+      "problem": {
+        "action": "Move --amount-cents after the command path: `prose --output json cli wallet topup --preview --amount-cents 500`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "`--amount 5` (--amount-cents 500, dollars converted to cents) belongs after the command path, not before `cli`; nothing was forwarded or sent",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "wallet",
+            "topup",
+            "--preview",
+            "--amount-cents",
+            "500"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}
