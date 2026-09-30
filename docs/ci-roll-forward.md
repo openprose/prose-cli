@@ -80,3 +80,11 @@ release-package help identity is refrozen to Raymond's current service commands
 The package account-status assertion uses the current service envelope and zero
 exit for logged-out status; the default unavailable-harness doctor still exits
 10. Two fresh installed-package machine-surface checks pass.
+
+The last local benchmark gate depended on another absent historical migration
+record. Those historical assertions are retired; current fixture collection now
+checks manifest digests, byte-identical reanalysis and privacy. That check caught
+absolute image/program/validator paths in exported identities. Admission still
+verifies exact input bytes, but public descriptors now use portable paths. All
+34 current benchmark contract tests pass. The fixture process is explicitly not
+a CLI performance measurement.

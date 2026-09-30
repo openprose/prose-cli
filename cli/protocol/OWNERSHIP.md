@@ -603,3 +603,7 @@ IMP-061 lease extension: `cli/bun/test/omp-custom.test.ts`, `cli/bun/test/omp-ta
 IMP-061 lease extension: `cli/conformance/release-package/invariants.v1.json` to bind the current hosted-service help bytes, and `.github/workflows/cli-ci.yml`, `cli/ci/check_workflows.py`, `cli/ci/test_check_workflows.py` to preload the Windows helper toolchain target before provider-free admission disables network access. This retains the offline gate rather than permitting toolchain downloads during it.
 
 IMP-061 lease extension: `cli/ci/release_package_admission.py` to update its closed current help identity together with the release-package invariant manifest. Exact byte length and digest checks remain frozen and tampering tests remain active.
+
+IMP-061 benchmark leases: `cli/benchmarks/tests/test_smoke_contract.py` and `cli/benchmarks/README.md`. Retire assertions against absent mechanically migrated historical evidence. Retain current snapshot/atomic custody and rig tests, and verify current fixture collection digests, privacy and deterministic reanalysis without claiming a CLI measurement.
+
+IMP-061 lease extension: `cli/benchmarks/runner/cli.py`. Current fixture collection revealed absolute image/program/validator paths in exported identities. Normalize only their public descriptors after exact input admission, preserving the verified digest and private execution authorities.
