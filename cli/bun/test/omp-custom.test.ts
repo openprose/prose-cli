@@ -1,7 +1,7 @@
 import {test,expect} from 'bun:test';
 import {installedProtocol} from '../src/adapters/protocols';
 import fixture from '../../shared/fixtures/adapters/tool-lifecycle/omp-custom.json';
-const run=(fs:any[])=>{const p=installedProtocol('omp/rpc','omp/18.0.9','fixture-tools',new Uint8Array());fs.forEach(f=>p.accept(f));return p};
+const run=(fs:any[])=>{const p=installedProtocol('omp/rpc','omp/18.0.9','fixture-tools',new Uint8Array(),true);fs.forEach(f=>p.accept(f));return p};
 test('OMP custom input is paired history, not a terminal',()=>{expect(run(fixture.slice(0,-1)).terminalEventObserved).toBe(false);expect(run(fixture).terminalEventObserved).toBe(true)});
 for(const content of ['opaque',[{type:'text',text:'opaque',textSignature:'sig'}],[{type:'image',data:'AA==',mimeType:'image/png',detail:'original',providerFile:{provider:'openai',id:'x'},url:'https://example.invalid/x'}]])test('custom typed content '+JSON.stringify(content),()=>{const f=structuredClone(fixture) as any[];for(const m of [f[9].message,f[10].message,f[14].messages[1]])m.content=content;expect(run(f).terminalEventObserved).toBe(true)});
 for(const [name,change] of Object.entries({

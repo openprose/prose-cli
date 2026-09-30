@@ -908,7 +908,7 @@ describe("provider-free installed adapter execution", () => {
           code: "PROCESS_CLEANUP_FAILED",
           details: {
             phase: "private-file-finalization",
-            resource: "owned-private-transport-files",
+            processResource: "owned-private-transport-files",
             adapterId,
             fallbackAttempted: false,
           },
