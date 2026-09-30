@@ -498,6 +498,8 @@ describe.skipIf(process.platform === "win32")("Prime owned harness service settl
         socketPath: string;
       }> = [];
       const running = runInstalledAdapter({
+        // This unit fixture exercises Prime's admitted host on either POSIX CI host.
+        platform: "darwin", arch: "arm64",
         adapterId: "prime/rpc",
         executable: harness,
         harnessVersion: "0.7.0",
