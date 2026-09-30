@@ -4872,6 +4872,22 @@ mod tests {
             );
             let discovery = inspect_installed_adapter(adapter, &config);
             let problem = discovery.problem.unwrap();
+            if let Err(expected) = installed_adapters::assert_platform_supported(
+                adapter,
+                installed_adapters::HostPlatform::current(),
+            ) {
+                assert_eq!(
+                    problem.code,
+                    ErrorCode::HarnessIncompatible,
+                    "{}",
+                    adapter.id()
+                );
+                assert_eq!(problem.details, expected.details, "{}", adapter.id());
+                assert_eq!(discovery.executable, None);
+                assert_eq!(discovery.version, None);
+                assert!(discovery.runtime_prerequisites.is_empty());
+                continue;
+            }
             assert_eq!(problem.code, ErrorCode::ConfigInvalid, "{}", adapter.id());
             assert_eq!(discovery.executable, None, "{}", adapter.id());
             assert_eq!(discovery.version, None, "{}", adapter.id());
@@ -4906,7 +4922,23 @@ mod tests {
                 Some("unqualified-model"),
                 "unsupported-profile",
             );
-            let problem = inspect_installed_adapter(adapter, &config).problem.unwrap();
+            let discovery = inspect_installed_adapter(adapter, &config);
+            assert_eq!(discovery.executable, None);
+            assert_eq!(discovery.version, None);
+            let problem = discovery.problem.unwrap();
+            if let Err(expected) = installed_adapters::assert_platform_supported(
+                adapter,
+                installed_adapters::HostPlatform::current(),
+            ) {
+                assert_eq!(
+                    problem.code,
+                    ErrorCode::HarnessIncompatible,
+                    "{}",
+                    adapter.id()
+                );
+                assert_eq!(problem.details, expected.details, "{}", adapter.id());
+                continue;
+            }
             assert_eq!(problem.code, ErrorCode::ConfigInvalid, "{}", adapter.id());
             assert_eq!(
                 problem.details.unwrap().get("reason"),

@@ -109,3 +109,10 @@ Fresh CodeQL run 36787732733 completed all four analyses and PR findings are
 empty. Native Linux source admission and the final head matrices remain pending.
 OMP's Linux environment-key isolation and early-EOF fixture checks remain active
 even though Prime-specific native cases are not admitted on Linux.
+
+Native Linux source run 36789532647 passed the credential tests and then found
+two remaining core tests expecting config validation before host admission.
+Both now assert the shared unsupported-host error and zero discovery on Linux;
+admitted hosts retain the original model/auth validation assertions. All other
+299 Linux core tests passed in that attempt; the repaired suite needs fresh
+Linux qualification. No production validation order is changed.
