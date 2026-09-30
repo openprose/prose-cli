@@ -758,7 +758,7 @@ fn successful_shutdown(value: &Value, id: &str) -> bool {
 fn cleanup_failure(_phase: &'static str) -> RunnerError {
     RunnerError::catalog(ErrorCode::ProcessCleanupFailed)
         .with_detail("phase", "owned-service-settlement")
-        .with_detail("resource", "owned-prime-harness-service")
+        .with_detail("processResource", "owned-prime-harness-service")
 }
 
 #[cfg(all(test, unix))]

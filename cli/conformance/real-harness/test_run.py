@@ -386,28 +386,26 @@ class RealHarnessRunnerTest(unittest.TestCase):
         self.assertFalse(process["settlement"]["strictContainmentClaimed"])
         runner.validate_evidence(evidence)
 
-    def test_retained_pre_enforcement_evidence_migrates_honestly(self) -> None:
-        path = HERE / "evidence/current/openrouter-deepseek.evidence.json"
-        retained = runner.enrich_retained_evidence(
-            runner.read_json(path), self.policy, self.matrix
-        )
-        self.assertEqual(
-            {
-                "limitBytesPerStream": 8192,
-                "enforcedLive": False,
-                "outputLimitExceeded": None,
-                "stdoutBytesObserved": retained["process"]["stdoutBytes"],
-                "stderrBytesObserved": retained["process"]["stderrBytes"],
-            },
-            retained["process"]["capture"],
-        )
-        self.assertIsNone(
-            retained["process"]["settlement"]["originalProcessGroupEmpty"]
-        )
-        self.assertFalse(
-            retained["process"]["settlement"]["detachedDescendantsContained"]
-        )
-        runner.validate_evidence(retained)
+    def test_current_evidence_requires_measured_capture_and_settlement(self) -> None:
+        route = deepcopy(self.matrix["routes"][0])
+        with tempfile.TemporaryDirectory() as raw:
+            env_file = Path(raw) / ".env"
+            env_file.write_text("IGNORED=x\n", "utf-8")
+            evidence = runner.run_route(
+                executable=self.fake,
+                executable_sha256=runner.executable_digest(self.fake),
+                observed_version="0.7.0",
+                policy=self.policy,
+                matrix=self.matrix,
+                route=route,
+                env_file=env_file,
+            )
+        runner.validate_evidence(evidence)
+        for missing in ("capture", "settlement"):
+            historical = deepcopy(evidence)
+            historical["process"].pop(missing)
+            with self.subTest(field=missing), self.assertRaises(runner.ConfigurationError):
+                runner.validate_evidence(historical)
 
     def test_evidence_rejects_strict_containment_or_inconsistent_capture(self) -> None:
         route = deepcopy(self.matrix["routes"][0])

@@ -1137,68 +1137,6 @@ def load_evidence(directory: Path) -> list[dict[str, Any]]:
     return evidence
 
 
-def enrich_retained_evidence(
-    value: dict[str, Any], policy: dict[str, Any], matrix: dict[str, Any]
-) -> dict[str, Any]:
-    """Recompute derived usage/retry facts from already-sanitized retained JSONL."""
-    events = parse_json_events(value["process"].get("sanitizedStdout", "").encode())
-    if value["policyId"] != policy["id"] or value["matrixId"] != matrix["id"]:
-        raise ConfigurationError("retained evidence IDs do not match frozen inputs")
-    value["policySha256"] = sha256_bytes(canonical_json(policy))
-    value["matrixSha256"] = sha256_bytes(canonical_json(matrix))
-    value["harness"]["name"] = matrix["harness"]["name"]
-    attempts = terminal_assistant_attempts(events)
-    value["observation"].update(
-        {
-            "usage": observed_usage(events),
-            "cost": observed_cost(events),
-            "assistantTerminalAttempts": len(attempts),
-            "harnessInternalRetryObserved": len(attempts) > 1,
-            "frozenRetryPolicySatisfied": len(attempts) <= 1,
-        }
-    )
-    value["observation"]["classification"] = classify(
-        ProcessObservation(
-            exit_code=value["process"]["exitCode"],
-            timed_out=value["process"]["timedOut"],
-            output_limit_exceeded=False,
-            duration_ms=value["process"]["durationMs"],
-            stdout=b"",
-            stderr=b"",
-            stdout_bytes_observed=0,
-            stderr_bytes_observed=0,
-        ),
-        bool(value["observation"]["assistantExactMatch"]),
-        int(value["observation"]["jsonEventsParsed"]),
-        attempts,
-    )
-    value["claims"]["exploratoryRouteCanary"] = True
-    value["claims"]["baseTransportObservation"] = False
-    value["process"].setdefault("stoppedAfterFirstAssistantFailure", False)
-    value["process"].setdefault(
-        "capture",
-        {
-            "limitBytesPerStream": int(policy["limits"]["maximumPersistedStreamBytes"]),
-            "enforcedLive": False,
-            "outputLimitExceeded": None,
-            "stdoutBytesObserved": int(value["process"]["stdoutBytes"]),
-            "stderrBytesObserved": int(value["process"]["stderrBytes"]),
-        },
-    )
-    value["process"].setdefault(
-        "settlement",
-        {
-            "scope": "original-posix-process-group",
-            "leaderReaped": True,
-            "streamsClosed": True,
-            "originalProcessGroupEmpty": None,
-            "detachedDescendantsContained": False,
-            "strictContainmentClaimed": False,
-        },
-    )
-    return value
-
-
 def command_validate(args: argparse.Namespace) -> int:
     policy = read_json(args.policy)
     matrix = read_json(args.matrix)
@@ -1231,23 +1169,6 @@ def command_report(args: argparse.Namespace) -> int:
     args.output_markdown.parent.mkdir(parents=True, exist_ok=True)
     args.output_markdown.write_text(report_markdown(report), "utf-8")
     return 0
-
-
-def command_enrich(args: argparse.Namespace) -> int:
-    policy = read_json(args.policy)
-    matrix = read_json(args.matrix)
-    validate_frozen_inputs(policy, matrix)
-    for path in sorted(args.evidence_dir.glob("*.evidence.json")):
-        value = enrich_retained_evidence(read_json(path), policy, matrix)
-        validate_evidence(value)
-        write_json(path, value)
-    return command_report(
-        argparse.Namespace(
-            evidence_dir=args.evidence_dir,
-            output_json=args.evidence_dir / "report.json",
-            output_markdown=args.evidence_dir / "REPORT.md",
-        )
-    )
 
 
 def command_run(args: argparse.Namespace) -> int:
@@ -1337,14 +1258,6 @@ def parser() -> argparse.ArgumentParser:
     report.add_argument("--output-json", type=Path, required=True)
     report.add_argument("--output-markdown", type=Path, required=True)
     report.set_defaults(handler=command_report)
-
-    enrich = subparsers.add_parser(
-        "enrich", help="recompute derived facts from retained sanitized evidence"
-    )
-    enrich.add_argument("--evidence-dir", type=Path, required=True)
-    enrich.add_argument("--policy", type=Path, default=DEFAULT_POLICY)
-    enrich.add_argument("--matrix", type=Path, default=DEFAULT_MATRIX)
-    enrich.set_defaults(handler=command_enrich)
 
     run = subparsers.add_parser("run", help="perform explicitly authorized real probes")
     run.add_argument("--policy", type=Path, default=DEFAULT_POLICY)

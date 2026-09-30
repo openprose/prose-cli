@@ -221,6 +221,12 @@ async function compile(input: Options): Promise<void> {
       name: "verified-openprose-image-bundle",
       setup(builder) {
         builder.onResolve({ filter: /current\.bundle\.bin$/u }, () => ({ path: input.bundle }));
+        // Undici uses __filename only to augment fetch diagnostics. A compiled
+        // client must not retain the build host's absolute dependency path.
+        builder.onLoad({ filter: /node_modules[\\/]undici[\\/]index\.js$/u }, async () => ({
+          contents: (await Bun.file(resolve(bunRoot, "node_modules/undici/index.js")).text()).replace(/\b__filename\b/gu, JSON.stringify("undici/index.js")),
+          loader: "js",
+        }));
       },
     }],
   });

@@ -8,6 +8,7 @@ import base64
 import hashlib
 import json
 import os
+import platform
 from pathlib import Path
 import signal
 import subprocess
@@ -45,8 +46,8 @@ RUNNER_METADATA_PATH = (
 )
 
 PRODUCT_DEFAULTS = {
-    "rust": CLI / "rust" / "target" / "openprose-ordinary" / "debug" / "prose",
-    "bun": CLI / "bun" / "dist" / "prose",
+    "rust": CLI / "rust" / "target" / "openprose-adapter-fixture" / "debug" / "prose",
+    "bun": CLI / "bun" / "dist" / "prose-adapter-fixture",
 }
 PRODUCT_OVERRIDES = {
     "rust": "OPENPROSE_RUST_BIN",
@@ -68,6 +69,103 @@ def sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def build_fixture_products() -> None:
+    """Build exact opaque echo inputs without test seams or ambient overrides."""
+    allowed = (
+        "PATH",
+        "HOME",
+        "TMPDIR",
+        "TMP",
+        "TEMP",
+        "SystemRoot",
+        "WINDIR",
+        "PATHEXT",
+        "RUSTUP_HOME",
+        "CARGO_HOME",
+        "RUSTUP_TOOLCHAIN",
+        "DEVELOPER_DIR",
+        "SDKROOT",
+        "LANG",
+        "LC_ALL",
+    )
+    environment = {key: os.environ[key] for key in allowed if key in os.environ}
+    environment.update(
+        {
+            "HTTP_PROXY": "http://127.0.0.1:9",
+            "HTTPS_PROXY": "http://127.0.0.1:9",
+            "ALL_PROXY": "http://127.0.0.1:9",
+            "NO_PROXY": "",
+        }
+    )
+    with tempfile.TemporaryDirectory(prefix="openprose-adapter-image-") as temporary:
+        bundle = Path(temporary) / "echo.bundle.bin"
+        checksum = Path(temporary) / "echo.bundle.sha256"
+        subprocess.run(
+            [
+                sys.executable,
+                str(SHARED / "image/bundle/image_bundle.py"),
+                "build",
+                str(IMAGE_ROOT),
+                str(bundle),
+                "--checksum",
+                str(checksum),
+            ],
+            cwd=CLI.parent,
+            env=environment,
+            stdin=subprocess.DEVNULL,
+            check=True,
+            timeout=120,
+        )
+        build_environment = {
+            **environment,
+            "OPENPROSE_IMAGE_SOURCE_DIR": str(IMAGE_ROOT),
+            "OPENPROSE_IMAGE_BUNDLE": str(bundle),
+            "OPENPROSE_IMAGE_BUNDLE_CHECKSUM": str(checksum),
+        }
+        subprocess.run(
+            [
+                "cargo",
+                "build",
+                "--locked",
+                "--offline",
+                "-p",
+                "prose-cli",
+                "--bin",
+                "prose",
+                "--target-dir",
+                str(PRODUCT_DEFAULTS["rust"].parents[1]),
+            ],
+            cwd=CLI / "rust",
+            env=build_environment,
+            stdin=subprocess.DEVNULL,
+            check=True,
+            timeout=600,
+        )
+        subprocess.run(
+            [
+                "bun",
+                "--no-env-file",
+                f"--config={CLI / 'bun/config/empty-bunfig.toml'}",
+                "run",
+                str(CLI / "bun/scripts/image-bundle.ts"),
+                "build",
+                "--image-dir",
+                str(IMAGE_ROOT),
+                "--bundle",
+                str(bundle),
+                "--checksum",
+                str(checksum),
+                "--outfile",
+                str(PRODUCT_DEFAULTS["bun"]),
+            ],
+            cwd=CLI / "bun",
+            env=build_environment,
+            stdin=subprocess.DEVNULL,
+            check=True,
+            timeout=120,
+        )
+
+
 class AdapterProductAdversary(unittest.TestCase):
     maxDiff = None
 
@@ -79,6 +177,11 @@ class AdapterProductAdversary(unittest.TestCase):
             recipe["adapterId"]: recipe
             for recipe in (load_json(path) for path in sorted(RECIPES.glob("*.json")))
         }
+        # Ordinary products use the current native developer channel; framed
+        # sentinel transport remains covered by the separate shared fixture lane.
+        cls.recipes["codex/exec-json"] = load_json(
+            RECIPES / "codex-exec-json-developer.v1.json"
+        )
         cls.scenarios = {
             scenario["adapterId"]: scenario
             for scenario in (
@@ -154,16 +257,41 @@ class AdapterProductAdversary(unittest.TestCase):
             "prime/rpc",
             "omp/rpc",
         }
+        cohort = load_json(
+            SHARED / "capabilities" / "adapters" / "functional-alpha.v1.json"
+        )
+        cohort_ids = {entry["adapterId"] for entry in cohort["adapters"]}
         if not (
-            set(cls.adapters)
-            == set(cls.recipes)
-            == set(cls.scenarios)
-            == set(cls.cases)
-            == expected_ids
+            cohort_ids == set(cls.cases) == expected_ids
+            and cohort_ids <= set(cls.adapters)
+            and cohort_ids <= set(cls.recipes)
+            and cohort_ids <= set(cls.scenarios)
         ):
             raise AssertionError(
-                "shared adapter authorities do not name the same four IDs"
+                "installed adapter authorities do not match the shared cohort"
             )
+        # Additional oracle-only adapters are tested separately. In particular,
+        # the SDK fixture must not silently become an installed-admission claim.
+        cls.adapters = {
+            key: value for key, value in cls.adapters.items() if key in cohort_ids
+        }
+        cls.recipes = {
+            key: value for key, value in cls.recipes.items() if key in cohort_ids
+        }
+        cls.scenarios = {
+            key: value for key, value in cls.scenarios.items() if key in cohort_ids
+        }
+
+    def supports_host(self, adapter_id: str) -> bool:
+        os_id = {"Darwin": "darwin", "Linux": "linux", "Windows": "win32"}.get(platform.system(), platform.system().lower())
+        arch = {"x86_64": "x64", "AMD64": "x64", "aarch64": "arm64"}.get(platform.machine(), platform.machine())
+        candidates = {f"{os_id}-{arch}"}
+        if os_id == "linux":
+            libc = "musl" if platform.libc_ver()[0] == "musl" else "gnu"
+            candidates.add(f"linux-{arch}-{libc}")
+            if libc == "gnu":
+                candidates.add(f"linux-{arch}-musl")
+        return bool(candidates.intersection(self.recipes[adapter_id]["support"]["platforms"]))
 
     @staticmethod
     def case_adapter_id(case: dict[str, Any]) -> str:
@@ -207,7 +335,9 @@ class AdapterProductAdversary(unittest.TestCase):
     @staticmethod
     def configured_argv(adapter_id: str, argv: list[str]) -> list[str]:
         if adapter_id in {"prime/rpc", "omp/rpc"} and "--model" not in argv:
-            raise AssertionError("Prime/OMP product cases must carry one explicit model")
+            raise AssertionError(
+                "Prime/OMP product cases must carry one explicit model"
+            )
         return list(argv)
 
     def make_environment(
@@ -326,6 +456,7 @@ class AdapterProductAdversary(unittest.TestCase):
     def test_missing_installed_harnesses_fail_without_fallback_or_spawn(self) -> None:
         for product_name, product in self.available_products():
             for adapter_id, case in self.cases.items():
+                error_code = "HARNESS_UNAVAILABLE" if self.supports_host(adapter_id) else "HARNESS_INCOMPATIBLE"
                 for repetition in range(3):
                     with self.subTest(
                         product=product_name,
@@ -361,8 +492,8 @@ class AdapterProductAdversary(unittest.TestCase):
                             result,
                             adapter_id,
                             {
-                                "errorCode": "HARNESS_UNAVAILABLE",
-                                "errorAction": self.errors["HARNESS_UNAVAILABLE"][
+                                "errorCode": error_code,
+                                "errorAction": self.errors[error_code][
                                     "action"
                                 ],
                                 "exitCode": 10,
@@ -372,6 +503,8 @@ class AdapterProductAdversary(unittest.TestCase):
     def test_auto_selects_only_declared_baseline_without_fallback(self) -> None:
         for product_name, product in self.available_products():
             for adapter_id, case in self.cases.items():
+                if not self.supports_host(adapter_id):
+                    continue
                 with self.subTest(
                     product=product_name, adapter=adapter_id
                 ), tempfile.TemporaryDirectory(prefix="openprose-adversary-") as root:
@@ -424,7 +557,7 @@ class AdapterProductAdversary(unittest.TestCase):
         self.assertIs(entry.get("strictWrapperConformant"), False, entry)
         availability = entry.get("availability")
         if isinstance(availability, str):
-            self.assertEqual("missing", availability, entry)
+            self.assertEqual("missing" if self.supports_host(f"{harness}/{transport}") else "incompatible", availability, entry)
         elif "available" in entry:
             self.assertIs(entry["available"], False, entry)
 
@@ -485,6 +618,8 @@ class AdapterProductAdversary(unittest.TestCase):
     def test_doctor_reports_selected_missing_adapter(self) -> None:
         for product_name, product in self.available_products():
             for adapter_id, case in self.cases.items():
+                if not self.supports_host(adapter_id):
+                    continue
                 with self.subTest(
                     product=product_name, adapter=adapter_id
                 ), tempfile.TemporaryDirectory(prefix="openprose-adversary-") as root:
@@ -551,6 +686,8 @@ class AdapterProductAdversary(unittest.TestCase):
         isolation = {"advisory": "partial", "unsupported": "unsupported"}
         for product_name, product in self.available_products():
             for adapter_id, case in self.cases.items():
+                if not self.supports_host(adapter_id):
+                    continue
                 with self.subTest(
                     product=product_name, adapter=adapter_id
                 ), tempfile.TemporaryDirectory(prefix="openprose-adversary-") as root:
@@ -682,6 +819,12 @@ class AdapterProductAdversary(unittest.TestCase):
             "executable": observed[0],
             "cwd": str(workspace.resolve()),
             "image-utf8": self.echo_image_bytes.decode("utf-8"),
+            "image-developer-config": "developer_instructions="
+            + json.dumps(
+                self.echo_image_bytes.decode("utf-8"),
+                ensure_ascii=False,
+                separators=(",", ":"),
+            ).replace("\x7f", "\\u007f"),
             "task-json": task_bytes.decode("utf-8"),
             "model": model,
         }
@@ -712,16 +855,7 @@ class AdapterProductAdversary(unittest.TestCase):
         self.assertEqual(len(stdin), observation["stdin"]["byteLength"])
         self.assertEqual(sha256(stdin), observation["stdin"]["sha256"])
         if adapter_id == "codex/exec-json":
-            framed = (
-                self.echo_framing.replace(
-                    "{{IMAGE_SHA256}}", sha256(self.echo_image_bytes)
-                )
-                .replace("{{IMAGE_BYTES}}", self.echo_image_bytes.decode("utf-8"))
-                .replace("{{TASK_SHA256}}", sha256(task_bytes))
-                .replace("{{TASK_JSON}}", task_bytes.decode("utf-8"))
-                .encode("utf-8")
-            )
-            self.assertEqual(framed, stdin)
+            self.assertEqual(task_bytes, stdin)
         elif adapter_id in {"prime/rpc", "omp/rpc"}:
             lines = stdin.splitlines()
             if adapter_id == "omp/rpc":
@@ -740,9 +874,11 @@ class AdapterProductAdversary(unittest.TestCase):
                 frame = json.loads(lines[0])
             self.assertEqual("prompt", frame["type"])
             self.assertEqual(
-                f"{invocation_id}.omp.prompt.1"
-                if adapter_id == "omp/rpc"
-                else invocation_id,
+                (
+                    f"{invocation_id}.omp.prompt.1"
+                    if adapter_id == "omp/rpc"
+                    else invocation_id
+                ),
                 frame["id"],
             )
             self.assertEqual(task_bytes, frame["message"].encode("utf-8"))
@@ -849,6 +985,8 @@ class AdapterProductAdversary(unittest.TestCase):
         adapter_projections: dict[str, dict[str, list[dict[str, Any]]]] = {}
 
         for adapter_id, recipe in self.recipes.items():
+            if not self.supports_host(adapter_id):
+                continue
             harness, transport = adapter_id.split("/", 1)
             adapter_projections[adapter_id] = {}
             with tempfile.TemporaryDirectory(prefix="openprose-alpha-parity-") as root:
@@ -925,7 +1063,8 @@ class AdapterProductAdversary(unittest.TestCase):
                         recipe_path = next(
                             path
                             for path in RECIPES.glob("*.json")
-                            if load_json(path)["adapterId"] == adapter_id
+                            if load_json(path)["recipeVersion"]
+                            == recipe["recipeVersion"]
                         )
                         self.assertEqual(
                             sha256(recipe_path.read_bytes()),
@@ -1031,9 +1170,9 @@ class AdapterProductAdversary(unittest.TestCase):
                             task_bytes,
                             result["invocationId"],
                         )
-                        adapter_projections[adapter_id][
-                            product_name
-                        ] = self.normalized_success_projection(records)
+                        adapter_projections[adapter_id][product_name] = (
+                            self.normalized_success_projection(records)
+                        )
 
             with self.subTest(adapter=adapter_id, comparison="normalized-parity"):
                 self.assertEqual({"rust", "bun"}, set(adapter_projections[adapter_id]))
@@ -1054,6 +1193,8 @@ class AdapterProductAdversary(unittest.TestCase):
             "prime/rpc": "prime-harness-login",
             "omp/rpc": "omp-harness-login",
         }.items():
+            if not self.supports_host(adapter_id):
+                continue
             harness, transport = adapter_id.split("/", 1)
             with tempfile.TemporaryDirectory(prefix="openprose-login-parity-") as root:
                 temporary = Path(root)
@@ -1199,6 +1340,8 @@ class AdapterProductAdversary(unittest.TestCase):
             ("prime/rpc", "PRIME_AGENT_CODING_AGENT_DIR", "PI_CODING_AGENT_DIR"),
             ("omp/rpc", "PI_CODING_AGENT_DIR", "PRIME_AGENT_CODING_AGENT_DIR"),
         ]:
+            if not self.supports_host(adapter_id):
+                continue
             harness, transport = adapter_id.split("/", 1)
             for product_name, product in self.available_products():
                 with self.subTest(
@@ -1299,9 +1442,11 @@ class AdapterProductAdversary(unittest.TestCase):
             "prime/rpc": ("prime-agent", "prime-agent 0.7.1", "prime-harness-login"),
             "omp/rpc": ("omp", "omp/18.0.10", "omp-harness-login"),
             "codex/exec-json": ("codex", "codex-cli 0.149.0-alpha.4.2", None),
-            "claude/print-stream-json": ("claude", "2.1.244 (Claude Code)", None),
+            "claude/print-stream-json": ("claude", "2.1.242 (Claude Code)", None),
         }
         for adapter_id, (executable_name, detected, auth_profile) in adjacent.items():
+            if not self.supports_host(adapter_id):
+                continue
             harness, transport = adapter_id.split("/", 1)
             with tempfile.TemporaryDirectory(
                 prefix="openprose-version-parity-"
@@ -1503,6 +1648,8 @@ class AdapterProductAdversary(unittest.TestCase):
     def test_prime_parser_diagnostic_is_exact_safe_and_cross_product_equivalent(
         self,
     ) -> None:
+        if not self.supports_host("prime/rpc"):
+            self.skipTest("Prime recipe does not admit this host; macOS ARM64 CI qualifies it")
         if os.name == "nt":  # pragma: no cover - Prime is not admitted on Windows
             self.skipTest("Prime parser diagnostics are POSIX-only")
         cases = {
@@ -1633,6 +1780,8 @@ class AdapterProductAdversary(unittest.TestCase):
     def test_prime_text_only_index_zero_success_is_cross_product_equivalent(
         self,
     ) -> None:
+        if not self.supports_host("prime/rpc"):
+            self.skipTest("Prime recipe does not admit this host; macOS ARM64 CI qualifies it")
         if os.name == "nt":  # pragma: no cover - Prime is not admitted on Windows
             self.skipTest("Prime text-only RPC lifecycle is POSIX-only")
         projections: dict[str, dict[str, Any]] = {}
@@ -1703,6 +1852,8 @@ class AdapterProductAdversary(unittest.TestCase):
     def test_prime_owned_service_cleanup_precedes_every_run_exit_mode_with_parity(
         self,
     ) -> None:
+        if not self.supports_host("prime/rpc"):
+            self.skipTest("Prime recipe does not admit this host; macOS ARM64 CI qualifies it")
         if os.name == "nt":  # pragma: no cover - Prime is not admitted on Windows
             self.skipTest("Prime owned Unix service settlement is POSIX-only")
         projections: dict[str, dict[str, dict[str, Any]]] = {}
@@ -1824,7 +1975,7 @@ class AdapterProductAdversary(unittest.TestCase):
                     self.assertEqual(
                         {
                             "phase": "owned-service-settlement",
-                            "resource": "owned-prime-harness-service",
+                            "processResource": "owned-prime-harness-service",
                             "adapterId": "prime/rpc",
                             "fallbackAttempted": False,
                         },
@@ -1960,4 +2111,7 @@ class AdapterProductAdversary(unittest.TestCase):
 
 
 if __name__ == "__main__":
+    if "--build" in sys.argv:
+        sys.argv.remove("--build")
+        build_fixture_products()
     unittest.main(verbosity=2)

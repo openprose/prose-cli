@@ -44,6 +44,14 @@ const UNVERIFIED: &str = "Cannot retrieve or verify the published kernel; no fal
 ///
 /// Each request runs on its own thread, so cancellation (`CANCELLED`) and the
 /// deadline (`STARTUP_TIMEOUT`) end the wait at once, also mid-request.
+///
+/// # Errors
+/// Returns a startup, image or transport error if retrieval is cancelled,
+/// exceeds a bound, or fails the pinned identity and content checks.
+///
+/// # Panics
+/// Panics if compile-time policy or template JSON is invalid. Shared contract
+/// tests validate these repository-owned inputs before source admission.
 pub fn published_kernel(
     cancellation: &crate::CancellationToken,
 ) -> Result<RuntimeImage, RunnerError> {
@@ -133,13 +141,22 @@ fn too_large(limit: usize) -> RunnerError {
 }
 
 /// Provider-free acquisition seam; callers supply HTTP observations, not prose semantics.
+///
+/// # Errors
+/// Returns a startup, image or transport error if retrieval is cancelled,
+/// exceeds a bound, or fails the pinned identity and content checks.
+///
+/// # Panics
+/// Panics if compile-time policy or template JSON is invalid. Shared contract
+/// tests validate these repository-owned inputs before source admission.
 pub fn published_kernel_with(
     mut get: impl FnMut(&str, usize) -> Result<KernelResponse, RunnerError>,
 ) -> Result<RuntimeImage, RunnerError> {
     let policy: Value = serde_json::from_str(POLICY).expect("kernel policy");
     let entry = policy["entry"].as_str().expect("entry");
     let origin = policy["origin"].as_str().expect("origin");
-    let metadata_limit = policy["maxMetadataBytes"].as_u64().expect("limit") as usize;
+    let metadata_limit = usize::try_from(policy["maxMetadataBytes"].as_u64().expect("limit"))
+        .map_err(|_| invalid("Kernel metadata limit exceeds this platform"))?;
     let response = get(entry, metadata_limit)?;
     let location = response
         .location
@@ -203,7 +220,8 @@ pub fn published_kernel_with(
     }
     let kernel = read(
         &url,
-        policy["maxKernelBytes"].as_u64().expect("kernel limit") as usize,
+        usize::try_from(policy["maxKernelBytes"].as_u64().expect("kernel limit"))
+            .map_err(|_| invalid("Kernel byte limit exceeds this platform"))?,
     )?;
     if kernel.is_empty() || sha256_hex(&kernel) != kernel_hash {
         return Err(invalid("Published kernel content digest mismatch."));
@@ -239,7 +257,8 @@ mod tests {
         published_kernel_with(|url, _| {
             let r = &fixture["responses"][url];
             Ok(KernelResponse {
-                status: r["status"].as_u64().expect("fixture status") as u16,
+                status: u16::try_from(r["status"].as_u64().expect("fixture status"))
+                    .expect("fixture status fits HTTP"),
                 location: r["location"].as_str().map(str::to_owned),
                 bytes: r["text"]
                     .as_str()

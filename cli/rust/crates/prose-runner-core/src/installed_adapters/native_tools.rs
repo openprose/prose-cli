@@ -277,8 +277,8 @@ struct PrimeDrain {
     session: String,
     segment_closed: bool,
     resumed: bool,
-    queue_observed: bool,
-    queue_empty: bool,
+    // None until observed; each snapshot records whether the queue is empty.
+    queue_empty: Option<bool>,
     children: BTreeMap<String, String>,
     previews: std::collections::BTreeSet<String>,
     used: std::collections::BTreeSet<String>,
@@ -334,11 +334,12 @@ impl PrimeDrain {
         if candidate && a.get("active").is_some() {
             return false;
         }
-        self.queue_observed = true;
-        self.queue_empty = a["queuedCount"] == 0
-            && a["steering"].as_array().is_some_and(Vec::is_empty)
-            && a["followUps"].as_array().is_some_and(Vec::is_empty)
-            && a.get("active").is_none();
+        self.queue_empty = Some(
+            a["queuedCount"] == 0
+                && a["steering"].as_array().is_some_and(Vec::is_empty)
+                && a["followUps"].as_array().is_some_and(Vec::is_empty)
+                && a.get("active").is_none(),
+        );
         for k in ["steering", "followUps"] {
             for v in a[k].as_array().unwrap() {
                 self.previews.insert(v.as_str().unwrap().into());
@@ -539,7 +540,7 @@ pub(super) fn normalize_mode(
             match omp_extension_ui_disposition(r) {
                 OmpExtensionUiDisposition::Presentation => continue,
                 OmpExtensionUiDisposition::Blocked => return Err(fail()),
-                _ => return Err(bad()),
+                OmpExtensionUiDisposition::Malformed => return Err(bad()),
             }
         }
         if !ready {
@@ -575,11 +576,11 @@ pub(super) fn normalize_mode(
                 {
                     return Err(bad());
                 }
-                drain_state.session = r["data"]["sessionId"]
+                r["data"]["sessionId"]
                     .as_str()
                     .filter(|s| !s.is_empty())
                     .ok_or_else(bad)?
-                    .to_owned();
+                    .clone_into(&mut drain_state.session);
                 continue;
             }
             if omp && !inventory {
@@ -666,7 +667,7 @@ pub(super) fn normalize_mode(
         if drain && drain_state.segment_closed && matches!(kind, "turn_start" | "message_start") {
             drain_state.segment_closed = false;
             drain_state.resumed = true;
-            drain_state.queue_empty = false;
+            drain_state.queue_empty = Some(false);
             history.clear();
         }
         match kind {
@@ -771,7 +772,8 @@ pub(super) fn normalize_mode(
                 {
                     return Err(bad());
                 }
-                let index = e["contentIndex"].as_u64().ok_or_else(bad)? as usize;
+                let index = usize::try_from(e["contentIndex"].as_u64().ok_or_else(bad)?)
+                    .map_err(|_| bad())?;
                 let expected = if t.starts_with("toolcall_") {
                     "toolCall"
                 } else {
@@ -985,8 +987,8 @@ pub(super) fn normalize_mode(
         && (!ended
             || !ack
             || (drain
-                && (drain_state.resumed || drain_state.queue_observed)
-                && !drain_state.queue_empty))
+                && (drain_state.resumed || drain_state.queue_empty.is_some())
+                && drain_state.queue_empty != Some(true)))
     {
         return Err(bad());
     }
@@ -1271,10 +1273,6 @@ fn task_args_match(
     name: &str,
     defaults: (bool, bool),
 ) -> bool {
-    if !omp || name != "task" || defaults == (false, false) {
-        return native_args_match(actual, declared, omp);
-    }
-    let mut d = declared.clone();
     fn apply(a: &Value, b: &mut Value) {
         if a.is_object() && a["agent"] == "task" {
             if let Some(o) = b.as_object_mut() {
@@ -1284,6 +1282,10 @@ fn task_args_match(
             }
         }
     }
+    if !omp || name != "task" || defaults == (false, false) {
+        return native_args_match(actual, declared, omp);
+    }
+    let mut d = declared.clone();
     if defaults.0 {
         apply(actual, &mut d);
     }

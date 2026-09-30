@@ -285,7 +285,7 @@ export async function settlePrimeOwnedService(input: PrimeOwnedServiceSettlement
 function cleanupFailure(_phase: string) {
   return failure("PROCESS_CLEANUP_FAILED", {
     phase: "owned-service-settlement",
-    resource: "owned-prime-harness-service",
+    processResource: "owned-prime-harness-service",
     adapterId: "prime/rpc",
     fallbackAttempted: false,
   });

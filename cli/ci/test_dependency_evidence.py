@@ -210,7 +210,7 @@ class DependencyEvidenceTests(unittest.TestCase):
         self.assertEqual(
             len(report["inventories"]["windowsProcessHostCargo"]["packages"]), 14
         )
-        self.assertEqual(len(report["inventories"]["bun"]["packages"]), 12)
+        self.assertEqual(len(report["inventories"]["bun"]["packages"]), 13)
         for source in report["sources"]:
             self.assertRegex(source["sha256"], r"^[0-9a-f]{64}$")
             self.assertGreater(source["byteLength"], 0)
@@ -256,6 +256,7 @@ class DependencyEvidenceTests(unittest.TestCase):
             for package in report["inventories"]["bun"]["packages"]
         }
         self.assertEqual(bun["ajv"], ["development", "runtime"])
+        self.assertEqual(bun["undici"], ["runtime"])
         self.assertEqual(bun["ajv-formats"], ["development"])
         for name in (
             "fast-deep-equal",

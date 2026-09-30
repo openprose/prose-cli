@@ -31,9 +31,9 @@ describe("opaque runtime image verification", () => {
     const path = sentinelImage.manifest.payload[0]!.path;
     const files = new Map(sentinelImage.files);
     const original = new TextDecoder().decode(files.get(path)!);
-    files.set(path, new TextEncoder().encode(original.replace("\n", "\r\n")));
+    files.set(path, new TextEncoder().encode(original.replaceAll("\n", "\r\n")));
     const manifest = structuredClone(sentinelImage.manifest);
-    manifest.payload[0]!.byteLength += 1;
+    manifest.payload[0]!.byteLength = files.get(path)!.byteLength;
     // The digest intentionally remains unchanged: either normalization or hash
     // verification must reject the modified source bytes.
     await expect(verifyRuntimeImage({ manifest, files })).rejects.toMatchObject({ code: "IMAGE_INVALID" });

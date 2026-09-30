@@ -3,6 +3,7 @@
 //! projection unit tests live in `prose-runner-core` (`service::wallet`).
 use serde_json::Value;
 use sha2::{Digest, Sha256};
+use std::fmt::Write as _;
 use std::path::Path;
 use std::process::{Command, Output};
 use tempfile::TempDir;
@@ -109,5 +110,8 @@ fn invalid_wallet_inputs_fail_before_any_request() {
 }
 
 fn hex(bytes: &[u8]) -> String {
-    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+    bytes.iter().fold(String::new(), |mut text, byte| {
+        write!(text, "{byte:02x}").unwrap();
+        text
+    })
 }

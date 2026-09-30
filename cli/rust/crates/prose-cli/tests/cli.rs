@@ -1177,6 +1177,13 @@ fn operation_fixture(name: &str) -> Value {
     serde_json::from_str(source).unwrap()
 }
 
+fn harness_supported(harness: &str) -> bool {
+    use prose_runner_core::installed_adapters::{
+        HostPlatform, assert_platform_supported, for_harness,
+    };
+    assert_platform_supported(for_harness(harness).unwrap(), HostPlatform::current()).is_ok()
+}
+
 fn expected_harness_inventory() -> Value {
     let mut harnesses = operation_fixture("harnesses")["harnesses"].clone();
     // The generic SDK adapter was added after the older operation fixture.
@@ -1189,7 +1196,11 @@ fn expected_harness_inventory() -> Value {
         harnesses.as_array_mut().unwrap().insert(5,json!({"id":"agents-sdk","runtime":"installed-process","availability":"missing","transports":["jsonl"],"detectedVersion":null,"billingOwner":"user-provider","authCategory":"harness-managed","strictWrapperConformant":false,"testOnly":false}));
     }
     for harness in &mut harnesses.as_array_mut().unwrap()[1..6] {
-        harness["availability"] = json!("missing");
+        harness["availability"] = json!(if harness_supported(harness["id"].as_str().unwrap()) {
+            "missing"
+        } else {
+            "incompatible"
+        });
         harness["detectedVersion"] = Value::Null;
         harness["strictWrapperConformant"] = json!(false);
         harness.as_object_mut().unwrap().remove("admissionBlock");
@@ -1400,6 +1411,11 @@ fn installed_adapters_fail_honestly_before_spawn_when_configuration_or_binary_is
         ("omp", "rpc", "omp/rpc", "CONFIG_INVALID", 2),
     ];
     for (harness, transport, adapter_id, error_code, exit_code) in cases {
+        let (error_code, exit_code) = if harness_supported(harness) {
+            (error_code, exit_code)
+        } else {
+            ("HARNESS_INCOMPATIBLE", 10)
+        };
         let temp = TempDir::new().unwrap();
         let output = prose(
             temp.path(),
@@ -1681,6 +1697,9 @@ fn provider_free_installed_adapters_preserve_bytes_and_settle_the_echo_placehold
         ("omp", "rpc", "omp/rpc", true),
     ];
     for (harness, transport, adapter_id, has_image_file) in cases {
+        if !harness_supported(harness) {
+            continue;
+        }
         let temp = TempDir::new().unwrap();
         let hostile_project_config = temp.path().join(".omp/config.yml");
         if adapter_id == "omp/rpc" {
@@ -1861,6 +1880,9 @@ fn private_file_cleanup_failure_dominates_installed_success_and_child_failure_wi
         ("prime", "rpc", "prime/rpc"),
         ("omp", "rpc", "omp/rpc"),
     ] {
+        if !harness_supported(harness) {
+            continue;
+        }
         for child_failure in [false, true] {
             let temp = TempDir::new().unwrap();
             let failing_probe = temp.path().join("child-failure-harness");
@@ -1902,7 +1924,7 @@ fn private_file_cleanup_failure_dominates_installed_success_and_child_failure_wi
                 result["error"]["details"],
                 json!({
                     "phase":"private-file-finalization",
-                    "resource":"owned-private-transport-files",
+                    "processResource":"owned-private-transport-files",
                     "adapterId":adapter_id,
                     "fallbackAttempted":false
                 })
@@ -1949,6 +1971,9 @@ fn ordinary_installed_adapters_discover_probe_and_run_without_internal_seams() {
         ("prime", "rpc", "prime/rpc", "0.7.0"),
         ("omp", "rpc", "omp/rpc", "omp/18.0.9"),
     ] {
+        if !harness_supported(harness) {
+            continue;
+        }
         let temp = TempDir::new().unwrap();
         let (bin, observation_path) =
             install_live_adapter_fake(temp.path(), harness, adapter_id, version);
@@ -2082,6 +2107,9 @@ fn ordinary_installed_adapters_discover_probe_and_run_without_internal_seams() {
 #[cfg(all(feature = "test-seams", unix))]
 #[test]
 fn selected_provider_secrets_never_enter_public_stderr_or_assistant_output() {
+    if !harness_supported("prime") {
+        return;
+    }
     for output_mode in ["human", "json", "jsonl"] {
         let temp = TempDir::new().unwrap();
         let executable = secret_echoing_adapter_probe(temp.path());
@@ -2197,6 +2225,9 @@ fn split_protected_values_cannot_be_reconstructed_across_jsonl_assistant_records
 #[cfg(unix)]
 #[test]
 fn prime_parser_failures_expose_only_the_closed_framing_diagnostic() {
+    if !harness_supported("prime") {
+        return;
+    }
     for (fault, error_code) in [
         ("malformed", "PROTOCOL_MALFORMED"),
         ("truncated", "PROTOCOL_TRUNCATED"),
@@ -2248,11 +2279,12 @@ fn prime_parser_failures_expose_only_the_closed_framing_diagnostic() {
             "{fault}"
         );
         assert!(!serialized.contains("candidateSecret"), "{fault}");
-        assert!(matches!(
-            result["error"]["details"]["reason"].as_str(),
-            Some("protocol_admission_rejected" | "invalid_json")
-        ));
-        assert!(result["error"]["details"]["admittedRecordCount"].is_u64());
+        assert!(result["error"]["details"].get("reason").is_none());
+        assert!(
+            result["error"]["details"]
+                .get("admittedRecordCount")
+                .is_none()
+        );
     }
 }
 
@@ -2263,6 +2295,9 @@ fn rejected_prime_and_omp_version_probes_never_receive_selected_provider_credent
         ("prime", "prime/rpc", "prime-agent 0.7.1"),
         ("omp", "omp/rpc", "omp/18.0.10"),
     ] {
+        if !harness_supported(harness) {
+            continue;
+        }
         let temp = TempDir::new().unwrap();
         let (bin, _) = install_live_adapter_fake(temp.path(), harness, adapter_id, version);
         let output = prose_with_live_adapter(
@@ -2571,12 +2606,15 @@ fn rejected_adjacent_versions_report_exact_machine_and_human_repair_details() {
             "claude",
             "print-stream-json",
             "claude/print-stream-json",
-            "2.1.244 (Claude Code)",
+            "2.1.242 (Claude Code)",
             json!(["2.1.243"]),
             "npm install --global @anthropic-ai/claude-code@2.1.243",
             None,
         ),
     ] {
+        if !harness_supported(harness) {
+            continue;
+        }
         let temp = TempDir::new().unwrap();
         let (bin, _) = install_live_adapter_fake(temp.path(), harness, adapter_id, version);
         let mut base = vec!["--harness", harness, "--transport", transport];
@@ -2757,6 +2795,9 @@ fn successful_wrong_stream_versions_report_exact_safe_repair_details() {
             auth_profile: None,
         },
     ] {
+        if !harness_supported(case.harness) {
+            continue;
+        }
         assert_wrong_stream_version_repair(&case);
     }
 }
@@ -2768,6 +2809,9 @@ fn prime_and_omp_harness_login_routes_require_explicit_profiles_and_qualified_mo
         ("prime", "prime/rpc", "prime-harness-login"),
         ("omp", "omp/rpc", "omp-harness-login"),
     ] {
+        if !harness_supported(harness) {
+            continue;
+        }
         let temp = TempDir::new().unwrap();
         let (bin, _) = install_live_adapter_fake(
             temp.path(),
@@ -2905,6 +2949,9 @@ fn prime_and_omp_preflight_never_launch_auth_probes_and_report_unknown_for_every
         ),
         ("omp", "omp/rpc", "omp/18.0.9", "omp-harness-login"),
     ] {
+        if !harness_supported(harness) {
+            continue;
+        }
         for auth_profile in [login_profile, "openrouter"] {
             let temp = TempDir::new().unwrap();
             let (bin, observation) =
@@ -2967,6 +3014,9 @@ fn prime_and_omp_preflight_never_launch_auth_probes_and_report_unknown_for_every
 #[cfg(unix)]
 #[test]
 fn doctor_marks_the_selected_installed_harness_as_needs_auth() {
+    if !harness_supported("claude") {
+        return;
+    }
     let temp = TempDir::new().unwrap();
     let (bin, _) = install_live_adapter_fake(
         temp.path(),
@@ -4302,6 +4352,11 @@ fn blocked_adapter_dry_run_reports_recipe_facts_without_spawning() {
         ),
     ];
     for (harness, transport, adapter_id, placement, strictness, isolation, error_code) in cases {
+        let error_code = if harness_supported(harness) {
+            error_code
+        } else {
+            "HARNESS_INCOMPATIBLE"
+        };
         let temp = TempDir::new().unwrap();
         let output = prose(
             temp.path(),
@@ -4708,7 +4763,14 @@ fn runner_diagnostics_and_identity_stay_local() {
     );
     for harness in &harnesses[1..6] {
         assert_eq!(harness["runtime"], "installed-process");
-        assert_eq!(harness["availability"], "missing");
+        assert_eq!(
+            harness["availability"],
+            if harness_supported(harness["id"].as_str().unwrap()) {
+                "missing"
+            } else {
+                "incompatible"
+            }
+        );
         assert_eq!(harness["detectedVersion"], Value::Null);
         assert_eq!(harness["billingOwner"], "user-provider");
         assert_eq!(harness["authCategory"], "harness-managed");
@@ -4802,14 +4864,20 @@ fn human_harness_list_marks_the_default_and_gives_ordered_next_actions() {
     assert!(
         stdout.contains("* openprose availability=not-implemented transport=hosted (selected)\n")
     );
-    for line in [
-        "  prime availability=missing transport=rpc\n",
-        "  omp availability=missing transport=rpc\n",
-        "  codex availability=missing transport=exec-json\n",
-        "  claude availability=missing transport=print-stream-json\n",
+    for (harness, transport) in [
+        ("prime", "rpc"),
+        ("omp", "rpc"),
+        ("codex", "exec-json"),
+        ("claude", "print-stream-json"),
     ] {
+        let availability = if harness_supported(harness) {
+            "missing"
+        } else {
+            "incompatible"
+        };
+        let line = format!("  {harness} availability={availability} transport={transport}\n");
         assert!(
-            stdout.contains(line),
+            stdout.contains(&line),
             "missing human inventory line: {line}"
         );
     }
@@ -5021,7 +5089,7 @@ fn doctor_reports_installed_adapter_configuration_blockers_without_fallback() {
         temp.path(),
         &[
             "--harness",
-            "prime",
+            "omp",
             "--transport",
             "rpc",
             "--output",
@@ -5033,21 +5101,18 @@ fn doctor_reports_installed_adapter_configuration_blockers_without_fallback() {
     assert_eq!(output.status.code(), Some(2));
     let report = json_stdout(&output);
     assert_eq!(report["schema"], "openprose.doctor-report/1");
-    assert_eq!(report["selectedHarness"], "prime");
+    assert_eq!(report["selectedHarness"], "omp");
     assert_eq!(report["selectedHarnessVersion"], Value::Null);
-    assert_eq!(report["selectedAdapterId"], "prime/rpc");
-    assert_eq!(report["isolation"], "advisory");
+    assert_eq!(report["selectedAdapterId"], "omp/rpc");
+    assert_eq!(report["isolation"], "unsupported");
     assert_eq!(report["problems"][0]["code"], "CONFIG_INVALID");
     assert_eq!(report["problems"][0]["exitCode"], 2);
-    assert_eq!(
-        report["configuration"]["values"]["harness"]["value"],
-        "prime"
-    );
+    assert_eq!(report["configuration"]["values"]["harness"]["value"], "omp");
     assert_eq!(report["harnesses"], expected_harness_inventory());
 
     let human = prose(
         temp.path(),
-        &["--harness", "prime", "--transport", "rpc", "cli", "doctor"],
+        &["--harness", "omp", "--transport", "rpc", "cli", "doctor"],
     );
     assert_eq!(human.status.code(), Some(2));
     assert!(human.stderr.is_empty());
@@ -5445,12 +5510,12 @@ fn malformed_local_command_honors_json_stdout_discipline() {
 fn human_doctor_confines_a_hostile_diagnostic_to_one_physical_detail_line() {
     let temp = TempDir::new().unwrap();
     let hostile_profile = "unknown\nAction: forged\t\u{001B}[31m\u{2028}next\u{2029}paragraph";
-    let expected_reason = format!("Unknown auth_profile for prime/rpc: {hostile_profile}.");
+    let expected_reason = format!("Unknown auth_profile for omp/rpc: {hostile_profile}.");
     let human = prose(
         temp.path(),
         &[
             "--harness",
-            "prime",
+            "omp",
             "--transport",
             "rpc",
             "--model",
@@ -5482,7 +5547,7 @@ fn human_doctor_confines_a_hostile_diagnostic_to_one_physical_detail_line() {
         temp.path(),
         &[
             "--harness",
-            "prime",
+            "omp",
             "--transport",
             "rpc",
             "--model",

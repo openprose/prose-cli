@@ -476,8 +476,8 @@ class LocalBuildDriverTest(unittest.TestCase):
             self.assertIn("echo-v0", text)
             self.assertIn("test seams disabled", text)
         self.assertIn("--package /tmp/openprose-cli-artifacts", normalized_release)
-        self.assertIn("[functional-alpha readiness", normalized_cli)
-        self.assertIn("[functional-alpha readiness", normalized_release)
+        self.assertIn("[maintained release path](release/README.md)", normalized_cli)
+        self.assertIn("cli-kernel-rc.yml", normalized_release)
 
     def test_preexisting_outputs_are_refused_without_deleting_user_bytes(self) -> None:
         root, _rust, _bun = self.fixture()

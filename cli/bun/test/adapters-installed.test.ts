@@ -31,6 +31,8 @@ import { RunnerFailure, type RunnerInvocation, type TaskEnvelope } from "../src/
 import { encodeRuntimeImage, OMP_CONTROL_OVERLAY_BYTES } from "../src/supervision/files";
 import { sentinelFixtureImage } from "./sentinel-fixture";
 
+// Unit process fixtures exercise the admitted Darwin ARM64 recipe identity.
+// Explicit platform cases override it; compiled CI adversaries use the real host.
 const probe = resolve(import.meta.dir, "../../shared/fixtures/adapters/bin/adapter_probe.py");
 const python = new TextDecoder().decode(Bun.spawnSync({
   cmd: ["python3", "-c", "import sys; print(sys.executable)"],
@@ -360,6 +362,7 @@ describe("installed adapter launch construction", () => {
     const renderedConfigPath = join(input.root, "omp-control-overlay.yml");
     const imageBytes = encodeRuntimeImage(input.image);
     const plan = await buildInstalledLaunchPlan({
+      platform: "darwin", arch: "arm64",
       adapterId,
       executable: probe,
       invocation: input.invocation,
@@ -417,6 +420,7 @@ describe("installed adapter launch construction", () => {
     const imageBytes = encodeRuntimeImage(input.image);
     const taskJson = canonicalJson(input.invocation.task);
     const plan = await buildInstalledLaunchPlan({
+      platform: "darwin", arch: "arm64",
       adapterId,
       executable: probe,
       invocation: input.invocation,
@@ -635,6 +639,7 @@ describe("installed adapter launch construction", () => {
       let stdout = "";
       let stderr = "";
       const exit = await runCli(argv, {
+        platform: "darwin", arch: "arm64",
         env: { PATH: input.root, HOME: join(input.root, "home") },
         processCwd: input.invocation.cwd,
         userConfigPath: join(input.root, "absent.toml"),
@@ -708,6 +713,7 @@ describe("installed adapter launch construction", () => {
       taskDigestSha256: await sha256(canonicalJson(task)),
     };
     await expect(buildInstalledLaunchPlan({
+      platform: "darwin", arch: "arm64",
       adapterId: "claude/print-stream-json",
       executable: probe,
       invocation,
@@ -766,6 +772,7 @@ describe("installed adapter launch construction", () => {
     const changed = encodeRuntimeImage(input.image).slice();
     changed[0] = changed[0]! ^ 1;
     await expect(buildInstalledLaunchPlan({
+      platform: "darwin", arch: "arm64",
       adapterId: "codex/exec-json",
       executable: probe,
       invocation: input.invocation,
@@ -789,6 +796,7 @@ describe("provider-free installed adapter execution", () => {
     const observationPath = join(input.root, "invalid-image-must-not-spawn.json");
 
     await expect(runProviderFreeInstalledAdapter({
+      platform: "darwin", arch: "arm64",
       adapterId: "claude/print-stream-json",
       executable: probe,
       observationPath,
@@ -819,6 +827,7 @@ describe("provider-free installed adapter execution", () => {
         const input = await fixture();
         const observationPath = join(input.root, `${mode}-must-not-spawn.json`);
         const caught = await runProviderFreeInstalledAdapter({
+          platform: "darwin", arch: "arm64",
           adapterId,
           executable: probe,
           observationPath,
@@ -851,7 +860,7 @@ describe("provider-free installed adapter execution", () => {
             code: "PROCESS_CLEANUP_FAILED",
             details: {
               phase: "private-file-finalization",
-              resource: "owned-private-transport-files",
+              processResource: "owned-private-transport-files",
               adapterId,
               fallbackAttempted: false,
             },
@@ -879,6 +888,7 @@ describe("provider-free installed adapter execution", () => {
           OPENPROSE_CONFORMANCE_ADAPTER_CLEANUP_FAILURE: "1",
         };
         const caught = await runProviderFreeInstalledAdapter({
+          platform: "darwin", arch: "arm64",
           adapterId,
           executable: childFailure ? failingExecutable : probe,
           observationPath,
@@ -898,7 +908,7 @@ describe("provider-free installed adapter execution", () => {
           code: "PROCESS_CLEANUP_FAILED",
           details: {
             phase: "private-file-finalization",
-            resource: "owned-private-transport-files",
+            processResource: "owned-private-transport-files",
             adapterId,
             fallbackAttempted: false,
           },
@@ -934,6 +944,7 @@ describe("provider-free installed adapter execution", () => {
     }
     const observationPath = join(input.root, `${adapterId.replace("/", "-")}-observation.json`);
     const result = await runProviderFreeInstalledAdapter({
+      platform: "darwin", arch: "arm64",
       adapterId,
       executable: probe,
       observationPath,
@@ -1048,6 +1059,7 @@ describe("provider-free installed adapter execution", () => {
       const input = await fixture();
       const observationPath = join(input.root, `${index}-credential-config.json`);
       const result = await runProviderFreeInstalledAdapter({
+        platform: "darwin", arch: "arm64",
         adapterId,
         executable: probe,
         observationPath,
@@ -1085,6 +1097,7 @@ describe("provider-free installed adapter execution", () => {
     let callbackText = "";
     let settled = false;
     const run = runProviderFreeInstalledAdapter({
+      platform: "darwin", arch: "arm64",
       adapterId: "codex/exec-json",
       executable: probe,
       observationPath: join(input.root, "backpressure-observation.json"),
@@ -1114,6 +1127,7 @@ describe("provider-free installed adapter execution", () => {
     const firstObservation = join(input.root, "prime-socket-first.json");
     const secondObservation = join(input.root, "prime-socket-second.json");
     const run = (observationPath: string, temporaryRoot?: string) => runProviderFreeInstalledAdapter({
+      platform: "darwin", arch: "arm64",
       adapterId: "prime/rpc",
       executable: probe,
       observationPath,
@@ -1144,6 +1158,7 @@ describe("provider-free installed adapter execution", () => {
     ].join("\n"), { mode: 0o700 });
     await chmod(executable, 0o700);
     const result = await runProviderFreeInstalledAdapter({
+      platform: "darwin", arch: "arm64",
       adapterId: "codex/exec-json",
       executable,
       observationPath: join(input.root, "unused.json"),
@@ -1173,6 +1188,7 @@ describe("provider-free installed adapter execution", () => {
     await chmod(executable, 0o700);
 
     const result = await runProviderFreeInstalledAdapter({
+      platform: "darwin", arch: "arm64",
       adapterId: "prime/rpc",
       executable,
       credentialGroup: "openrouter",
@@ -1215,6 +1231,7 @@ describe("provider-free installed adapter execution", () => {
     ].join("\n"), { mode: 0o700 });
     await chmod(executable, 0o700);
     const result = await runProviderFreeInstalledAdapter({
+      platform: "darwin", arch: "arm64",
       adapterId: "prime/rpc",
       executable,
       observationPath: join(input.root, "unused.json"),
@@ -1249,6 +1266,7 @@ describe("provider-free installed adapter execution", () => {
     ].join("\n"), { mode: 0o700 });
     await chmod(executable, 0o700);
     const result = await runProviderFreeInstalledAdapter({
+      platform: "darwin", arch: "arm64",
       adapterId: "omp/rpc",
       executable,
       credentialGroup: "openrouter",
@@ -1273,6 +1291,7 @@ describe("provider-free installed adapter execution", () => {
     await chmod(executable, 0o700);
     const started = performance.now();
     const result = await runProviderFreeInstalledAdapter({
+      platform: "darwin", arch: "arm64",
       adapterId: "omp/rpc",
       executable,
       credentialGroup: "openrouter",
@@ -1298,6 +1317,7 @@ describe("provider-free installed adapter execution", () => {
     let stdout = "";
     let stderr = "";
     const dependencies: CliDependencies = {
+      platform: "darwin", arch: "arm64",
       env: {
         ...ambientFor(adapterId),
         ...(adapterId === "omp/rpc" ? { PATH: input.root } : {}),
@@ -1357,6 +1377,7 @@ describe("provider-free installed adapter execution", () => {
     const observationPath = join(input.root, "must-not-exist.json");
     let stdout = "";
     const dependencies: CliDependencies = {
+      platform: "darwin", arch: "arm64",
       env: ambientFor("codex/exec-json"),
       processCwd: input.invocation.cwd,
       userConfigPath: join(input.root, "absent.toml"),
@@ -1393,6 +1414,7 @@ describe("provider-free installed adapter execution", () => {
     const observationPath = join(input.root, "prime-dry-run-must-not-exist.json");
     let stdout = "";
     const dependencies: CliDependencies = {
+      platform: "darwin", arch: "arm64",
       env: {
         ...ambientFor("prime/rpc"),
         OPENPROSE_CONFORMANCE_ADAPTER_MODE: "provider-free-v1",
@@ -1464,6 +1486,7 @@ describe("installed executable discovery and version probes", () => {
       "--output", "json",
       "run", "hello.prose.md",
     ], {
+      platform: "darwin", arch: "arm64",
       env: { PATH: join(input.root, "empty-path") },
       processCwd: input.invocation.cwd,
       userConfigPath: join(input.root, "absent.toml"),
@@ -1496,6 +1519,7 @@ describe("installed executable discovery and version probes", () => {
       "--output", "json",
       "run", "hello.prose.md",
     ], {
+      platform: "darwin", arch: "arm64",
       env: { PATH: join(input.root, "empty-path") },
       processCwd: input.invocation.cwd,
       userConfigPath: join(input.root, "absent.toml"),
@@ -1581,6 +1605,7 @@ describe("installed executable discovery and version probes", () => {
       let stdout = "";
       let stderr = "";
       const exitCode = await runCli(argv, {
+        platform: "darwin", arch: "arm64",
         env: { PATH: directory },
         processCwd: input.invocation.cwd,
         userConfigPath: join(input.root, "absent.toml"),
@@ -1686,6 +1711,7 @@ describe("installed executable discovery and version probes", () => {
     await writeBunRuntime(bunDirectory, "1.3.13");
     let stdout = "";
     const dependencies: CliDependencies = {
+      platform: "darwin", arch: "arm64",
       env: { PATH: [ompDirectory, bunDirectory].join(delimiter) },
       processCwd: input.invocation.cwd,
       userConfigPath: join(input.root, "absent.toml"),
@@ -1761,9 +1787,11 @@ describe("installed executable discovery and version probes", () => {
     ].join("\n"), { mode: 0o700 });
     await chmod(executable, 0o700);
     expect((await lstat(executable)).mode & 0o111).not.toBe(0);
-    const resolved = await resolveInstalledExecutable({ adapterId, ambient: { PATH: input.root } });
+    const resolved = await resolveInstalledExecutable({
+      platform: "darwin", arch: "arm64", adapterId, ambient: { PATH: input.root } });
     expect(resolved).toBe(await realpath(executable));
     expect(await probeInstalledAdapterVersion({
+      platform: "darwin", arch: "arm64",
       adapterId,
       executable: resolved,
       cwd: input.invocation.cwd,
@@ -1829,6 +1857,7 @@ describe("installed executable discovery and version probes", () => {
       "--output", "json",
       "cli", "doctor",
     ], {
+      platform: "darwin", arch: "arm64",
       env: {
         PATH: `${earlier}${delimiter}${later}`,
         HOME: join(input.root, "cached-login-home"),
@@ -1880,6 +1909,7 @@ describe("installed executable discovery and version probes", () => {
     await writeFile(executable, `#!${process.execPath}\n${emit}(${JSON.stringify(version)});\n`, { mode: 0o700 });
     await chmod(executable, 0o700);
     await expect(probeInstalledAdapterVersion({
+      platform: "darwin", arch: "arm64",
       adapterId,
       executable,
       cwd: input.invocation.cwd,
@@ -1915,6 +1945,7 @@ describe("installed executable discovery and version probes", () => {
     if (adapterId === "omp/rpc") await writeBunRuntime(input.root, "1.3.14");
 
     await expect(probeInstalledAdapterVersion({
+      platform: "darwin", arch: "arm64",
       adapterId,
       executable,
       cwd: input.invocation.cwd,
@@ -1930,6 +1961,7 @@ describe("installed executable discovery and version probes", () => {
       let stdout = "";
       let stderr = "";
       const exit = await runCli([...base, "--output", output, "cli", "doctor"], {
+        platform: "darwin", arch: "arm64",
         env: { PATH: input.root, HOME: join(input.root, "home") },
         processCwd: input.invocation.cwd,
         userConfigPath: join(input.root, "absent.toml"),
@@ -1984,6 +2016,7 @@ describe("installed executable discovery and version probes", () => {
       "--output", "json",
       "cli", "doctor",
     ], {
+      platform: "darwin", arch: "arm64",
       env: {
         PATH: input.root,
         HOME: join(input.root, "home"),
@@ -2024,6 +2057,7 @@ describe("installed executable discovery and version probes", () => {
       "--output", "json",
       "cli", "doctor",
     ], {
+      platform: "darwin", arch: "arm64",
       env: { PATH: input.root, HOME: join(input.root, "home"), USER: "fixture" },
       processCwd: input.invocation.cwd,
       userConfigPath: join(input.root, "absent.toml"),
@@ -2056,6 +2090,7 @@ describe("installed executable discovery and version probes", () => {
         "--output", "json",
         "cli", "doctor",
       ], {
+        platform: "darwin", arch: "arm64",
         env: { PATH: input.root, HOME: join(input.root, "home"), USER: "fixture" },
         processCwd: input.invocation.cwd,
         userConfigPath: join(input.root, "absent.toml"),
@@ -2082,6 +2117,7 @@ describe("installed executable discovery and version probes", () => {
       await writeFile(executable, `#!${process.execPath}\nawait Bun.write(${JSON.stringify(marker)}, "called");\n`, { mode: 0o700 });
       await chmod(executable, 0o700);
       await expect(probeInstalledAdapterAuth({
+        platform: "darwin", arch: "arm64",
         adapterId,
         executable,
         cwd: input.invocation.cwd,
@@ -2106,6 +2142,7 @@ describe("installed executable discovery and version probes", () => {
 
     try {
       await probeInstalledAdapterAuth({
+        platform: "darwin", arch: "arm64",
         adapterId: "codex/exec-json",
         executable,
         cwd: input.invocation.cwd,
@@ -2155,6 +2192,7 @@ describe("installed executable discovery and version probes", () => {
       const exit = await runCli([
         "--harness", "codex", "--transport", "exec-json", "--output", output, "cli", "doctor",
       ], {
+        platform: "darwin", arch: "arm64",
         env: { PATH: input.root, HOME: join(input.root, "home") },
         processCwd: input.invocation.cwd,
         userConfigPath: join(input.root, "absent.toml"),
@@ -2215,6 +2253,7 @@ describe("installed executable discovery and version probes", () => {
     const started = performance.now();
     try {
       await expect(probeInstalledAdapterAuth({
+        platform: "darwin", arch: "arm64",
         adapterId: "codex/exec-json",
         executable,
         cwd: input.root,
@@ -2285,6 +2324,7 @@ describe("ordinary functional-alpha installed execution", () => {
         : {}),
     };
     const dependencies: CliDependencies = {
+      platform: "darwin", arch: "arm64",
       env,
       processCwd: input.invocation.cwd,
       userConfigPath: join(input.root, "absent.toml"),
@@ -2380,6 +2420,7 @@ describe("ordinary functional-alpha installed execution", () => {
       "--output", "json",
       "run", "credential-order.prose.md",
     ], {
+      platform: "darwin", arch: "arm64",
       env: {
         PATH: input.root,
         HOME: join(input.root, "cached-login-home"),
@@ -2435,6 +2476,7 @@ describe("ordinary functional-alpha installed execution", () => {
       "--output", "json",
       "cli", "doctor",
     ], {
+      platform: "darwin", arch: "arm64",
       env: {
         PATH: input.root,
         HOME: join(input.root, "home"),
@@ -2486,6 +2528,7 @@ describe("ordinary functional-alpha installed execution", () => {
         "--output", mode,
         "run", "secret-echo.prose.md",
       ], {
+        platform: "darwin", arch: "arm64",
         env: {
           PATH: input.root,
           HOME: join(input.root, "home"),
@@ -2553,6 +2596,7 @@ describe("ordinary functional-alpha installed execution", () => {
       "--output", "jsonl",
       "run", "split-path.prose.md",
     ], {
+      platform: "darwin", arch: "arm64",
       env: { PATH: input.root, HOME: homePath },
       processCwd: input.invocation.cwd,
       userConfigPath: join(input.root, "absent.toml"),
@@ -2603,6 +2647,7 @@ describe("ordinary functional-alpha installed execution", () => {
         "--output", mode,
         "run", "split-recursion.prose.md",
       ], {
+        platform: "darwin", arch: "arm64",
         env: { PATH: input.root, HOME: join(input.root, "home") },
         processCwd: input.invocation.cwd,
         userConfigPath: join(input.root, "absent.toml"),
@@ -2682,6 +2727,7 @@ describe("ordinary functional-alpha installed execution", () => {
         "--output", mode,
         "run", `${harness}-private-config.prose.md`,
       ], {
+        platform: "darwin", arch: "arm64",
         env: {
           PATH: input.root,
           HOME: homePath,
@@ -2755,6 +2801,7 @@ describe("ordinary functional-alpha installed execution", () => {
     const run = async (args: string[]) => {
       let stdout = "";
       const exit = await runCli(args, {
+        platform: "darwin", arch: "arm64",
         env: { PATH: input.root, HOME: join(input.root, "home") },
         processCwd: input.invocation.cwd,
         userConfigPath: join(input.root, "absent.toml"),
@@ -2804,6 +2851,7 @@ describe("ordinary functional-alpha installed execution", () => {
           "--output", output,
           ...(operation === "dry-run" ? ["--dry-run", "run", "hello.prose.md"] : ["cli", "doctor"]),
         ], {
+          platform: "darwin", arch: "arm64",
           env: {
             PATH: input.root,
             HOME: join(input.root, "home"),
@@ -2848,6 +2896,7 @@ describe("ordinary functional-alpha installed execution", () => {
     const execute = async (args: string[], path: string, imageBundle = sentinelImage) => {
       let stdout = "";
       const exit = await runCli(args, {
+        platform: "darwin", arch: "arm64",
         env: { PATH: path, HOME: join(input.root, "home") },
         processCwd: input.invocation.cwd,
         userConfigPath: join(input.root, "absent.toml"),
@@ -2903,6 +2952,7 @@ describe("ordinary functional-alpha installed execution", () => {
     let stdout = "";
     let stderr = "";
     const exit = await runCli(["--harness", "codex", "write", "hello"], {
+      platform: "darwin", arch: "arm64",
       env: { PATH: input.root, HOME: join(input.root, "home") },
       processCwd: input.invocation.cwd,
       userConfigPath: join(input.root, "absent.toml"),
@@ -2947,6 +2997,7 @@ describe("ordinary functional-alpha installed execution", () => {
       "--timeout", "2s",
       "run", "streaming.prose.md",
     ], {
+      platform: "darwin", arch: "arm64",
       env: {
         PATH: input.root,
         HOME: join(input.root, "home"),
@@ -2995,6 +3046,7 @@ describe("ordinary functional-alpha installed execution", () => {
     let stdout = "";
     let stderr = "";
     const exit = await runCli(["--harness", "codex", "--model", model, "run", "protected.prose.md"], {
+      platform: "darwin", arch: "arm64",
       env: { PATH: input.root, HOME: join(input.root, "home"), OPENAI_API_KEY: secret },
       processCwd: input.invocation.cwd,
       userConfigPath: join(input.root, "absent.toml"),
@@ -3036,6 +3088,7 @@ describe("ordinary functional-alpha installed execution", () => {
     const exit = await runCli([
       "--harness", "codex", "--model", model, "run", "protected-success.prose.md",
     ], {
+      platform: "darwin", arch: "arm64",
       env: { PATH: input.root, HOME: join(input.root, "home") },
       processCwd: input.invocation.cwd,
       userConfigPath: join(input.root, "absent.toml"),
@@ -3062,6 +3115,7 @@ describe("ordinary functional-alpha installed execution", () => {
     const execute = async () => {
       let stdout = "";
       const exit = await runCli(["--harness", "codex", "--output", "json", "run", "hello.prose.md"], {
+        platform: "darwin", arch: "arm64",
         env: { PATH: input.root, HOME: join(input.root, "home") },
         processCwd: input.invocation.cwd,
         userConfigPath: join(input.root, "absent.toml"),

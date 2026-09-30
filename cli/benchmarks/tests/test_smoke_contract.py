@@ -339,6 +339,18 @@ class FrozenInputTests(unittest.TestCase):
                 custody["targetArtifacts"],
                 raw["inputVerification"]["targetArtifacts"],
             )
+            # This measures only our shell fixture, never either CLI product.
+            manifest = json.loads((output / "manifest.json").read_bytes())
+            for entry in manifest["artifacts"]:
+                value = (output / entry["path"]).read_bytes()
+                self.assertEqual(len(value), entry["bytes"])
+                self.assertEqual(hashlib.sha256(value).hexdigest(), entry["sha256"])
+            raw_bytes = (output / "raw.json").read_bytes()
+            for forbidden in [str(temporary), "/Users/", "Authorization: Bearer ", "sk-live-", "API_KEY=secret"]:
+                self.assertNotIn(forbidden, raw_bytes.decode("utf-8"))
+            reproduced = temporary / "reproduced-summary.json"
+            self.assertEqual(main(["analyze", "--raw", str(output / "raw.json"), "--policy", str(BENCHMARKS / "policy/local-smoke.policy.json"), "--summary", str(reproduced)]), 0)
+            self.assertEqual(reproduced.read_bytes(), (output / "summary.json").read_bytes())
 
     def test_policy_digest_mismatch_refuses_before_execution(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_text:
@@ -472,237 +484,6 @@ class PublicationTests(unittest.TestCase):
             _write_atomic_file(summary, b"new summary\n", replace=True)
             self.assertEqual(summary.read_bytes(), b"new summary\n")
             self.assertEqual(list(summary.parent.glob(".summary.json.staging-*")), [])
-
-
-class ExampleEvidenceTests(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls) -> None:
-        cls.evidence = BENCHMARKS / "evidence" / "local-smoke-example"
-        cls.raw_bytes = (cls.evidence / "raw.json").read_bytes()
-        cls.raw = json.loads(cls.raw_bytes)
-        cls.summary = json.loads((cls.evidence / "summary.json").read_bytes())
-        cls.manifest = json.loads((cls.evidence / "manifest.json").read_bytes())
-
-    def test_checked_example_is_bound_to_the_exact_frozen_development_inputs(
-        self,
-    ) -> None:
-        self.assertFalse((self.evidence / "STALE.md").exists())
-        prepared = load_profile_contract(DEFAULT_PROFILE)
-        verification = self.raw["inputVerification"]
-        self.assertEqual(
-            verification["schema"], "openprose.benchmark-input-verification/2"
-        )
-        self.assertEqual(verification["status"], "historical-migrated")
-        self.assertEqual(
-            verification["fixtureArtifact"],
-            prepared["verificationContract"]["fixtureArtifact"],
-        )
-        self.assertEqual(
-            verification["targetArtifacts"],
-            prepared["verificationContract"]["targetArtifacts"],
-        )
-        self.assertEqual(
-            verification["profileArtifactSha256"], self.raw["profile"]["sha256"]
-        )
-        custody = verification["executionCustody"]
-        self.assertEqual(custody["status"], "not-observed")
-        self.assertEqual(custody["finalReauthentication"], "not-performed")
-        self.assertEqual(custody["targetArtifacts"], verification["targetArtifacts"])
-        migration = verification["migration"]
-        self.assertEqual(
-            migration["schema"], "openprose.benchmark-evidence-migration/1"
-        )
-        self.assertEqual(
-            migration["sourceEvidenceCommit"],
-            "fce8933aab58d9453fe9c2f67fdffc2fc482fe58",
-        )
-        self.assertEqual(
-            migration["sourceRawArtifactSha256"],
-            "320fea90851752be09fe96b3dfc21d70b3220c4bbe0f56d1d2517caf6423e369",
-        )
-        self.assertFalse(migration["trialObservationsChanged"])
-        frozen_targets = {
-            target["id"]: (target["sha256"], target["bytes"])
-            for target in verification["targetArtifacts"]
-        }
-        recorded_targets = {
-            target["id"]: (target["artifactSha256"], target["artifactBytes"])
-            for target in self.raw["identities"]["targets"]
-        }
-        self.assertEqual(recorded_targets, frozen_targets)
-
-    def test_evidence_is_complete_provider_free_and_explicitly_non_release(
-        self,
-    ) -> None:
-        self.assertEqual(self.raw["plannedTrials"], 80)
-        self.assertEqual(self.raw["plannedTrials"], len(self.raw["trials"]))
-        self.assertTrue(
-            all(trial["status"] == "success" for trial in self.raw["trials"])
-        )
-        self.assertTrue(
-            all(
-                trial["processEvidence"]["settlement"]["status"] == "settled"
-                for trial in self.raw["trials"]
-            )
-        )
-        for trial in self.raw["trials"]:
-            self.assertEqual(
-                trial["executionBoundary"],
-                {"kind": "subprocess", "processEvidenceRequired": True},
-            )
-            evidence = trial["processEvidence"]
-            self.assertEqual(
-                evidence["containment"]["authority"], "owned-process-group"
-            )
-            self.assertFalse(
-                evidence["containment"]["releaseContainmentSupported"]
-            )
-            self.assertEqual(
-                evidence["containment"]["blocker"],
-                "detached-descendant-containment-not-enforced",
-            )
-            settlement = evidence["settlement"]
-            self.assertTrue(settlement["allowsSuccessfulTrial"])
-            self.assertTrue(settlement["directProcessExited"])
-            self.assertTrue(settlement["stdoutReaderSettled"])
-            self.assertTrue(settlement["stderrReaderSettled"])
-            self.assertEqual(settlement["readerErrors"], [])
-            self.assertIn(settlement["cleanup"]["status"], {"not-required", "settled"})
-        process_execution = self.summary["scorecards"]["transport"][
-            "processExecution"
-        ]
-        for target in process_execution["targets"].values():
-            self.assertFalse(target["releaseContainmentSupported"])
-            self.assertEqual(
-                target["containment"]["blocker"],
-                "detached-descendant-containment-not-enforced",
-            )
-        self.assertFalse(self.raw["claims"]["releaseEligible"])
-        self.assertTrue(self.raw["claims"]["sentinelOnly"])
-        self.assertEqual(self.raw["claims"]["semanticStatus"], "not-applicable")
-        self.assertFalse(self.raw["claims"]["proseComplete"])
-        self.assertFalse(self.manifest["releaseEligible"])
-        self.assertFalse(self.manifest["providerCallsMade"])
-        self.assertEqual(self.manifest["semanticStatus"], "not-applicable")
-        self.assertTrue(self.manifest["sentinelOnly"])
-        semantic = self.summary["scorecards"]["semanticQuality"]
-        self.assertEqual(semantic["status"], "not-applicable")
-        self.assertFalse(semantic["surfaces"]["wrapper"]["evaluated"])
-        self.assertFalse(semantic["surfaces"]["wrapper"]["proseComplete"])
-
-    def test_doctor_requires_canonical_schema_and_failures_remain_raw(self) -> None:
-        doctors = [
-            trial for trial in self.raw["trials"] if trial["action_id"] == "doctor"
-        ]
-        self.assertTrue(doctors)
-        for trial in doctors:
-            schema = json.loads(trial["stdout"])["schema"]
-            self.assertEqual(schema, "openprose.doctor-report/1")
-            self.assertEqual(trial["status"], "success")
-            self.assertEqual(trial["validation"]["status"], "passed")
-
-        transport_runs = [
-            trial
-            for trial in self.raw["trials"]
-            if trial["action_id"] == "transport-run"
-        ]
-        self.assertTrue(transport_runs)
-        for trial in transport_runs:
-            result = json.loads(trial["stdout"])
-            self.assertEqual(result["schema"], "openprose.runner-result/1")
-            self.assertEqual(result["semantic"]["status"], "not-applicable")
-            self.assertEqual(trial["validation"]["status"], "passed")
-
-    def test_scorecards_are_separate_and_never_collapse_a_winner(self) -> None:
-        self.assertEqual(
-            set(self.summary["scorecards"]),
-            {
-                "transport",
-                "developerExperience",
-                "agentEfficiency",
-                "cost",
-                "semanticQuality",
-            },
-        )
-        self.assertFalse(self.summary["rules"]["winnerCollapsed"])
-        self.assertEqual(
-            set(self.summary["scorecards"]["transport"]["surfaces"]), {"wrapper"}
-        )
-        self.assertFalse(
-            self.summary["scorecards"]["semanticQuality"]["surfaces"]["wrapper"][
-                "evaluated"
-            ]
-        )
-        self.assertTrue(
-            all(
-                target["estimatedOrImputedUsd"] is None
-                for target in self.summary["scorecards"]["cost"]["targets"].values()
-            )
-        )
-        process_execution = self.summary["scorecards"]["transport"]["processExecution"]
-        self.assertEqual(process_execution["status"], "recorded")
-        self.assertTrue(
-            all(
-                target["allExecutedTrialsSettled"]
-                for target in process_execution["targets"].values()
-            )
-        )
-        for surface in (
-            self.summary["scorecards"]["transport"]["surfaces"],
-            self.summary["scorecards"]["developerExperience"]["surfaces"],
-        ):
-            for action in surface["wrapper"]["actions"].values():
-                for target in action["targets"].values():
-                    self.assertIn("successLatencyMs", target)
-                    self.assertIn("allAttemptDurationMs", target)
-                    self.assertNotIn("wallMs", target)
-                for comparison in action["pairedDifferencesMs"]:
-                    self.assertEqual(
-                        comparison["samples"], comparison["eligibleSuccessPairs"]
-                    )
-                    self.assertEqual(
-                        comparison["plannedPairs"],
-                        comparison["eligibleSuccessPairs"]
-                        + comparison["excludedPairs"],
-                    )
-
-    def test_manifest_digests_and_analysis_are_reproducible(self) -> None:
-        manifest_entries = {
-            entry["path"]: entry for entry in self.manifest["artifacts"]
-        }
-        for name in ("raw.json", "summary.json"):
-            value = (self.evidence / name).read_bytes()
-            self.assertEqual(
-                hashlib.sha256(value).hexdigest(), manifest_entries[name]["sha256"]
-            )
-            self.assertEqual(len(value), manifest_entries[name]["bytes"])
-        with tempfile.TemporaryDirectory() as temporary_text:
-            reproduced = Path(temporary_text) / "summary.json"
-            result = main(
-                [
-                    "analyze",
-                    "--raw",
-                    str(self.evidence / "raw.json"),
-                    "--policy",
-                    str(BENCHMARKS / "policy" / "local-smoke.policy.json"),
-                    "--summary",
-                    str(reproduced),
-                ]
-            )
-            self.assertEqual(result, 0)
-            self.assertEqual(
-                reproduced.read_bytes(), (self.evidence / "summary.json").read_bytes()
-            )
-
-    def test_evidence_contains_no_local_absolute_paths_or_secret_shapes(self) -> None:
-        encoded = self.raw_bytes.decode("utf-8")
-        for forbidden in (
-            "/Users/",
-            "Authorization: Bearer ",
-            "sk-live-",
-            "API_KEY=secret",
-        ):
-            self.assertNotIn(forbidden, encoded)
 
 
 if __name__ == "__main__":

@@ -28,14 +28,14 @@ impl Fixture {
             binding,
             host,
         };
-        f.save(f.value());
+        f.save(&f.value());
         f
     }
     fn value(&self) -> Value {
         json!({"schema":"openprose.weave-host-binding/1","executable":self.host,"sha256":format!("{:x}",Sha256::digest(fs::read(&self.host).unwrap())),"environmentKeys":[],"timeoutMs":2000,"maxOutputBytes":65536})
     }
-    fn save(&self, v: Value) {
-        fs::write(&self.binding, serde_json::to_vec(&v).unwrap()).unwrap();
+    fn save(&self, v: &Value) {
+        fs::write(&self.binding, serde_json::to_vec(v).unwrap()).unwrap();
     }
     fn command(&self) -> Command {
         let mut c = Command::new(env!("CARGO_BIN_EXE_prose"));
@@ -67,7 +67,7 @@ fn forwards_exact_argv_closed_stdin_cwd_and_only_present_selected_environment() 
     );
     let mut b = f.value();
     b["environmentKeys"] = json!(["PRESENT", "ABSENT", "__proto__"]);
-    f.save(b);
+    f.save(&b);
     let r = f
         .command()
         .env("PRESENT", "chosen")
@@ -107,7 +107,7 @@ fn mismatched_host_invalid_grammar_and_global_never_start() {
     let f = Fixture::new("from pathlib import Path\nPath('effect').write_text('effect')");
     let mut b = f.value();
     b["sha256"] = json!("0".repeat(64));
-    f.save(b);
+    f.save(&b);
     assert_eq!(f.run().status.code(), Some(2));
     let r = Command::new(env!("CARGO_BIN_EXE_prose"))
         .env_clear()
@@ -125,7 +125,7 @@ fn output_budget_and_timeout_are_bounded() {
     let f = Fixture::new("import os,time\nos.write(1,b'12345')\ntime.sleep(5)");
     let mut b = f.value();
     b["maxOutputBytes"] = json!(4);
-    f.save(b);
+    f.save(&b);
     let now = Instant::now();
     let r = f.run();
     assert_eq!(r.status.code(), Some(125));
@@ -137,7 +137,7 @@ fn output_budget_and_timeout_are_bounded() {
     );
     let mut b = f.value();
     b["timeoutMs"] = json!(100);
-    f.save(b);
+    f.save(&b);
     let now = Instant::now();
     let r = f.run();
     assert_eq!(r.status.code(), Some(124));
@@ -166,7 +166,7 @@ fn explicit_signal_preserves_pending_and_returns_signal_code() {
             std::thread::sleep(Duration::from_millis(5));
         }
         rustix::process::kill_process(
-            rustix::process::Pid::from_raw(child.id() as i32).unwrap(),
+            rustix::process::Pid::from_raw(i32::try_from(child.id()).unwrap()).unwrap(),
             signal,
         )
         .unwrap();
@@ -188,7 +188,7 @@ fn observed_overflow_precedes_blocked_consumer_timeout() {
     let mut b = f.value();
     b["maxOutputBytes"] = json!(1);
     b["timeoutMs"] = json!(2000);
-    f.save(b);
+    f.save(&b);
     let (_reader, mut writer) = UnixStream::pair().unwrap();
     writer.set_nonblocking(true).unwrap();
     loop {
@@ -240,7 +240,7 @@ fn second_signal_cannot_replace_observed_cancellation_during_grace() {
             assert!(child.try_wait().unwrap().is_none());
             std::thread::sleep(Duration::from_millis(2));
         }
-        let pid = rustix::process::Pid::from_raw(child.id() as i32).unwrap();
+        let pid = rustix::process::Pid::from_raw(i32::try_from(child.id()).unwrap()).unwrap();
         rustix::process::kill_process(pid, first).unwrap();
         // The owned host received the bridge's TERM: the first cancellation has
         // been observed and the bridge is demonstrably in its grace interval.

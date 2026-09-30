@@ -1228,6 +1228,8 @@ struct PrimeStagedController {
     close: bool,
 }
 impl PrimeStagedController {
+    // Supervisor callbacks carry this structured failure by value.
+    #[allow(clippy::result_large_err)]
     fn observe(&mut self, record: &Value) -> Result<(), SupervisorFailure> {
         if self.close {
             return Ok(());
@@ -2261,7 +2263,7 @@ fn execute_installed_adapter(
     if config.output_contract.value == "native" {
         process_spec.limits.max_stdout_bytes = crate::config::native_output_bytes(config);
     }
-    let capture = match config
+    let Ok(capture) = config
         .native_log
         .value
         .as_ref()
@@ -2273,20 +2275,17 @@ fn execute_installed_adapter(
             )
         })
         .transpose()
-    {
-        Ok(value) => value,
-        Err(_) => {
-            return forward_error_outcome(
-                RunnerError::catalog(ErrorCode::ConfigInvalid)
-                    .with_detail("reason", "Native log must be a new writable absolute path"),
-                argv,
-                config,
-                image,
-                mode,
-                clock,
-                ids,
-            );
-        }
+    else {
+        return forward_error_outcome(
+            RunnerError::catalog(ErrorCode::ConfigInvalid)
+                .with_detail("reason", "Native log must be a new writable absolute path"),
+            argv,
+            config,
+            image,
+            mode,
+            clock,
+            ids,
+        );
     };
     let mut run_observer = InstalledRunObserver {
         require_api_source: config.native_profile.value != "default"
@@ -2850,6 +2849,17 @@ fn installed_adapter_failure_result(
     let mut error = map_supervisor_failure(&failure)
         .with_detail("adapterId", adapter.id())
         .with_detail("fallbackAttempted", false);
+    if matches!(
+        failure.kind,
+        FailureKind::ProtocolMalformed | FailureKind::ProtocolTruncated
+    ) {
+        // Fake-transport counters/reasons are not installed-adapter diagnostics.
+        // Keep the closed framing/lifecycle diagnostic and adapter-specific counters.
+        if let Some(details) = error.details.as_mut() {
+            details.remove("reason");
+            details.remove("admittedRecordCount");
+        }
+    }
     if adapter == installed_adapters::InstalledAdapter::PrimeRpc
         && matches!(
             failure.kind,
@@ -4734,9 +4744,10 @@ mod tests {
             );
             let limits = crate::config::native_limits(&config).unwrap();
             assert_eq!(limits["timeoutSeconds"], 180);
-            assert_eq!(
-                limits["toolTimeoutSeconds"].as_f64().unwrap(),
-                seconds.parse::<f64>().unwrap()
+            assert!(
+                (limits["toolTimeoutSeconds"].as_f64().unwrap() - seconds.parse::<f64>().unwrap())
+                    .abs()
+                    < f64::EPSILON
             );
         }
     }
@@ -4861,6 +4872,22 @@ mod tests {
             );
             let discovery = inspect_installed_adapter(adapter, &config);
             let problem = discovery.problem.unwrap();
+            if let Err(expected) = installed_adapters::assert_platform_supported(
+                adapter,
+                installed_adapters::HostPlatform::current(),
+            ) {
+                assert_eq!(
+                    problem.code,
+                    ErrorCode::HarnessIncompatible,
+                    "{}",
+                    adapter.id()
+                );
+                assert_eq!(problem.details, expected.details, "{}", adapter.id());
+                assert_eq!(discovery.executable, None);
+                assert_eq!(discovery.version, None);
+                assert!(discovery.runtime_prerequisites.is_empty());
+                continue;
+            }
             assert_eq!(problem.code, ErrorCode::ConfigInvalid, "{}", adapter.id());
             assert_eq!(discovery.executable, None, "{}", adapter.id());
             assert_eq!(discovery.version, None, "{}", adapter.id());
@@ -4895,7 +4922,23 @@ mod tests {
                 Some("unqualified-model"),
                 "unsupported-profile",
             );
-            let problem = inspect_installed_adapter(adapter, &config).problem.unwrap();
+            let discovery = inspect_installed_adapter(adapter, &config);
+            assert_eq!(discovery.executable, None);
+            assert_eq!(discovery.version, None);
+            let problem = discovery.problem.unwrap();
+            if let Err(expected) = installed_adapters::assert_platform_supported(
+                adapter,
+                installed_adapters::HostPlatform::current(),
+            ) {
+                assert_eq!(
+                    problem.code,
+                    ErrorCode::HarnessIncompatible,
+                    "{}",
+                    adapter.id()
+                );
+                assert_eq!(problem.details, expected.details, "{}", adapter.id());
+                continue;
+            }
             assert_eq!(problem.code, ErrorCode::ConfigInvalid, "{}", adapter.id());
             assert_eq!(
                 problem.details.unwrap().get("reason"),
@@ -5404,6 +5447,8 @@ impl NativeCapture {
             limit,
         })
     }
+    // The process observer requires the same by-value failure as its other callbacks.
+    #[allow(clippy::result_large_err)]
     fn write(&mut self, record: &Value) -> Result<(), SupervisorFailure> {
         fn scrub(value: &mut Value, secrets: &[String]) {
             match value {
@@ -5532,7 +5577,8 @@ fn sdk_limit_arguments(config: &EffectiveConfig) -> Vec<std::ffi::OsString> {
     if let Some(v) = &config.native_timeout.value {
         args.extend([
             std::ffi::OsString::from("--timeout"),
-            (crate::config::validate_native_timeout(v).expect("validated") as f64 / 1000.0)
+            Duration::from_millis(crate::config::validate_native_timeout(v).expect("validated"))
+                .as_secs_f64()
                 .to_string()
                 .into(),
         ]);
@@ -5540,7 +5586,8 @@ fn sdk_limit_arguments(config: &EffectiveConfig) -> Vec<std::ffi::OsString> {
     if let Some(v) = &config.native_tool_timeout.value {
         args.extend([
             std::ffi::OsString::from("--tool-timeout"),
-            (crate::config::validate_native_timeout(v).expect("validated") as f64 / 1000.0)
+            Duration::from_millis(crate::config::validate_native_timeout(v).expect("validated"))
+                .as_secs_f64()
                 .to_string()
                 .into(),
         ]);

@@ -72,8 +72,7 @@ four platforms. `cli-kernel-rc.yml` runs on PRs for validation and manually from
 main for actual candidates. `assemble_kernel_rc.py` verifies the native reports
 and package bytes; without exact-binary live smoke evidence, it emits an
 unqualified development plan that publication refuses. Do not satisfy the gate by embedding a fixed kernel, relabeling
-an echo/sentinel fixture, or fabricating a protected passing report. The reviewed [0.15.0-rc.1 plan](../cli/release/plans/0.15.0-rc.1.json) binds the qualified main-build artifacts and paired live smoke evidence. Existing alpha workflows and their independent
-requirements are not silently replaced by this new path.
+an echo/sentinel fixture, or fabricating a protected passing report. The reviewed [0.15.0-rc.1 plan](../cli/release/plans/0.15.0-rc.1.json) binds the qualified main-build artifacts and paired live smoke evidence. The old functional-alpha promotion workflow is retired; this is the maintained release path. Source admission and publication remain separate.
 
 ## Deferred macOS signing
 

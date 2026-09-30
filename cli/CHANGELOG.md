@@ -4,12 +4,26 @@ This changelog covers the independent CLI implementation under `cli/`. The
 repository-level changelog covers the OpenProse language, skill, and plugin
 track separately.
 
-Before creating `cli-vX.Y.Z-alpha.N`, move that release's entries into an exact
-dated section named `## [X.Y.Z-alpha.N] — YYYY-MM-DD`. A published alpha must
-not remain only under `[Unreleased]`; retain `[Unreleased]` for changes after
-the tagged release.
+Before publishing a CLI release, move its entries into an exact dated version
+section named `## [X.Y.Z] — YYYY-MM-DD`. Published changes must not remain
+only under `[Unreleased]`; retain that section for subsequent changes. Passing CI and creating
+a candidate do not establish public availability or authorize publication.
 
-## [Unreleased] — 0.15.0-alpha.N functional-alpha train
+## [Unreleased]
+
+### CI and release path
+
+- Full provider-free source admission on Linux x64 and macOS ARM64, plus
+  distribution and unsigned candidate qualification on all four supported
+  native targets. Current workflow policy checks locked tools, permissions,
+  qualification, retained diagnostics and the protected manual publisher.
+- Explicit proxy handling uses the pinned transport in Bun and does not retry
+  failed proxy connection attempts. Compiled diagnostics exclude builder paths.
+- The installed shared corpus contains 50 cases, including newer Claude telemetry.
+  The generic Agents SDK harness has a separate provider-free oracle scenario.
+- Unused alpha promotion, frozen alpha registry lineage, historical evidence
+  enrichment and the frozen direct legacy-skill experiment are retired. Current
+  publication, installed-package custody, schema and privacy checks remain.
 
 ### Added
 

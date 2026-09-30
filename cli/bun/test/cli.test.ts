@@ -48,6 +48,7 @@ function fixture(overrides: Partial<CliDependencies> = {}) {
   let stderr = "";
   const invocations: RunnerInvocation[] = [];
   const deps: CliDependencies = {
+    platform: "darwin", arch: "arm64",
     env: {},
     processCwd: process.cwd(),
     userConfigPath: "/definitely/absent/openprose-cli.toml",

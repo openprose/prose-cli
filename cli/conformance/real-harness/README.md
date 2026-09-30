@@ -3,7 +3,11 @@
 This directory contains an opt-in, cost-bounded way to observe real model
 routes without turning a successful model response into a stronger claim than
 it supports. The frozen matrix and policy were written before the observations
-under `evidence/current/` were collected.
+under `evidence/current/` were collected in the original repository. Those
+records are historical and are not copied into this public client. Current
+evidence must carry its measured capture and settlement fields; the old
+in-place enrichment command is retired. Use the original immutable source to
+interpret an earlier record rather than rewriting it to a newer schema.
 
 The four evidence levels are intentionally separate:
 

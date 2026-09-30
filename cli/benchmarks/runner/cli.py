@@ -252,6 +252,13 @@ def load_profile_contract(profile_path: Path) -> dict[str, Any]:
         "sha256": _sha256(fixture_bytes),
         "bytes": len(fixture_bytes),
     }
+    # Admission uses resolved private paths above; exported identities are portable.
+    for identity, path_key in (
+        (profile["image"], "manifestArtifact"),
+        (profile["program"], "artifact"),
+        (profile["validator"], "artifact"),
+    ):
+        identity[path_key] = _portable_path((profile_path.parent / identity[path_key]).resolve())
     for target in profile["targets"]:
         artifact = (profile_path.parent / target["artifact"]).resolve()
         target["_sourceArtifact"] = str(artifact)

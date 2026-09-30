@@ -498,6 +498,8 @@ describe.skipIf(process.platform === "win32")("Prime owned harness service settl
         socketPath: string;
       }> = [];
       const running = runInstalledAdapter({
+        // This unit fixture exercises Prime's admitted host on either POSIX CI host.
+        platform: "darwin", arch: "arm64",
         adapterId: "prime/rpc",
         executable: harness,
         harnessVersion: "0.7.0",
@@ -543,7 +545,7 @@ describe.skipIf(process.platform === "win32")("Prime owned harness service settl
         if (ownedService === undefined) throw new Error("The owned-service fixture was not installed.");
         expect(caught).toMatchObject({
           code: "PROCESS_CLEANUP_FAILED",
-          details: { resource: "owned-prime-harness-service" },
+          details: { processResource: "owned-prime-harness-service" },
         });
         expect(JSON.stringify(caught)).not.toContain("must-not-leak");
         const retained = (await readdir(transportRoot)).filter((entry) => entry.startsWith("openprose-prime-"));

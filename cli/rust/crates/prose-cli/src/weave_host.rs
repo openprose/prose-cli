@@ -180,7 +180,7 @@ mod unix {
         process::{Child, Command, Stdio},
         sync::{
             Arc,
-            atomic::{AtomicBool, AtomicUsize, Ordering},
+            atomic::{AtomicBool, AtomicU8, Ordering},
         },
         time::{Duration, Instant},
     };
@@ -188,7 +188,7 @@ mod unix {
         ids: Vec<signal_hook::SigId>,
         interrupt: Arc<AtomicBool>,
         terminate: Arc<AtomicBool>,
-        observed: AtomicUsize,
+        observed: AtomicU8,
     }
     impl Signals {
         fn new() -> Result<Self, Failure> {
@@ -196,7 +196,7 @@ mod unix {
                 ids: vec![],
                 interrupt: Arc::new(AtomicBool::new(false)),
                 terminate: Arc::new(AtomicBool::new(false)),
-                observed: AtomicUsize::new(0),
+                observed: AtomicU8::new(0),
             };
             for (signal, flag) in [
                 (signal_hook::consts::SIGINT, &s.interrupt),
@@ -226,7 +226,7 @@ mod unix {
                 );
             }
             let code = self.observed.load(Ordering::Relaxed);
-            (code != 0).then_some(Failure("WEAVE_HOST_CANCELLED", code as u8))
+            (code != 0).then_some(Failure("WEAVE_HOST_CANCELLED", code))
         }
     }
     impl Drop for Signals {
@@ -268,7 +268,7 @@ mod unix {
         }
         let mut total = 0;
         let mut sha = Sha256::new();
-        let mut chunk = [0u8; 65_536];
+        let mut chunk = vec![0u8; 65_536];
         loop {
             let n = f.read(&mut chunk).map_err(|_| BINDING)?;
             if n == 0 {
@@ -351,7 +351,7 @@ mod unix {
             ids: vec![],
             interrupt: Arc::new(AtomicBool::new(false)),
             terminate: Arc::new(AtomicBool::new(false)),
-            observed: AtomicUsize::new(0),
+            observed: AtomicU8::new(0),
         };
         flags.terminate.store(true, Ordering::Relaxed);
         assert_eq!(flags.failure().unwrap().1, 143);
@@ -386,7 +386,10 @@ mod unix {
         if !matches!(child.try_wait(), Ok(None)) {
             return;
         }
-        if let Some(pid) = rustix::process::Pid::from_raw(child.id() as i32) {
+        if let Some(pid) = i32::try_from(child.id())
+            .ok()
+            .and_then(rustix::process::Pid::from_raw)
+        {
             let _ = rustix::process::kill_process_group(pid, rustix::process::Signal::TERM);
         }
         let until = Instant::now() + Duration::from_millis(1000);
@@ -397,7 +400,10 @@ mod unix {
             std::thread::sleep(Duration::from_millis(2));
         }
         if matches!(child.try_wait(), Ok(None)) {
-            if let Some(pid) = rustix::process::Pid::from_raw(child.id() as i32) {
+            if let Some(pid) = i32::try_from(child.id())
+                .ok()
+                .and_then(rustix::process::Pid::from_raw)
+            {
                 let _ = rustix::process::kill_process_group(pid, rustix::process::Signal::KILL);
             }
             let _ = child.wait();
@@ -406,6 +412,7 @@ mod unix {
     pub(super) fn execute(path: &str, args: &[String]) -> Result<u8, Failure> {
         let signals = Signals::new()?;
         let (b, executable, cwd) = load(path)?;
+        let output_budget = usize::try_from(b.max_output_bytes).map_err(|_| BINDING)?;
         if let Some(f) = signals.failure() {
             return Err(f);
         }
@@ -433,7 +440,7 @@ mod unix {
             nonblock(&err)?;
             let mut eof = [false, false];
             let mut status = None;
-            let mut remaining = b.max_output_bytes as usize;
+            let mut remaining = output_budget;
             let mut chunk = [0u8; 8192];
             loop {
                 if status.is_none() {
@@ -441,15 +448,16 @@ mod unix {
                 }
                 if let Some(s) = status {
                     if eof == [true, true] {
-                        return Ok(s
-                            .code()
-                            .map_or_else(|| (128 + s.signal().unwrap_or(1)) as u8, |n| n as u8));
+                        return u8::try_from(
+                            s.code().unwrap_or_else(|| 128 + s.signal().unwrap_or(1)),
+                        )
+                        .map_err(|_| IO);
                     }
                 }
                 check(&signals, deadline)?;
                 let mut progress = false;
-                for i in 0..2 {
-                    if eof[i] {
+                for (i, ended) in eof.iter_mut().enumerate() {
+                    if *ended {
                         continue;
                     }
                     let read = if i == 0 {
@@ -459,7 +467,7 @@ mod unix {
                     };
                     match read {
                         Ok(0) => {
-                            eof[i] = true;
+                            *ended = true;
                             progress = true;
                         }
                         Ok(n) => {

@@ -109,6 +109,7 @@ class AdapterOracleTest(unittest.TestCase):
 
     def test_recipes_validate_and_remain_unclaimed(self) -> None:
         expected = {
+            "agents-sdk/jsonl",
             "codex/exec-json",
             "claude/print-stream-json",
             "prime/rpc",
@@ -146,6 +147,7 @@ class AdapterOracleTest(unittest.TestCase):
                 self.assertNotIn("\n", recipe["support"]["repairCommand"])
 
         expected_versions = {
+            "agents-sdk/jsonl": ["0.1.0"],
             "prime/rpc": ["0.7.0", "0.8.1"],
             "omp/rpc": ["18.0.9"],
             "codex/exec-json": ["0.149.0-alpha.4.1"],
@@ -161,8 +163,12 @@ class AdapterOracleTest(unittest.TestCase):
         functional = {
             record["adapterId"]: record for record in self.functional_alpha["adapters"]
         }
-        self.assertEqual(set(self.recipes), set(functional))
-        for adapter_id, recipe in self.recipes.items():
+        self.assertEqual(set(self.recipes) - {"agents-sdk/jsonl"}, set(functional))
+        # The generic SDK recipe is implemented but has no functional-alpha
+        # measurement. Recipe validation must not silently promote it.
+        self.assertNotIn("agents-sdk/jsonl", functional)
+        for adapter_id in functional:
+            recipe = self.recipes[adapter_id]
             self.assertEqual(
                 recipe["support"]["versionRange"],
                 functional[adapter_id]["versionRange"],

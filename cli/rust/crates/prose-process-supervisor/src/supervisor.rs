@@ -2497,16 +2497,30 @@ mod tests {
         let strict = JsonlProtocol::installed("system", "result", ["assistant"]);
         let mut state = ProtocolState::default();
         state.accept(br#"{"type":"system"}"#, &strict).unwrap();
-        assert!(state.accept(br#"{"type":"rate_limit_event"}"#, &strict).is_err());
+        assert!(
+            state
+                .accept(br#"{"type":"rate_limit_event"}"#, &strict)
+                .is_err()
+        );
 
         let tolerant = strict.with_unlisted_nonterminal_events();
         let mut state = ProtocolState::default();
-        assert!(state.accept(br#"{"type":"rate_limit_event"}"#, &tolerant).is_err());
+        assert!(
+            state
+                .accept(br#"{"type":"rate_limit_event"}"#, &tolerant)
+                .is_err()
+        );
         state.accept(br#"{"type":"system"}"#, &tolerant).unwrap();
-        state.accept(br#"{"type":"rate_limit_event"}"#, &tolerant).unwrap();
+        state
+            .accept(br#"{"type":"rate_limit_event"}"#, &tolerant)
+            .unwrap();
         assert!(state.terminal.is_none());
         state.accept(br#"{"type":"result"}"#, &tolerant).unwrap();
-        assert!(state.accept(br#"{"type":"rate_limit_event"}"#, &tolerant).is_err());
+        assert!(
+            state
+                .accept(br#"{"type":"rate_limit_event"}"#, &tolerant)
+                .is_err()
+        );
     }
 
     #[test]

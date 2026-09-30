@@ -1386,15 +1386,14 @@ mod tests {
             assert!(!argv.iter().any(|word| word.contains(&removed)));
         }
         // Without `cli`, an unknown option stays the language's first token.
-        for args in [vec!["--json", "run.prose"]] {
-            assert!(
-                matches!(
-                    parse_invocation(strings(&args)).unwrap().action,
-                    Action::Forward { .. }
-                ),
-                "{args:?}"
-            );
-        }
+        let args = ["--json", "run.prose"];
+        assert!(
+            matches!(
+                parse_invocation(strings(&args)).unwrap().action,
+                Action::Forward { .. }
+            ),
+            "{args:?}"
+        );
     }
 
     #[test]

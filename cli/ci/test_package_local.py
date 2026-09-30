@@ -1293,135 +1293,7 @@ class DevelopmentPackageGuidanceTests(unittest.TestCase):
                 expected,
             )
 
-    def test_source_development_install_binds_the_packaged_platform(self) -> None:
-        readme = (CLI / "release" / "README.md").read_text("utf-8")
-        development = readme.split("## Development package", 1)[1].split(
-            "## Draft workflow", 1
-        )[0]
-        self.assertIn('manifest.get("mode") != "development"', development)
-        self.assertIn('platform_id = manifest.get("platform")', development)
-        self.assertIn("platform_id not in supported", development)
-        self.assertIn(
-            '"$PACKAGE_DIR/openprose-prose-cli-$PLATFORM_ID-$VERSION.tgz"',
-            development,
-        )
-        self.assertNotIn(
-            '"$PACKAGE_DIR/openprose-prose-cli-darwin-arm64-0.1.0.tgz"',
-            development,
-        )
 
-    def test_source_development_install_executes_only_for_manifest_platform(
-        self,
-    ) -> None:
-        if os.name == "nt":
-            self.skipTest("source development example uses the documented POSIX shell")
-        readme = (CLI / "release" / "README.md").read_text("utf-8")
-        development = readme.split("## Development package", 1)[1].split(
-            "## Draft workflow", 1
-        )[0]
-        shell = next(
-            block.split("```", 1)[0].strip()
-            for block in development.split("```sh")[1:]
-            if "PLATFORM_ID=$(" in block.split("```", 1)[0]
-        )
-        with tempfile.TemporaryDirectory(
-            prefix="openprose-source-development-install-"
-        ) as temporary:
-            workspace = Path(temporary).resolve()
-            fake_bin = workspace / "fake-bin"
-            fake_bin.mkdir()
-            arguments = workspace / "npm-arguments"
-            npm = fake_bin / "npm"
-            npm.write_text(
-                "#!/bin/sh\n"
-                ': > "$OPENPROSE_NPM_ARGUMENTS"\n'
-                "for argument do\n"
-                '  printf \'%s\\0\' "$argument" >> "$OPENPROSE_NPM_ARGUMENTS"\n'
-                "done\n",
-                "utf-8",
-            )
-            npm.chmod(0o755)
-            shell = shell.replace(
-                "PACKAGE_DIR=/tmp/openprose-cli-artifacts",
-                f"PACKAGE_DIR={posix_shell_quote(str(workspace))}",
-                1,
-            )
-            environment = clean_environment(workspace / "source-guidance-environment")
-            environment.update(
-                {
-                    "HOME": str(workspace / "home with spaces"),
-                    "PATH": f"{fake_bin}{os.pathsep}{os.environ.get('PATH', '')}",
-                    "OPENPROSE_NPM_ARGUMENTS": str(arguments),
-                }
-            )
-            manifest_path = workspace / "release-manifest.json"
-            manifest_path.write_text(
-                json.dumps(
-                    {
-                        "mode": "development",
-                        "version": VERSION,
-                        "platform": "linux-arm64-gnu",
-                    }
-                ),
-                "utf-8",
-            )
-            completed = subprocess.run(
-                ["/bin/sh", "-c", shell],
-                cwd=workspace,
-                env=environment,
-                capture_output=True,
-                text=True,
-                check=False,
-                timeout=5,
-            )
-            self.assertEqual(completed.returncode, 0, completed.stderr)
-            observed = [
-                item.decode("utf-8")
-                for item in arguments.read_bytes().split(b"\0")[:-1]
-            ]
-            self.assertEqual(
-                observed,
-                [
-                    "install",
-                    "--global",
-                    "--offline",
-                    "--ignore-scripts",
-                    "--prefix",
-                    str(
-                        workspace
-                        / "home with spaces"
-                        / ".local"
-                        / f"openprose-cli-{VERSION}"
-                    ),
-                    str(
-                        workspace / f"openprose-prose-cli-linux-arm64-gnu-{VERSION}.tgz"
-                    ),
-                    str(workspace / f"openprose-prose-cli-{VERSION}.tgz"),
-                ],
-            )
-
-            arguments.unlink()
-            manifest_path.write_text(
-                json.dumps(
-                    {
-                        "mode": "development",
-                        "version": VERSION,
-                        "platform": "linux-arm64-gnu; npm install forged",
-                    }
-                ),
-                "utf-8",
-            )
-            refused = subprocess.run(
-                ["/bin/sh", "-c", shell],
-                cwd=workspace,
-                env=environment,
-                capture_output=True,
-                text=True,
-                check=False,
-                timeout=5,
-            )
-            self.assertNotEqual(refused.returncode, 0)
-            self.assertFalse(arguments.exists())
 
     def test_npm_packaging_passes_its_exact_platform_to_development_readme(
         self,
@@ -2816,6 +2688,24 @@ process.stdout.write(JSON.stringify({ spawned, stderr, exitCode: fakeProcess.exi
                 self.assertIn("--image-manifest", completed.stderr)
                 self.assertNotIn("Traceback", completed.stderr)
 
+    def assert_logged_out_account_status(self, completed):
+        report = json.loads(completed.stdout)
+        self.assertEqual(set(report), {"schema", "operation", "interaction", "result", "problem"})
+        self.assertEqual(report["schema"], "openprose.service-operation/1")
+        self.assertEqual(report["operation"], "auth.status")
+        self.assertEqual(report["interaction"], "cli.auth_status")
+        if completed.returncode == 0:
+            self.assertEqual(report["result"], {"authenticated": False, "credentialSource": "none"})
+            self.assertIsNone(report["problem"])
+        else:
+            # Headless hosts may lack Secret Service/keychain availability.
+            self.assertEqual(completed.returncode, 10, report)
+            self.assertIsNone(report["result"])
+            self.assertEqual(report["problem"]["code"], "CREDENTIAL_STORE_UNAVAILABLE")
+            self.assertEqual(report["problem"]["exitCode"], 10)
+            self.assertIn("OPENPROSE_API_KEY", report["problem"]["action"])
+        self.assertEqual(completed.stderr, b"")
+
     def test_unpacked_rust_and_bun_archives_run_the_public_machine_surface(
         self,
     ) -> None:
@@ -2884,8 +2774,8 @@ process.stdout.write(JSON.stringify({ spawned, stderr, exitCode: fakeProcess.exi
                 ),
                 (
                     ["--output", "json", "cli", "auth", "status"],
-                    "openprose.account-status/1",
-                    10,
+                    "openprose.service-operation/1",
+                    None,
                 ),
             ]:
                 result = run_artifact(
@@ -2894,9 +2784,10 @@ process.stdout.write(JSON.stringify({ spawned, stderr, exitCode: fakeProcess.exi
                     workspace,
                     self.root / f"machine-env-{implementation}-{schema}",
                 )
-                self.assertEqual(
-                    result.returncode, exit_code, (implementation, result.stderr)
-                )
+                if schema == "openprose.service-operation/1":
+                    self.assert_logged_out_account_status(result)
+                else:
+                    self.assertEqual(result.returncode, exit_code, (implementation, arguments, result.stderr))
                 self.assertEqual(result.stderr, b"")
                 report = json.loads(result.stdout)
                 self.assertEqual(report["schema"], schema)
@@ -2948,10 +2839,7 @@ process.stdout.write(JSON.stringify({ spawned, stderr, exitCode: fakeProcess.exi
             workspace,
             self.root / "npm-account-env",
         )
-        self.assertEqual(account.returncode, 10)
-        self.assertEqual(
-            json.loads(account.stdout)["schema"], "openprose.account-status/1"
-        )
+        self.assert_logged_out_account_status(account)
 
     def test_meta_package_has_exact_optional_dependencies_and_no_lifecycle_scripts(
         self,
@@ -3403,61 +3291,6 @@ process.stdout.write(JSON.stringify({ spawned, stderr, exitCode: fakeProcess.exi
             npm.count('xattr -d com.apple.quarantine "$GATEKEEPER_PROSE"'), 1
         )
 
-        release_guide = (CLI / "release" / "README.md").read_text("utf-8")
-        self.assertNotIn("xattr -d com.apple.quarantine <path-to-prose>", release_guide)
-        self.assertIn(
-            "The generated package README contains the one exact quarantine\ncommand",
-            release_guide,
-        )
-        self.assertEqual(release_guide.count(PROVIDER_CHARGE_BOUNDARY), 5)
-        self.assertEqual(
-            release_guide.count(PACKAGE_LOCAL.alpha_platform_resolution_shell()), 4
-        )
-        platform_blocks = [
-            block.split("```", 1)[0]
-            for block in release_guide.replace("```bash", "```sh").split("```sh")[1:]
-            if 'PLATFORM_ID="$PLATFORM_ARCH-gnu"' in block.split("```", 1)[0]
-        ]
-        self.assertEqual(len(platform_blocks), 4)
-        for block in platform_blocks:
-            self.assertEqual(block.count("getconf GNU_LIBC_VERSION"), 1)
-            self.assertLess(
-                block.index("getconf GNU_LIBC_VERSION"),
-                block.index('PLATFORM_ID="$PLATFORM_ARCH-gnu"'),
-            )
-        for heading, command in (
-            (
-                "Install the exact pair into a collision-safe",
-                "npm install --global --offline",
-            ),
-            ("The registry repair for that same exact prefix", "npm install --global"),
-            ("Remove\nonly this version with:", "npm uninstall --global"),
-        ):
-            section = release_guide[release_guide.index(heading) :]
-            shell = section.split("```sh", 1)[1].split("```", 1)[0]
-            self.assertIn("VERSION=0.15.0-alpha.1", shell)
-            self.assertIn('INSTALL_PREFIX="$HOME/.local/openprose-cli-$VERSION"', shell)
-            self.assertLess(
-                shell.index('PLATFORM_ID="$PLATFORM_ARCH-gnu"'),
-                shell.index(command),
-            )
-        for heading in (
-            "For the first journey, install exact Codex version",
-            *JOURNEY_HEADINGS.values(),
-        ):
-            start = release_guide.index(heading)
-            later = [
-                release_guide.find(candidate, start + len(heading))
-                for candidate in JOURNEY_HEADINGS.values()
-            ]
-            end = min(
-                (index for index in later if index >= 0), default=len(release_guide)
-            )
-            block = release_guide[start:end]
-            self.assertEqual(block.count(PROVIDER_CHARGE_BOUNDARY), 1)
-            self.assertLess(
-                block.index(PROVIDER_CHARGE_BOUNDARY), block.index('" run ')
-            )
 
     def test_omp_runtime_prerequisite_authority_fails_closed_on_drift(self) -> None:
         manifest = json.loads(
@@ -3501,106 +3334,6 @@ process.stdout.write(JSON.stringify({ spawned, stderr, exitCode: fakeProcess.exi
         ):
             PACKAGE_LOCAL.alpha_version_guidance()
 
-    def test_release_readme_separates_platform_and_admission_ids_and_closes_repairs(
-        self,
-    ) -> None:
-        readme = (ROOT / "cli" / "release" / "README.md").read_text("utf-8")
-        platform_assignment = "Darwin:arm64) PLATFORM_ID=darwin-arm64 ;;"
-        target_assignment = "darwin-arm64) ADMISSION_TARGET=darwin-arm ;;"
-        self.assertIn(platform_assignment, readme)
-        self.assertIn(target_assignment, readme)
-        self.assertLess(
-            readme.index(platform_assignment), readme.index(target_assignment)
-        )
-        self.assertEqual(readme.count('--target-id "$ADMISSION_TARGET"'), 2)
-        self.assertNotIn('--target-id "$TARGET_ID"', readme)
-        self.assertIn(
-            'PROSE="$INSTALL_PREFIX/bin/prose"',
-            readme,
-        )
-        self.assertNotIn("openprose-cli-0.15.0-alpha.1", readme)
-        self.assertIn("npm install --global @openai/codex@0.149.0-alpha.4.1", readme)
-        self.assertIn("npm install --global @anthropic-ai/claude-code@2.1.243", readme)
-        self.assertIn(
-            "admitted OMP version is `18.0.9`, and it requires Bun `>=1.3.14`",
-            " ".join(readme.split()),
-        )
-        self.assertIn(
-            "npm install --global bun@1.3.14 @oh-my-pi/pi-coding-agent@18.0.9",
-            readme,
-        )
-        self.assertIn("Evidence schema v5 and matrix schema v4", readme)
-        self.assertIn(
-            "`31d81c55c8c90a7358b1cd8c5a0ccba631290a83` completed a 12-cell Darwin",
-            readme,
-        )
-        self.assertIn(
-            "../conformance/live-alpha/evidence/"
-            "31d81c55c8c90a7358b1cd8c5a0ccba631290a83/REPORT.md",
-            readme,
-        )
-        self.assertIn("not a reliability sample", readme)
-        self.assertIn("provider spend is", readme)
-        self.assertIn("unverified and semantic status is `not-applicable`", readme)
-        self.assertIn("malformed-protocol failures", readme)
-        self.assertIn(
-            "The runner does not open or read the packaged example file",
-            " ".join(readme.split()),
-        )
-
-        development_section = readme.split("## Development package", 1)[1].split(
-            "## Draft workflow", 1
-        )[0]
-        self.assertIn(
-            "The explicit `build_local.py` test driver does not produce package inputs",
-            " ".join(development_section.split()),
-        )
-        self.assertNotIn("build_local.py --package", development_section)
-        self.assertIn("--out /tmp/openprose-cli-artifacts", development_section)
-        self.assertIn(
-            "cargo build --manifest-path cli/rust/Cargo.toml --locked -p prose-cli",
-            " ".join(development_section.split()),
-        )
-        self.assertIn("cli/shared/image/echo-v0", development_section)
-        self.assertIn("python3 cli/ci/package_local.py", development_section)
-        self.assertIn("--mode development", " ".join(development_section.split()))
-        normalized_development = " ".join(development_section.split())
-        self.assertIn(
-            "Ordinary `bun run build` produces the development `echo-v0` profile "
-            "with test seams disabled",
-            normalized_development,
-        )
-        self.assertIn(
-            "Only the explicit test build includes provider-free conformance seams",
-            normalized_development,
-        )
-        self.assertNotIn(
-            "Ordinary `bun run build` deliberately includes hermetic provider-free "
-            "conformance seams",
-            normalized_development,
-        )
-        self.assertNotIn(
-            "--image-manifest cli/shared/image/sentinel-v1", development_section
-        )
-
-        development = PACKAGE_LOCAL.standalone_readme(
-            mode="development",
-            implementation="bun",
-            version="0.0.0-dev",
-            platform_identifier="darwin-arm64",
-            archive_name="development.tar.gz",
-            root_name="development",
-            linux_runtime="not-applicable",
-        ).decode("utf-8")
-        self.assertNotIn("echo-v0 transports", development)
-        self.assertNotIn("ad-hoc signed and not notarized", development)
-        self.assertNotIn("This alpha executable", development)
-        self.assertNotIn(
-            "macOS alpha executables",
-            PACKAGE_LOCAL.npm_readme("development", "0.0.0-dev", "darwin-arm64").decode(
-                "utf-8"
-            ),
-        )
 
     def test_missing_platform_package_is_actionable_and_never_downloads(self) -> None:
         executable = self.install_npm("npm-missing-prefix", include_platform=False)
@@ -4488,7 +4221,7 @@ process.stdout.write(JSON.stringify({ spawned, stderr, exitCode: fakeProcess.exi
             )
         ]
         # The Rust kernel HTTPS loader adds 51 locked dependencies.
-        self.assertEqual(len(dependency_components), 127 + 14 + 12)
+        self.assertEqual(len(dependency_components), 127 + 14 + 13)
         self.assertEqual(
             len({component["bom-ref"] for component in dependency_components}),
             len(dependency_components),

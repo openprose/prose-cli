@@ -11,7 +11,7 @@ fn receipt() -> Value {
     ))
     .unwrap()
 }
-fn invoke(root: &Path, args: &[&str], fixture: Value, environment: &[(&str, &str)]) -> Output {
+fn invoke(root: &Path, args: &[&str], fixture: &Value, environment: &[(&str, &str)]) -> Output {
     let fixture_path = root.join("fixture.json");
     fs::write(&fixture_path, fixture.to_string()).unwrap();
     let mut command = Command::new(env!("CARGO_BIN_EXE_prose"));
@@ -28,7 +28,9 @@ fn invoke(root: &Path, args: &[&str], fixture: Value, environment: &[(&str, &str
     command.output().unwrap()
 }
 fn fixture(exchanges: Value) -> Value {
-    json!({"environment":"production","credential":null,"storeAvailable":true,"exchanges":exchanges})
+    let mut value = json!({"environment":"production","credential":null,"storeAvailable":true});
+    value["exchanges"] = exchanges;
+    value
 }
 fn report(output: &Output) -> Value {
     assert!(
@@ -54,7 +56,7 @@ fn registry_plus_build_path_and_selected_credentials_are_exact() {
             "example/hello@1.0.0+build",
             "--json",
         ],
-        fixture(
+        &fixture(
             json!([{"method":"POST","path":"/registry/v1/organizations/example/packages/hello/versions/1.0.0+build/withdraw","origin":"https://run-prose-production.openprose.workers.dev","status":200,"body":value}]),
         ),
         &[
@@ -77,7 +79,7 @@ fn registry_plus_build_path_and_selected_credentials_are_exact() {
             "example/hello@1.0.0",
             "--json",
         ],
-        fixture(json!([])),
+        &fixture(json!([])),
         &[(
             "OPENPROSE_TOKEN",
             "rr_test_11111111111111111111111111111111",
@@ -100,10 +102,15 @@ fn anonymous_public_listing_supports_cursor_and_unavailable_store_only() {
         "public:hello:1.0.0+build",
         "--json",
     ];
-    let output = invoke(&root, &args, fixture.clone(), &[]);
+    let output = invoke(&root, &args, &fixture, &[]);
     assert_eq!(output.status.code(), Some(0));
     assert_eq!(report(&output)["result"], listing);
-    let output = invoke(&root, &args, fixture, &[("OPENPROSE_API_KEY", "bad-token")]);
+    let output = invoke(
+        &root,
+        &args,
+        &fixture,
+        &[("OPENPROSE_API_KEY", "bad-token")],
+    );
     assert_eq!(
         report(&output)["problem"]["code"],
         "SERVICE_PROTOCOL_INVALID"
@@ -111,7 +118,7 @@ fn anonymous_public_listing_supports_cursor_and_unavailable_store_only() {
     let output = invoke(
         &root,
         &["cli", "package", "list", "example", "--json"],
-        json!({"environment":"production","credential":"bad-stored-token","storeAvailable":true,"exchanges":[]}),
+        &json!({"environment":"production","credential":"bad-stored-token","storeAvailable":true,"exchanges":[]}),
         &[],
     );
     assert_eq!(
@@ -139,7 +146,7 @@ fn fetch_rejects_existing_targets_wrong_hash_and_noncanonical_artifacts() {
             "existing",
             "--json",
         ],
-        fixture(exchanges.clone()),
+        &fixture(exchanges.clone()),
         &[],
     );
     assert_eq!(output.status.code(), Some(2));
@@ -162,7 +169,7 @@ fn fetch_rejects_existing_targets_wrong_hash_and_noncanonical_artifacts() {
             "0000000000000000000000000000000000000000000000000000000000000000",
             "--json",
         ],
-        fixture(exchanges.clone()),
+        &fixture(exchanges.clone()),
         &[],
     );
     assert_eq!(output.status.code(), Some(10));
@@ -180,7 +187,7 @@ fn fetch_rejects_existing_targets_wrong_hash_and_noncanonical_artifacts() {
             "tampered",
             "--json",
         ],
-        fixture(tampered),
+        &fixture(tampered),
         &[],
     );
     assert_eq!(
@@ -211,7 +218,7 @@ fn publish_refuses_wrong_upload_expectation_and_does_not_echo_raw_service_errors
     let output = invoke(
         &root,
         &args,
-        fixture(json!([exchange])),
+        &fixture(json!([exchange])),
         &[(
             "OPENPROSE_API_KEY",
             "rr_test_11111111111111111111111111111111",
@@ -225,7 +232,7 @@ fn publish_refuses_wrong_upload_expectation_and_does_not_echo_raw_service_errors
     let output = invoke(
         &root,
         &args,
-        fixture(json!([exchange])),
+        &fixture(json!([exchange])),
         &[(
             "OPENPROSE_API_KEY",
             "rr_test_11111111111111111111111111111111",

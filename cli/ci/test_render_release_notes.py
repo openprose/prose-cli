@@ -353,7 +353,7 @@ class ReleaseNotesTests(unittest.TestCase):
         changelog = (NOTES.CLI / "CHANGELOG.md").read_text("utf-8")
         normalized_changelog = " ".join(changelog.split())
         for marker in (
-            "## [Unreleased] — 0.15.0-alpha.N functional-alpha train",
+            "## [Unreleased]",
             "independent CLI implementation under `cli/`",
             "historical `@openprose/prose-cli` implementation",
             "transport-only",

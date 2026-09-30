@@ -73,6 +73,7 @@ def expected_versions() -> dict[str, str]:
         "cargo": rust_match.group(1),
         "bun": bun_match.group(1),
         "jsonschema": "4.23.0",
+        "PyYAML": "6.0.2",
         "referencing": "0.35.1",
     }
 
@@ -192,7 +193,7 @@ def assess(
         "node": command(("node", "--version")),
         "npm": command(("npm", "--version")),
     }
-    for package in ("jsonschema", "referencing"):
+    for package in ("jsonschema", "referencing", "PyYAML"):
         try:
             observed[package] = distribution(package)
         except metadata.PackageNotFoundError:

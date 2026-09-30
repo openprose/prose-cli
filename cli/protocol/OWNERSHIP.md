@@ -545,3 +545,67 @@ Lease extension: `cli/conformance/fixtures/adapter-host-expectations.json` to pr
 Lease extension: `docs/claude-compatibility-qualification.md` for the maintained corrective verification record.
 
 IMP-061 local integration: Codex owns conflict resolution and formatting in `cli/rust/crates/prose-runner-core/src/installed_adapters.rs`, plus this ownership record and `docs/integration-qualification.md`. Preserve PR 11 compatibility behavior. No remote merge or publication is authorized.
+
+## IMP-061 clean CI roll-forward — September 30, 2026
+
+Codex is the lead and sole editor of branch `codex/imp-061-ci-roll-forward`. Active leases: `.github/workflows/cli-distribution-check.yml`, `.github/workflows/cli-kernel-rc.yml`, `cli/ci/check_workflows.py`, `cli/ci/test_check_workflows.py`, `cli/ci/run_local.py`, `cli/ci/test_run_local.py`, `cli/conformance/adversarial/adapters/test_adapter_oracle.py`, `cli/CONTRIBUTING.md`, `cli/release/README.md`, `cli/protocol/STATUS.md`, `cli/protocol/OWNERSHIP.md`, and `docs/ci-roll-forward.md`. Further exact leases will be recorded before source repairs or formatting. Scope: current provider-free CI and one current release path; retire obsolete workflow policy without preserving legacy runtime flows. Publication and deployment are not assigned.
+
+IMP-061 lease extension: `.github/workflows/cli-ci.yml`, `cli/ci/requirements-test.txt`, `cli/ci/check_dependencies.py`, and `cli/ci/test_check_dependencies.py` for structural YAML workflow admission and the pinned parser dependency.
+
+IMP-061 lease extension: `cli/shared/capabilities/adapters/oracle.v1.json`, `cli/shared/fixtures/adapters/generate.py`, `cli/shared/fixtures/adapters/bin/adapter_probe.py`, and `cli/shared/fixtures/adapters/scenarios/agents-sdk-jsonl.v1.json` for the existing generic SDK harness's missing provider-free fixture and source facts. Formatting and lint repairs are leased in `cli/rust/crates/prose-process-supervisor/src/supervisor.rs` and `cli/rust/crates/prose-runner-core/src/installed_adapters.rs`; no other module is formatted through recursive traversal.
+
+IMP-061 lease extension: `cli/shared/capabilities/adapters/recipes/agents-sdk-jsonl.v1.json` to replace invalid isolation enum labels with the existing schema vocabulary, without new admission claims.
+
+IMP-061 exact lint-repair leases: `cli/rust/crates/prose-runner-core/src/config.rs`, `cli/rust/crates/prose-runner-core/src/installed_adapters.rs`, `cli/rust/crates/prose-runner-core/src/installed_adapters/native_tools.rs`, `cli/rust/crates/prose-runner-core/src/invocation.rs`, `cli/rust/crates/prose-runner-core/src/kernel_startup.rs`, `cli/rust/crates/prose-runner-core/src/runner.rs`, `cli/rust/crates/prose-runner-core/src/service/jobs.rs`, `cli/rust/crates/prose-runner-core/src/service/mod.rs`, `cli/rust/crates/prose-runner-core/src/service/program_ref.rs`, `cli/rust/crates/prose-runner-core/src/service/render.rs`, `cli/rust/crates/prose-runner-core/src/service/wallet.rs`, `cli/rust/crates/prose-runner-core/src/service_account.rs`. Fix compiler suggestions and checked conversions without disabling the strict lint gate.
+
+IMP-061 additional leases: `cli/bun/scripts/image-bundle.ts`, `cli/bun/test/standalone.test.ts`, `cli/ci/rehearse_release.py`, and `cli/ci/test_rehearse_release.py` for portable dependency diagnostics and the 50-case installed corpus.
+
+IMP-061 lint-repair leases extended to `cli/rust/crates/prose-cli/src/main.rs`, `cli/rust/crates/prose-cli/src/weave_host.rs`, `cli/rust/crates/prose-cli/tests/registry.rs`, `cli/rust/crates/prose-cli/tests/weave_host.rs`, and `cli/rust/crates/prose-cli/tests/service_framework.rs`. Preserve invocation and output contracts; check process IDs, exit codes and byte budgets before conversion.
+
+IMP-061 lease extension: `cli/rust/crates/prose-cli/tests/service_wallet.rs` for deterministic hexadecimal fixture formatting.
+
+IMP-061 retirement leases: `cli/ci/promote_alpha_release.py`, `cli/ci/test_promote_alpha_release.py`, `cli/ci/verify_public_alpha.py`, `cli/ci/test_verify_public_alpha.py`, `cli/ci/run_public_alpha_verification.py`, `cli/ci/test_run_public_alpha_verification.py`, `cli/ci/check_registry_lineage.py`, `cli/ci/test_check_registry_lineage.py`, `cli/release/npm-registry-lineage.v1.json`, `cli/README.md`, `cli/ci/test_check_contributor_docs.py`, `cli/release/ALPHA_READINESS.md`, `cli/release/MIGRATION_AND_ROLLBACK.md`, `docs/cli-publication.md`. Retire the unused alpha promotion and post-publication machinery and its frozen alpha-only registry policy; keep historical evidence immutable in Git, and retain the current publication verifier and package-custody tests.
+
+IMP-061 lease extension: `cli/ci/test_check_build_local.py` to route the existing development-build documentation checks to the maintained release guide rather than the retired alpha authority.
+
+IMP-061 lease extension: `cli/ci/test_dependency_evidence.py` to qualify the current 13-package Bun inventory and Undici runtime scope after the transport dependency addition.
+
+IMP-061 lease extension: `cli/conformance/real-harness/run.py`, `cli/conformance/real-harness/test_run.py`, and `cli/conformance/real-harness/README.md` to retire in-place enrichment of old evidence and verify that current evidence requires its measured capture and settlement fields. No live-model invocation is assigned.
+
+IMP-061 lease extension: `cli/conformance/live-alpha/test_public_evidence.py` and `cli/conformance/live-alpha/README.md` to replace a missing historical cohort dependency with clearly synthetic current matrix schema/privacy coverage. This does not claim a fresh live run.
+
+IMP-061 retirement leases: `cli/conformance/direct-skill-real/README.md`, `cli/conformance/direct-skill-real/RED_ORACLE.md`, `cli/conformance/direct-skill-real/evidence.schema.json`, `cli/conformance/direct-skill-real/fake_prime_agent.py`, `cli/conformance/direct-skill-real/matrix.v1.json`, `cli/conformance/direct-skill-real/policy.v1.json`, `cli/conformance/direct-skill-real/programs/fanout-effect.prose`, `cli/conformance/direct-skill-real/programs/simple-effect.prose`, `cli/conformance/direct-skill-real/run.py`, `cli/conformance/direct-skill-real/test_run.py`. Retire the frozen explicit legacy-skill experiment, which does not test the current CLI or language. Its source remains immutable in Git.
+
+IMP-061 lease extension: `cli/platform/windows-process-host/src/lib.rs` for formatting the existing output-budget test under the pinned Rust formatter.
+
+IMP-061 lease extension: `cli/rust/crates/prose-cli/tests/cli.rs` for the rejected-version diagnostic fixture. Claude 2.1.244 now lies within Raymond's supported version range; use 2.1.242 below its floor and retain the full diagnostic assertions.
+
+IMP-061 lease extension: `cli/rust/crates/prose-runner-core/src/service/dev_endpoint.rs` for strict developer-build lint repairs; `cli/ci/README.md`, `cli/CHANGELOG.md`, and `cli/ci/test_render_release_notes.py` for current admission guidance and an unreleased changelog independent of the retired alpha train.
+
+IMP-061 security-repair leases: `cli/bun/test/image.test.ts`, `experiments/weave-seed/bun/host.mjs`, and `experiments/weave-seed/bun/host.test.mjs`. GitHub's remaining CodeQL findings concern partial newline mutation in a test and regex backtracking in the experimental checkpoint tokenizer. Keep the mutation negative and replace token scanning with a linear pass; qualify the existing experiment without coupling it to either CLI.
+
+IMP-061 lease extension: `cli/conformance/adversarial/adapter-products/test_adapter_products.py` to bind the existing four-harness installed adversary explicitly to its shared cohort authority. The separately tested SDK oracle remains outside measured installed admission.
+
+IMP-061 lease extension: `cli/conformance/adversarial/adapter-products/README.md` for explicit fixed-image adversarial builds. Preserve ordinary published-kernel builds and isolate the provider-free echo fixture candidates in dedicated output paths.
+
+IMP-061 cross-product contract leases: `cli/shared/schemas/runner-error.schema.json`, `cli/shared/tests/test_contracts.py`, `cli/rust/crates/prose-runner-core/src/prime_owned_service.rs`, `cli/bun/src/adapters/prime-owned-service.ts`, and `cli/bun/test/prime-owned-service.test.ts`. Use a distinct typed `processResource` for owned-service settlement, leaving hosted not-found `resource` objects strict. Existing leased Rust adapter/runner paths align ordinary Codex argv to its shared developer recipe and retain pathless structured installed diagnostics without fake-transport-only fields.
+
+IMP-061 lease extension: `cli/bun/src/adapters/protocols.ts`, `cli/bun/test/omp-protocol.test.ts`, and `cli/bun/test/native-tools.test.ts` to pass the existing native-output selection into OMP's state barrier. Envelope-mode fixtures reject nonempty tool inventories; explicit native mode retains its tool lifecycle.
+
+IMP-061 portability and packaging leases: `cli/ci/test_package_local.py`, `cli/rust/crates/prose-cli/tests/cli.rs`, and `cli/conformance/adversarial/adapter-products/test_adapter_products.py`. Qualify installed behavior only on recipe-admitted hosts, assert unsupported-host refusal, update the current package inventory and account status, and retire assertions against removed documentation examples. Generated package installation/custody coverage remains active.
+
+IMP-061 lease extension: `cli/bun/test/cli.test.ts`, `cli/bun/test/adapters-installed.test.ts`, and `cli/bun/src/adapters/runner.ts`. Unit fixtures inject their admitted macOS ARM64 identity; explicit host admission tests retain their requested identities and compiled adversaries still use the actual host. Private-file cleanup uses the shared typed process resource rather than a hosted-resource field.
+
+IMP-061 remaining legacy retirement leases: `cli/ci/alpha_package_admission.py`, `cli/ci/test_alpha_package_admission.py`, `cli/ci/create_draft_release.py`, `cli/ci/test_create_draft_release.py`, `cli/ci/test_check_draft_release.py`, and `cli/ci/render_release_notes.py`. These standalone helpers belong to the removed numbered-alpha publication flow and are not invoked by any maintained workflow. Retain current kernel assembly, publication verification, release-package admission, generated package custody, and installed rehearsal; their historical implementation remains in Git.
+
+IMP-061 lease extension: `cli/bun/test/omp-custom.test.ts`, `cli/bun/test/omp-task-defaults.test.ts`, and `cli/bun/test/omp-late-progress.test.ts`. Their tool-history fixtures explicitly select native mode under the tightened OMP barrier; image-envelope negative tests remain separate.
+
+IMP-061 lease extension: `cli/conformance/release-package/invariants.v1.json` to bind the current hosted-service help bytes, and `.github/workflows/cli-ci.yml`, `cli/ci/check_workflows.py`, `cli/ci/test_check_workflows.py` to preload the Windows helper toolchain target before provider-free admission disables network access. This retains the offline gate rather than permitting toolchain downloads during it.
+
+IMP-061 lease extension: `cli/ci/release_package_admission.py` to update its closed current help identity together with the release-package invariant manifest. Exact byte length and digest checks remain frozen and tampering tests remain active.
+
+IMP-061 benchmark leases: `cli/benchmarks/tests/test_smoke_contract.py` and `cli/benchmarks/README.md`. Retire assertions against absent mechanically migrated historical evidence. Retain current snapshot/atomic custody and rig tests, and verify current fixture collection digests, privacy and deterministic reanalysis without claiming a CLI measurement.
+
+IMP-061 lease extension: `cli/benchmarks/runner/cli.py`. Current fixture collection revealed absolute image/program/validator paths in exported identities. Normalize only their public descriptors after exact input admission, preserving the verified digest and private execution authorities.
+
+IMP-061 Linux credential-test lease: `cli/rust/crates/prose-cli/tests/credential_store.rs`. Fresh Linux source admission exposed assertions for the retired account envelope and error text. Assert the current service-operation envelope, structured malformed-credential details, native Secret Service calls, shadow resistance and credential-free argv; no compatibility fallback is added.

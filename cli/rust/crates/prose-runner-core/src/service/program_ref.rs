@@ -341,7 +341,7 @@ pub fn resolve_rev_number(
 /// `owner/slug@rev_id`, the way `program show` reads references: a bare SLUG
 /// is the caller's own program, `@N` (or `@revN`) is revision N of the
 /// caller's own program, a pinned `@REV` of the caller's own program must be
-/// one of its revisions (a commit id is named as such, with the rev_id to
+/// one of its revisions (a commit id is named as such, with the `rev_id` to
 /// pass), and a latest reference reads the newest `rev_id`. Another owner's
 /// pinned reference is checked by the service. `list` and `read` are the
 /// operation's `GET /programs/{slug}/revisions` and `GET /p/{owner}/{slug}`

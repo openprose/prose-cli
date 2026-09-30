@@ -6,7 +6,7 @@
 mod claude_shutdown;
 mod native_tools;
 
-use crate::image::{sha256_hex, RuntimeImage};
+use crate::image::{RuntimeImage, sha256_hex};
 use crate::{ErrorCode, RunnerError};
 use prose_process_supervisor::{
     CancellationToken, CommandProbe, CommandProbeOutcome, EnvironmentPolicy, JsonlProtocol,
@@ -16,7 +16,7 @@ use prose_process_supervisor::{
 use serde::de::{Error as _, MapAccess, SeqAccess, Visitor};
 use serde::ser::{SerializeMap, SerializeSeq};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::ffi::{OsStr, OsString};
 use std::fmt;
 use std::fs;
@@ -699,6 +699,10 @@ pub struct PreparedLaunch {
 
 impl PreparedLaunch {
     /// Opt-in native tool selection; the default launch is left byte-for-byte unchanged.
+    ///
+    /// # Errors
+    /// Returns a configuration or private-file error when the selected profile
+    /// cannot be transported by this adapter.
     pub fn apply_workspace_profile(
         &mut self,
         auth_group: &str,
@@ -859,7 +863,7 @@ impl PreparedLaunch {
 fn private_file_cleanup_failure(adapter: InstalledAdapter) -> RunnerError {
     RunnerError::catalog(ErrorCode::ProcessCleanupFailed)
         .with_detail("phase", "private-file-finalization")
-        .with_detail("resource", "owned-private-transport-files")
+        .with_detail("processResource", "owned-private-transport-files")
         .with_detail("adapterId", adapter.id())
         .with_detail("fallbackAttempted", false)
 }
@@ -1077,6 +1081,10 @@ pub(crate) fn validate_prime_native_prefix(records: &[Value], id: &str) -> Resul
     native_tools::normalize_mode(records, id, false, false, true).map(|_| ())
 }
 
+/// Normalize one adapter lifecycle while keeping terminal and session checks strict.
+///
+/// # Errors
+/// Returns a protocol error for malformed, incomplete or unsuccessful records.
 pub fn normalize_transport_mode(
     adapter: InstalledAdapter,
     records: &[Value],
@@ -3387,6 +3395,10 @@ fn credential_names(
 ///
 /// Returns an image, size, configuration, or internal-file error before spawn
 /// if the opaque inputs cannot be transported exactly by the frozen recipe.
+///
+/// # Panics
+/// Panics if the compile-time Codex API settings JSON is invalid; the shared
+/// contract gate validates that repository-owned input before admission.
 pub fn prepare_launch(
     adapter: InstalledAdapter,
     executable: PathBuf,
@@ -3420,14 +3432,7 @@ pub fn prepare_launch(
     let mut omp_control_overlay_path = None;
     let (argv, stdin) = match adapter {
         InstalledAdapter::CodexExecJson => {
-            let mut argv = vec![
-                "exec".into(),
-                "--skip-git-repo-check".into(),
-                "--json".into(),
-                "--ephemeral".into(),
-                "--ignore-user-config".into(),
-                "--ignore-rules".into(),
-            ];
+            let mut argv = vec!["exec".into()];
             if !cfg!(any(test, feature = "test-seams")) {
                 let text = std::str::from_utf8(image_bytes)
                     .map_err(|_| RunnerError::catalog(ErrorCode::ImageInvalid))?;
@@ -3439,6 +3444,13 @@ pub fn prepare_launch(
                     format!("developer_instructions={encoded}").into(),
                 ]);
             }
+            argv.extend([
+                "--skip-git-repo-check".into(),
+                "--json".into(),
+                "--ephemeral".into(),
+                "--ignore-user-config".into(),
+                "--ignore-rules".into(),
+            ]);
             if auth_group == "openai-api-key" {
                 let settings: Vec<String> = serde_json::from_str(include_str!(
                     "../../../../shared/capabilities/adapters/codex-env-route.v1.json"
@@ -3888,7 +3900,7 @@ pub(crate) fn omp_rpc_id(invocation_id: &str, suffix: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::{json, Value};
+    use serde_json::{Value, json};
     use tempfile::TempDir;
 
     const FRAMING: &[u8] =
@@ -3935,10 +3947,12 @@ mod tests {
                 .allow_inherited("OPENPROSE_API_KEY", Sensitivity::Secret)
                 .allow_inherited("openprose_api_key", Sensitivity::Secret);
             assert!(!policy.secret_strings().iter().any(|value| value == secret));
-            assert!(!policy
-                .output_protected_strings()
-                .iter()
-                .any(|value| value == secret));
+            assert!(
+                !policy
+                    .output_protected_strings()
+                    .iter()
+                    .any(|value| value == secret)
+            );
         }
     }
 
@@ -4078,13 +4092,15 @@ mod tests {
             InstalledAdapter::PrimeRpc.version_probe().output,
             VersionProbeOutput::Stderr
         );
-        assert!([
-            InstalledAdapter::CodexExecJson,
-            InstalledAdapter::ClaudePrintStreamJson,
-            InstalledAdapter::OmpRpc,
-        ]
-        .into_iter()
-        .all(|adapter| adapter.version_probe().output == VersionProbeOutput::Stdout));
+        assert!(
+            [
+                InstalledAdapter::CodexExecJson,
+                InstalledAdapter::ClaudePrintStreamJson,
+                InstalledAdapter::OmpRpc,
+            ]
+            .into_iter()
+            .all(|adapter| adapter.version_probe().output == VersionProbeOutput::Stdout)
+        );
     }
 
     #[test]
@@ -4411,7 +4427,9 @@ mod tests {
 
     #[test]
     fn exact_version_allowlists_reject_nearby_or_malformed_versions() {
-        assert!(InstalledAdapter::CodexExecJson.version_is_supported("codex-cli 0.149.0-alpha.4.1"));
+        assert!(
+            InstalledAdapter::CodexExecJson.version_is_supported("codex-cli 0.149.0-alpha.4.1")
+        );
         assert!(
             !InstalledAdapter::CodexExecJson.version_is_supported("codex-cli 0.149.0-alpha.4.2")
         );
@@ -4677,9 +4695,11 @@ mod tests {
             let protected = policy.output_protected_strings();
             assert!(protected.iter().any(|value| value == "/fixture/home"));
             assert!(!protected.iter().any(|value| value == raw_secret));
-            assert!(!protected
-                .iter()
-                .any(|value| value.contains("store-override")));
+            assert!(
+                !protected
+                    .iter()
+                    .any(|value| value.contains("store-override"))
+            );
         }
     }
 
@@ -5533,12 +5553,14 @@ mod tests {
 
         let mut atomic_text = text_only.clone();
         atomic_text.drain(7..10);
-        assert!(normalize_transport(
-            InstalledAdapter::PrimeRpc,
-            &atomic_text,
-            "fixture-invocation-0001",
-        )
-        .is_ok());
+        assert!(
+            normalize_transport(
+                InstalledAdapter::PrimeRpc,
+                &atomic_text,
+                "fixture-invocation-0001",
+            )
+            .is_ok()
+        );
 
         let mut empty_deltas_then_atomic_text = text_only.clone();
         for record in &mut empty_deltas_then_atomic_text[6..] {
@@ -5551,12 +5573,14 @@ mod tests {
                 record["message"]["content"][0]["text"] = json!("");
             }
         }
-        assert!(normalize_transport(
-            InstalledAdapter::PrimeRpc,
-            &empty_deltas_then_atomic_text,
-            "fixture-invocation-0001",
-        )
-        .is_ok());
+        assert!(
+            normalize_transport(
+                InstalledAdapter::PrimeRpc,
+                &empty_deltas_then_atomic_text,
+                "fixture-invocation-0001",
+            )
+            .is_ok()
+        );
 
         let mut invalid_first_content = text_only.clone();
         invalid_first_content[6]["assistantMessageEvent"]["contentIndex"] = json!(1);
@@ -5713,12 +5737,14 @@ mod tests {
                 }
             }
         }
-        assert!(normalize_transport(
-            InstalledAdapter::PrimeRpc,
-            &records,
-            "fixture-invocation-0001",
-        )
-        .is_ok());
+        assert!(
+            normalize_transport(
+                InstalledAdapter::PrimeRpc,
+                &records,
+                "fixture-invocation-0001",
+            )
+            .is_ok()
+        );
     }
 
     #[test]
@@ -6184,12 +6210,14 @@ mod tests {
             let mut records = omp_lifecycle();
             *records.last_mut().unwrap() = terminal;
             records.insert(3, omp_response(true));
-            assert!(normalize_transport(
-                InstalledAdapter::OmpRpc,
-                &records,
-                "fixture-invocation-0001"
-            )
-            .is_ok());
+            assert!(
+                normalize_transport(
+                    InstalledAdapter::OmpRpc,
+                    &records,
+                    "fixture-invocation-0001"
+                )
+                .is_ok()
+            );
         }
 
         for event_type in OMP_ASSISTANT_MESSAGE_EVENTS {
@@ -6604,15 +6632,21 @@ mod tests {
     #[test]
     fn omp_rpc_accepts_exact_set_widget_presentation_across_lifecycle_and_settlement() {
         let supervisor_protocol = InstalledAdapter::OmpRpc.protocol();
-        assert!(supervisor_protocol
-            .allowed_events
-            .contains("extension_ui_request"));
-        assert!(!supervisor_protocol
-            .failure_events
-            .contains("extension_ui_request"));
-        assert!(supervisor_protocol
-            .allowed_after_terminal_events
-            .contains("extension_ui_request"));
+        assert!(
+            supervisor_protocol
+                .allowed_events
+                .contains("extension_ui_request")
+        );
+        assert!(
+            !supervisor_protocol
+                .failure_events
+                .contains("extension_ui_request")
+        );
+        assert!(
+            supervisor_protocol
+                .allowed_after_terminal_events
+                .contains("extension_ui_request")
+        );
 
         let base = omp_lifecycle();
         let turn_end = base
@@ -6650,12 +6684,14 @@ mod tests {
             }),
         );
         cleared.insert(4, omp_response(true));
-        assert!(normalize_transport(
-            InstalledAdapter::OmpRpc,
-            &cleared,
-            "fixture-invocation-0001"
-        )
-        .is_ok());
+        assert!(
+            normalize_transport(
+                InstalledAdapter::OmpRpc,
+                &cleared,
+                "fixture-invocation-0001"
+            )
+            .is_ok()
+        );
 
         for presentation in [
             json!({"type":"extension_ui_request","id":"notify","method":"notify","message":"status","notifyType":"info"}),
@@ -6666,12 +6702,14 @@ mod tests {
             let mut records = omp_lifecycle();
             records.insert(3, omp_response(true));
             records.insert(3, presentation);
-            assert!(normalize_transport(
-                InstalledAdapter::OmpRpc,
-                &records,
-                "fixture-invocation-0001"
-            )
-            .is_ok());
+            assert!(
+                normalize_transport(
+                    InstalledAdapter::OmpRpc,
+                    &records,
+                    "fixture-invocation-0001"
+                )
+                .is_ok()
+            );
         }
     }
 
@@ -6813,12 +6851,14 @@ mod tests {
         let init = json!({"type":"system","subtype":"init","session_id":"fixture-session"});
         let done = json!({"type":"result","subtype":"success","is_error":false,"session_id":"fixture-session"});
         let adapter = InstalledAdapter::ClaudePrintStreamJson;
-        assert!(normalize_transport(
-            adapter,
-            &[init.clone(), telemetry.clone(), done.clone()],
-            "unused"
-        )
-        .is_ok());
+        assert!(
+            normalize_transport(
+                adapter,
+                &[init.clone(), telemetry.clone(), done.clone()],
+                "unused"
+            )
+            .is_ok()
+        );
         assert!(
             normalize_transport(adapter, &[init.clone(), telemetry.clone()], "unused").is_err()
         );
@@ -6910,10 +6950,12 @@ mod tests {
                 .map(|x| OsString::from(x.as_str().unwrap()))
                 .collect();
             assert_eq!(&launch.argv[..flags.len()], flags.as_slice());
-            assert!(!launch
-                .argv
-                .iter()
-                .any(|x| x == "--bare" || x == "--allowedTools" || x == "--add-dir"));
+            assert!(
+                !launch
+                    .argv
+                    .iter()
+                    .any(|x| x == "--bare" || x == "--allowedTools" || x == "--add-dir")
+            );
             assert!(launch.argv.iter().any(|x| x == "--safe-mode"));
             assert_eq!(
                 launch.credential_config_directory().is_some(),
@@ -6945,10 +6987,12 @@ mod tests {
                 &["Bash(git status:*)".into(), "Agent".into()],
             )
             .unwrap();
-        assert!(launch
-            .argv
-            .windows(2)
-            .any(|x| x == [OsString::from("--add-dir"), OsString::from("/tmp/a b")]));
+        assert!(
+            launch
+                .argv
+                .windows(2)
+                .any(|x| x == [OsString::from("--add-dir"), OsString::from("/tmp/a b")])
+        );
         assert_eq!(
             launch
                 .argv
@@ -6966,12 +7010,14 @@ mod tests {
         let final_record =
             json!({"type":"result","subtype":"success","is_error":false,"session_id":"s"});
         let adapter = InstalledAdapter::ClaudePrintStreamJson;
-        assert!(normalize_transport(
-            adapter,
-            &[init.clone(), denial.clone(), final_record.clone()],
-            "unused"
-        )
-        .is_ok());
+        assert!(
+            normalize_transport(
+                adapter,
+                &[init.clone(), denial.clone(), final_record.clone()],
+                "unused"
+            )
+            .is_ok()
+        );
         assert!(normalize_transport(adapter, &[init.clone(), denial.clone()], "unused").is_err());
         let mut invalid = denial;
         invalid["session_id"] = json!("other");
@@ -7028,12 +7074,14 @@ fn claude_native_task_lifecycle_never_settles_outer_invocation() {
         // An unknown subtype is tolerated informational telemetry, but only in-session.
         let mut invented = task.clone();
         invented["subtype"] = serde_json::json!("task_invented");
-        assert!(normalize_transport(
-            adapter,
-            &[init.clone(), invented.clone(), done.clone()],
-            "unused"
-        )
-        .is_ok());
+        assert!(
+            normalize_transport(
+                adapter,
+                &[init.clone(), invented.clone(), done.clone()],
+                "unused"
+            )
+            .is_ok()
+        );
         invented["session_id"] = serde_json::json!("other");
         assert!(
             normalize_transport(adapter, &[init.clone(), invented, done.clone()], "unused")
@@ -7064,12 +7112,14 @@ fn claude_task_resumption_preserves_initial_configuration() {
     let mut repeated = init.clone();
     repeated["uuid"] = serde_json::json!("resumed");
     let a = InstalledAdapter::ClaudePrintStreamJson;
-    assert!(normalize_transport(
-        a,
-        &[init.clone(), notice.clone(), repeated.clone(), done.clone()],
-        "unused"
-    )
-    .is_ok());
+    assert!(
+        normalize_transport(
+            a,
+            &[init.clone(), notice.clone(), repeated.clone(), done.clone()],
+            "unused"
+        )
+        .is_ok()
+    );
     assert!(
         normalize_transport(a, &[init.clone(), repeated.clone(), done.clone()], "unused").is_err()
     );
@@ -7134,13 +7184,15 @@ mod native_turn_tests {
         if records.last().unwrap()["type"] != "result" {
             let mut synthetic = records.clone();
             synthetic.push(json!({"type":"result","subtype":"success","is_error":false,"session_id":records[0]["session_id"]}));
-            assert!(normalize_transport_mode(
-                InstalledAdapter::ClaudePrintStreamJson,
-                &synthetic,
-                "fixture",
-                true
-            )
-            .is_ok());
+            assert!(
+                normalize_transport_mode(
+                    InstalledAdapter::ClaudePrintStreamJson,
+                    &synthetic,
+                    "fixture",
+                    true
+                )
+                .is_ok()
+            );
         }
     }
 }
@@ -7343,9 +7395,11 @@ mod prime_child_outer_tests {
         assert!(protocol.allowed_events.contains("rlm_child_update"));
         assert!(protocol.allowed_events.contains("session_action_update"));
         assert_ne!(protocol.terminal_event, "rlm_child_update");
-        assert!(!InstalledAdapter::OmpRpc
-            .protocol()
-            .allowed_events
-            .contains("rlm_child_update"));
+        assert!(
+            !InstalledAdapter::OmpRpc
+                .protocol()
+                .allowed_events
+                .contains("rlm_child_update")
+        );
     }
 }
