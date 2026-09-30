@@ -262,11 +262,6 @@ def gates() -> tuple[Gate, ...]:
             ),
         ),
         Gate(
-            "direct-skill-contract",
-            REPOSITORY_ROOT,
-            (python, "cli/conformance/direct-skill-real/test_run.py"),
-        ),
-        Gate(
             "architecture-boundary",
             REPOSITORY_ROOT,
             (python, "cli/ci/check_architecture.py"),

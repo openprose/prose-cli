@@ -69,7 +69,6 @@ class LocalAdmissionTest(unittest.TestCase):
                 "windows-resolution-oracle",
                 "real-harness-contract",
                 "functional-alpha-live-contract",
-                "direct-skill-contract",
                 "architecture-boundary",
                 "windows-host-static",
                 "windows-host-format",
@@ -138,7 +137,7 @@ class LocalAdmissionTest(unittest.TestCase):
         self.assertFalse(dev_build.quick)
         self.assertIn("cli/conformance/real-harness", " ".join(flattened))
         self.assertIn("test_*.py", flattened)
-        self.assertIn("direct-skill-real", " ".join(flattened))
+        self.assertNotIn("direct-skill-real", " ".join(flattened))
         self.assertIn("release_preflight", " ".join(flattened))
         self.assertIn("check_workflows", " ".join(flattened))
         self.assertTrue(all(gate.provider_free for gate in plan))

@@ -1,9 +1,0 @@
-# Direct-skill portable fanout canary
-parallel:
-  left = session "Return exactly DIRECT_SKILL_LEFT_OK with no other text."
-  right = session "Return exactly DIRECT_SKILL_RIGHT_OK with no other text."
-
-let combined = session "Confirm the referenced left and right bindings contain their requested tokens, then return exactly DIRECT_SKILL_FANOUT_OK with no other text."
-  context: { left, right }
-
-output combined = combined

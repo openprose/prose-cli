@@ -303,18 +303,10 @@ identifiers as explicit CLI selection options; inherited configuration is not
 silently promoted into the saved default. Selecting Codex or Claude without
 those options removes stale bundle members and retains ADR-0007's frozen
 cached-login/subscription defaults. No credential value is written.
-Rust and Bun each completed Prime, OMP, Codex, and Claude for a historical 8/8
-direct live collection; a later evidence-v2 collection added npm and completed
-12/12. Those observations remain history and were not relabeled. The exact
-packages from source `31d81c55c8c90a7358b1cd8c5a0ccba631290a83` now have a
-current evidence-v5/matrix-v4 12/12 Darwin ARM64 collection whose target,
-candidate, and harness custody closures are bound in the checked-in
-[report](../conformance/live-alpha/evidence/31d81c55c8c90a7358b1cd8c5a0ccba631290a83/REPORT.md).
-
-Prime separately passed a freshly rebuilt stability sample of 5/5 Rust and 5/5
-Bun runs through a new private daemon socket per run. This removed dependence
-on the user's default daemon without making the socket mechanism a strict
-containment claim. The live reports are candidate-reported, provider spend is
-unverified, semantic status is `not-applicable`, and `echo-v0` is nonsemantic.
-They do not prove OpenProse execution, portability, strict wrapper admission,
-release eligibility, or publication authority.
+Historical live collections predate this repository's current release path.
+The source workspace recorded 8/8 direct and later 12/12 installed Darwin ARM64
+observations for nonsemantic `echo-v0` candidates. Their private records and
+aggregate reports were not carried into this repository. Current admission
+uses explicitly synthetic fixtures for capture, custody, matrix and privacy
+contracts; it does not claim new live qualification. A future release candidate
+needs its own reviewed live collection and canonical language inputs.

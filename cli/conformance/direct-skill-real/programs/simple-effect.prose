@@ -1,3 +1,0 @@
-# Direct-skill portable effect canary
-let result = session "Return exactly DIRECT_SKILL_SIMPLE_OK with no quotes, Markdown, or other text."
-output result = result
