@@ -310,72 +310,18 @@ class CliContributorDocumentationTests(unittest.TestCase):
         readme = (CLI / "README.md").read_text(encoding="utf-8")
         self.assertIn("[Contributing to the CLI](CONTRIBUTING.md)", readme)
 
-    def test_public_guides_link_the_alpha_readiness_authority(self) -> None:
-        readme = (CLI / "README.md").read_text(encoding="utf-8")
+    def test_release_guidance_names_only_the_current_workflows(self) -> None:
         release_guide = RELEASE_GUIDE.read_text(encoding="utf-8")
-        self.assertIn(
-            "[functional-alpha readiness contract](release/ALPHA_READINESS.md)",
-            readme,
-        )
-        self.assertIn(
-            "[functional-alpha readiness contract](ALPHA_READINESS.md)",
-            release_guide,
-        )
-
-    def test_alpha_readiness_orders_authorities_and_nonclaims(self) -> None:
-        readiness = READINESS.read_text(encoding="utf-8")
-        ordered_headings = (
-            "## Candidate-ready requirements",
-            "## Draft-ready requirements",
-            "## Public-alpha-ready requirements",
-            "## Post-publication verification",
-            "## Claims the functional alpha does not make",
-        )
-        positions = [readiness.index(heading) for heading in ordered_headings]
-        self.assertEqual(positions, sorted(positions))
-
-        readiness_flat = " ".join(readiness.split())
-        for marker in (
-            "| Candidate-ready |",
-            "| Draft-ready |",
-            "| Public-alpha-ready |",
-            "| Post-publication verified |",
-            "Repository-level README, release, contribution, terms, and privacy "
-            "guidance",
-            "repository Terms apply to downloadable MIT packages",
-            "privacy disclosure",
-            "dependency-license review",
-            "Vulnerability review",
-            "ad-hoc code signatures",
-            "no Apple notarization",
-            "contributor license agreement, Developer Certificate of Origin, or "
-            "neither",
-            "GitHub artifact attestations",
-            "registry provenance",
-            "Redownload every GitHub asset",
-            "withdraw and supersede",
-            "does not establish OpenProse execution, semantic conformance, program "
-            "portability",
-        ):
-            with self.subTest(marker=marker):
-                self.assertIn(marker, readiness_flat)
-
-    def test_promotion_runbook_requires_public_alpha_readiness_authority(self) -> None:
-        migration = " ".join(MIGRATION.read_text(encoding="utf-8").split())
-        for marker in (
-            "ALPHA_READINESS.md",
-            "Public-alpha-ready",
-            "root README, release, contribution, Terms, and privacy guidance",
-            "dependency-license review",
-            "vulnerability review",
-            "macOS signing and notarization posture",
-            "CLA, DCO, or neither",
-            "GitHub artifact attestations",
-            "npm registry provenance",
-            "Source code and workflow tests do not prove these external controls",
-        ):
-            with self.subTest(marker=marker):
-                self.assertIn(marker, migration)
+        for name in ("cli-ci.yml", "cli-distribution-check.yml", "cli-kernel-rc.yml", "cli-publish.yml"):
+            self.assertIn(name, release_guide)
+            self.assertTrue((ROOT / ".github/workflows" / name).is_file())
+        self.assertIn("First publication", release_guide)
+        self.assertIn("separate explicit release", release_guide)
+        for retired in (READINESS, MIGRATION):
+            text = retired.read_text(encoding="utf-8")
+            self.assertIn("retired", text.lower())
+            self.assertIn("[maintained CLI release path](README.md)", text)
+        self.assertIn("[maintained release path](release/README.md)", (CLI / "README.md").read_text())
 
     def test_cli_readme_warns_before_the_first_real_harness_run(self) -> None:
         readme = (CLI / "README.md").read_text(encoding="utf-8")

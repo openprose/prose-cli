@@ -1,40 +1,32 @@
-name: Build unsigned kernel release candidate
+name: CLI source admission
 on:
   pull_request:
   push:
     branches: [main]
   workflow_dispatch:
-    inputs:
-      version:
-        description: Exact X.Y.Z-rc.N version; builds only, no publication
-        required: true
-        type: string
 permissions:
   contents: read
 concurrency:
-  group: cli-kernel-rc-${{ github.ref }}-${{ inputs.version }}
-  cancel-in-progress: false
+  group: cli-ci-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
-  build:
-    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+  admission:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: ubuntu-22.04
-            platform: linux-x64
-          - os: ubuntu-22.04-arm
-            platform: linux-arm64
-          - os: macos-15
-            platform: darwin-arm64
-          - os: macos-15-intel
-            platform: darwin-x64
+        os: [ubuntu-22.04, macos-15]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 40
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           persist-credentials: false
+      - name: Require the approved distribution license
+        run: |
+          if [ ! -f LICENSE ]; then
+            echo '::error::Root LICENSE is missing. Restore the approved license before packaging.'
+            exit 1
+          fi
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '24.20.0'
@@ -59,30 +51,22 @@ jobs:
           # when the installed compiler is that baseline runtime. Its pinned
           # resolver checks this exact cwd filename before attempting a fetch.
           if [ "$RUNNER_OS" = macOS ] && [ "$RUNNER_ARCH" = X64 ]; then
-            cp "$(command -v bun)" cli/bun/bun-darwin-x64-baseline-v1.3.5
+            cp "$(command -v bun)" bun-darwin-x64-baseline-v1.3.5
           fi
-          rustup toolchain install 1.87.0 --profile minimal
+          rustup toolchain install 1.87.0 --profile minimal --component clippy,rustfmt
           rustup default 1.87.0
           cargo fetch --locked --manifest-path cli/rust/Cargo.toml
+          cargo fetch --locked --manifest-path cli/platform/windows-process-host/Cargo.toml
           python3 -m pip install --require-hashes --only-binary=:all: -r cli/ci/requirements-test.txt
           cd cli/bun
           bun install --frozen-lockfile --ignore-scripts
-      - name: Test kernel RC build guards
-        run: |
-          python3 -m unittest discover -s cli/ci -p test_build_kernel_rc.py
-          python3 -m unittest discover -s cli/ci -p test_check_published_release.py
-      - name: Build and verify fresh standalone and npm installations
-        env:
-          RC_VERSION: ${{ inputs.version || '0.15.0-rc.1' }}
-        run: python3 cli/ci/build_kernel_rc.py --version "$RC_VERSION" --out "$RUNNER_TEMP/kernel-rc"
-      - name: Retain packages and offline evidence
+      - name: Admit current source without provider credentials
+        run: python3 cli/ci/run_local.py 2>&1 | tee "$RUNNER_TEMP/cli-admission.log"
+      - name: Retain admission diagnostics
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: cli-kernel-rc-${{ matrix.platform }}
-          path: |
-            ${{ runner.temp }}/kernel-rc/package
-            ${{ runner.temp }}/kernel-rc/logs
-            ${{ runner.temp }}/kernel-rc/build-report.json
+          name: cli-admission-${{ matrix.os }}
+          path: ${{ runner.temp }}/cli-admission.log
           retention-days: 14
           if-no-files-found: warn

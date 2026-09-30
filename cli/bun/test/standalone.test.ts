@@ -87,6 +87,12 @@ afterEach(async () => {
 });
 
 describe("standalone executable", () => {
+  test("compiled dependency diagnostics do not retain the builder's path", async () => {
+    const dependency = Buffer.from(join(workspace, "node_modules", "undici", "index.js"));
+    for (const candidate of [binary, testBinary]) {
+      expect((await readFile(candidate)).includes(dependency)).toBe(false);
+    }
+  });
   test("ordinary and explicit test-only builds have closed image and seam identities", async () => {
     const environment = { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "" };
     const ordinary = Bun.spawn([binary, "--output=json", "cli", "doctor"], {

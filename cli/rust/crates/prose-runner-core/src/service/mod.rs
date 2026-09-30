@@ -1,5 +1,5 @@
 //! Service operations: the manifest-driven framework shared by every
-//! `prose cli <noun> <verb>` that reaches the OpenProse hosted service.
+//! `prose cli <noun> <verb>` that reaches the `OpenProse` hosted service.
 //!
 //! The embedded operation manifest (`shared/service/operations.v1.json`) drives
 //! parsing, help, confirmation and transport classes. Feature modules
@@ -1253,7 +1253,7 @@ const REMOVED_OPTION: [&str; 2] = ["--service-", "environment"];
 
 /// An option neither the runner nor any service command knows, spelled
 /// before `cli` and a manifest command (`--colour always cli
-/// service status`). It is rejected with INVOCATION_INVALID naming the
+/// service status`). It is rejected with `INVOCATION_INVALID` naming the
 /// option, never forwarded to the language: the suggested argv drops it
 /// (and the one value word that sits between it and `cli`).
 pub fn unknown_option_before_cli(
@@ -2005,7 +2005,7 @@ pub fn with_cli_hint(
             render::product()
         );
     }
-    error.with_detail("suggestedArgv", json!(argv))
+    error.with_detail("suggestedArgv", argv)
 }
 
 /// `--help` counts only in an option position, never as an option's value or
@@ -2048,14 +2048,14 @@ fn unknown_command(tokens: &[&str], positions: &Positions<'_>) -> Rejection {
 /// command that declares only optional arguments (its handler may need one,
 /// as `cli run submit` needs a program).
 fn path_correction(
-    path: Vec<&str>,
+    path: &[&str],
     at: usize,
     len: usize,
     tokens: &[&str],
     positions: &Positions<'_>,
 ) -> (String, Correction) {
     let rest = tokens.get(at + len..).unwrap_or_default();
-    let Some((full, consumed)) = complete_path(path.clone(), rest) else {
+    let Some((full, consumed)) = complete_path(path.to_vec(), rest) else {
         let spelled = path.join(" ");
         return (
             spelled.clone(),
@@ -2063,7 +2063,7 @@ fn path_correction(
                 action: format!(
                     "Use `cli {spelled}` with one of its commands; `{{command}}` describes them"
                 ),
-                words: help_words(&path),
+                words: help_words(path),
             },
         );
     };
@@ -2133,7 +2133,7 @@ fn phrase_meaning(tokens: &[&str], positions: &Positions<'_>, len: usize) -> Opt
     let group = *rewrite.command.first()?;
     if let Some(next) = tokens.get(len).copied() {
         if len == 1 && verbs_after(&[group]).contains(&next) {
-            let (shown, correction) = path_correction(vec![group, next], 0, 2, tokens, positions);
+            let (shown, correction) = path_correction(&[group, next], 0, 2, tokens, positions);
             return Some(Meaning {
                 rejection: reject(
                     format!("unknown command `cli {phrase} {next}`; did you mean `cli {shown}`?"),
@@ -2186,7 +2186,7 @@ fn verb_first(tokens: &[&str], positions: &Positions<'_>) -> Option<Meaning> {
         .copied()
         .find(|verb| *verb == noun)
         .or_else(|| synonym("verbSynonyms", noun, |candidate| verbs.contains(&candidate)))?;
-    let (shown, correction) = path_correction(vec![group, verb], 0, 2, tokens, positions);
+    let (shown, correction) = path_correction(&[group, verb], 0, 2, tokens, positions);
     Some(Meaning {
         rejection: reject(
             format!(
@@ -2256,7 +2256,7 @@ fn unknown_noun(noun: &str, tokens: &[&str], positions: &Positions<'_>) -> Rejec
         // `cli runs list`: the synonym already names the verb the user
         // typed; `cli credits topup`: a sibling verb replaces the synonym's.
         let (path, typed) = synonym_path(&words, tokens.get(1).copied());
-        let (shown, correction) = path_correction(path, 0, typed, tokens, positions);
+        let (shown, correction) = path_correction(&path, 0, typed, tokens, positions);
         return reject(
             format!(
                 "unknown command `cli {noun}`; did you mean `cli {shown}`? Commands: {listing}"
@@ -2275,7 +2275,7 @@ fn unknown_noun(noun: &str, tokens: &[&str], positions: &Positions<'_>) -> Rejec
             .find(|verb| *verb == noun)
             .or_else(|| suggest_verb(noun, &verbs));
         if let Some(verb) = verb {
-            let (shown, correction) = path_correction(vec![group, verb], 0, 2, tokens, positions);
+            let (shown, correction) = path_correction(&[group, verb], 0, 2, tokens, positions);
             return reject(
                 format!(
                     "unknown command `cli {noun} {group}`; the command word comes first: did you mean `cli {shown}`?"
@@ -2291,7 +2291,7 @@ fn unknown_noun(noun: &str, tokens: &[&str], positions: &Positions<'_>) -> Rejec
         .map(|path| path[0])
         .collect::<BTreeSet<_>>();
     if let [group] = groups.into_iter().collect::<Vec<_>>().as_slice() {
-        let (shown, correction) = path_correction(vec![group, noun], 0, 1, tokens, positions);
+        let (shown, correction) = path_correction(&[group, noun], 0, 1, tokens, positions);
         return reject(
             format!(
                 "unknown command `cli {noun}`; did you mean `cli {shown}`? Commands: {listing}"
@@ -2350,7 +2350,7 @@ fn unknown_command_unsettled(tokens: &[&str], positions: &Positions<'_>) -> Reje
                 // A group with one verb completes to it (`cli model` -> `cli model list`).
                 [_] => reject(
                     reason,
-                    path_correction(prefix.clone(), 0, prefix.len(), tokens, positions).1,
+                    path_correction(&prefix, 0, prefix.len(), tokens, positions).1,
                 ),
                 _ => reject(reason, group_help),
             }
@@ -2388,7 +2388,7 @@ fn unknown_command_unsettled(tokens: &[&str], positions: &Positions<'_>) -> Reje
                 Some(verb) => {
                     let mut path = prefix.clone();
                     path.push(verb);
-                    path_correction(path, 0, prefix.len() + 1, tokens, positions).1
+                    path_correction(&path, 0, prefix.len() + 1, tokens, positions).1
                 }
                 None => group_help,
             };
@@ -2470,8 +2470,11 @@ fn rewrite_correction(
             .iter()
             .filter(|argument| argument["required"] == true)
             .filter_map(|argument| argument["name"].as_str())
-            .map(|name| format!(" {name}"))
-            .collect::<String>()
+            .fold(String::new(), |mut text, name| {
+                text.push(' ');
+                text.push_str(name);
+                text
+            })
     };
     let option = rewrite
         .argument_option
@@ -2484,11 +2487,11 @@ fn rewrite_correction(
             format!(" {option} {value}")
         })
         .unwrap_or_default();
-    let appended = rewrite
-        .append
-        .iter()
-        .map(|word| format!(" {word}"))
-        .collect::<String>();
+    let appended = rewrite.append.iter().fold(String::new(), |mut text, word| {
+        text.push(' ');
+        text.push_str(word);
+        text
+    });
     let spelled = format!("cli {target}{placeholders}{option}{appended}");
     let given = positional_count(operation, rest);
     let needed = required + usize::from(rewrite.argument_option.is_some());
@@ -3073,7 +3076,7 @@ fn parse_operation_arguments(
     // missing argument is the slug that comes first.
     if operation["id"] == "program.save" && positionals.len() == 1 {
         let (at, file) = &positionals[0];
-        if file.ends_with(".md") || file.contains('/') {
+        if file.strip_suffix(".md").is_some() || file.contains('/') {
             let slug = slug_from_file(file);
             return Err(reject(
                 format!(
@@ -3091,7 +3094,8 @@ fn parse_operation_arguments(
     }
     // `cli program save FILE SLUG`: the arguments are swapped.
     if operation["id"] == "program.save" && positionals.len() == 2 {
-        let looks_like_file = |value: &str| value.ends_with(".md") || value.contains('/');
+        let looks_like_file =
+            |value: &str| value.strip_suffix(".md").is_some() || value.contains('/');
         let (first_at, first) = &positionals[0];
         let (second_at, second) = &positionals[1];
         if looks_like_file(first) && !looks_like_file(second) && program_ref::valid_slug(second) {
@@ -3241,12 +3245,11 @@ fn argument_option_rejection(
     positions: &Positions<'_>,
 ) -> Option<Rejection> {
     let (slot, argument) = named_argument(name, arguments)?;
-    let (value, width) = match inline {
-        Some(value) => (value.to_owned(), 1),
-        None => {
-            let value = rest.get(at + 1).filter(|value| !value.starts_with('-'))?;
-            (value.clone(), 2)
-        }
+    let (value, width) = if let Some(value) = inline {
+        (value.to_owned(), 1)
+    } else {
+        let value = rest.get(at + 1).filter(|value| !value.starts_with('-'))?;
+        (value.clone(), 2)
     };
     // The other tokens, and which of them are positional arguments.
     let takes_value = |token: &str| {
@@ -3287,14 +3290,14 @@ fn argument_option_rejection(
         .or_else(|| positional.last().map(|last| last + 1))
         .unwrap_or(0);
     kept.insert(insert_at, value);
-    let with = kept.iter().map(String::as_str).collect::<Vec<_>>();
+    let corrected_tokens = kept.iter().map(String::as_str).collect::<Vec<_>>();
     Some(reject(
         format!(
             "unknown option {name} for `{command}`; <{argument}> is an argument, not an option"
         ),
         argv_or_help(
             format!("Pass <{argument}> as an argument: `{{command}}`"),
-            positions.splice(0, rest.len(), &with),
+            positions.splice(0, rest.len(), &corrected_tokens),
             words,
             "Pass the argument without an option name; `{command}` shows the arguments",
         ),
@@ -4281,7 +4284,7 @@ impl Context<'_> {
             "Rerun with a model the service offers, for example `{}`.",
             render::argv_text(&argv)
         );
-        Err(error.with_detail("suggestedArgv", json!(argv)))
+        Err(error.with_detail("suggestedArgv", argv))
     }
 
     /// This invocation's argv with the value of `option` replaced.
@@ -4339,7 +4342,7 @@ impl Context<'_> {
             text.push('.');
         }
         error.action = text;
-        error.with_detail("suggestedArgv", json!(argv))
+        error.with_detail("suggestedArgv", argv)
     }
 
     /// A `--limit` error: when `raw` is a whole number, the
@@ -4668,7 +4671,7 @@ pub fn teach(mut error: RunnerError, correction: &Correction, mode: OutputMode) 
     }
     error.action = action;
     match argv {
-        Some(argv) => error.with_detail("suggestedArgv", json!(argv)),
+        Some(argv) => error.with_detail("suggestedArgv", argv),
         None => error,
     }
 }

@@ -153,7 +153,7 @@ third command must start exactly that harness with no shell, outer PTY, or
 fallback and must exit successfully only after recovering an exact echo of its
 task argv.
 
-## Current v5 live matrix
+## Historical v5 live matrix
 
 The exact packaged candidate from source commit
 `31d81c55c8c90a7358b1cd8c5a0ccba631290a83`, version
@@ -164,9 +164,11 @@ bound their exact target, pathless candidate closure, runner, program/task/image
 and terminal identities, declared harness package/runtime custody, harness
 version and route, model identifier, and auth-route category.
 
-The unchanged pathless aggregate is checked in with a detailed scope report at
-[`evidence/31d81c55.../REPORT.md`](evidence/31d81c55c8c90a7358b1cd8c5a0ccba631290a83/REPORT.md).
-The path-bearing v5 records remain private. Each exact-route invocation ran
+The aggregate and private source records from that earlier workspace were not
+carried into this repository. Current provider-free admission generates synthetic
+records to verify matrix schema, custody and privacy rules. Those tests do not
+establish a fresh live result; a release candidate needs its own explicit
+cost-acknowledged collection. Each exact-route invocation ran
 once with no retry. The matrix is therefore one passing record per valid cell,
 not a reliability sample.
 
@@ -195,7 +197,7 @@ That operational observation is retained as historical v2 evidence only. The
 v2 record hashed the npm launcher but did not retain the selected platform
 manifest and executable as candidate members, so it cannot establish v5
 candidate custody and is intentionally rejected by the current verifier. The
-current v5 collection above was recollected from the exact candidate; the old
+historical v5 collection above was recollected from the exact candidate; the old
 evidence was not relabeled or upgraded in place.
 
 The active evidence-v5 and matrix-v4 formats were still unshipped when exact

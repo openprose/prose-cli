@@ -266,7 +266,7 @@ pub fn write_user_harness(
         apply_file(
             &mut validated,
             loaded,
-            ConfigSource::file(ConfigSourceKind::UserFile, &path),
+            &ConfigSource::file(ConfigSourceKind::UserFile, &path),
         )?;
         toml::from_str::<toml::Table>(&existing).map_err(|_| {
             config_line_error(
@@ -881,7 +881,7 @@ pub fn resolve_config(
             apply_file(
                 &mut config,
                 file,
-                ConfigSource::file(ConfigSourceKind::UserFile, path),
+                &ConfigSource::file(ConfigSourceKind::UserFile, path),
             )?;
         }
     }
@@ -890,7 +890,7 @@ pub fn resolve_config(
         apply_file(
             &mut config,
             file,
-            ConfigSource::file(ConfigSourceKind::ProjectFile, path),
+            &ConfigSource::file(ConfigSourceKind::ProjectFile, path),
         )?;
     }
     apply_environment(&mut config, &system.environment)?;
@@ -1378,7 +1378,7 @@ fn first_source(config: &EffectiveConfig, keys: &[&str]) -> Option<String> {
 fn apply_file(
     target: &mut EffectiveConfig,
     loaded: LoadedFileConfig,
-    source: ConfigSource,
+    source: &ConfigSource,
 ) -> Result<(), RunnerError> {
     let LoadedFileConfig { values, lines } = loaded;
     let location = |file_key: &str| {
@@ -1401,7 +1401,7 @@ fn apply_file(
                 key,
                 file_key,
                 raw.clone(),
-                &source,
+                source,
                 &location(file_key),
                 true,
             )?;
@@ -1600,17 +1600,17 @@ mod tests {
         let mut flags = GlobalFlags::default();
         assert_eq!(
             native_output_bytes(&resolve_config(&flags, &sys).unwrap()),
-            1048576
+            1_048_576
         );
         sys.environment
             .insert("PROSE_NATIVE_OUTPUT_BYTES".into(), "134217728".into());
         assert_eq!(
             native_output_bytes(&resolve_config(&flags, &sys).unwrap()),
-            134217728
+            134_217_728
         );
         flags.native_output_bytes = Some("268435456".into());
         let c = resolve_config(&flags, &sys).unwrap();
-        assert_eq!(native_output_bytes(&c), 268435456);
+        assert_eq!(native_output_bytes(&c), 268_435_456);
         assert_eq!(
             c.native_output_bytes.source,
             ConfigSource::flag("--native-output-bytes")
@@ -1619,7 +1619,7 @@ mod tests {
         assert!(resolve_config(&flags, &sys).is_err());
         let mut c = c;
         c.native_output_bytes.value = None;
-        assert_eq!(native_output_bytes(&c), 67108864);
+        assert_eq!(native_output_bytes(&c), 67_108_864);
         assert_eq!(native_output_limits(&c).unwrap()["captureEnabled"], false);
     }
 
@@ -2327,21 +2327,21 @@ pub(crate) fn native_limits(config: &EffectiveConfig) -> Option<serde_json::Valu
         .native_timeout
         .value
         .as_deref()
-        .map_or(180000, |v| validate_native_timeout(v).expect("validated"));
+        .map_or(180_000, |v| validate_native_timeout(v).expect("validated"));
     let tool_ms = config
         .native_tool_timeout
         .value
         .as_deref()
-        .map_or(30000, |v| validate_native_timeout(v).expect("validated"));
+        .map_or(30_000, |v| validate_native_timeout(v).expect("validated"));
     let tool_seconds = if tool_ms % 1000 == 0 {
         serde_json::json!(tool_ms / 1000)
     } else {
-        serde_json::json!(tool_ms as f64 / 1000.0)
+        serde_json::json!(std::time::Duration::from_millis(tool_ms).as_secs_f64())
     };
     let seconds = if ms % 1000 == 0 {
         serde_json::json!(ms / 1000)
     } else {
-        serde_json::json!(ms as f64 / 1000.0)
+        serde_json::json!(std::time::Duration::from_millis(ms).as_secs_f64())
     };
     Some(
         serde_json::json!({"maxTurns":config.native_max_turns.value.as_deref().map_or(20, |v|validate_native_turns(v).expect("validated")),"timeoutSeconds":seconds,"toolTimeoutSeconds":tool_seconds,"maxOutputTokens":12000}),
@@ -2353,10 +2353,10 @@ pub(crate) fn validate_native_output_bytes(value: &str) -> Result<usize, RunnerE
     validate_native_turns(value)
         .ok()
         .filter(|n| (1_048_576..=268_435_456).contains(n))
-        .map(|n| n as usize)
+        .and_then(|n| usize::try_from(n).ok())
         .ok_or_else(|| {
             RunnerError::config(
-                "Native output bytes must be decimal bytes from 1048576 through 268435456.",
+                "Native output bytes must be decimal bytes from 1_048_576 through 268_435_456.",
             )
         })
 }

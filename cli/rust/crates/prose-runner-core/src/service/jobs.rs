@@ -250,13 +250,13 @@ impl SpecCheck<'_, '_> {
             .filter(|key| !object.contains_key(*key) && !covered.iter().any(|seen| seen == key))
             .collect::<Vec<_>>();
         if !missing.is_empty() {
-            let named = missing
+            let missing_names = missing
                 .iter()
                 .map(|key| format!("{path}{key}"))
                 .collect::<Vec<_>>();
-            let named = named.iter().map(String::as_str).collect::<Vec<_>>();
+            let missing_names = missing_names.iter().map(String::as_str).collect::<Vec<_>>();
             self.violations
-                .push(format!("{label} needs {}{hint}", and_list(&named)));
+                .push(format!("{label} needs {}{hint}", and_list(&missing_names)));
         }
     }
 
@@ -453,19 +453,16 @@ fn spec_violations(context: &Context<'_>, spec: &Map<String, Value>) -> Vec<Stri
             }
         };
         let mut keys = common;
-        let (required, label) = match &chosen {
-            Some(kind) => {
-                let (variant_keys, required) = keys_and_required(&variants[kind]);
-                keys.extend(variant_keys);
-                (required, format!("a {kind} job spec"))
+        let (required, label) = if let Some(kind) = &chosen {
+            let (variant_keys, required) = keys_and_required(&variants[kind]);
+            keys.extend(variant_keys);
+            (required, format!("a {kind} job spec"))
+        } else {
+            // An unknown type is checked against every variant's keys.
+            for variant in variants.values() {
+                keys.extend(keys_and_required(variant).0);
             }
-            // An unknown type: check keys against every type's.
-            None => {
-                for variant in variants.values() {
-                    keys.extend(keys_and_required(variant).0);
-                }
-                (Vec::new(), "a job spec".to_owned())
-            }
+            (Vec::new(), "a job spec".to_owned())
         };
         check.object(spec, &keys, &required, "", &label, "");
     } else {

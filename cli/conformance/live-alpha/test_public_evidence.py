@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+from copy import deepcopy
 import json
 from pathlib import Path
 import re
@@ -16,8 +17,10 @@ except ImportError as error:  # pragma: no cover - actionable bootstrap failure
 
 
 HERE = Path(__file__).resolve().parent
-EXPECTED_COMMIT = "31d81c55c8c90a7358b1cd8c5a0ccba631290a83"
-EVIDENCE = HERE / "evidence" / EXPECTED_COMMIT / "matrix.darwin-arm64.v4.json"
+# Synthetic source records exercise the current aggregator, not a live-run claim.
+from test_matrix import MATRIX, complete_records
+
+EXPECTED_COMMIT = "0123456789abcdef0123456789abcdef01234567"
 SCHEMA = HERE / "matrix.schema.json"
 EXPECTED_SURFACES = ("rust", "bun", "npm")
 EXPECTED_HARNESSES = ("prime", "omp", "codex", "claude")
@@ -102,8 +105,8 @@ def normalized_key(key: str) -> str:
 class PublicFunctionalAlphaEvidenceTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.raw = EVIDENCE.read_bytes()
-        cls.report = json.loads(cls.raw.decode("utf-8"))
+        cls.report = MATRIX.build_report(complete_records(), MATRIX.SURFACES)
+        cls.raw = canonical_json(cls.report)
         cls.schema = json.loads(SCHEMA.read_text("utf-8"))
 
     def test_matrix_is_canonical_and_schema_valid(self) -> None:
@@ -121,7 +124,7 @@ class PublicFunctionalAlphaEvidenceTests(unittest.TestCase):
             [f"{list(error.absolute_path)}: {error.message}" for error in errors],
         )
 
-    def test_matrix_is_the_exact_checked_public_cohort(self) -> None:
+    def test_generated_matrix_binds_the_complete_synthetic_cohort(self) -> None:
         self.assertEqual(
             "openprose.functional-alpha-live-matrix/4",
             self.report["schema"],
@@ -160,8 +163,8 @@ class PublicFunctionalAlphaEvidenceTests(unittest.TestCase):
         self.assertEqual(len(actual_cells), len(set(actual_cells)))
         self.assertEqual(expected_cells, set(actual_cells))
 
-    def test_public_matrix_contains_no_paths_or_credentials(self) -> None:
-        for location, key, value in walk(self.report):
+    def assert_public(self, report: object) -> None:
+        for location, key, value in walk(report):
             normalized = normalized_key(key)
             self.assertNotIn(normalized, FORBIDDEN_PATH_KEYS, location)
             self.assertNotIn(normalized, FORBIDDEN_CREDENTIAL_KEYS, location)
@@ -175,6 +178,27 @@ class PublicFunctionalAlphaEvidenceTests(unittest.TestCase):
                 any(pattern.search(value) for pattern in CREDENTIAL_VALUE_PATTERNS),
                 f"credential-bearing string at {location}.{key}",
             )
+
+    def test_generated_public_matrix_contains_no_paths_or_credentials(self) -> None:
+        self.assert_public(self.report)
+
+    def test_privacy_checks_reject_nested_paths_and_credentials(self) -> None:
+        values = (
+            ("note", "failed at /private/build/source"),
+            ("note", r"failed at C:\build\source"),
+            ("note", r"failed at \\server\share\source"),
+            ("note", "read file:///private/build/source"),
+            ("note", "Authorization: Bearer synthetic-test-credential"),
+            ("note", "https://fixture:synthetic-password@example.invalid"),
+            ("commandPath", "prose"),
+            ("api_key", "synthetic-test-credential"),
+        )
+        for key, value in values:
+            with self.subTest(key=key, value=value):
+                report = deepcopy(self.report)
+                report["syntheticNestedMetadata"] = [{key: value}]
+                with self.assertRaises(AssertionError):
+                    self.assert_public(report)
 
 
 if __name__ == "__main__":

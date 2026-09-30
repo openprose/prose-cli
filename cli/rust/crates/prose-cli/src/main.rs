@@ -360,6 +360,65 @@ fn parse(args: &[String]) -> Result<ParsedInvocation, CommandOutcome> {
     Ok(parsed)
 }
 
+/// Identity, help and cleanup remain usable without loading configuration.
+fn identity_outcome(parsed: &ParsedInvocation) -> Option<CommandOutcome> {
+    // Runner identity operations must remain available even when the current
+    // directory or configuration is broken.
+    match &parsed.action {
+        Action::Help => Some(CommandOutcome::human(HELP, "", 0)),
+        Action::Version => Some(CommandOutcome::human(
+            format!("prose {RUNNER_VERSION} (rust)\n"),
+            "",
+            0,
+        )),
+        Action::Runner {
+            command: RunnerCommand::CleanupPrime(handle),
+            json,
+        } => {
+            let mode = if *json {
+                OutputMode::Json
+            } else {
+                parsed.globals.output.unwrap_or_default()
+            };
+            Some(execute_prime_cleanup(
+                handle,
+                mode,
+                &SystemClock,
+                &SystemIdSource,
+                &std::env::temp_dir(),
+            ))
+        }
+        Action::Runner {
+            command: RunnerCommand::Service(ServiceCommand::Help(text)),
+            ..
+        } => {
+            // In a JSON mode (`prose --output json cli run --help`) help is
+            // the envelope with the text and the command records.
+            Some(prose_runner_core::service::help_outcome(
+                text,
+                parsed.globals.output.unwrap_or_default(),
+            ))
+        }
+        _ => None,
+    }
+}
+
+/// Choose the published kernel only for an installed forward invocation.
+fn execution_image(
+    parsed: &ParsedInvocation,
+    config: &prose_runner_core::config::EffectiveConfig,
+    cancellation: &CancellationToken,
+) -> Result<RuntimeImage, RunnerError> {
+    let published_startup = prose_runner_core::kernel_startup::PUBLISHED_KERNEL_STARTUP
+        && matches!(parsed.action, Action::Forward { .. })
+        && prose_runner_core::installed_adapters::for_harness(&config.harness.value).is_some();
+    if published_startup {
+        prose_runner_core::kernel_startup::published_kernel(cancellation)
+    } else {
+        embedded_runtime_image()
+    }
+}
+
 fn prepare(
     args: &[String],
     cancellation: &CancellationToken,
@@ -372,36 +431,8 @@ fn prepare(
         Err(outcome) => return outcome,
     };
 
-    // Runner identity operations must remain available even when the current
-    // directory or configuration is broken.
-    match parsed.action {
-        Action::Help => return CommandOutcome::human(HELP, "", 0),
-        Action::Version => {
-            return CommandOutcome::human(format!("prose {RUNNER_VERSION} (rust)\n"), "", 0);
-        }
-        Action::Runner {
-            command: RunnerCommand::CleanupPrime(ref handle),
-            json,
-        } => {
-            let mode = if json {
-                OutputMode::Json
-            } else {
-                parsed.globals.output.unwrap_or_default()
-            };
-            return execute_prime_cleanup(handle, mode, &clock, &ids, &std::env::temp_dir());
-        }
-        Action::Runner {
-            command: RunnerCommand::Service(ServiceCommand::Help(ref text)),
-            ..
-        } => {
-            // In a JSON mode (`prose --output json cli run --help`) help is
-            // the envelope with the text and the command records.
-            return prose_runner_core::service::help_outcome(
-                text,
-                parsed.globals.output.unwrap_or_default(),
-            );
-        }
-        _ => {}
+    if let Some(outcome) = identity_outcome(&parsed) {
+        return outcome;
     }
 
     let system = match SystemContext::capture() {
@@ -479,15 +510,7 @@ fn prepare(
         }
     }
     let mode = prose_runner_core::runner::action_output_mode(&parsed, &config);
-    let published_startup = prose_runner_core::kernel_startup::PUBLISHED_KERNEL_STARTUP
-        && matches!(parsed.action, Action::Forward { .. })
-        && prose_runner_core::installed_adapters::for_harness(&config.harness.value).is_some();
-    let selected_image = if published_startup {
-        prose_runner_core::kernel_startup::published_kernel(cancellation)
-    } else {
-        embedded_runtime_image()
-    };
-    let image = match selected_image {
+    let image = match execution_image(&parsed, &config, cancellation) {
         Ok(image) => image,
         Err(error) => return error_outcome(error, mode, &clock, &ids),
     };

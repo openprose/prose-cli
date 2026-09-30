@@ -783,7 +783,10 @@ mod tests {
     use super::*;
 
     fn map(value: Value) -> Map<String, Value> {
-        value.as_object().unwrap().clone()
+        match value {
+            Value::Object(object) => object,
+            _ => panic!("fixture must be an object"),
+        }
     }
 
     #[test]

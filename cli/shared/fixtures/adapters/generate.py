@@ -170,6 +170,16 @@ def expected_outputs() -> dict[Path, bytes]:
                 "sha256": sha256(image),
             }
             scenario["fakeStdout"] = _rpc_stdout(assistant_text, task_value)
+        elif adapter_id == "agents-sdk/jsonl":
+            scenario["files"] = [{
+                "argument": "{{IMAGE_PATH}}",
+                "source": "cli/shared/image/echo-v0/manifest.json#modelVisibleBytes",
+                "mode": "0600", "byteLength": len(image), "sha256": sha256(image),
+            }]
+            scenario["fakeStdout"] = [
+                {"type": "start", "model": "fixture", "cwd": "fixture"},
+                {"type": "final", "output": assistant_text},
+            ]
         elif adapter_id in {"claude/print-stream-json", "omp/rpc"}:
             scenario["files"] = [
                 {

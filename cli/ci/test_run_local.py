@@ -56,8 +56,7 @@ class LocalAdmissionTest(unittest.TestCase):
                 "architecture-tests",
                 "release-preflight-tests",
                 "release-notes",
-                "alpha-promotion",
-                "post-public-verification",
+                "publication-contract",
                 "release-reproducibility",
                 "workflow-policy",
                 "dependency-contract",
@@ -170,8 +169,7 @@ class LocalAdmissionTest(unittest.TestCase):
         self.assertIn("installed-package-benchmark", [gate.name for gate in quick])
         self.assertIn("release-package-admission", [gate.name for gate in quick])
         self.assertIn("release-rehearsal-contract", [gate.name for gate in quick])
-        self.assertIn("alpha-promotion", [gate.name for gate in quick])
-        self.assertIn("post-public-verification", [gate.name for gate in quick])
+        self.assertIn("publication-contract", [gate.name for gate in quick])
         self.assertNotIn("release-rehearsal-real", [gate.name for gate in quick])
         self.assertNotIn("windows-host-tests", [gate.name for gate in quick])
         chosen = runner.plan(
@@ -183,79 +181,18 @@ class LocalAdmissionTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "unknown gate"):
             runner.plan(runner.gates(), selected=("does-not-exist",), quick=False)
 
-    def test_alpha_promotion_gate_is_listed_quick_provider_free_and_exact(self) -> None:
+    def test_current_publication_contract_replaces_retired_release_flows(self) -> None:
         runner = load_module()
         all_gates = runner.gates()
-        gate = next(gate for gate in all_gates if gate.name == "alpha-promotion")
-        self.assertEqual(
-            gate.argv,
-            (
-                sys.executable,
-                "cli/ci/test_promote_alpha_release.py",
-                "-v",
-            ),
-        )
-        self.assertEqual(gate.cwd, runner.REPOSITORY_ROOT)
+        names = [gate.name for gate in all_gates]
+        self.assertNotIn("alpha-promotion", names)
+        self.assertNotIn("post-public-verification", names)
+        gate = next(gate for gate in all_gates if gate.name == "publication-contract")
+        self.assertIn("test_publication", gate.argv)
+        self.assertIn("test_assemble_kernel_rc", gate.argv)
         self.assertTrue(gate.provider_free)
         self.assertTrue(gate.quick)
-        self.assertIn(
-            "alpha-promotion",
-            [gate.name for gate in runner.plan(all_gates, selected=(), quick=False)],
-        )
-        self.assertIn(
-            "alpha-promotion",
-            [gate.name for gate in runner.plan(all_gates, selected=(), quick=True)],
-        )
-        self.assertEqual(
-            runner.plan(all_gates, selected=("alpha-promotion",), quick=False),
-            (gate,),
-        )
-        stdout = io.StringIO()
-        with redirect_stdout(stdout):
-            self.assertEqual(runner.main(["--list"]), 0)
-        self.assertEqual(stdout.getvalue().splitlines().count("alpha-promotion"), 1)
-
-    def test_post_public_gate_is_listed_quick_provider_free_and_exact(self) -> None:
-        runner = load_module()
-        all_gates = runner.gates()
-        gate = next(
-            gate for gate in all_gates if gate.name == "post-public-verification"
-        )
-        self.assertEqual(
-            gate.argv,
-            (
-                sys.executable,
-                "-m",
-                "unittest",
-                "discover",
-                "-s",
-                "cli/ci",
-                "-p",
-                "test_*public_alpha*.py",
-                "-v",
-            ),
-        )
-        self.assertEqual(gate.cwd, runner.REPOSITORY_ROOT)
-        self.assertTrue(gate.provider_free)
-        self.assertTrue(gate.quick)
-        self.assertIn(
-            "post-public-verification",
-            [gate.name for gate in runner.plan(all_gates, selected=(), quick=False)],
-        )
-        self.assertIn(
-            "post-public-verification",
-            [gate.name for gate in runner.plan(all_gates, selected=(), quick=True)],
-        )
-        self.assertEqual(
-            runner.plan(all_gates, selected=("post-public-verification",), quick=False),
-            (gate,),
-        )
-        stdout = io.StringIO()
-        with redirect_stdout(stdout):
-            self.assertEqual(runner.main(["--list"]), 0)
-        self.assertEqual(
-            stdout.getvalue().splitlines().count("post-public-verification"), 1
-        )
+        self.assertEqual(runner.plan(all_gates, selected=("publication-contract",), quick=False), (gate,))
 
     def test_gate_timeouts_reject_unbounded_or_ambiguous_values(self) -> None:
         runner = load_module()
@@ -326,8 +263,7 @@ class LocalAdmissionTest(unittest.TestCase):
                 "architecture-tests",
                 "release-preflight-tests",
                 "release-notes",
-                "alpha-promotion",
-                "post-public-verification",
+                "publication-contract",
                 "release-reproducibility",
                 "workflow-policy",
                 "dependency-contract",

@@ -421,15 +421,14 @@ pub fn plain_invocation(mut error: RunnerError) -> RunnerError {
         .and_then(|details| details.get("reason"))
         .and_then(Value::as_str)
         .unwrap_or_default();
-    error.message = if reason.starts_with("unknown command") || reason.contains("is not a command")
-    {
+    let message = if reason.starts_with("unknown command") || reason.contains("is not a command") {
         "Unknown command."
     } else if reason.starts_with("unknown option") {
         "Unknown option."
     } else {
         "That command isn't quite right."
-    }
-    .to_owned();
+    };
+    message.clone_into(&mut error.message);
     error
 }
 
@@ -830,7 +829,7 @@ pub fn localize_help_for(product: &str, text: &str) -> String {
         return text.to_owned();
     }
     text.split_inclusive('\n')
-        .map(|line| {
+        .fold(String::new(), |mut localized, line| {
             let indent = line.len() - line.trim_start_matches(' ').len();
             let (head, rest) = line.split_at(indent);
             let rest = if let Some(tail) = rest.strip_prefix("prose ") {
@@ -840,9 +839,10 @@ pub fn localize_help_for(product: &str, text: &str) -> String {
             } else {
                 rest.to_owned()
             };
-            format!("{head}{}", rest.replace("`prose ", &format!("`{product} ")))
+            localized.push_str(head);
+            localized.push_str(&rest.replace("`prose ", &format!("`{product} ")));
+            localized
         })
-        .collect()
 }
 
 /// A copyable command line (`prose ...`, shell-quoted, not yet made

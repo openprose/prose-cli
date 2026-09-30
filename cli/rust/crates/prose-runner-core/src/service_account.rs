@@ -4,6 +4,7 @@ use crate::output::CommandOutcome;
 use crate::service::Environment;
 use crate::{CancellationToken, OutputMode, RunnerCommand, RunnerError};
 use serde_json::{Value, json};
+use std::fmt::Write as _;
 use std::io::Read;
 use std::time::{Duration, Instant};
 
@@ -188,7 +189,7 @@ impl Session {
         method: &str,
         path: &str,
         token: Option<&str>,
-        body: Value,
+        body: &Value,
     ) -> Result<Value, RunnerError> {
         self.check()?;
         let (status, value) = if let Some(fixture) = self.fixture.as_ref() {
@@ -260,16 +261,15 @@ impl Session {
             } else {
                 request.call()
             };
-            let response = match result {
-                Ok(r) | Err(ureq::Error::Status(_, r)) => r,
-                Err(_) => return Err(self.transport_failure()),
+            let (Ok(response) | Err(ureq::Error::Status(_, response))) = result else {
+                return Err(self.transport_failure());
             };
             self.check()?;
             let status = u64::from(response.status());
             if matches!(status, 401 | 403) {
                 return Err(problem(ErrorCode::ServiceAuthRequired));
             }
-            if !(200..=299).contains(&status) && !(status == 400 && path.ends_with("/poll")) {
+            if !((200..=299).contains(&status) || status == 400 && path.ends_with("/poll")) {
                 return Err(unavailable(status));
             }
             let mut bytes = Vec::new();
@@ -407,6 +407,11 @@ fn environment_key_refusal(
 
 /// Executes an account operation with a bounded environment-isolated transport.
 #[must_use]
+/// Execute the selected account operation with isolated credentials.
+///
+/// # Panics
+/// Panics if an account operation is missing from the compile-time service
+/// manifest; shared coverage tests require every such operation.
 pub fn execute(
     command: &RunnerCommand,
     selected: &Environment,
@@ -438,7 +443,7 @@ pub fn execute(
         }
         if operation == "login" {
             session.store("get", None)?;
-            let start = session.request("POST", "/auth/device", None, json!({}))?;
+            let start = session.request("POST", "/auth/device", None, &json!({}))?;
             let what = "POST /auth/device";
             let code = start["device_code"]
                 .as_str()
@@ -483,7 +488,7 @@ pub fn execute(
                     "POST",
                     "/auth/device/poll",
                     None,
-                    json!({
+                    &json!({
                         "device_code":code
                     }),
                 )?;
@@ -558,7 +563,7 @@ pub fn execute(
             ));
         }
         let body = session
-            .request("GET", "/organizations", Some(&token), Value::Null)
+            .request("GET", "/organizations", Some(&token), &Value::Null)
             .map_err(|error| {
                 if error.code == ErrorCode::ServiceAuthRequired {
                     crate::service::credential_failure(
@@ -662,17 +667,17 @@ pub fn execute(
     let stdout = if operation == "list" {
         rows.as_array()
             .map(|entries| {
-                entries
-                    .iter()
-                    .map(|entry| {
-                        format!(
-                            "{}  {}  {}\n",
-                            crate::error::human_safe_scalar(entry["slug"].as_str().unwrap_or("")),
-                            entry["role"].as_str().unwrap_or("-"),
-                            crate::error::human_safe_scalar(entry["name"].as_str().unwrap_or(""))
-                        )
-                    })
-                    .collect::<String>()
+                entries.iter().fold(String::new(), |mut text, entry| {
+                    // Writing formatted text into a String cannot fail.
+                    let _ = writeln!(
+                        text,
+                        "{}  {}  {}",
+                        crate::error::human_safe_scalar(entry["slug"].as_str().unwrap_or("")),
+                        entry["role"].as_str().unwrap_or("-"),
+                        crate::error::human_safe_scalar(entry["name"].as_str().unwrap_or(""))
+                    );
+                    text
+                })
             })
             .unwrap_or_default()
     } else {
@@ -972,7 +977,7 @@ mod tests {
         assert!(session.store("get", None).unwrap().is_none());
         assert!(
             session
-                .request("POST", "/auth/device", None, json!({}))
+                .request("POST", "/auth/device", None, &json!({}))
                 .is_ok()
         );
         session.next = 0;
@@ -980,7 +985,7 @@ mod tests {
             json!("https://untrusted.invalid");
         assert!(
             session
-                .request("POST", "/auth/device", None, json!({}))
+                .request("POST", "/auth/device", None, &json!({}))
                 .is_err()
         );
     }
@@ -1037,14 +1042,14 @@ mod tests {
         };
         assert_eq!(
             session
-                .request("POST", "/auth/device", None, json!({}))
+                .request("POST", "/auth/device", None, &json!({}))
                 .unwrap_err()
                 .code,
             ErrorCode::ServiceProtocolInvalid
         );
         assert_eq!(
             session
-                .request("GET", "/organizations", None, Value::Null)
+                .request("GET", "/organizations", None, &Value::Null)
                 .unwrap_err()
                 .code,
             ErrorCode::ServiceProtocolInvalid
@@ -1058,7 +1063,7 @@ mod tests {
         }));
         assert_eq!(
             session
-                .request("GET", "/organizations", Some("wrong"), Value::Null)
+                .request("GET", "/organizations", Some("wrong"), &Value::Null)
                 .unwrap_err()
                 .code,
             ErrorCode::ServiceProtocolInvalid
@@ -1106,7 +1111,7 @@ mod tests {
         );
         assert_eq!(
             session
-                .request("POST", "/auth/device", None, json!({}))
+                .request("POST", "/auth/device", None, &json!({}))
                 .unwrap_err()
                 .code,
             ErrorCode::Cancelled

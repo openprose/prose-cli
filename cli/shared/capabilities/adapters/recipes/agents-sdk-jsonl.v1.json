@@ -98,9 +98,10 @@
   "isolation": {
     "guarantee": "advisory",
     "ambientDisabled": [
-      "skills",
+      "user-skills",
+      "project-skills",
       "plugins",
-      "context-files"
+      "instruction-files"
     ],
     "preserved": [
       "native-safety-prompt",

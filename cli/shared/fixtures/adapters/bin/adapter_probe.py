@@ -39,7 +39,7 @@ def infer_adapter(argv: list[str]) -> str:
 
 def read_prompt_files(argv: list[str]) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
-    for flag in ("--append-system-prompt-file", "--append-system-prompt", "--config"):
+    for flag in ("--instructions", "--append-system-prompt-file", "--append-system-prompt", "--config"):
         if flag not in argv:
             continue
         index = argv.index(flag)
@@ -259,6 +259,11 @@ def main() -> int:
                 },
             ]
         )
+    elif adapter_id == "agents-sdk/jsonl":
+        emit([
+            {"type": "start", "model": "fixture", "cwd": "fixture"},
+            {"type": "final", "output": assistant_text},
+        ])
     elif adapter_id == "claude/print-stream-json":
         emit(
             [

@@ -60,10 +60,8 @@ fn service_operations_prints_the_manifest_byte_for_byte() {
     assert!(output.status.success());
     // One envelope line whose result is the published manifest: the file
     // without the client's own implementation sections.
-    assert_eq!(
-        output.stdout.iter().filter(|byte| **byte == b'\n').count(),
-        1
-    );
+    assert!(output.stdout.ends_with(b"\n"));
+    assert!(!output.stdout[..output.stdout.len() - 1].contains(&b'\n'));
     let document: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
     let manifest: serde_json::Value = serde_json::from_slice(include_bytes!(
         "../../../../shared/service/operations.v1.json"
@@ -75,7 +73,7 @@ fn service_operations_prints_the_manifest_byte_for_byte() {
     .unwrap();
     let published = project(&manifest, &projection["fields"]);
     let text = document["result"].to_string();
-    assert!(text.len() <= projection["maxBytes"].as_u64().unwrap() as usize);
+    assert!(u64::try_from(text.len()).unwrap() <= projection["maxBytes"].as_u64().unwrap());
     for forbidden in projection["forbid"].as_array().unwrap() {
         assert!(!text.contains(forbidden.as_str().unwrap()), "{forbidden}");
     }

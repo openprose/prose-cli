@@ -16,7 +16,6 @@ import threading
 import time
 from typing import Callable, Iterable, Mapping, Sequence, TextIO
 
-
 CLI_ROOT = Path(__file__).resolve().parents[1]
 REPOSITORY_ROOT = CLI_ROOT.parent
 
@@ -125,27 +124,20 @@ def gates() -> tuple[Gate, ...]:
             (python, "cli/ci/test_render_release_notes.py"),
         ),
         Gate(
-            "alpha-promotion",
-            REPOSITORY_ROOT,
-            (
-                python,
-                "cli/ci/test_promote_alpha_release.py",
-                "-v",
-            ),
-        ),
-        Gate(
-            "post-public-verification",
-            REPOSITORY_ROOT,
+            "publication-contract",
+            CLI_ROOT / "ci",
             (
                 python,
                 "-m",
                 "unittest",
-                "discover",
-                "-s",
-                "cli/ci",
-                "-p",
-                "test_*public_alpha*.py",
                 "-v",
+                "test_publication",
+                "test_distribution_plan",
+                "test_npm_identity",
+                "test_build_kernel_rc",
+                "test_assemble_kernel_rc",
+                "test_kernel_rc_evidence",
+                "test_check_published_release",
             ),
         ),
         Gate(
@@ -458,31 +450,89 @@ def gates() -> tuple[Gate, ...]:
         # Hosted service operations and the account and
         # registry commands, against the production service only. Each
         # product's test-seam build precedes the gates that run it.
-        Gate("service-operations-corpus", REPOSITORY_ROOT,
-             (python, "cli/conformance/runner/service_operations.py", "--validate")),
-        Gate("service-coverage", REPOSITORY_ROOT,
-             (python, "cli/conformance/runner/service_coverage.py", "--strict")),
-        Gate("service-help", REPOSITORY_ROOT, (python, "cli/ci/render_service_help.py", "--check")),
-        Gate("service-operations-rust-build", CLI_ROOT / "rust",
-             ("cargo", "build", "--locked", "--features", "test-seams", "--bin", "prose")),
-        Gate("service-operations-rust", REPOSITORY_ROOT,
-             (python, "cli/conformance/runner/service_operations.py", "--all", "--",
-              str(CLI_ROOT / "rust" / "target" / "debug" / "prose"))),
-        Gate("registry-service-rust", REPOSITORY_ROOT,
-             (python, "cli/conformance/runner/registry_service.py", "--",
-              str(CLI_ROOT / "rust" / "target" / "debug" / "prose"))),
-        Gate("service-operations-bun-build", CLI_ROOT / "bun", ("bun", "run", "build:test")),
-        Gate("service-operations-bun", REPOSITORY_ROOT,
-             (python, "cli/conformance/runner/service_operations.py", "--all", "--",
-              str(CLI_ROOT / "bun" / "dist" / "prose-test"))),
-        Gate("registry-service-bun", REPOSITORY_ROOT,
-             (python, "cli/conformance/runner/registry_service.py", "--",
-              str(CLI_ROOT / "bun" / "dist" / "prose-test"))),
+        Gate(
+            "service-operations-corpus",
+            REPOSITORY_ROOT,
+            (python, "cli/conformance/runner/service_operations.py", "--validate"),
+        ),
+        Gate(
+            "service-coverage",
+            REPOSITORY_ROOT,
+            (python, "cli/conformance/runner/service_coverage.py", "--strict"),
+        ),
+        Gate(
+            "service-help",
+            REPOSITORY_ROOT,
+            (python, "cli/ci/render_service_help.py", "--check"),
+        ),
+        Gate(
+            "service-operations-rust-build",
+            CLI_ROOT / "rust",
+            (
+                "cargo",
+                "build",
+                "--locked",
+                "--features",
+                "test-seams",
+                "--bin",
+                "prose",
+            ),
+        ),
+        Gate(
+            "service-operations-rust",
+            REPOSITORY_ROOT,
+            (
+                python,
+                "cli/conformance/runner/service_operations.py",
+                "--all",
+                "--",
+                str(CLI_ROOT / "rust" / "target" / "debug" / "prose"),
+            ),
+        ),
+        Gate(
+            "registry-service-rust",
+            REPOSITORY_ROOT,
+            (
+                python,
+                "cli/conformance/runner/registry_service.py",
+                "--",
+                str(CLI_ROOT / "rust" / "target" / "debug" / "prose"),
+            ),
+        ),
+        Gate(
+            "service-operations-bun-build",
+            CLI_ROOT / "bun",
+            ("bun", "run", "build:test"),
+        ),
+        Gate(
+            "service-operations-bun",
+            REPOSITORY_ROOT,
+            (
+                python,
+                "cli/conformance/runner/service_operations.py",
+                "--all",
+                "--",
+                str(CLI_ROOT / "bun" / "dist" / "prose-test"),
+            ),
+        ),
+        Gate(
+            "registry-service-bun",
+            REPOSITORY_ROOT,
+            (
+                python,
+                "cli/conformance/runner/registry_service.py",
+                "--",
+                str(CLI_ROOT / "bun" / "dist" / "prose-test"),
+            ),
+        ),
         # prose-cli is a public user client: no internal service detail or
         # developer-only surface in tracked files (quick), nor in either
         # port's release help or the release Rust binary strings (full).
-        Gate("public-surface-files", REPOSITORY_ROOT,
-             (python, "cli/ci/check_public_surface.py")),
+        Gate(
+            "public-surface-files",
+            REPOSITORY_ROOT,
+            (python, "cli/ci/check_public_surface.py"),
+        ),
         Gate(
             "public-surface",
             REPOSITORY_ROOT,

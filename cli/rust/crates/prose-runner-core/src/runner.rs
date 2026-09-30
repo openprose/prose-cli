@@ -1228,6 +1228,8 @@ struct PrimeStagedController {
     close: bool,
 }
 impl PrimeStagedController {
+    // Supervisor callbacks carry this structured failure by value.
+    #[allow(clippy::result_large_err)]
     fn observe(&mut self, record: &Value) -> Result<(), SupervisorFailure> {
         if self.close {
             return Ok(());
@@ -2261,7 +2263,7 @@ fn execute_installed_adapter(
     if config.output_contract.value == "native" {
         process_spec.limits.max_stdout_bytes = crate::config::native_output_bytes(config);
     }
-    let capture = match config
+    let Ok(capture) = config
         .native_log
         .value
         .as_ref()
@@ -2273,20 +2275,17 @@ fn execute_installed_adapter(
             )
         })
         .transpose()
-    {
-        Ok(value) => value,
-        Err(_) => {
-            return forward_error_outcome(
-                RunnerError::catalog(ErrorCode::ConfigInvalid)
-                    .with_detail("reason", "Native log must be a new writable absolute path"),
-                argv,
-                config,
-                image,
-                mode,
-                clock,
-                ids,
-            );
-        }
+    else {
+        return forward_error_outcome(
+            RunnerError::catalog(ErrorCode::ConfigInvalid)
+                .with_detail("reason", "Native log must be a new writable absolute path"),
+            argv,
+            config,
+            image,
+            mode,
+            clock,
+            ids,
+        );
     };
     let mut run_observer = InstalledRunObserver {
         require_api_source: config.native_profile.value != "default"
@@ -4734,9 +4733,10 @@ mod tests {
             );
             let limits = crate::config::native_limits(&config).unwrap();
             assert_eq!(limits["timeoutSeconds"], 180);
-            assert_eq!(
-                limits["toolTimeoutSeconds"].as_f64().unwrap(),
-                seconds.parse::<f64>().unwrap()
+            assert!(
+                (limits["toolTimeoutSeconds"].as_f64().unwrap() - seconds.parse::<f64>().unwrap())
+                    .abs()
+                    < f64::EPSILON
             );
         }
     }
@@ -5404,6 +5404,8 @@ impl NativeCapture {
             limit,
         })
     }
+    // The process observer requires the same by-value failure as its other callbacks.
+    #[allow(clippy::result_large_err)]
     fn write(&mut self, record: &Value) -> Result<(), SupervisorFailure> {
         fn scrub(value: &mut Value, secrets: &[String]) {
             match value {
@@ -5532,7 +5534,8 @@ fn sdk_limit_arguments(config: &EffectiveConfig) -> Vec<std::ffi::OsString> {
     if let Some(v) = &config.native_timeout.value {
         args.extend([
             std::ffi::OsString::from("--timeout"),
-            (crate::config::validate_native_timeout(v).expect("validated") as f64 / 1000.0)
+            Duration::from_millis(crate::config::validate_native_timeout(v).expect("validated"))
+                .as_secs_f64()
                 .to_string()
                 .into(),
         ]);
@@ -5540,7 +5543,8 @@ fn sdk_limit_arguments(config: &EffectiveConfig) -> Vec<std::ffi::OsString> {
     if let Some(v) = &config.native_tool_timeout.value {
         args.extend([
             std::ffi::OsString::from("--tool-timeout"),
-            (crate::config::validate_native_timeout(v).expect("validated") as f64 / 1000.0)
+            Duration::from_millis(crate::config::validate_native_timeout(v).expect("validated"))
+                .as_secs_f64()
                 .to_string()
                 .into(),
         ]);

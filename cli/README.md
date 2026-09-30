@@ -26,8 +26,9 @@ Start with [First five minutes](#first-five-minutes). Review the independent
 [CLI changelog](CHANGELOG.md) for version and compatibility boundaries. For
 installation or CLI problems, use [Support and report a CLI problem](SUPPORT.md).
 Release operators use the
-[functional-alpha readiness contract](release/ALPHA_READINESS.md) to distinguish
-candidate, promotion, and post-publication authority.
+[maintained release path](release/README.md) for source admission, exact
+candidate qualification and protected publication. The old functional-alpha
+promotion flow is retired.
 
 The `prose cli` account, registry and service commands connect to the hosted
 OpenProse service. Source implementation and hermetic fixtures do not establish
