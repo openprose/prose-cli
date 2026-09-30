@@ -270,6 +270,14 @@ def audit_workflow(name: str, text: str) -> list[str]:
                 )
             python = by_name["Prepare pinned Python on every architecture"]
             require("uv python install 3.10.20" in python["run"], "Python pin drift")
+            if name == "cli-ci.yml":
+                require(
+                    by_name["Admit current source without provider credentials"].get(
+                        "shell"
+                    )
+                    == "bash",
+                    "source admission needs Bash pipefail so tee cannot hide a failure",
+                )
             required_step, command = {
                 "cli-ci.yml": (
                     "Admit current source without provider credentials",

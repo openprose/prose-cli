@@ -214,6 +214,17 @@ class CurrentWorkflowPolicyTest(unittest.TestCase):
                 name, lambda w, j, i=index: j["steps"][i].update({"if": "false"})
             )
 
+    def test_admission_pipeline_cannot_hide_failure(self):
+        self.changed(
+            "cli-ci.yml",
+            lambda w, j: next(
+                step
+                for step in j["steps"]
+                if step.get("name")
+                == "Admit current source without provider credentials"
+            ).pop("shell"),
+        )
+
     def test_diagnostics_survive_failures(self):
         for name in JOBS:
             self.changed(

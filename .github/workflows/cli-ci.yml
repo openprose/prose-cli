@@ -61,6 +61,7 @@ jobs:
           cd cli/bun
           bun install --frozen-lockfile --ignore-scripts
       - name: Admit current source without provider credentials
+        shell: bash
         run: python3 cli/ci/run_local.py 2>&1 | tee "$RUNNER_TEMP/cli-admission.log"
       - name: Retain admission diagnostics
         if: always()
