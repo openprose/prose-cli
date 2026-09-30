@@ -609,3 +609,5 @@ IMP-061 benchmark leases: `cli/benchmarks/tests/test_smoke_contract.py` and `cli
 IMP-061 lease extension: `cli/benchmarks/runner/cli.py`. Current fixture collection revealed absolute image/program/validator paths in exported identities. Normalize only their public descriptors after exact input admission, preserving the verified digest and private execution authorities.
 
 IMP-061 Linux credential-test lease: `cli/rust/crates/prose-cli/tests/credential_store.rs`. Fresh Linux source admission exposed assertions for the retired account envelope and error text. Assert the current service-operation envelope, structured malformed-credential details, native Secret Service calls, shadow resistance and credential-free argv; no compatibility fallback is added.
+
+IMP-061 Linux registry-test lease: `cli/bun/test/package-registry.test.ts`. Use a native, resolved temporary directory rather than a Darwin-only `/private/tmp` prefix; retain all byte/hash, receipt, credential, symlink and malformed-manifest assertions.

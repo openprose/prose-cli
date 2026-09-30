@@ -115,3 +115,21 @@ two remaining core tests expecting config validation before host admission.
 Both now assert the shared unsupported-host error and zero discovery on Linux;
 admitted hosts retain the original model/auth validation assertions. 297 Linux core tests passed in that attempt, with two explicitly ignored;
 the repaired suite needs fresh Linux qualification. No production validation order is changed.
+
+## Integrated main qualification
+
+PR 13 is merged at `313a76a3cc5e28fe69540f749627ba2304834375`.
+Main CodeQL [36791191091](https://github.com/openprose/prose-cli/actions/runs/36791191091)
+passed all four analyses; no open CodeQL findings remain and none were dismissed.
+Unsigned candidates [36791191982](https://github.com/openprose/prose-cli/actions/runs/36791191982)
+and distribution [36791192000](https://github.com/openprose/prose-cli/actions/runs/36791192000)
+passed all four native platforms, including the three-surface 50-case rehearsal.
+Linux distribution passed all 1,089 hosted cases in each product and 304
+developer Rust core tests.
+
+Full Linux source admission [36791192006](https://github.com/openprose/prose-cli/actions/runs/36791192006)
+passed Rust but found nine Bun registry tests using Darwin's `/private/tmp`,
+which does not exist on Linux. Their fresh workspace now resolves the native
+temporary directory before creating it, retaining symlink refusal assertions.
+This changes only the test fixture; no registry behavior or credential policy
+is altered. Fresh native source qualification remains required.

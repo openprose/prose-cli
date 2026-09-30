@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
-import { mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { tmpdir } from "node:os";
 import { runCli } from "../src/cli";
 import { preparePackage, receipt, matchReceipt, parsePackageJSON, packagePath, version } from "../src/core/package-format";
 import { parsePackageCommand } from "../src/core/package-args";
@@ -10,7 +11,7 @@ const base = "/registry/v1/organizations/example/packages";
 const data = async (name: string) => JSON.parse(await readFile(new URL(name, fixtures), "utf8"));
 const raw = async (name: string) => readFile(new URL(name, fixtures), "utf8");
 async function workspace(fn: (root: string, invoke: (args: string[], fixture?: unknown, env?: Record<string, string>) => Promise<{ code: number; stdout: string; stderr: string; report: any }>) => Promise<void>) {
-  const root = await mkdtemp("/private/tmp/prose-registry-test-");
+  const root = await mkdtemp(join(await realpath(tmpdir()), "prose-registry-test-"));
   const invoke = async (args: string[], fixture: unknown = { credential: null, storeAvailable: true, exchanges: [] }, env: Record<string, string> = {}) => {
     const path = join(root, "transport.json"); await writeFile(path, JSON.stringify(fixture));
     let stdout = "", stderr = "";
