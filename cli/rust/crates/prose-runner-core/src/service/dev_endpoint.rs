@@ -32,7 +32,7 @@ pub fn custom(environment: &BTreeMap<String, String>) -> Result<Option<Environme
         let mut error = RunnerError::config(format!(
             "{OVERRIDE_VARIABLE} {why}; expected an https origin such as https://host.example"
         ));
-        error.action = INVALID_ACTION.to_owned();
+        INVALID_ACTION.clone_into(&mut error.action);
         error
     })?;
     let digest = origin_digest(&origin);
@@ -78,8 +78,7 @@ pub fn record_invoked_name(argv0: Option<&str>) {
 /// it was invoked (a name found on `PATH` such as `prose-dev`, or a path),
 /// or `None` for `prose` itself or a value that cannot be copied safely.
 pub fn invoked_program(argv0: &str) -> Option<String> {
-    if argv0.is_empty() || argv0 == "prose" || argv0.chars().any(|character| character.is_control())
-    {
+    if argv0.is_empty() || argv0 == "prose" || argv0.chars().any(char::is_control) {
         return None;
     }
     Some(super::render::shell_quote(argv0))

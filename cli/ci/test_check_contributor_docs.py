@@ -276,8 +276,8 @@ class CliContributorDocumentationTests(unittest.TestCase):
     def test_changelog_requires_an_exact_dated_section_before_tagging(self) -> None:
         changelog = " ".join(CHANGELOG.read_text("utf-8").split())
         for marker in (
-            "Before creating `cli-vX.Y.Z-alpha.N`",
-            "`## [X.Y.Z-alpha.N] — YYYY-MM-DD`",
+            "Before publishing a CLI release",
+            "`## [X.Y.Z] — YYYY-MM-DD`",
             "must not remain only under `[Unreleased]`",
             "This changelog entry does not claim that an artifact is published",
         ):

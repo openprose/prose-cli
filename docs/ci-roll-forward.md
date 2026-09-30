@@ -37,3 +37,36 @@ actual reviewed revisions and outcomes before integration.
 No paid provider invocation, package publication or deployment is assigned.
 Release prerequisites, including npm package ownership/trusted publishing and
 platform signing, remain separate gates for the future release.
+
+## Subsequent findings
+
+Run 36782446830 passed unsigned kernel candidate qualification on all four
+platforms. Distribution run 36782446725 passed on macOS ARM64/x64 and Linux
+ARM64, but its Linux x64 developer tests exposed Darwin-only assumptions. Source
+run 36782446728 also caught a diagnostic string accidentally reformatted by a
+lint repair. Both failures are retained; neither is counted as qualification.
+
+Installed tests now distinguish recipe-supported hosts from unsupported-host
+refusal. Unit process fixtures explicitly inject the admitted Darwin ARM64
+identity, while compiled adversaries use their actual host. The four-harness
+adversary builds isolated echo fixtures rather than substituting ordinary
+published-kernel candidates or making a network/provider call. SDK oracle tests
+remain separate from that installed cohort.
+
+The adversary exposed OMP envelope-mode tool admission and Codex launch parity
+mismatches. Both products now follow the shared recipe and native-mode contract.
+Process cleanup uses a distinct typed process resource so it cannot collide with
+the hosted service's strict not-found resource object. Current packaging tests
+retain generated archive/npm custody, remove tests of deleted historical guide
+examples, and expect the new service account readiness and Undici inventory.
+
+Two open CodeQL findings have source repairs: test newline mutation replaces all
+newlines; the experimental checkpoint lexer advances linearly through escaped
+strings after JSON grammar validation. A fresh scan must verify closure; no
+finding has been manually dismissed. All new qualification is still pending.
+
+The remaining unused numbered-alpha package admission and draft assembly helpers
+are retired rather than repaired to preserve their frozen alpha journey. No
+maintained workflow invokes them. Current kernel assembly, publication verifier,
+release-package admission, generated package guidance/custody and installed
+rehearsal retain the relevant release protections.

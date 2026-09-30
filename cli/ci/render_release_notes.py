@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Render deterministic, draft-safe release notes from checksum-bound manifests.
 
-The full release assembly remains the authority of ``create_draft_release.py``.
+Exact candidate identity and assembly belong to ``assemble_kernel_rc.py``.
 This renderer consumes its five already-validated package manifests, verifies
 their exact bytes against the assembly checksum inventory, and applies a second
 closed validation to every fact that becomes human-visible Markdown.

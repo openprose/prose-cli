@@ -37,6 +37,15 @@ try {
     assert.equal(checkpoint.pending, 'attempt-1');
     assert.deepEqual(decodeCheckpoint(encodeCheckpoint(checkpoint)), checkpoint);
   });
+  check('large escaped strings roundtrip and escaped duplicate keys fail closed', () => {
+    const checkpoint = { ...emptyCheckpoint(), binding: '\\"'.repeat(65_536) };
+    const encoded = encodeCheckpoint(checkpoint);
+    assert.deepEqual(decodeCheckpoint(encoded), checkpoint);
+    const duplicate = encoded.replace('"binding":', '"\\u0062inding":"duplicate","binding":');
+    assert.throws(() => decodeCheckpoint(duplicate), /duplicate checkpoint key/);
+    const quotedNumbers = { ...emptyCheckpoint(), evidence: '"schema":1.0, "attempts":0e0' };
+    assert.deepEqual(decodeCheckpoint(encodeCheckpoint(quotedNumbers)), quotedNumbers);
+  });
   check('missing checkpoint, durable save, reopened reuse, and escaped session rejection', () => {
     const host = new FileHost(directory('save'));
     let escaped;

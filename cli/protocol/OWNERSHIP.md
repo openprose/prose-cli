@@ -579,3 +579,21 @@ IMP-061 retirement leases: `cli/conformance/direct-skill-real/README.md`, `cli/c
 IMP-061 lease extension: `cli/platform/windows-process-host/src/lib.rs` for formatting the existing output-budget test under the pinned Rust formatter.
 
 IMP-061 lease extension: `cli/rust/crates/prose-cli/tests/cli.rs` for the rejected-version diagnostic fixture. Claude 2.1.244 now lies within Raymond's supported version range; use 2.1.242 below its floor and retain the full diagnostic assertions.
+
+IMP-061 lease extension: `cli/rust/crates/prose-runner-core/src/service/dev_endpoint.rs` for strict developer-build lint repairs; `cli/ci/README.md`, `cli/CHANGELOG.md`, and `cli/ci/test_render_release_notes.py` for current admission guidance and an unreleased changelog independent of the retired alpha train.
+
+IMP-061 security-repair leases: `cli/bun/test/image.test.ts`, `experiments/weave-seed/bun/host.mjs`, and `experiments/weave-seed/bun/host.test.mjs`. GitHub's remaining CodeQL findings concern partial newline mutation in a test and regex backtracking in the experimental checkpoint tokenizer. Keep the mutation negative and replace token scanning with a linear pass; qualify the existing experiment without coupling it to either CLI.
+
+IMP-061 lease extension: `cli/conformance/adversarial/adapter-products/test_adapter_products.py` to bind the existing four-harness installed adversary explicitly to its shared cohort authority. The separately tested SDK oracle remains outside measured installed admission.
+
+IMP-061 lease extension: `cli/conformance/adversarial/adapter-products/README.md` for explicit fixed-image adversarial builds. Preserve ordinary published-kernel builds and isolate the provider-free echo fixture candidates in dedicated output paths.
+
+IMP-061 cross-product contract leases: `cli/shared/schemas/runner-error.schema.json`, `cli/shared/tests/test_contracts.py`, `cli/rust/crates/prose-runner-core/src/prime_owned_service.rs`, `cli/bun/src/adapters/prime-owned-service.ts`, and `cli/bun/test/prime-owned-service.test.ts`. Use a distinct typed `processResource` for owned-service settlement, leaving hosted not-found `resource` objects strict. Existing leased Rust adapter/runner paths align ordinary Codex argv to its shared developer recipe and retain pathless structured installed diagnostics without fake-transport-only fields.
+
+IMP-061 lease extension: `cli/bun/src/adapters/protocols.ts`, `cli/bun/test/omp-protocol.test.ts`, and `cli/bun/test/native-tools.test.ts` to pass the existing native-output selection into OMP's state barrier. Envelope-mode fixtures reject nonempty tool inventories; explicit native mode retains its tool lifecycle.
+
+IMP-061 portability and packaging leases: `cli/ci/test_package_local.py`, `cli/rust/crates/prose-cli/tests/cli.rs`, and `cli/conformance/adversarial/adapter-products/test_adapter_products.py`. Qualify installed behavior only on recipe-admitted hosts, assert unsupported-host refusal, update the current package inventory and account status, and retire assertions against removed documentation examples. Generated package installation/custody coverage remains active.
+
+IMP-061 lease extension: `cli/bun/test/cli.test.ts`, `cli/bun/test/adapters-installed.test.ts`, and `cli/bun/src/adapters/runner.ts`. Unit fixtures inject their admitted macOS ARM64 identity; explicit host admission tests retain their requested identities and compiled adversaries still use the actual host. Private-file cleanup uses the shared typed process resource rather than a hosted-resource field.
+
+IMP-061 remaining legacy retirement leases: `cli/ci/alpha_package_admission.py`, `cli/ci/test_alpha_package_admission.py`, `cli/ci/create_draft_release.py`, `cli/ci/test_create_draft_release.py`, `cli/ci/test_check_draft_release.py`, and `cli/ci/render_release_notes.py`. These standalone helpers belong to the removed numbered-alpha publication flow and are not invoked by any maintained workflow. Retain current kernel assembly, publication verification, release-package admission, generated package custody, and installed rehearsal; their historical implementation remains in Git.

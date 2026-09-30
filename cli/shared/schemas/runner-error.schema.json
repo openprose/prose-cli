@@ -298,6 +298,10 @@
             "rejected"
           ]
         },
+        "processResource": {
+          "description": "The owned process service whose settlement failed; contains no machine path.",
+          "enum": ["owned-prime-harness-service", "owned-private-transport-files"]
+        },
         "resource": {
           "description": "The resource a SERVICE_RESOURCE_NOT_FOUND names: its kind (from the operation's manifest notFound entry, or the handler) and the identifier as the caller gave it.",
           "type": "object",

@@ -838,6 +838,19 @@ class ContractsTest(unittest.TestCase):
         self.assertIn("for Claude, run `claude auth login`", harness_auth["action"])
         self.assertNotIn("enter `/login`", harness_auth["action"])
 
+    def test_process_cleanup_resource_is_distinct_from_hosted_not_found(self):
+        catalog = load_json(SHARED / "errors" / "taxonomy.v1.json")
+        record = next(item for item in catalog["errors"] if item["code"] == "PROCESS_CLEANUP_FAILED")
+        error = {"schema": "openprose.runner-error/1", **record,
+                 "details": {"processResource": "owned-prime-harness-service"}}
+        self.assert_valid("runner-error.schema.json", error)
+        error["details"] = {"processResource": "owned-private-transport-files"}
+        self.assert_valid("runner-error.schema.json", error)
+        error["details"] = {"processResource": "/private/owned-service"}
+        self.assertTrue(list(self.validator("runner-error.schema.json").iter_errors(error)))
+        error["details"] = {"resource": "owned-prime-harness-service"}
+        self.assertTrue(list(self.validator("runner-error.schema.json").iter_errors(error)))
+
     def test_all_case_manifests_validate_and_error_actions_are_frozen(self) -> None:
         case_schema = load_json(CASES / "case-manifest.schema.json")
         jsonschema.Draft202012Validator.check_schema(case_schema)

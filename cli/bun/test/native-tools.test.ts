@@ -3,7 +3,7 @@ import { installedProtocol } from "../src/adapters/protocols";
 import prime from "../../shared/fixtures/adapters/tool-lifecycle/prime.json";
 import omp from "../../shared/fixtures/adapters/tool-lifecycle/omp.json";
 for (const [id, frames] of [["prime/rpc",prime],["omp/rpc",omp]] as const) {
-  const parser = () => installedProtocol(id,id==="prime/rpc"?"prime-agent 0.7.0":"omp/18.0.9","fixture-tools",new Uint8Array());
+  const parser = () => installedProtocol(id,id==="prime/rpc"?"prime-agent 0.7.0":"omp/18.0.9","fixture-tools",new Uint8Array(),id==="omp/rpc");
   test(`${id} native tools settle only after actual terminal`,()=>{
     const p=parser();for(const f of frames.slice(0,frames.findIndex(f=>f.type==="agent_end"))) p.accept(f);
     expect(p.terminalEventObserved).toBe(false);p.accept(frames.find(f=>f.type==="agent_end"));expect(p.terminalEventObserved).toBe(true);
@@ -45,7 +45,7 @@ test("Prime missing turn marker allows only a settled tool turn and real termina
  }
  const incomplete=implicit.filter((_,i)=>i!==boundary-1),q=primeParser();expect(()=>incomplete.forEach(f=>q.accept(f))).toThrow();
  const strict=structuredClone(omp) as any[];const starts=strict.map((v,i)=>v.type==="turn_start"?i:-1).filter(i=>i>=0);strict.splice(starts[1]!,1);
- const o=installedProtocol("omp/rpc","omp/18.0.9","fixture-tools",new Uint8Array());expect(()=>strict.forEach(f=>o.accept(f))).toThrow();
+ const o=installedProtocol("omp/rpc","omp/18.0.9","fixture-tools",new Uint8Array(),true);expect(()=>strict.forEach(f=>o.accept(f))).toThrow();
 });
 
 test.skipIf(!process.env.PRIME_REPLAY_PATH)("recorded Prime prefix remains incomplete, synthetic continuation needs actual terminal",async()=>{

@@ -93,8 +93,8 @@ function started(current = true) {
   return protocol;
 }
 
-function beforeStateProof() {
-  const protocol = installedProtocol("omp/rpc", "omp/18.0.9", invocationId, promptBytes);
+function beforeStateProof(nativeMode = false) {
+  const protocol = installedProtocol("omp/rpc", "omp/18.0.9", invocationId, promptBytes, nativeMode);
   protocol.accept(ready());
   protocol.accept({ type: "available_commands_update", commands: [] });
   protocol.takeStagedStdinBytes?.();
@@ -142,7 +142,9 @@ describe("upstream OMP v18 RPC grammar", () => {
       const protocol = beforeStateProof();
       expectFailure(() => protocol.accept(invalid), "HARNESS_FAILED");
     }
-    const enabled = beforeStateProof();
+    const envelope = beforeStateProof();
+    expectFailure(() => envelope.accept({...stateResponse,data:{dumpTools:[{name:"read"}]}}), "HARNESS_FAILED");
+    const enabled = beforeStateProof(true);
     expect(enabled.accept({...stateResponse,data:{dumpTools:[{name:"read"}]}})).toBeNull();
     const malformedInventory = beforeStateProof();
     expectFailure(()=>malformedInventory.accept({...stateResponse,data:{dumpTools:[{}]}}),"PROTOCOL_MALFORMED");

@@ -2849,6 +2849,17 @@ fn installed_adapter_failure_result(
     let mut error = map_supervisor_failure(&failure)
         .with_detail("adapterId", adapter.id())
         .with_detail("fallbackAttempted", false);
+    if matches!(
+        failure.kind,
+        FailureKind::ProtocolMalformed | FailureKind::ProtocolTruncated
+    ) {
+        // Fake-transport counters/reasons are not installed-adapter diagnostics.
+        // Keep the closed framing/lifecycle diagnostic and adapter-specific counters.
+        if let Some(details) = error.details.as_mut() {
+            details.remove("reason");
+            details.remove("admittedRecordCount");
+        }
+    }
     if adapter == installed_adapters::InstalledAdapter::PrimeRpc
         && matches!(
             failure.kind,

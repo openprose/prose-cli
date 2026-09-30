@@ -435,6 +435,7 @@ def gates() -> tuple[Gate, ...]:
             (
                 python,
                 "cli/conformance/adversarial/adapter-products/test_adapter_products.py",
+                "--build",
             ),
         ),
         Gate(
@@ -557,17 +558,6 @@ def gates() -> tuple[Gate, ...]:
             timeout_seconds=HEAVY_GATE_TIMEOUT_SECONDS,
         ),
         Gate(
-            "alpha-package-admission",
-            REPOSITORY_ROOT,
-            (
-                python,
-                "-m",
-                "unittest",
-                "-v",
-                "cli.ci.test_alpha_package_admission.AlphaPackageAdmissionTests",
-            ),
-        ),
-        Gate(
             "installed-package-benchmark",
             REPOSITORY_ROOT,
             (python, "-m", "unittest", "-v", "cli.benchmarks.installed.test_benchmark"),
@@ -581,7 +571,6 @@ def gates() -> tuple[Gate, ...]:
                 "unittest",
                 "-v",
                 "test_release_package_admission.py",
-                "test_create_draft_release.py",
             ),
         ),
         Gate(

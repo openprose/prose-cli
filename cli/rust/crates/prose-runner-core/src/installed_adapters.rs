@@ -863,7 +863,7 @@ impl PreparedLaunch {
 fn private_file_cleanup_failure(adapter: InstalledAdapter) -> RunnerError {
     RunnerError::catalog(ErrorCode::ProcessCleanupFailed)
         .with_detail("phase", "private-file-finalization")
-        .with_detail("resource", "owned-private-transport-files")
+        .with_detail("processResource", "owned-private-transport-files")
         .with_detail("adapterId", adapter.id())
         .with_detail("fallbackAttempted", false)
 }
@@ -3432,14 +3432,7 @@ pub fn prepare_launch(
     let mut omp_control_overlay_path = None;
     let (argv, stdin) = match adapter {
         InstalledAdapter::CodexExecJson => {
-            let mut argv = vec![
-                "exec".into(),
-                "--skip-git-repo-check".into(),
-                "--json".into(),
-                "--ephemeral".into(),
-                "--ignore-user-config".into(),
-                "--ignore-rules".into(),
-            ];
+            let mut argv = vec!["exec".into()];
             if !cfg!(any(test, feature = "test-seams")) {
                 let text = std::str::from_utf8(image_bytes)
                     .map_err(|_| RunnerError::catalog(ErrorCode::ImageInvalid))?;
@@ -3451,6 +3444,13 @@ pub fn prepare_launch(
                     format!("developer_instructions={encoded}").into(),
                 ]);
             }
+            argv.extend([
+                "--skip-git-repo-check".into(),
+                "--json".into(),
+                "--ephemeral".into(),
+                "--ignore-user-config".into(),
+                "--ignore-rules".into(),
+            ]);
             if auth_group == "openai-api-key" {
                 let settings: Vec<String> = serde_json::from_str(include_str!(
                     "../../../../shared/capabilities/adapters/codex-env-route.v1.json"

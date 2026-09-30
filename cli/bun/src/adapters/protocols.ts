@@ -579,7 +579,7 @@ class OmpProtocol extends InstalledProtocol {
 
   readonly stagedStdin = true;
 
-  constructor(harnessVersion: string | null, invocationId: string, promptBytes: Uint8Array) {
+  constructor(harnessVersion: string | null, invocationId: string, promptBytes: Uint8Array, private readonly nativeMode: boolean) {
     super(harnessVersion);
     this.stateRequestId = `${invocationId}.omp.state.1`;
     this.promptRequestId = `${invocationId}.omp.prompt.1`;
@@ -638,7 +638,10 @@ class OmpProtocol extends InstalledProtocol {
         const data = asRecord(record.data, "OMP get_state data is invalid.");
         if (!Array.isArray(data.dumpTools)) malformed("OMP get_state omitted its tool inventory.");
         if (data.dumpTools.some((tool) => !isRecord(tool) || typeof tool.name !== "string" || tool.name.length === 0)) malformed("OMP tool inventory is invalid.");
-        if (data.dumpTools.length !== 0) this.native = new NativeToolLifecycle(true,null,ompTaskDefaults(data.dumpTools));
+        if (data.dumpTools.length !== 0) {
+          if (!this.nativeMode) throw failure("HARNESS_FAILED", { reason: "OMP tool inventory is not empty for image-envelope output." });
+          this.native = new NativeToolLifecycle(true,null,ompTaskDefaults(data.dumpTools));
+        }
         this.toolsProvedEmpty = true;
         this.pendingStdinBytes = this.promptBytes;
         return null;
@@ -772,7 +775,7 @@ export function installedProtocol(
   if (adapterId === "claude/print-stream-json") return new ClaudeProtocol(harnessVersion,nativeMode);
   if (adapterId === "omp/rpc") {
     if (ompPromptBytes === null) malformed("OMP staged prompt bytes are unavailable.");
-    return new OmpProtocol(harnessVersion, invocationId, ompPromptBytes);
+    return new OmpProtocol(harnessVersion, invocationId, ompPromptBytes, nativeMode);
   }
   if(nativeMode){if(ompPromptBytes===null)malformed("Prime native prompt bytes are unavailable.");return new PrimeNativeProtocol(harnessVersion,invocationId,ompPromptBytes);}
   return new PrimeProtocol(harnessVersion, invocationId);

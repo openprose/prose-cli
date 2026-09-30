@@ -2356,7 +2356,7 @@ pub(crate) fn validate_native_output_bytes(value: &str) -> Result<usize, RunnerE
         .and_then(|n| usize::try_from(n).ok())
         .ok_or_else(|| {
             RunnerError::config(
-                "Native output bytes must be decimal bytes from 1_048_576 through 268_435_456.",
+                "Native output bytes must be decimal bytes from 1048576 through 268435456.",
             )
         })
 }

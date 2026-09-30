@@ -259,7 +259,7 @@ function privateTransportCleanupFailure(
 ) {
   return failure("PROCESS_CLEANUP_FAILED", {
     phase: "private-file-finalization",
-    resource: "owned-private-transport-files",
+    processResource: "owned-private-transport-files",
     adapterId,
     fallbackAttempted: false,
   });

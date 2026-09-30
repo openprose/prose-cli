@@ -36,11 +36,34 @@ export function encodeCheckpoint(checkpoint) {
   return JSON.stringify({ schema: 1, ...snapshot }) + '\n';
 }
 
+// JSON.parse validates grammar before this scan. Each character is visited
+// once, including escaped quotes/backslashes; no search can restart inside a
+// string and trigger regular-expression backtracking.
+function* checkpointTokens(text) {
+  let offset = 0;
+  while (offset < text.length) {
+    const start = offset;
+    const character = text[offset++];
+    if (character === '"') {
+      while (offset < text.length) {
+        const next = text[offset++];
+        if (next === '\\') offset++;
+        else if (next === '"') break;
+      }
+      yield text.slice(start, offset);
+    } else if ('{}[],:'.includes(character)) {
+      yield character;
+    } else if (character === '-' || /[0-9]/.test(character)) {
+      while (offset < text.length && '0123456789.eE+-'.includes(text[offset])) offset++;
+      yield text.slice(start, offset);
+    }
+  }
+}
+
 // JSON.parse alone accepts duplicate keys and noncanonical numeric spellings.
 function validateTokens(text) {
   const frames = [];
-  const tokens = text.matchAll(/"(?:\\.|[^"\\])*"|[{}\[\],:]|-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/g);
-  for (const [token] of tokens) {
+  for (const token of checkpointTokens(text)) {
     const top = frames.at(-1);
     if (token === '{') frames.push({ object: true, keys: new Set(), expectingKey: true });
     else if (token === '[') frames.push({ object: false });

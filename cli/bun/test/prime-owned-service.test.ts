@@ -543,7 +543,7 @@ describe.skipIf(process.platform === "win32")("Prime owned harness service settl
         if (ownedService === undefined) throw new Error("The owned-service fixture was not installed.");
         expect(caught).toMatchObject({
           code: "PROCESS_CLEANUP_FAILED",
-          details: { resource: "owned-prime-harness-service" },
+          details: { processResource: "owned-prime-harness-service" },
         });
         expect(JSON.stringify(caught)).not.toContain("must-not-leak");
         const retained = (await readdir(transportRoot)).filter((entry) => entry.startsWith("openprose-prime-"));

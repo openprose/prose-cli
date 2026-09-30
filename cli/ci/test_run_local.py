@@ -14,7 +14,6 @@ import unittest
 from unittest import mock
 from contextlib import redirect_stderr, redirect_stdout
 
-
 HERE = Path(__file__).resolve().parent
 MODULE_PATH = HERE / "run_local.py"
 
@@ -100,7 +99,6 @@ class LocalAdmissionTest(unittest.TestCase):
                 "public-surface",
                 "conformance-host",
                 "package-local",
-                "alpha-package-admission",
                 "installed-package-benchmark",
                 "release-package-admission",
                 "release-rehearsal-contract",
@@ -114,6 +112,10 @@ class LocalAdmissionTest(unittest.TestCase):
         )
         self.assertEqual(differential.argv[-2:], ("--phase", "7"))
         self.assertIn("--build", differential.argv)
+        adversary = next(
+            gate for gate in plan if gate.name == "adapter-product-adversary"
+        )
+        self.assertIn("--build", adversary.argv)
         for name in ("rust-clippy", "rust-tests"):
             rust_gate = next(gate for gate in plan if gate.name == name)
             self.assertEqual(
@@ -127,8 +129,12 @@ class LocalAdmissionTest(unittest.TestCase):
                 "prose-cli/test-seams,prose-cli/dev-endpoint",
             )
             self.assertFalse(dev_gate.quick)
-        dev_build = next(gate for gate in plan if gate.name == "rust-build-dev-endpoint")
-        self.assertEqual(dev_build.argv[dev_build.argv.index("--features") + 1], "dev-endpoint")
+        dev_build = next(
+            gate for gate in plan if gate.name == "rust-build-dev-endpoint"
+        )
+        self.assertEqual(
+            dev_build.argv[dev_build.argv.index("--features") + 1], "dev-endpoint"
+        )
         self.assertNotIn("test-seams", " ".join(dev_build.argv))
         self.assertEqual(
             dev_build.argv[dev_build.argv.index("--target-dir") + 1],
@@ -161,7 +167,7 @@ class LocalAdmissionTest(unittest.TestCase):
         quick = runner.plan(runner.gates(), selected=(), quick=True)
         self.assertNotIn("benchmark-contract", [gate.name for gate in quick])
         self.assertNotIn("package-local", [gate.name for gate in quick])
-        self.assertIn("alpha-package-admission", [gate.name for gate in quick])
+        self.assertNotIn("alpha-package-admission", [gate.name for gate in quick])
         self.assertNotIn("package-lifecycle", [gate.name for gate in quick])
         self.assertIn("public-surface-files", [gate.name for gate in quick])
         self.assertNotIn("public-surface", [gate.name for gate in quick])
@@ -191,7 +197,10 @@ class LocalAdmissionTest(unittest.TestCase):
         self.assertIn("test_assemble_kernel_rc", gate.argv)
         self.assertTrue(gate.provider_free)
         self.assertTrue(gate.quick)
-        self.assertEqual(runner.plan(all_gates, selected=("publication-contract",), quick=False), (gate,))
+        self.assertEqual(
+            runner.plan(all_gates, selected=("publication-contract",), quick=False),
+            (gate,),
+        )
 
     def test_gate_timeouts_reject_unbounded_or_ambiguous_values(self) -> None:
         runner = load_module()

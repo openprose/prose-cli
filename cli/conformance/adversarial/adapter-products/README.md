@@ -12,7 +12,7 @@ Run after building both products:
 
 ```sh
 PYTHONDONTWRITEBYTECODE=1 python3 \
-  cli/conformance/adversarial/adapter-products/test_adapter_products.py
+  cli/conformance/adversarial/adapter-products/test_adapter_products.py --build
 ```
 
 `OPENPROSE_RUST_BIN` and `OPENPROSE_BUN_BIN` may point at alternate installed
@@ -49,3 +49,9 @@ to remain untouched. Cleanup-failure evidence stays pathless and exactly equal
 across Rust and Bun. The `echo-v0` terminal authorizes only
 `semantic.status=not-applicable`; this suite cannot prove OpenProse language
 semantics or strict-wrapper admission.
+
+The build flag creates dedicated Rust/Bun fixed-image echo candidates with test
+seams disabled, a scrubbed environment and locked offline dependencies. It does
+not overwrite ordinary published-kernel candidates. Ordinary startup is qualified
+separately by the current kernel candidate workflow; these fake-harness checks
+must not fetch a published runtime or make provider calls.
