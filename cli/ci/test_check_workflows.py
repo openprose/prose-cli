@@ -176,6 +176,12 @@ class CurrentWorkflowPolicyTest(unittest.TestCase):
             )
             self.changed(name, lambda w, j: j.update({"runs-on": "ubuntu-latest"}))
 
+    def test_source_preloads_the_windows_helper_target(self):
+        self.changed("cli-ci.yml", lambda w, j: [
+            step.update(run=step["run"].replace("rustup target add x86_64-pc-windows-msvc --toolchain 1.87.0", ""))
+            for step in j["steps"] if step.get("name") == "Prepare locked toolchains and dependencies"
+        ])
+
     def test_locked_dependency_guards_and_required_commands(self):
         for name in JOBS:
             if name == "cli-publish.yml":

@@ -272,6 +272,10 @@ def audit_workflow(name: str, text: str) -> list[str]:
             require("uv python install 3.10.20" in python["run"], "Python pin drift")
             if name == "cli-ci.yml":
                 require(
+                    "rustup target add x86_64-pc-windows-msvc --toolchain 1.87.0" in prepare["run"],
+                    "preload the Windows helper target before offline admission",
+                )
+                require(
                     by_name["Admit current source without provider credentials"].get(
                         "shell"
                     )

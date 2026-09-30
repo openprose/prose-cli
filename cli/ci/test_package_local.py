@@ -2752,11 +2752,11 @@ process.stdout.write(JSON.stringify({ spawned, stderr, exitCode: fakeProcess.exi
                 (
                     ["--output", "json", "cli", "doctor"],
                     "openprose.doctor-report/1",
-                    0,
+                    10,
                 ),
                 (
                     ["--output", "json", "cli", "auth", "status"],
-                    "openprose.account-status/1",
+                    "openprose.service-operation/1",
                     0,
                 ),
             ]:
@@ -2767,7 +2767,7 @@ process.stdout.write(JSON.stringify({ spawned, stderr, exitCode: fakeProcess.exi
                     self.root / f"machine-env-{implementation}-{schema}",
                 )
                 self.assertEqual(
-                    result.returncode, exit_code, (implementation, result.stderr)
+                    result.returncode, exit_code, (implementation, arguments, result.stderr)
                 )
                 self.assertEqual(result.stderr, b"")
                 report = json.loads(result.stdout)
@@ -2822,7 +2822,7 @@ process.stdout.write(JSON.stringify({ spawned, stderr, exitCode: fakeProcess.exi
         )
         self.assertEqual(account.returncode, 0)
         self.assertEqual(
-            json.loads(account.stdout)["schema"], "openprose.account-status/1"
+            json.loads(account.stdout)["schema"], "openprose.service-operation/1"
         )
 
     def test_meta_package_has_exact_optional_dependencies_and_no_lifecycle_scripts(

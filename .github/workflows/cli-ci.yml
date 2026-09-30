@@ -54,6 +54,7 @@ jobs:
             cp "$(command -v bun)" bun-darwin-x64-baseline-v1.3.5
           fi
           rustup toolchain install 1.87.0 --profile minimal --component clippy,rustfmt
+          rustup target add x86_64-pc-windows-msvc --toolchain 1.87.0
           rustup default 1.87.0
           cargo fetch --locked --manifest-path cli/rust/Cargo.toml
           cargo fetch --locked --manifest-path cli/platform/windows-process-host/Cargo.toml

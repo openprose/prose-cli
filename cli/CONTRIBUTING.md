@@ -32,6 +32,7 @@ From the repository root:
 python3 -m pip install --disable-pip-version-check --require-hashes \
   --only-binary=:all: -r cli/ci/requirements-test.txt
 rustup toolchain install 1.87.0 --profile minimal --component clippy,rustfmt
+rustup target add x86_64-pc-windows-msvc --toolchain 1.87.0
 export RUSTUP_TOOLCHAIN=1.87.0
 cargo fetch --manifest-path cli/rust/Cargo.toml --locked
 cargo fetch --manifest-path cli/platform/windows-process-host/Cargo.toml --locked
@@ -43,6 +44,9 @@ python3 cli/ci/run_local.py --quick
 The exported selector makes the root-run dependency check use the just-installed
 Rust toolchain; the nested Rust workspaces also carry matching toolchain files.
 It affects only this shell and does not create a persistent rustup override.
+The Windows helper target is fetched during setup so its toolchain declaration
+does not request network access after provider-free admission starts. Fetching
+that target does not qualify Windows execution or distribution.
 
 The quick run is provider-free. It removes provider credentials and must not
 start a real harness. Run a focused gate while iterating:

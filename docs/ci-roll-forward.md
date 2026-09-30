@@ -70,3 +70,13 @@ are retired rather than repaired to preserve their frozen alpha journey. No
 maintained workflow invokes them. Current kernel assembly, publication verifier,
 release-package admission, generated package guidance/custody and installed
 rehearsal retain the relevant release protections.
+
+Fresh source run 36786514562 exposed the Windows helper toolchain target being
+requested after admission disabled the network. Source preparation now preloads
+that declared target; a workflow negative test rejects its omission. The exact
+release-package help identity is refrozen to Raymond's current service commands
+(7,486 bytes, SHA-256
+`d58587215fa0a5182433a81763c3a70370a92f7926c83f0b4187069025656096`).
+The package account-status assertion uses the current service envelope and zero
+exit for logged-out status; the default unavailable-harness doctor still exits
+10. Two fresh installed-package machine-surface checks pass.

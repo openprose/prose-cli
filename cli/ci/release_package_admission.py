@@ -418,8 +418,8 @@ def expected_projection(
     if case_id == "help":
         return {
             "kind": "help",
-            "byteLength": 1798,
-            "sha256": "efbd54b3b188286a523d4ef4ee731754ac27e277258b0af1eae6cd5ef0aebe85",
+            "byteLength": 7486,
+            "sha256": "d58587215fa0a5182433a81763c3a70370a92f7926c83f0b4187069025656096",
         }
     assert value is not None
     if value.get("schema") == "openprose.configuration-explanation/1":
