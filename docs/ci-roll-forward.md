@@ -26,13 +26,13 @@ custody contracts stay in admission. Missing historical live records are replace
 in ordinary tests by explicitly synthetic matrix and capture records; these do
 not claim new live qualification or restore legacy evidence formats.
 
-## Validation in progress
+## Initial qualification checkpoint
 
 Current workflow policy: 13 tests pass. Adapter oracle: 16 tests pass. Release
 rehearsal contract: 16 tests pass. Compiled Bun standalone: 6 tests pass. Strict
 Rust Clippy passes with test seams. The full provider-free admission run and
 fresh remote matrices are still pending; this record will be updated with the
-actual reviewed revisions and outcomes before integration.
+actual reviewed revisions and outcomes in the subsequent checkpoints below.
 
 No paid provider invocation, package publication or deployment is assigned.
 Release prerequisites, including npm package ownership/trusted publishing and
