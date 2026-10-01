@@ -14,6 +14,8 @@ preserved. Fresh main CodeQL run 36777773864 passed.
 admission and release-path cleanup. [PR 14](https://github.com/openprose/prose-cli/pull/14)
 corrects Linux registry fixture paths. [PR 15](https://github.com/openprose/prose-cli/pull/15)
 records the bounded full-packaging fixture repair and its native CI results.
+[PR 16](https://github.com/openprose/prose-cli/pull/16) corrects reader
+synchronization and native packaging fixtures without changing runtime code.
 Qualification is tied to exact source revisions and retained workflow results;
 see [the repair chronology](../../docs/ci-roll-forward.md). Earlier green runs
 do not qualify changed runtime sources. The shared installed corpus contains

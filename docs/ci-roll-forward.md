@@ -187,3 +187,24 @@ without retries or skips; [the observation](validation/imp-061/reader-fixture-st
 binds the candidate test bytes, toolchain and limits. Fresh native qualification
 remains required. The preceding main Linux source run continues so the packaging
 fixture's new budget can be evaluated independently.
+
+
+## Native packaging fixtures
+
+The complete Linux packaging suite in [main run 36797343661](https://github.com/openprose/prose-cli/actions/runs/36797343661)
+now reaches all 78 tests: initial packages take 22.49 and 22.53 seconds under
+the 180-second bound. Four assertions then fail because two direct release
+invocations omit the required native readelf argument, and the snapshot-custody
+fixture supplies scripts where the Linux packager requires native ELF inputs.
+
+The fixture passes the authenticated readelf input and builds native C
+stand-ins on both Linux and macOS for the custody case. The copied executable
+mutates its original source file, preserving the check that the immutable
+snapshot's packaged bytes do not change. Release profile and test-seam
+refusal assertions remain exact. Production packaging and ELF/glibc checks
+are unchanged. PR 16 combines these fixture corrections with reader
+synchronization; fresh main native source and all matrix results are required
+before completion.
+
+The corrected local suite passes all 78 tests in 64.310 seconds with two
+explicit platform skips, including snapshot mutation and release refusal.
