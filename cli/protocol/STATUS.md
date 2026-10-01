@@ -1,6 +1,6 @@
 # OpenProse CLI implementation status
 
-Updated: 2026-09-30
+Updated: 2026-10-01
 
 ## Current source
 
@@ -10,10 +10,14 @@ through [PR 12](https://github.com/openprose/prose-cli/pull/12), revision
 `6d7e8eb2ced840d443489593d29ca5f058090bd7`. Both original PR histories are
 preserved. Fresh main CodeQL run 36777773864 passed.
 
-[PR 13](https://github.com/openprose/prose-cli/pull/13) repairs admission for the
-current source and release path. Qualification is in progress; see
-[the exact repair record](../../docs/ci-roll-forward.md). Earlier green runs do
-not qualify this revision. The shared installed corpus now contains 50 cases.
+[PR 13](https://github.com/openprose/prose-cli/pull/13) integrates current source
+admission and release-path cleanup. [PR 14](https://github.com/openprose/prose-cli/pull/14)
+corrects Linux registry fixture paths. [PR 15](https://github.com/openprose/prose-cli/pull/15)
+records the bounded full-packaging fixture repair and its native CI results.
+Qualification is tied to exact source revisions and retained workflow results;
+see [the repair chronology](../../docs/ci-roll-forward.md). Earlier green runs
+do not qualify changed runtime sources. The shared installed corpus contains
+50 cases.
 
 Rust and Bun implement the same shared observable contracts independently.
 Hosted commands cover account, registry, wallet, jobs and runs. Public clients
