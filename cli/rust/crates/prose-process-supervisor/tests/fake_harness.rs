@@ -714,21 +714,42 @@ fn malformed_truncated_duplicate_reordered_and_exit_rules_fail_closed() {
 
 #[test]
 fn malformed_protocol_retains_diagnostics_that_arrive_while_readers_settle() {
+    // Detach the writer before exposing the malformed record. Release stderr
+    // only once the supervisor begins terminating the original process group.
     let root = TempDir::new().unwrap();
     let prompts = PrivatePromptFiles::create(IMAGE, TASK).unwrap();
     let observation = root.path().join("observation.json");
     let program = r#"
-import os, sys, time
-sys.stdout.write('{"schema":"openprose.fake-harness-event/1",not-json}\n')
-sys.stdout.flush()
+import os, select, signal, sys, time
+ready_read, ready_write = os.pipe()
+release_read, release_write = os.pipe()
+
+def release_diagnostic(_signal, _frame):
+    os.write(release_write, b'go')
+    os._exit(0)
+
+signal.signal(signal.SIGTERM, release_diagnostic)
 child = os.fork()
 if child == 0:
+    os.close(ready_read)
+    os.close(release_write)
     os.setsid()
-    time.sleep(0.05)
+    os.write(ready_write, b'ready')
+    os.close(ready_write)
+    if not select.select([release_read], [], [], 2)[0]:
+        os._exit(1)
+    if not os.read(release_read, 2):
+        os._exit(0)
     sys.stderr.write('late bounded diagnostic')
     sys.stderr.flush()
     os._exit(0)
-os._exit(0)
+os.close(ready_write)
+os.close(release_read)
+assert os.read(ready_read, 5) == b'ready'
+os.close(ready_read)
+sys.stdout.write('{"schema":"openprose.fake-harness-event/1",not-json}\n')
+sys.stdout.flush()
+time.sleep(30)
 "#;
     let mut spec = base_spec(root.path(), &prompts, "success", &observation);
     spec.executable = python();
