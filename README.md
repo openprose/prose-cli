@@ -4,6 +4,12 @@ Contract authoring is expressing intent by composing requirements. Reusable cont
 
 Two independent outer runners, Rust and Bun (packaged through npm), connect an opaque Markdown-owned image and task to an existing agent harness. They do not interpret contracts or implement the OpenProse language. Keep the kernel, standard library, and component definitions in the separate Markdown library.
 
+## Execution and evaluation
+
+The executor performs contract work and returns a result that includes evidence. The evaluator assesses whether the contract’s requirements are satisfied. Execution and evaluation repeat as needed. The outer CLI transports a selected runtime’s inputs and results; it does not interpret requirements or turn native completion into fulfillment.
+
+The language uses out for a normal result and error for execution failure. These concepts do not change the CLI’s stdout/stderr, exit codes, native completion rules or image-declared envelope. A normal evaluator result may identify unmet subject requirements. See [native output](docs/native-output.md) for the concrete transport boundary.
+
 ## Choose the image and output contract
 
 Ordinary compiled Bun and Rust builds resolve and verify the published kernel before launching an installed harness, append it to native instructions, and keep the task separate. See [kernel startup](docs/kernel-startup.md) for integrity checks, limits and provider-readiness qualifications. Explicit verified-image builds remain available for frozen selections and hermetic fixtures; see [image bundle configuration](cli/shared/image/bundle/README.md).

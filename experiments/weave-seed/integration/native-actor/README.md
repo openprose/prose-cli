@@ -1,4 +1,6 @@
-# Native CLI actor adapter
+<a id="native-cli-actor-adapter"></a>
+
+# Native CLI executor adapter
 
 This local process adapter takes an existing `openprose.weave-input/1` envelope on stdin and invokes an explicitly selected installed Prose CLI through its supported native route. It does not implement another agent loop, interpret Markdown, select a provider automatically, track billing, repair fixtures, or establish fulfillment. It has no lab/runtime-file dependency.
 
@@ -11,7 +13,7 @@ Exported `invokeNative(configPath, envelope, {signal})` offers the same action a
 
 ## Explicit setup
 
-Copy config.example.json into the subject root as actor.json and replace every placeholder. `executable` is an absolute installed CLI path and executableSha256 binds its actual bytes. `cwd` resolves relative to actor.json. Kernel and task are relative within cwd; task is the ordinary program path. The adapter supplies `run TASK` unchanged, not an invented command mapping. Actor config must remain inside the selected subject root, although the executable can be elsewhere.
+Copy config.example.json into the subject root as actor.json and replace every placeholder. `executable` is an absolute installed CLI path and executableSha256 binds its actual bytes. `cwd` resolves relative to actor.json. Kernel and task are relative within cwd; task is the ordinary program path. The adapter supplies `run TASK` unchanged, not an invented command mapping. Executor config must remain inside the selected subject root, although the executable can be elsewhere.
 
 This first version supports `agents-sdk` and `openai-api-key` only. That is an explicit capability scope: current CLI native budget flags are supported only by Agents SDK. Install the optional generic prose-agents-sdk harness as documented in the [separate full CLI checkout guide](https://github.com/openprose/prose-cli/blob/main/docs/agents-sdk-adapter.md) and provide your own API credential through the parent environment. The adapter forwards only named environmentKeys; the CLI applies its own narrower child environment rules. No account login or credential-file scraping is implemented. Harness availability/admitted versions and actual model access remain user setup requirements.
 
@@ -42,7 +44,7 @@ In the outer integration/local configuration use:
 }
 ```
 
-Merge those fields into the full existing runConfig schema; this fragment is not a complete configuration. Select actor.json as **evidence**, program.md as **contract**, and the exact local kernel as **kernel**, alongside every other governing/evidence dependency. Any separate assessor config/question belongs in selected evidence too. Outer process timeout must exceed 2 × readinessTimeoutMs + processTimeoutMs plus input/setup margin; the example uses 270 seconds for 45+45+165 second defaults. Budgets are cumulative in the outer checkpoint. This adapter's maxTurns/token limits are not an aggregate dollar budget.
+Merge those fields into the full existing runConfig schema; this fragment is not a complete configuration. Select actor.json as **evidence**, program.md as **contract**, and the exact local kernel as **kernel**, alongside every other governing/evidence dependency. Any separate evaluator config/question belongs in selected evidence too. Outer process timeout must exceed 2 × readinessTimeoutMs + processTimeoutMs plus input/setup margin; the example uses 270 seconds for 45+45+165 second defaults. Budgets are cumulative in the outer checkpoint. This adapter's maxTurns/token limits are not an aggregate dollar budget.
 
 The adapter verifies exact envelope shape, non-gap freshness, payload identity, strict JSON, every observed file digest and actual current bytes, and the config/kernel/task membership and roles. It rechecks after readiness, immediately before launch. It pins the executable digest on both validations. All source files must be regular bounded files inside the trusted subject root; aggregate source bytes are capped at 256 KiB. This is sequential revalidation, not an atomic world snapshot or defense against hostile concurrent filesystem replacement. Do not mutate config, dependencies or capabilities during execution. Transitive native-harness/dependency identity is not fully pinned by the CLI executable digest; bind changes through capabilityVersion and admission controls.
 
@@ -60,13 +62,13 @@ During implementation an initial fixture exposed /var versus /private/var canoni
 
 ## Optional private diagnostic receipts
 
-Set `receiptDirectory` to an **existing, absolute, canonical directory with mode 0700**, or leave it absent/null to disable receipts (the example defaults to null). The adapter never creates that directory. It creates a new uniquely named mode-0600 JSON file per invocation, limited to 64 KiB, including failed invocations when the destination can be trusted. Keep this directory outside selected task/evidence paths so writing a receipt does not itself invalidate source identity or expose diagnostic state to the actor. Review any destination before enabling it; no upload or telemetry is performed.
+Set `receiptDirectory` to an **existing, absolute, canonical directory with mode 0700**, or leave it absent/null to disable receipts (the example defaults to null). The adapter never creates that directory. It creates a new uniquely named mode-0600 JSON file per invocation, limited to 64 KiB, including failed invocations when the destination can be trusted. Keep this directory outside selected task/evidence paths so writing a receipt does not itself invalidate source identity or expose diagnostic state to the executor. Review any destination before enabling it; no upload or telemetry is performed.
 
 Receipts include schema, attempt (or null for invalid attempt), start/end timestamps, last phase, status, whether native execution was launched, and available configuration/kernel/executable/image digests plus selected model/harness. Phases are config, input, image-policy, readiness, revalidate, run and completion; the image-policy failure code is NATIVE_ACTOR_IMAGE_POLICY_FAILED. Failure codes are fixed `NATIVE_ACTOR_<PHASE>_FAILED`; receipt-write failure raises `NATIVE_ACTOR_RECEIPT_FAILED`. A launch flag means the adapter attempted execution; it is not proof that an external effect occurred or did not occur.
 
 Raw prompts, input evidence, environment values, native stdout/stderr, final text and child errors are not collected. A successful receipt still says native completion only. Disabled mode writes no receipt. Malformed/unreadable configuration or an invalid destination cannot establish a trusted receipt location, so these failures may have only generic stderr. Malformed stdin is recorded as an input-phase failure if configuration supplies a valid receipt destination.
 
-Receipt writing is exclusive-create, bounded, mode 0600 and file-fsynced; directory identity/permissions are rechecked before writing. No full power-loss/hostile-filesystem guarantee is supplied. A write/fsync/destination failure makes the actor fail even after native success, preserving the outer pending-action requirement. A failed write can leave a partial diagnostic file; it must not be treated as a valid success receipt. This design intentionally prioritizes retained uncertainty over silently reporting success without required diagnostic persistence.
+Receipt writing is exclusive-create, bounded, mode 0600 and file-fsynced; directory identity/permissions are rechecked before writing. No full power-loss/hostile-filesystem guarantee is supplied. A write/fsync/destination failure makes the executor fail even after native success, preserving the outer pending-action requirement. A failed write can leave a partial diagnostic file; it must not be treated as a valid success receipt. This design intentionally prioritizes retained uncertainty over silently reporting success without required diagnostic persistence.
 
 Offline receipt checks cover all seven phases, effect-then-failure, successful metadata, disabled mode, missing-directory refusal, mode 0600, no prompt/key/child-output leakage and receipt-write failure after execution. No additional provider calls were made.
 
