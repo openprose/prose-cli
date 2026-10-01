@@ -272,6 +272,17 @@ fn same_message(a: &Value, b: &Value, omp: bool) -> bool {
     a == b
 }
 
+#[derive(Clone, Copy, PartialEq)]
+enum QueuedContinuationPhase {
+    Preparing,
+    Committing,
+    AgentStart,
+    Running,
+    TurnStart,
+    CustomStart,
+    CustomEnd,
+}
+
 #[derive(Default)]
 struct PrimeDrain {
     session: String,
@@ -283,6 +294,10 @@ struct PrimeDrain {
     previews: std::collections::BTreeSet<String>,
     used: std::collections::BTreeSet<String>,
     used_previews: std::collections::BTreeSet<String>,
+    current_queue: Option<Value>,
+    pending_phase: Option<QueuedContinuationPhase>,
+    pending_preview: Option<String>,
+    continuation_used: bool,
 }
 fn drain_message_equal(a: &Value, b: &Value) -> bool {
     fn usage(v: &Value) -> bool {
@@ -331,7 +346,22 @@ impl PrimeDrain {
         }
     }
     fn queue(&mut self, a: &Value, candidate: bool) -> bool {
-        if candidate && a.get("active").is_some() {
+        if candidate
+            && (a.get("active").is_some()
+                || a["queuedCount"] != 0
+                || !a["steering"].as_array().is_some_and(Vec::is_empty)
+                || !a["followUps"].as_array().is_some_and(Vec::is_empty))
+        {
+            return false;
+        }
+        if self.continuation_used
+            && self.pending_phase.is_none()
+            && (a["queuedCount"] != 0
+                || !a["steering"].as_array().is_some_and(Vec::is_empty)
+                || !a["followUps"].as_array().is_some_and(Vec::is_empty)
+                || a.get("active")
+                    .is_some_and(|active| active["kind"] != "turn" || active["phase"] != "running"))
+        {
             return false;
         }
         self.queue_empty = Some(
@@ -340,12 +370,79 @@ impl PrimeDrain {
                 && a["followUps"].as_array().is_some_and(Vec::is_empty)
                 && a.get("active").is_none(),
         );
+        self.current_queue = Some(a.clone());
         for k in ["steering", "followUps"] {
             for v in a[k].as_array().unwrap() {
-                self.previews.insert(v.as_str().unwrap().into());
+                let preview = v.as_str().unwrap();
+                if !self.used_previews.contains(preview) {
+                    self.previews.insert(preview.into());
+                }
             }
         }
         true
+    }
+    /// A stop may reopen only for one delivery in the latest live snapshot.
+    /// Historical previews and later queue emptiness cannot authorize new work.
+    fn prepare_queued_continuation(&mut self) -> Result<bool, ()> {
+        let Some(a) = self.current_queue.as_ref() else {
+            return Ok(false);
+        };
+        if self.continuation_used {
+            // This snapshot may still describe the admitted running action.
+            // Require a new idle snapshot after its fresh final stop, even if
+            // an earlier idle was already seen during this segment.
+            self.queue_empty = Some(false);
+            return Ok(false);
+        }
+        if a["queuedCount"] == 0
+            && a["steering"].as_array().is_some_and(Vec::is_empty)
+            && a["followUps"].as_array().is_some_and(Vec::is_empty)
+        {
+            // A visible action may still describe the closing parent itself.
+            // It grants no restart permission; fresh post-stop idle is required.
+            return Ok(false);
+        }
+        if a.get("active").is_some() || a["queuedCount"] != 1 {
+            return Err(());
+        }
+        let items = a["steering"]
+            .as_array()
+            .ok_or(())?
+            .iter()
+            .chain(a["followUps"].as_array().ok_or(())?);
+        let items: Vec<_> = items.collect();
+        if items.len() != 1 || self.children.is_empty() {
+            return Err(());
+        }
+        let preview = items[0].as_str().ok_or(())?;
+        if !preview.starts_with("Agent message received: ")
+            || preview.len() == "Agent message received: ".len()
+            || self.used_previews.contains(preview)
+        {
+            return Err(());
+        }
+        self.pending_preview = Some(preview.into());
+        self.pending_phase = Some(QueuedContinuationPhase::Preparing);
+        self.continuation_used = true;
+        self.queue_empty = Some(false);
+        Ok(true)
+    }
+
+    fn continuation_queue(&mut self, r: &Value, phase: &str) -> bool {
+        if !valid_prime_queue(r)
+            || r["actions"]["queuedCount"] != 0
+            || !r["actions"]["steering"]
+                .as_array()
+                .is_some_and(Vec::is_empty)
+            || !r["actions"]["followUps"]
+                .as_array()
+                .is_some_and(Vec::is_empty)
+            || r["actions"]["active"]["kind"] != "turn"
+            || r["actions"]["active"]["phase"] != phase
+        {
+            return false;
+        }
+        self.queue(&r["actions"], false)
     }
     fn history(&mut self, observed: &[Value], streamed: &[Value]) -> bool {
         if observed.len() == streamed.len()
@@ -366,6 +463,15 @@ impl PrimeDrain {
             return false;
         }
         let m = &observed[0];
+        if !self.matches_agent_message(m, None) {
+            return false;
+        }
+        self.consume_agent_message(m);
+        true
+    }
+
+    /// Validate first, consume only after the streamed start/end pair agrees.
+    fn matches_agent_message(&self, m: &Value, expected_preview: Option<&str>) -> bool {
         let d = &m["details"];
         let from = &d["from"];
         let target = &d["target"];
@@ -426,7 +532,10 @@ impl PrimeDrain {
             return false;
         }
         let preview = format!("Agent message received: {body}");
-        if !self.previews.contains(&preview) || self.used_previews.contains(&preview) {
+        if !self.previews.contains(&preview)
+            || self.used_previews.contains(&preview)
+            || expected_preview.is_some_and(|expected| expected != preview)
+        {
             return false;
         }
         let fmt = |s: &str| {
@@ -464,10 +573,32 @@ impl PrimeDrain {
         if m["content"] != content {
             return false;
         }
-        self.used.insert(id.into());
-        self.previews.remove(&preview);
-        self.used_previews.insert(preview);
         true
+    }
+    fn consume_agent_message(&mut self, m: &Value) {
+        self.used
+            .insert(m["details"]["id"].as_str().unwrap().into());
+        let preview = format!(
+            "Agent message received: {}",
+            m["details"]["message"].as_str().unwrap()
+        );
+        self.previews.remove(&preview);
+        self.used_previews.insert(preview.clone());
+        if self.current_queue.as_ref().is_some_and(|a| {
+            let mut items = a["steering"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .chain(a["followUps"].as_array().unwrap());
+            a["queuedCount"] == 1
+                && a.get("active").is_none()
+                && items.next().and_then(Value::as_str) == Some(preview.as_str())
+                && items.next().is_none()
+        }) {
+            // The existing snapshot-only toolUse prefix can also discharge a
+            // live preview. It still needs a fresh observed idle for settlement.
+            self.current_queue = None;
+        }
     }
 }
 
@@ -624,6 +755,98 @@ pub(super) fn normalize_mode(
             }
             ack = true;
             continue;
+        }
+        // A fully validated stop can reserve exactly one pre-observed delivery.
+        // While it is pending, no unrelated record can advance ordinary parsing.
+        if drain {
+            if let Some(pending) = drain_state.pending_phase {
+                use QueuedContinuationPhase as Phase;
+                match pending {
+                    Phase::Preparing | Phase::Committing | Phase::Running => {
+                        let expected = match pending {
+                            Phase::Preparing => "preparing",
+                            Phase::Committing => "committing",
+                            _ => "running",
+                        };
+                        if kind != "session_action_update"
+                            || !drain_state.continuation_queue(r, expected)
+                        {
+                            return Err(bad());
+                        }
+                        drain_state.pending_phase = Some(match pending {
+                            Phase::Preparing => Phase::Committing,
+                            Phase::Committing => Phase::AgentStart,
+                            _ => Phase::TurnStart,
+                        });
+                    }
+                    Phase::AgentStart => {
+                        if kind != "agent_start"
+                            || !has_exact_keys(r, &["type"])
+                            || turn
+                            || open.is_some()
+                            || !started
+                        {
+                            return Err(bad());
+                        }
+                        // Prior history was checked at its agent_end. New streamed
+                        // history is a separate segment, never an excuse to skip it.
+                        history.clear();
+                        assistant = None;
+                        calls.clear();
+                        results.clear();
+                        last_stop = None;
+                        user = false;
+                        drain_state.segment_closed = false;
+                        drain_state.resumed = true;
+                        drain_state.pending_phase = Some(Phase::Running);
+                    }
+                    Phase::TurnStart => {
+                        if kind != "turn_start"
+                            || !has_exact_keys(r, &["type"])
+                            || turn
+                            || open.is_some()
+                        {
+                            return Err(bad());
+                        }
+                        turn = true;
+                        drain_state.pending_phase = Some(Phase::CustomStart);
+                    }
+                    Phase::CustomStart => {
+                        let m = &r["message"];
+                        if kind != "message_start"
+                            || !has_exact_keys(r, &["type", "message"])
+                            || !turn
+                            || open.is_some()
+                            || user
+                            || assistant.is_some()
+                            || !drain_state
+                                .matches_agent_message(m, drain_state.pending_preview.as_deref())
+                        {
+                            return Err(bad());
+                        }
+                        open = Some(m.clone());
+                        drain_state.pending_phase = Some(Phase::CustomEnd);
+                    }
+                    Phase::CustomEnd => {
+                        let m = &r["message"];
+                        if kind != "message_end"
+                            || !has_exact_keys(r, &["type", "message"])
+                            || open.as_ref() != Some(m)
+                            || !drain_state
+                                .matches_agent_message(m, drain_state.pending_preview.as_deref())
+                        {
+                            return Err(bad());
+                        }
+                        drain_state.consume_agent_message(m);
+                        history.push(m.clone());
+                        open = None;
+                        user = true;
+                        drain_state.pending_phase = None;
+                        drain_state.pending_preview = None;
+                    }
+                }
+                continue;
+            }
         }
         if !inventory || (!omp && !ack) || (ended && !(drain && kind == "session_action_update")) {
             return Err(bad());
@@ -966,6 +1189,17 @@ pub(super) fn normalize_mode(
                     if last_stop.as_deref() != Some("stop") {
                         return Err(bad());
                     }
+                    let queued = drain_state
+                        .prepare_queued_continuation()
+                        .map_err(|()| bad())?;
+                    if drain_state.queue_empty.is_some() {
+                        // Earlier idle observations cannot settle this fresh stop.
+                        drain_state.queue_empty = Some(false);
+                    }
+                    if queued {
+                        drain_state.segment_closed = true;
+                        continue;
+                    }
                 } else if last_stop.as_deref() != Some("stop")
                     || msgs.len() != history.len()
                     || msgs
@@ -987,8 +1221,10 @@ pub(super) fn normalize_mode(
         && (!ended
             || !ack
             || (drain
-                && (drain_state.resumed || drain_state.queue_empty.is_some())
-                && drain_state.queue_empty != Some(true)))
+                && (drain_state.pending_phase.is_some()
+                    || drain_state.pending_preview.is_some()
+                    || ((drain_state.resumed || drain_state.queue_empty.is_some())
+                        && drain_state.queue_empty != Some(true)))))
     {
         return Err(bad());
     }
@@ -1001,6 +1237,275 @@ pub(super) fn normalize_mode(
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn queued_continuation_fixture() -> Value {
+        serde_json::from_str(include_str!(
+            "../../../../../shared/fixtures/adapters/tool-lifecycle/prime-queued-continuation.json"
+        ))
+        .unwrap()
+    }
+    fn queued_continuation_frames() -> Vec<Value> {
+        let f = queued_continuation_fixture();
+        let mut frames = vec![f["stateResponse"].clone(), f["promptResponse"].clone()];
+        frames.extend(f["frames"].as_array().unwrap().clone());
+        frames
+    }
+    #[test]
+    fn prime_queued_continuation_requires_complete_correlated_delivery() {
+        let frames = queued_continuation_frames();
+        let run = |r: &[Value], terminal| {
+            normalize_mode(r, "fixture-queued-continuation", false, terminal, true)
+        };
+        assert!(run(&frames, true).is_ok());
+        for end in 0..frames.len() {
+            assert!(run(&frames[..end], true).is_err(), "truncated at {end}");
+        }
+        for end in 0..=frames.len() {
+            assert!(run(&frames[..end], false).is_ok(), "valid prefix {end}");
+        }
+        assert!(
+            normalize_mode(&frames, "fixture-queued-continuation", false, true, false).is_err()
+        );
+    }
+    #[test]
+    fn prime_queued_continuation_rejects_missing_changed_or_new_work() {
+        let fixture = queued_continuation_fixture();
+        let frames = queued_continuation_frames();
+        let at =
+            |name: &str| usize::try_from(fixture["indexMap"][name].as_u64().unwrap()).unwrap() + 2;
+        let reject = |name: &str, r: &[Value]| {
+            assert!(
+                normalize_mode(r, "fixture-queued-continuation", false, true, true).is_err(),
+                "accepted {name}"
+            );
+        };
+        let idle = frames[at("finalIdle")].clone();
+        for name in [
+            "currentQueuedDelivery",
+            "preparing",
+            "committing",
+            "continuationAgentStart",
+            "running",
+            "continuationTurnStart",
+            "customStart",
+            "customEnd",
+            "continuationAssistantEnd",
+            "continuationTurnEnd",
+            "continuationStopEnd",
+            "finalIdle",
+        ] {
+            let mut changed = frames.clone();
+            changed.remove(at(name));
+            reject(&format!("missing {name}"), &changed);
+        }
+        for name in [
+            "preparing",
+            "committing",
+            "continuationAgentStart",
+            "running",
+            "continuationTurnStart",
+            "customStart",
+            "customEnd",
+        ] {
+            let mut changed = frames.clone();
+            changed.insert(at(name), frames[at(name)].clone());
+            reject(&format!("duplicate {name}"), &changed);
+            let mut changed = frames.clone();
+            changed.swap(at(name), at(name) + 1);
+            reject(&format!("reordered {name}"), &changed);
+        }
+        for (pointer, value) in [
+            ("/details/target/sessionId", json!("unknown-parent")),
+            ("/details/from/activeSessionId", json!("unknown-child")),
+            ("/details/from/sessionName", json!("unknown-child")),
+            ("/details/fromRelationship", json!("sibling")),
+            ("/details/message", json!("different queued body")),
+            ("/content", json!("different format")),
+            ("/timestamp", json!("invalid")),
+            ("/timestamp", json!(-1)),
+            ("/display", json!(false)),
+            ("/customType", json!("other")),
+        ] {
+            let mut changed = frames.clone();
+            for name in ["customStart", "customEnd"] {
+                *changed[at(name)]["message"].pointer_mut(pointer).unwrap() = value.clone();
+            }
+            changed[at("continuationStopEnd")]["messages"][0] =
+                changed[at("customEnd")]["message"].clone();
+            reject(pointer, &changed);
+        }
+        for name in ["customStart", "customEnd"] {
+            let mut changed = frames.clone();
+            changed[at(name)]["message"]["extra"] = json!(true);
+            reject(&format!("unknown custom field {name}"), &changed);
+        }
+        for name in [
+            "continuationAgentStart",
+            "continuationTurnStart",
+            "customStart",
+            "customEnd",
+        ] {
+            let mut changed = frames.clone();
+            changed[at(name)]["extra"] = json!("unexpected outer field");
+            reject(&format!("unknown pending record field {name}"), &changed);
+        }
+        let mut changed = frames.clone();
+        changed[at("customEnd")]["message"]["timestamp"] = json!(99);
+        reject("changed custom end", &changed);
+        let mut changed = frames.clone();
+        changed.insert(
+            at("customStart"),
+            frames[at("continuationAssistantStart")].clone(),
+        );
+        reject("assistant before delivery", &changed);
+        let mut changed = frames.clone();
+        changed[at("customStart")]["message"] = frames[4]["message"].clone();
+        reject("arbitrary user input", &changed);
+        let mut changed = frames.clone();
+        changed[at("currentQueuedDelivery")] = idle.clone();
+        changed.insert(
+            at("parentStopEnd") + 1,
+            frames[at("currentQueuedDelivery")].clone(),
+        );
+        reject("preview first observed after stop", &changed);
+        let mut changed = frames.clone();
+        changed.insert(at("parentStopEnd"), idle.clone());
+        reject("stale preview removed before stop", &changed);
+        for (pointer, value) in [
+            ("/actions/queuedCount", json!(2)),
+            ("/actions/steering", json!([])),
+            ("/actions/followUps", json!(["additional work"])),
+            ("/actions/active", json!({"kind":"turn","phase":"running"})),
+        ] {
+            let mut changed = frames.clone();
+            if pointer == "/actions/active" {
+                changed[at("currentQueuedDelivery")]["actions"]["active"] = value;
+            } else {
+                *changed[at("currentQueuedDelivery")]
+                    .pointer_mut(pointer)
+                    .unwrap() = value;
+            }
+            reject(pointer, &changed);
+        }
+        let mut changed = frames.clone();
+        changed.retain(|r| r["type"] != "rlm_child_update");
+        reject("no known child", &changed);
+        let mut changed = frames.clone();
+        changed[at("preparing")]["actions"]["active"]["kind"] = json!("session_command");
+        reject("active session command", &changed);
+        let mut changed = frames.clone();
+        changed[at("parentStopEnd")]["messages"][0]["content"][0]["text"] =
+            json!("changed prior history");
+        reject("changed prior history", &changed);
+        let mut changed = frames.clone();
+        changed[at("continuationStopEnd")]["messages"][1]["content"][0]["text"] =
+            json!("changed later history");
+        reject("changed later history", &changed);
+        let mut changed = frames.clone();
+        changed[at("continuationStopEnd")]["messages"][1]["usage"]["input"] = json!("wrong");
+        reject("invalid usage shape", &changed);
+        let mut changed = frames.clone();
+        changed.insert(at("customStart"), frames[at("toolStart")].clone());
+        reject("unrelated pending tool", &changed);
+        let mut changed = frames.clone();
+        changed.remove(at("finalIdle"));
+        changed.insert(at("continuationStopEnd"), idle.clone());
+        reject("idle before fresh stop", &changed);
+        let mut changed = frames.clone();
+        changed.truncate(at("customStart"));
+        changed.push(idle.clone());
+        reject("queue empty without delivery", &changed);
+        let mut changed = frames.clone();
+        changed.insert(
+            at("continuationStopEnd"),
+            frames[at("currentQueuedDelivery")].clone(),
+        );
+        reject("second pending delivery", &changed);
+        let mut changed = frames.clone();
+        changed.splice(
+            at("continuationStopEnd") + 1..at("finalIdle"),
+            frames[at("preparing")..=at("continuationStopEnd")]
+                .iter()
+                .cloned(),
+        );
+        reject("second continuation reuses delivery", &changed);
+        for suffix in [
+            frames[at("preparing")].clone(),
+            frames[at("currentQueuedDelivery")].clone(),
+            frames[at("continuationAgentStart")].clone(),
+        ] {
+            let mut changed = frames.clone();
+            changed.push(suffix);
+            reject("work after final drain", &changed);
+        }
+    }
+
+    #[test]
+    fn prime_queued_message_validation_never_consumes_before_delivery_end() {
+        let f = queued_continuation_fixture();
+        let mut drain = PrimeDrain {
+            session: f["sessionId"].as_str().unwrap().into(),
+            ..PrimeDrain::default()
+        };
+        let at = |name: &str| usize::try_from(f["indexMap"][name].as_u64().unwrap()).unwrap();
+        drain.child(&f["frames"][at("knownChildDone")]["child"]);
+        assert!(drain.queue(&f["frames"][at("currentQueuedDelivery")]["actions"], false));
+        assert_eq!(drain.prepare_queued_continuation(), Ok(true));
+        let m = &f["frames"][at("customStart")]["message"];
+        assert!(drain.matches_agent_message(m, drain.pending_preview.as_deref()));
+        assert!(drain.matches_agent_message(m, drain.pending_preview.as_deref()));
+        assert!(drain.used.is_empty());
+        drain.consume_agent_message(m);
+        assert!(!drain.matches_agent_message(m, drain.pending_preview.as_deref()));
+        assert_eq!(drain.used.len(), 1);
+        assert_eq!(drain.used_previews.len(), 1);
+    }
+
+    #[test]
+    fn prime_queued_continuation_uses_delivery_not_opaque_labels_or_accounting() {
+        let fixture = queued_continuation_fixture();
+        let mut frames = queued_continuation_frames();
+        let at =
+            |name: &str| usize::try_from(fixture["indexMap"][name].as_u64().unwrap()).unwrap() + 2;
+        let run = |r: &[Value]| normalize_mode(r, "fixture-queued-continuation", false, true, true);
+        // Both native queue arrays can expose the one same delivery. Their text
+        // matches the actual custom message, rather than an active-action label.
+        frames[at("currentQueuedDelivery")]["actions"]["followUps"] =
+            frames[at("currentQueuedDelivery")]["actions"]["steering"].clone();
+        frames[at("currentQueuedDelivery")]["actions"]["steering"] = json!([]);
+        for name in ["preparing", "committing", "running"] {
+            frames[at(name)]["actions"]["active"]["label"] = json!("opaque action label");
+        }
+        frames[at("continuationStopEnd")]["messages"][1]["usage"]["input"] = json!(500);
+        assert!(run(&frames).is_ok());
+        frames[at("currentQueuedDelivery")]["actions"]["followUps"] = json!(["unknown work"]);
+        assert!(run(&frames).is_err());
+    }
+
+    #[test]
+    fn prime_closing_parent_action_needs_fresh_idle_without_reopening() {
+        let fixture = queued_continuation_fixture();
+        let at =
+            |name: &str| usize::try_from(fixture["indexMap"][name].as_u64().unwrap()).unwrap() + 2;
+        let original = queued_continuation_frames();
+        let mut frames = original[..=at("parentStopEnd")].to_vec();
+        frames[at("currentQueuedDelivery")]["actions"] = json!({
+            "queuedCount": 0, "steering": [], "followUps": [],
+            "active": {"kind": "turn", "phase": "running"}
+        });
+        let run = |r: &[Value]| normalize_mode(r, "fixture-queued-continuation", false, true, true);
+        assert!(run(&frames).is_err());
+        frames.push(original[at("finalIdle")].clone());
+        assert!(run(&frames).is_ok());
+        for suffix in [
+            original[at("preparing")].clone(),
+            original[at("continuationAgentStart")].clone(),
+            original[at("currentQueuedDelivery")].clone(),
+        ] {
+            let mut reopened = frames.clone();
+            reopened.push(suffix);
+            assert!(run(&reopened).is_err());
+        }
+    }
     fn drain_frames() -> Vec<Value> {
         let f: Value = serde_json::from_str(include_str!(
             "../../../../../shared/fixtures/adapters/tool-lifecycle/prime-drain.json"
@@ -1081,6 +1586,16 @@ mod tests {
         assert!(run(&r[..15], true).is_err());
         assert!(run(&r[..15], false).is_ok());
         assert!(normalize(&r[1..], "fixture-drain", false, true).is_err());
+        // The marker-omission fixture has no child message in its final history.
+        // Restoring an incidental queued preview must not turn later idle into
+        // evidence that an unobserved delivery was actually processed.
+        let mut queued_without_delivery = r.clone();
+        queued_without_delivery[13]["actions"] = json!({
+            "queuedCount": 1,
+            "steering": ["Agent message received: Child observation is available."],
+            "followUps": []
+        });
+        assert!(run(&queued_without_delivery, true).is_err());
         for index in [7usize, 9, 14] {
             let mut bad = r.clone();
             bad.remove(index + 2);
