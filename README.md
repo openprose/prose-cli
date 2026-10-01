@@ -1,6 +1,6 @@
 # OpenProse CLI lab
 
-Contract authoring is expressing intent by composing requirements. Reusable contracts provide the building blocks; composition determines how their requirements apply together. See the [author guide](https://github.com/openprose/openprose-language/blob/main/AUTHORING.md) for the language and examples.
+Contract authoring is expressing intent by composing requirements. Reusable contracts provide the building blocks; composition determines how their requirements apply together. See the [public introduction](https://prose.md/learn) for an overview; execution syntax and capabilities depend on the selected language version.
 
 Two independent outer runners, Rust and Bun (packaged through npm), connect an opaque Markdown-owned image and task to an existing agent harness. They do not interpret contracts or implement the OpenProse language. Keep the kernel, standard library, and component definitions in the separate Markdown library.
 
