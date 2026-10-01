@@ -613,3 +613,7 @@ IMP-061 Linux credential-test lease: `cli/rust/crates/prose-cli/tests/credential
 IMP-061 Linux registry-test lease: `cli/bun/test/package-registry.test.ts`. Use a native, resolved temporary directory rather than a Darwin-only `/private/tmp` prefix; retain all byte/hash, receipt, credential, symlink and malformed-manifest assertions.
 
 IMP-061 packaging-timeout lease: `cli/ci/test_package_local.py`. Measure archive construction and give full packaging fixtures an explicit bounded budget appropriate for multiple debug-binary archives on native CI. Retain exact bytes, custody, install, refusal and subprocess cleanup coverage. Package/runtime sources and release compression remain unchanged unless new evidence requires a separate implementation repair.
+
+IMP-061 reader-fixture lease: `cli/rust/crates/prose-process-supervisor/tests/fake_harness.rs`. Synchronize the escaped diagnostic writer before malformed stdout can trigger termination, and release its diagnostic from the supervised parent's termination handler. Retain the exact ProtocolMalformed and bounded-stderr assertions; runtime supervisor code is unchanged.
+
+IMP-061 native package-fixture lease extension: `cli/ci/test_package_local.py`. Supply the existing exact readelf argument for direct Linux packager calls; use native executables for snapshot-custody and release-profile fixtures, including a bounded native original-file mutation. Keep all refusal, immutable snapshot and non-authoritative release assertions active.

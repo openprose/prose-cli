@@ -2239,12 +2239,18 @@ process.stdout.write(JSON.stringify({ spawned, stderr, exitCode: fakeProcess.exi
             "sha256": image["aggregateSha256"]["sha256"],
             "releaseEligible": image["releaseEligible"],
         }
-        if (platform.system() == "Linux" and build_profile == "release") or (
-            platform.system() == "Darwin"
-            and (build_profile == "release" or native_executable)
+        if platform.system() in {"Linux", "Darwin"} and (
+            build_profile == "release" or native_executable
         ):
+            mutation = ""
             if mutate_path is not None:
-                raise AssertionError("release ELF fixture does not support mutation")
+                mutation = (
+                    f"FILE *original = fopen({json.dumps(str(mutate_path))}, \"ab\"); "
+                    "if (original == NULL) return 3; "
+                    'int wrote = fputs("changed-after-snapshot", original); '
+                    "int closed = fclose(original); "
+                    "if (wrote < 0 || closed != 0) return 3; "
+                )
             doctor = json.dumps(
                 {
                     "schema": "openprose.doctor-report/1",
@@ -2268,7 +2274,7 @@ process.stdout.write(JSON.stringify({ spawned, stderr, exitCode: fakeProcess.exi
                 "#include <stdio.h>\n#include <string.h>\n"
                 "int main(int argc, char **argv) {\n"
                 "  for (int i = 1; i < argc; ++i) {\n"
-                f'    if (strcmp(argv[i], "--version") == 0) {{ fputs({version_output}, stdout); return 0; }}\n'
+                f'    if (strcmp(argv[i], "--version") == 0) {{ {mutation}fputs({version_output}, stdout); return 0; }}\n'
                 "  }\n"
                 f'  if (argc >= 3 && strcmp(argv[argc - 2], "cli") == 0 && strcmp(argv[argc - 1], "doctor") == 0) {{ fputs({doctor_output}, stdout); return 10; }}\n'
                 "  return 2;\n}\n",
@@ -2428,6 +2434,7 @@ process.stdout.write(JSON.stringify({ spawned, stderr, exitCode: fakeProcess.exi
             mutate_path=rust,
             image_manifest=ECHO_IMAGE_MANIFEST,
             test_seams_enabled=False,
+            native_executable=True,
         )
         original_bun = self.write_candidate(
             bun,
@@ -2435,6 +2442,7 @@ process.stdout.write(JSON.stringify({ spawned, stderr, exitCode: fakeProcess.exi
             source_revision,
             image_manifest=ECHO_IMAGE_MANIFEST,
             test_seams_enabled=False,
+            native_executable=True,
         )
         completed = self.run_packager(
             "snapshot-output",
@@ -4690,6 +4698,7 @@ process.stdout.write(JSON.stringify({ spawned, stderr, exitCode: fakeProcess.exi
                         str(canonical_profile),
                         "--release-evidence",
                         str(release_evidence),
+                        *readelf_args(),
                         "--out",
                         str(output),
                     ],
@@ -4756,6 +4765,7 @@ process.stdout.write(JSON.stringify({ spawned, stderr, exitCode: fakeProcess.exi
                 str(canonical_profile),
                 "--release-evidence",
                 str(release_evidence),
+                *readelf_args(),
                 "--out",
                 str(output),
             ],

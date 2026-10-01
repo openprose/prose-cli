@@ -1,0 +1,18 @@
+{
+  "iterations": 100,
+  "failures": 0,
+  "seconds": 35.573,
+  "minimumSeconds": 0.314,
+  "maximumSeconds": 0.364,
+  "platform": "darwin-arm64",
+  "scope": "Selected synchronized supervisor fixture only; no production runtime code changed.",
+  "rustToolchain": "1.87.0",
+  "baseRevision": "35b6447c586216ca54538e4a511042037328836b",
+  "candidateTestPath": "cli/rust/crates/prose-process-supervisor/tests/fake_harness.rs",
+  "candidateTestSha256": "3a26e8e9b1c3dc3806aa62975cb5fe88f58480186b85f9115ad809bad1c08f38",
+  "perIterationTimeoutSeconds": 10,
+  "overallTimeoutSeconds": 120,
+  "method": "Run the freshly compiled selected Rust test executable 100 times; stop on the first failed assertion or timeout.",
+  "additionalQualification": "All 22 fake-harness integration tests pass; formatting and strict supervisor Clippy pass.",
+  "nativeCIStatus": "Pending; this local observation does not qualify other platforms."
+}
