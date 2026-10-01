@@ -135,8 +135,16 @@ def collect(profile_path: Path, output_dir: Path, *, overwrite: bool) -> int:
                 "cwd": str(workspace),
                 "environment": environment,
                 "redactionLiterals": [
-                    str(temporary),
-                    str(profile_path.resolve().parents[3]),
+                    str(path)
+                    for path in (
+                        temporary,
+                        temporary.resolve(),
+                        CLI_ROOT.parent,
+                        profile_path.absolute().parent,
+                        profile_path.resolve().parent,
+                    )
+                    # A root-level profile must not redact every path separator.
+                    if path != Path(path.anchor)
                 ],
             },
         )

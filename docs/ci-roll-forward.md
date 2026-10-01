@@ -208,3 +208,27 @@ before completion.
 
 The corrected local suite passes all 78 tests in 64.310 seconds with two
 explicit platform skips, including snapshot mutation and release refusal.
+
+
+## Shallow benchmark-profile collection
+
+Main `3125ddd` passes all 53 macOS source gates, all four native distribution
+and unsigned-candidate jobs, and all CodeQL analyses. Linux passes reader
+synchronization, all 78 packaging tests and the real installed release
+rehearsal, then fails the last benchmark-contract gate in
+[run 36799967713](https://github.com/openprose/prose-cli/actions/runs/36799967713).
+Two synthetic profiles under `/tmp` raise IndexError when diagnostic redaction
+assumes the profile has four parent directories. This occurs before their
+custody assertions can run.
+
+The collector now selects the actual repository root and supplied/resolved
+profile and execution directories. Filesystem anchors are excluded to avoid
+redacting every path separator for a root-level profile. The real collection
+fixture checks private diagnostics using both profile-path spellings and the
+repository path, while an ordinary URL stays intact. All 34 benchmark tests
+pass on macOS ARM64 and isolated Linux ARM64 with pinned Python and offline
+hashed dependencies. [Retained observation](validation/imp-061/benchmark-paths.json)
+binds exact collector/test bytes and records the fixture scope and limits.
+Snapshots, input hashes, immutable evidence and reauthentication remain exact;
+no benchmark measurement or CLI semantic claim is made. Fresh complete main
+source qualification remains required.

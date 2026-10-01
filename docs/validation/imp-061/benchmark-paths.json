@@ -1,0 +1,49 @@
+{
+  "schema": "openprose.local-benchmark-path-validation/1",
+  "baseRevision": "3125ddd4cce84823e0d015cb6f13b610bf120f35",
+  "candidateFiles": [
+    {
+      "path": "cli/benchmarks/runner/cli.py",
+      "sha256": "661c23a2e90649b52f22de875a1cafb356091f01de3221431d880aeff523abf8"
+    },
+    {
+      "path": "cli/benchmarks/tests/test_smoke_contract.py",
+      "sha256": "0f61f7a83413aaad4b36c81b9babfcd7c70ed61cc6ec5096fee3d9889dbb865b"
+    }
+  ],
+  "command": "python -m unittest discover -s tests -p test_*.py",
+  "workingDirectory": "cli/benchmarks",
+  "runs": [
+    {
+      "host": "macOS ARM64",
+      "python": "3.10.20",
+      "tests": 34,
+      "skips": 0,
+      "seconds": 0.533,
+      "status": "pass"
+    },
+    {
+      "host": "isolated Linux ARM64 container",
+      "python": "3.10.20",
+      "image": "python@sha256:019e31cc1f52e4139d338bca44f27b71339a9da261738fd80fab9cf4595152fc",
+      "network": "none",
+      "dependencies": "cli/ci/requirements-test.txt; binary wheels installed offline with required hashes",
+      "tests": 34,
+      "skips": 0,
+      "seconds": 0.141,
+      "status": "pass"
+    }
+  ],
+  "scope": [
+    "shallow synthetic profiles collect only admitted snapshots",
+    "post-run snapshot mutation refuses evidence publication",
+    "supplied and resolved profile directories and repository paths are redacted from diagnostics",
+    "ordinary URL remains intact"
+  ],
+  "limits": [
+    "synthetic shell fixtures; no CLI performance measurement or language semantic claim",
+    "local macOS-built CLI bytes supply only stat/hash inputs to a refusal case in the container; no compiled CLI binary is launched there",
+    "Linux x64 and full exact-main native qualification remain required",
+    "no publication, deployment or provider calls"
+  ]
+}
