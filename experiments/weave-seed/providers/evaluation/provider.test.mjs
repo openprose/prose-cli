@@ -121,6 +121,8 @@ test('preflight every credential, bound timeout, gap and expiry prevent unintend
     await assert.rejects(assess(f.input(),f.load(),options(()=>new Promise(()=>{}))),/^Error: EVALUATION_FAILED$/);
     let now=1500;
     assert.deepEqual(await assess(f.input(),f.load(),{...options(async()=>{now=5000;return http(response('openai-responses'));}),now:()=>now}),{judgment:'unknown'});
+    let elapsed=0;
+    await assert.rejects(assess(f.input(),f.load(),{...options(async()=>{elapsed=4000;return http(response('openai-responses'));}),monotonic:()=>elapsed}));
   }finally{f.close();}
 });
 test('later provider failure retains earlier completed assessment without retry',async()=>{
@@ -133,6 +135,10 @@ test('later provider failure retains earlier completed assessment without retry'
 test('process stdout remains compatible and errors expose no source data',()=>{
   const f=fixture();try{
     const argv=[join(here,'run.mjs'),'--config',join(f.dir,'config.json')];
+    const checked=spawnSync(process.execPath,[join(here,'run.mjs'),'--check',join(f.dir,'config.json')],{env:{},encoding:'utf8',timeout:5000});
+    assert.equal(checked.status,0);assert.equal(JSON.parse(checked.stdout).providerCalled,false);
+    const capabilities=spawnSync(process.execPath,[join(here,'run.mjs'),'--capabilities'],{env:{},encoding:'utf8',timeout:5000});
+    assert.equal(capabilities.status,0);assert.match(JSON.parse(capabilities.stdout).capabilityIdentity,/^evaluation-process-1-[a-f0-9]{64}$/);
     const good=spawnSync(process.execPath,argv,{input:f.input({gap:true}),env:{},encoding:'utf8',timeout:5000});
     assert.equal(good.status,0,good.stderr);assert.equal(good.stdout,'{"judgment":"unknown"}\n');
     const bad=spawnSync(process.execPath,argv,{input:'private malformed input',env:{},encoding:'utf8',timeout:5000});
