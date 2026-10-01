@@ -1,0 +1,24 @@
+{
+  "schema": "openprose.evaluator-process/1",
+  "planFile": "plan.json",
+  "profiles": {
+    "selected": {
+      "adapter": "openai-responses",
+      "model": "REPLACE_WITH_REQUESTED_MODEL",
+      "acceptedModels": ["REPLACE_WITH_OBSERVED_MODEL"],
+      "apiKeyEnv": "OPENAI_API_KEY",
+      "options": {"reasoningEffort": "none"}
+    }
+  },
+  "limits": {
+    "timeoutMs": 45000,
+    "totalTimeoutMs": 60000,
+    "maxCalls": 1,
+    "maxInputBytes": 1048576,
+    "maxRequestBytes": 262144,
+    "maxResponseBytes": 131072,
+    "maxInputTokens": 65536,
+    "maxOutputTokens": 4096
+  },
+  "receiptDirectory": null
+}
