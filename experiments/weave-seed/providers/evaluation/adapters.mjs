@@ -79,7 +79,7 @@ export function parseResponse(raw,profile,questions,limits) {
     if(!integer(u[key])||u[key]>limits.maxInputTokens)fail();usage[key]=u[key];
   }
   for(const key of ['input_tokens_details','output_tokens_details','cache_creation'])if(Object.hasOwn(u,key)&&u[key]!==null) {
-    if(!object(u[key])||Object.keys(u[key]).length>16||!Object.entries(u[key]).every(([k,v])=>/^[a-z_]{1,64}$/.test(k)&&integer(v)))fail();
+    if(!object(u[key])||Object.keys(u[key]).length>16||!Object.entries(u[key]).every(([k,v])=>/^[a-z][a-z0-9_]{0,63}$/.test(k)&&integer(v)))fail();
     usage[key]=u[key];
   }
   if(Object.hasOwn(u,'cost')) {if(typeof u.cost!=='number'||!Number.isFinite(u.cost)||u.cost<0)fail();usage.cost=u.cost;}

@@ -97,6 +97,15 @@ test('native confidence and margins are optional capabilities, not fabricated la
     assert.equal(applyPolicy(p,e.questions,e.policy).judgment,'unknown');
   }finally{f.close();}
 });
+test('Anthropic duration-specific cache usage retains numeric field names',()=>{
+  const f=fixture('anthropic-messages');try{
+    const l=f.load(),r=response('anthropic-messages');
+    r.usage.cache_creation={ephemeral_5m_input_tokens:0,ephemeral_1h_input_tokens:0};
+    const parse=()=>parseResponse(Buffer.from(JSON.stringify(r)),l.config.profiles.primary,l.plan.evaluations[0].questions,l.config.limits);
+    assert.deepEqual(parse().usage.cache_creation,r.usage.cache_creation);
+    r.usage.cache_creation.ephemeral_1h_input_tokens=-1;assert.throws(parse);
+  }finally{f.close();}
+});
 test('strict native bytes, refusal, incomplete output, models, choices and usage are validated',()=>{
   for(const adapter of Object.keys(adapters)){const f=fixture(adapter);try{
     const l=f.load(),p=l.config.profiles.primary,q=l.plan.evaluations[0].questions;
