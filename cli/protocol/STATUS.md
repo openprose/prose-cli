@@ -16,6 +16,8 @@ corrects Linux registry fixture paths. [PR 15](https://github.com/openprose/pros
 records the bounded full-packaging fixture repair and its native CI results.
 [PR 16](https://github.com/openprose/prose-cli/pull/16) corrects reader
 synchronization and native packaging fixtures without changing runtime code.
+[PR 17](https://github.com/openprose/prose-cli/pull/17) repairs benchmark
+collection for shallow profile paths while retaining diagnostic privacy.
 Qualification is tied to exact source revisions and retained workflow results;
 see [the repair chronology](../../docs/ci-roll-forward.md). Earlier green runs
 do not qualify changed runtime sources. The shared installed corpus contains
