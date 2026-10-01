@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shlex
 import tempfile
 import unittest
 from contextlib import redirect_stdout
@@ -12,6 +13,7 @@ from unittest import mock
 
 from runner.cli import (
     BENCHMARKS,
+    CLI_ROOT,
     DEFAULT_PROFILE,
     _publish_evidence_directory,
     _reauthenticate_execution_inputs,
@@ -306,9 +308,21 @@ class FrozenInputTests(unittest.TestCase):
                 }
             ]
             source = temporary / "candidate"
+            diagnostic_paths = (
+                str(temporary / "private-profile-input"),
+                str(CLI_ROOT.parent / "private-repository-input"),
+                str(temporary.resolve() / "private-resolved-profile-input"),
+                "https://example.invalid/benchmark",
+            )
+            diagnostic_command = (
+                "printf '%s\\n' "
+                + " ".join(shlex.quote(value) for value in diagnostic_paths)
+                + " >&2\n"
+            )
             source.write_bytes(
                 b"#!/bin/sh\n"
-                b'case "$0" in\n'
+                + diagnostic_command.encode("utf-8")
+                + b'case "$0" in\n'
                 b"  */execution-custody/targets/*) echo 'prose snapshot-fixture' ;;\n"
                 b"  *) exit 9 ;;\n"
                 b"esac\n"
@@ -331,6 +345,14 @@ class FrozenInputTests(unittest.TestCase):
             self.assertTrue(
                 all(trial["status"] == "success" for trial in raw["trials"])
             )
+            for trial in raw["trials"]:
+                self.assertEqual(
+                    trial["stderr"],
+                    "<BENCHMARK_TEMP>/private-profile-input\n"
+                    "<BENCHMARK_TEMP>/private-repository-input\n"
+                    "<BENCHMARK_TEMP>/private-resolved-profile-input\n"
+                    "https://example.invalid/benchmark\n",
+                )
             custody = raw["inputVerification"]["executionCustody"]
             self.assertEqual(custody["status"], "pass")
             self.assertEqual(custody["initialAdmission"], "pass")
