@@ -1,5 +1,5 @@
 {
-  "provenance": "Entirely synthetic completed-tool transition with BOTH turn_end and next turn_start absent; no inferred events in fixture. IMP-074 replaces incidental queued-child telemetry with an empty snapshot: the marker-loss fixture never showed a correlated child delivery. The original queued form remains a negative control.",
+  "provenance": "Entirely synthetic completed-tool transition with BOTH turn_end and next turn_start absent; no inferred events in fixture. The corrected fixture replaces incidental queued-child telemetry with an empty snapshot: the marker-loss fixture never showed a correlated child delivery. The original queued form remains a negative control.",
   "invocationId": "fixture-drain",
   "sessionId": "parent-session",
   "stateResponse": {

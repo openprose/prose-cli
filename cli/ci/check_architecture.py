@@ -105,6 +105,7 @@ ALLOWED_SHARED_REFERENCE_FILES = frozenset(
         "cli/shared/fixtures/adapters/tool-lifecycle/prime-drain.json",
         "cli/shared/fixtures/adapters/tool-lifecycle/prime-implicit-turn.json",
         "cli/shared/fixtures/adapters/tool-lifecycle/prime-queue-telemetry.json",
+        "cli/shared/fixtures/adapters/tool-lifecycle/prime-queued-continuation.json",
         "cli/shared/fixtures/adapters/tool-lifecycle/prime-turn-transition.json",
         "cli/shared/fixtures/adapters/tool-lifecycle/prime.json",
         "cli/shared/fixtures/config/optional-reporting.json",
