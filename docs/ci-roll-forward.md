@@ -133,3 +133,37 @@ which does not exist on Linux. Their fresh workspace now resolves the native
 temporary directory before creating it, retaining symlink refusal assertions.
 This changes only the test fixture; no registry behavior or credential policy
 is altered. Fresh native source qualification remains required.
+
+## Linux packaging fixture deadline
+
+On main `698ec3fa07865e3e8673aa5d8d8930a0f1bacbfc`, CodeQL and
+all four candidate and distribution jobs pass. Full macOS source admission
+also passes. Linux passes the Rust suites, 711 Bun tests (six platform/record
+skips), compiled adversaries and both hosted corpora, but
+[run 36793064314](https://github.com/openprose/prose-cli/actions/runs/36793064314)
+stops in `LocalPackagingTests.setUpClass`: the full packager exceeds its
+30-second fixture subprocess deadline. This is distinct from the outer
+30-minute package-local gate budget.
+
+A [retained compression-only Linux observation](validation/imp-061/package-compression.json)
+uses the actual main-run ARM64 executables: 78,838,080 Rust bytes and
+99,340,323 Bun bytes. The unchanged level-nine archive writer took 4.793,
+4.052 and 4.061 seconds for the Rust, Bun and repeated npm payload; total
+probe time was 13.018 seconds. Repeated Bun archives were byte identical.
+This probe does not time product admission, snapshots, runtime inspection or
+tool receipts, and does not reproduce the x64 runner's speed. It establishes
+that substantial fixture work is archive compression; the three-minute bound
+still needs a fresh native full-suite pass to establish the failure is repaired.
+
+Only the two complete packaging-fixture subprocess bounds change from 30 to
+180 seconds, with elapsed-time diagnostics on completed invocations. Smaller
+image, compiler, npm-install and negative-probe deadlines are unchanged.
+Release compression, executable bytes, custody/identity assertions and the
+outer gate's settlement and time bounds remain intact. This is test setup,
+not a relaxed publication or artifact-validation rule.
+
+The revised local packaging suite completes 78 tests in 64.846 seconds,
+with two explicit platform skips. Initial complete fixture packages take
+6.80 and 6.38 seconds on local macOS ARM64. All current archive reproducibility,
+snapshot custody, installed-package, tampering and refusal assertions pass.
+Linux full source admission remains required after integration.

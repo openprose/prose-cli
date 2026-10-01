@@ -22,6 +22,9 @@ import uuid
 ROOT = Path(__file__).resolve().parents[2]
 CLI = ROOT / "cli"
 SCRIPT = CLI / "ci" / "package_local.py"
+# Full fixture packaging compresses both debug executables and a second copy of
+# Bun into npm archives. Allow CPU-intensive construction on native CI.
+PACKAGING_TIMEOUT_SECONDS = 180
 DEPENDENCY_SCRIPT = CLI / "ci" / "dependency_evidence.py"
 IMAGE_MANIFEST = CLI / "shared" / "image" / "sentinel-v1" / "manifest.json"
 ECHO_IMAGE_MANIFEST = CLI / "shared" / "image" / "echo-v0" / "manifest.json"
@@ -2040,6 +2043,7 @@ class LocalPackagingTests(unittest.TestCase):
                     str(output),
                 ]
             )
+            started = time.monotonic()
             completed = subprocess.run(
                 command,
                 cwd=ROOT,
@@ -2047,7 +2051,12 @@ class LocalPackagingTests(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 check=False,
-                timeout=30,
+                timeout=PACKAGING_TIMEOUT_SECONDS,
+            )
+            print(
+                f"Packaging fixture {output.name}: {time.monotonic() - started:.2f}s "
+                f"(budget {PACKAGING_TIMEOUT_SECONDS}s)",
+                file=sys.stderr,
             )
             if completed.returncode != 0:
                 raise AssertionError(
@@ -2100,15 +2109,22 @@ class LocalPackagingTests(unittest.TestCase):
                 str(self.root / name),
             ]
         )
-        return subprocess.run(
+        started = time.monotonic()
+        completed = subprocess.run(
             command,
             cwd=ROOT,
             env=clean_environment(self.root / f"{name}-env"),
             capture_output=True,
             text=True,
             check=False,
-            timeout=30,
+            timeout=PACKAGING_TIMEOUT_SECONDS,
         )
+        print(
+            f"Packaging fixture {name}: {time.monotonic() - started:.2f}s "
+            f"(budget {PACKAGING_TIMEOUT_SECONDS}s)",
+            file=sys.stderr,
+        )
+        return completed
 
     def windows_packager_args(self, name: str, host: Path | None) -> object:
         arguments = [

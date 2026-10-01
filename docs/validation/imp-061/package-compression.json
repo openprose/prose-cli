@@ -1,0 +1,57 @@
+{
+  "schema": "openprose.ci-fixture-compression-observation/1",
+  "sourceRevision": "698ec3fa07865e3e8673aa5d8d8930a0f1bacbfc",
+  "inputRun": "https://github.com/openprose/prose-cli/actions/runs/36793064340",
+  "inputArtifact": "cli-rehearsal-ubuntu-22.04-arm",
+  "scope": "Compression only, using package_local.tar_gz on the unchanged CI-built debug executables. This is not a full packager timing or release qualification.",
+  "platform": "linux-arm64",
+  "cpuLimit": 1,
+  "network": "disabled",
+  "containerRoot": "read-only with writable ephemeral /tmp",
+  "pythonVersion": "3.10.20",
+  "containerImage": "python@sha256:019e31cc1f52e4139d338bca44f27b71339a9da261738fd80fab9cf4595152fc",
+  "members": [
+    {
+      "name": "prose",
+      "mode": "0755"
+    }
+  ],
+  "sourceDateEpoch": 0,
+  "compressionLevel": 9,
+  "observations": [
+    {
+      "archive": "rust",
+      "inputBytes": 78838080,
+      "inputSha256": "1ed5ca7e944dd3bdff9f87039b438f28a6fad5d5630544b23be8490c8181ddd0",
+      "seconds": 4.793,
+      "outputBytes": 19146902,
+      "outputSha256": "c93724b96178ede60e69035c5c6a9aa4116e1840f7e2cdb4349c9b0ab8af0eb4"
+    },
+    {
+      "archive": "bun",
+      "inputBytes": 99340323,
+      "inputSha256": "744ac68ee4c2bc288f84c3144c2ea4395e22e9f18a2945a76838883963d17d88",
+      "seconds": 4.052,
+      "outputBytes": 38237385,
+      "outputSha256": "b0559a9d93c88aa3d9f8964f2ff2d0672f4f34952a7636f2d32cd487a158fc5c"
+    },
+    {
+      "archive": "npm-bun",
+      "inputBytes": 99340323,
+      "inputSha256": "744ac68ee4c2bc288f84c3144c2ea4395e22e9f18a2945a76838883963d17d88",
+      "seconds": 4.061,
+      "outputBytes": 38237385,
+      "outputSha256": "b0559a9d93c88aa3d9f8964f2ff2d0672f4f34952a7636f2d32cd487a158fc5c"
+    },
+    {
+      "totalSeconds": 13.018,
+      "duplicateBunArchiveBytesEqual": true
+    }
+  ],
+  "limitations": [
+    "Native CI failure was Linux x64; this probe was Linux ARM64.",
+    "It excludes product verification, snapshots, hashing, runtime inspection, tool receipts and package metadata.",
+    "The repeated Bun archives use the same probe member name, rather than the distinct standalone/npm layouts.",
+    "No executable was launched and no semantic or live performance claim is made."
+  ]
+}

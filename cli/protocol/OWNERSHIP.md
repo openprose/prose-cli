@@ -611,3 +611,5 @@ IMP-061 lease extension: `cli/benchmarks/runner/cli.py`. Current fixture collect
 IMP-061 Linux credential-test lease: `cli/rust/crates/prose-cli/tests/credential_store.rs`. Fresh Linux source admission exposed assertions for the retired account envelope and error text. Assert the current service-operation envelope, structured malformed-credential details, native Secret Service calls, shadow resistance and credential-free argv; no compatibility fallback is added.
 
 IMP-061 Linux registry-test lease: `cli/bun/test/package-registry.test.ts`. Use a native, resolved temporary directory rather than a Darwin-only `/private/tmp` prefix; retain all byte/hash, receipt, credential, symlink and malformed-manifest assertions.
+
+IMP-061 packaging-timeout lease: `cli/ci/test_package_local.py`. Measure archive construction and give full packaging fixtures an explicit bounded budget appropriate for multiple debug-binary archives on native CI. Retain exact bytes, custody, install, refusal and subprocess cleanup coverage. Package/runtime sources and release compression remain unchanged unless new evidence requires a separate implementation repair.
