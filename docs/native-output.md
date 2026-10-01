@@ -1,6 +1,6 @@
 # Native output
 
-`--output-contract native` settles only when the selected native harness reports completion through its validated protocol. Assistant text is retained as text; no final JSON line is requested, recovered or synthesized. The result reports semantic status `not-applicable` and a null envelope digest. Native completion establishes that the harness finished, not that a program fulfilled its obligation. Evaluate program artifacts separately.
+`--output-contract native` settles only when the selected native harness reports completion through its validated protocol. Assistant text is retained as text; no final JSON line is requested, recovered or synthesized. The result reports semantic status `not-applicable` and a null envelope digest. Native completion establishes that the harness finished. It does not establish that the program satisfied its requirements. Evaluate program artifacts separately.
 
 `--output-contract image-envelope` remains the default compatibility mode. It additionally requires the image-declared model-authored terminal envelope. Configuration also supports `output_contract` and `PROSE_OUTPUT_CONTRACT`. This option is independent of output rendering (`human`, `json`, `jsonl`), authentication, and permissions.
 
