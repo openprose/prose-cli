@@ -1,0 +1,1334 @@
+{
+  "provenance": "Source-derived synthetic Prime 0.7.0 sequence from the complete offline native recursive diagnostic. All identities, message text, code, paths, and timestamps are synthetic. This is not an observed CLI acceptance or an authenticated identity record.",
+  "invocationId": "fixture-queued-continuation",
+  "sessionId": "fixture-parent-session",
+  "stateResponse": {
+    "id": "fixture-queued-continuation.prime.state.1",
+    "type": "response",
+    "command": "get_state",
+    "success": true,
+    "data": {
+      "sessionId": "fixture-parent-session",
+      "isStreaming": false,
+      "messageCount": 0
+    }
+  },
+  "promptResponse": {
+    "id": "fixture-queued-continuation",
+    "type": "response",
+    "command": "prompt",
+    "success": true
+  },
+  "indexMap": {
+    "agentStart": 0,
+    "firstTurnStart": 1,
+    "userStart": 2,
+    "userEnd": 3,
+    "toolAssistantStart": 4,
+    "toolAssistantEnd": 8,
+    "toolStart": 9,
+    "toolEnd": 17,
+    "toolResultStart": 18,
+    "toolResultEnd": 19,
+    "toolTurnEnd": 20,
+    "parentFinalTurnStart": 21,
+    "knownChildDone": 31,
+    "currentQueuedDelivery": 32,
+    "parentFinalMessageEnd": 34,
+    "parentFinalTurnEnd": 35,
+    "parentStopEnd": 36,
+    "preparing": 37,
+    "committing": 38,
+    "continuationAgentStart": 39,
+    "running": 40,
+    "continuationTurnStart": 41,
+    "customStart": 42,
+    "customEnd": 43,
+    "continuationAssistantStart": 44,
+    "continuationAssistantEnd": 48,
+    "continuationTurnEnd": 49,
+    "continuationStopEnd": 50,
+    "finalIdle": 51
+  },
+  "continuationContract": {
+    "supportedContinuations": 1,
+    "eligibleSnapshot": "Latest live queue snapshot at the fully validated parentStopEnd: one current unconsumed Agent message received preview, queuedCount 1, no active action; known child correlation must already be available.",
+    "phaseGuide": [
+      "parentStopEnd",
+      "preparing",
+      "committing",
+      "continuationAgentStart",
+      "running",
+      "continuationTurnStart",
+      "customStart",
+      "customEnd",
+      "ordinary continuation turns",
+      "continuationStopEnd",
+      "finalIdle",
+      "process exit 0"
+    ],
+    "liveness": "Queue removal/emptiness alone never discharges delivery. Require exact valid custom start/end, consumption once, fresh complete stop/history, and newly observed idle after that stop.",
+    "labels": "Compacted active labels are opaque telemetry, not independent delivery identity.",
+    "scope": "No extra events in pending states; no post-stop new/multiple work admission; retain the earlier toolUse snapshot-prefix path separately."
+  },
+  "frames": [
+    {
+      "type": "agent_start"
+    },
+    {
+      "type": "turn_start"
+    },
+    {
+      "type": "message_start",
+      "message": {
+        "role": "user",
+        "content": [
+          {
+            "type": "text",
+            "text": "Perform a synthetic delegated task."
+          }
+        ],
+        "timestamp": 1
+      }
+    },
+    {
+      "type": "message_end",
+      "message": {
+        "role": "user",
+        "content": [
+          {
+            "type": "text",
+            "text": "Perform a synthetic delegated task."
+          }
+        ],
+        "timestamp": 1
+      }
+    },
+    {
+      "type": "message_start",
+      "message": {
+        "role": "assistant",
+        "content": [],
+        "api": "openai-completions",
+        "provider": "openrouter",
+        "model": "fixture-model",
+        "usage": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "totalTokens": 0,
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "total": 0
+          }
+        },
+        "stopReason": "stop",
+        "timestamp": 2
+      }
+    },
+    {
+      "type": "message_update",
+      "message": {
+        "role": "assistant",
+        "content": [
+          {
+            "type": "toolCall",
+            "id": "fixture-tool-call",
+            "name": "ipython",
+            "arguments": {
+              "code": "print(\"Synthetic tool result\")"
+            },
+            "partialArgs": "{\"code\":\"print(\\\"Synthetic tool result\\\")\"}",
+            "streamIndex": 0
+          }
+        ],
+        "api": "openai-completions",
+        "provider": "openrouter",
+        "model": "fixture-model",
+        "usage": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "totalTokens": 0,
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "total": 0
+          }
+        },
+        "stopReason": "stop",
+        "timestamp": 2
+      },
+      "assistantMessageEvent": {
+        "type": "toolcall_start",
+        "contentIndex": 0
+      }
+    },
+    {
+      "type": "message_update",
+      "message": {
+        "role": "assistant",
+        "content": [
+          {
+            "type": "toolCall",
+            "id": "fixture-tool-call",
+            "name": "ipython",
+            "arguments": {
+              "code": "print(\"Synthetic tool result\")"
+            },
+            "partialArgs": "{\"code\":\"print(\\\"Synthetic tool result\\\")\"}",
+            "streamIndex": 0
+          }
+        ],
+        "api": "openai-completions",
+        "provider": "openrouter",
+        "model": "fixture-model",
+        "usage": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "totalTokens": 0,
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "total": 0
+          }
+        },
+        "stopReason": "stop",
+        "timestamp": 2
+      },
+      "assistantMessageEvent": {
+        "type": "toolcall_delta",
+        "contentIndex": 0,
+        "delta": "{\"code\":\"print(\\\"Synthetic tool result\\\")\"}"
+      }
+    },
+    {
+      "type": "message_update",
+      "message": {
+        "role": "assistant",
+        "content": [
+          {
+            "type": "toolCall",
+            "id": "fixture-tool-call",
+            "name": "ipython",
+            "arguments": {
+              "code": "print(\"Synthetic tool result\")"
+            }
+          }
+        ],
+        "api": "openai-completions",
+        "provider": "openrouter",
+        "model": "fixture-model",
+        "usage": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "totalTokens": 0,
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "total": 0
+          }
+        },
+        "stopReason": "stop",
+        "timestamp": 2
+      },
+      "assistantMessageEvent": {
+        "type": "toolcall_end",
+        "contentIndex": 0,
+        "toolCall": {
+          "type": "toolCall",
+          "id": "fixture-tool-call",
+          "name": "ipython",
+          "arguments": {
+            "code": "print(\"Synthetic tool result\")"
+          }
+        }
+      }
+    },
+    {
+      "type": "message_end",
+      "message": {
+        "role": "assistant",
+        "content": [
+          {
+            "type": "toolCall",
+            "id": "fixture-tool-call",
+            "name": "ipython",
+            "arguments": {
+              "code": "print(\"Synthetic tool result\")"
+            }
+          }
+        ],
+        "api": "openai-completions",
+        "provider": "openrouter",
+        "model": "fixture-model",
+        "usage": {
+          "input": 13,
+          "output": 4,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "totalTokens": 17,
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "total": 0
+          }
+        },
+        "stopReason": "toolUse",
+        "timestamp": 2,
+        "responseId": "fixture-1"
+      }
+    },
+    {
+      "type": "tool_execution_start",
+      "toolCallId": "fixture-tool-call",
+      "toolName": "ipython",
+      "args": {
+        "code": "print(\"Synthetic tool result\")"
+      }
+    },
+    {
+      "type": "tool_execution_update",
+      "toolCallId": "fixture-tool-call",
+      "toolName": "ipython",
+      "args": {
+        "code": "print(\"Synthetic tool result\")"
+      },
+      "partialResult": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Synthetic tool result\n"
+          }
+        ],
+        "details": {
+          "durationMs": 1,
+          "status": "ok",
+          "stdout": "Synthetic tool result\n"
+        }
+      }
+    },
+    {
+      "type": "tool_execution_update",
+      "toolCallId": "fixture-tool-call",
+      "toolName": "ipython",
+      "args": {
+        "code": "print(\"Synthetic tool result\")"
+      },
+      "partialResult": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Synthetic tool result\n"
+          }
+        ],
+        "details": {
+          "durationMs": 1,
+          "status": "ok",
+          "stdout": "Synthetic tool result\n"
+        }
+      }
+    },
+    {
+      "type": "rlm_child_update",
+      "child": {
+        "id": "fixture-child-id",
+        "sessionName": "fixture-child",
+        "model": "openrouter/fixture-model",
+        "label": "Synthetic child task",
+        "status": "queued",
+        "sessionDir": "fixture-child-directory"
+      }
+    },
+    {
+      "type": "rlm_child_update",
+      "child": {
+        "id": "fixture-child-id",
+        "sessionName": "fixture-child",
+        "model": "openrouter/fixture-model",
+        "label": "Synthetic child task",
+        "status": "running",
+        "sessionDir": "fixture-child-directory",
+        "repliedSinceTask": false,
+        "activeSessionId": "fixture-child-active"
+      }
+    },
+    {
+      "type": "rlm_child_update",
+      "child": {
+        "id": "fixture-child-id",
+        "sessionName": "fixture-child",
+        "model": "openrouter/fixture-model",
+        "label": "Synthetic child task",
+        "status": "running",
+        "sessionDir": "fixture-child-directory",
+        "activity": {
+          "kind": "waiting"
+        },
+        "repliedSinceTask": false,
+        "activeSessionId": "fixture-child-active"
+      }
+    },
+    {
+      "type": "tool_execution_update",
+      "toolCallId": "fixture-tool-call",
+      "toolName": "ipython",
+      "args": {
+        "code": "print(\"Synthetic tool result\")"
+      },
+      "partialResult": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Synthetic tool result\n"
+          }
+        ],
+        "details": {
+          "durationMs": 1,
+          "status": "ok",
+          "stdout": "Synthetic tool result\n"
+        }
+      }
+    },
+    {
+      "type": "tool_execution_update",
+      "toolCallId": "fixture-tool-call",
+      "toolName": "ipython",
+      "args": {
+        "code": "print(\"Synthetic tool result\")"
+      },
+      "partialResult": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Synthetic tool result\n"
+          }
+        ],
+        "details": {
+          "durationMs": 1,
+          "status": "ok",
+          "stdout": "Synthetic tool result\n"
+        }
+      }
+    },
+    {
+      "type": "tool_execution_end",
+      "toolCallId": "fixture-tool-call",
+      "toolName": "ipython",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Synthetic tool result\n"
+          }
+        ],
+        "details": {
+          "durationMs": 1,
+          "status": "ok",
+          "stdout": "Synthetic tool result\n"
+        }
+      },
+      "isError": false
+    },
+    {
+      "type": "message_start",
+      "message": {
+        "role": "toolResult",
+        "toolCallId": "fixture-tool-call",
+        "toolName": "ipython",
+        "content": [
+          {
+            "type": "text",
+            "text": "Synthetic tool result\n"
+          }
+        ],
+        "details": {
+          "durationMs": 1,
+          "status": "ok",
+          "stdout": "Synthetic tool result\n"
+        },
+        "isError": false,
+        "timestamp": 3
+      }
+    },
+    {
+      "type": "message_end",
+      "message": {
+        "role": "toolResult",
+        "toolCallId": "fixture-tool-call",
+        "toolName": "ipython",
+        "content": [
+          {
+            "type": "text",
+            "text": "Synthetic tool result\n"
+          }
+        ],
+        "details": {
+          "durationMs": 1,
+          "status": "ok",
+          "stdout": "Synthetic tool result\n"
+        },
+        "isError": false,
+        "timestamp": 3
+      }
+    },
+    {
+      "type": "turn_end",
+      "message": {
+        "role": "assistant",
+        "content": [
+          {
+            "type": "toolCall",
+            "id": "fixture-tool-call",
+            "name": "ipython",
+            "arguments": {
+              "code": "print(\"Synthetic tool result\")"
+            }
+          }
+        ],
+        "api": "openai-completions",
+        "provider": "openrouter",
+        "model": "fixture-model",
+        "usage": {
+          "input": 13,
+          "output": 4,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "totalTokens": 17,
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "total": 0
+          }
+        },
+        "stopReason": "toolUse",
+        "timestamp": 2,
+        "responseId": "fixture-1"
+      },
+      "toolResults": [
+        {
+          "role": "toolResult",
+          "toolCallId": "fixture-tool-call",
+          "toolName": "ipython",
+          "content": [
+            {
+              "type": "text",
+              "text": "Synthetic tool result\n"
+            }
+          ],
+          "details": {
+            "durationMs": 1,
+            "status": "ok",
+            "stdout": "Synthetic tool result\n"
+          },
+          "isError": false,
+          "timestamp": 3
+        }
+      ]
+    },
+    {
+      "type": "turn_start"
+    },
+    {
+      "type": "rlm_child_update",
+      "child": {
+        "id": "fixture-child-id",
+        "sessionName": "fixture-child",
+        "model": "openrouter/fixture-model",
+        "label": "Synthetic child task",
+        "status": "running",
+        "sessionDir": "fixture-child-directory",
+        "activity": {
+          "kind": "writing"
+        },
+        "repliedSinceTask": false,
+        "activeSessionId": "fixture-child-active"
+      }
+    },
+    {
+      "type": "rlm_child_update",
+      "child": {
+        "id": "fixture-child-id",
+        "sessionName": "fixture-child",
+        "model": "openrouter/fixture-model",
+        "label": "Synthetic child task",
+        "status": "running",
+        "answerPreview": "Synthetic child result.",
+        "sessionDir": "fixture-child-directory",
+        "activity": {
+          "kind": "writing"
+        },
+        "repliedSinceTask": false,
+        "activeSessionId": "fixture-child-active"
+      }
+    },
+    {
+      "type": "rlm_child_update",
+      "child": {
+        "id": "fixture-child-id",
+        "sessionName": "fixture-child",
+        "model": "openrouter/fixture-model",
+        "label": "Synthetic child task",
+        "status": "running",
+        "answerPreview": "Synthetic child result.",
+        "sessionDir": "fixture-child-directory",
+        "activity": {
+          "kind": "writing"
+        },
+        "repliedSinceTask": false,
+        "activeSessionId": "fixture-child-active"
+      }
+    },
+    {
+      "type": "message_start",
+      "message": {
+        "role": "assistant",
+        "content": [],
+        "api": "openai-completions",
+        "provider": "openrouter",
+        "model": "fixture-model",
+        "usage": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "totalTokens": 0,
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "total": 0
+          }
+        },
+        "stopReason": "stop",
+        "timestamp": 4
+      }
+    },
+    {
+      "type": "message_update",
+      "message": {
+        "role": "assistant",
+        "content": [
+          {
+            "type": "text",
+            "text": ""
+          }
+        ],
+        "api": "openai-completions",
+        "provider": "openrouter",
+        "model": "fixture-model",
+        "usage": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "totalTokens": 0,
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "total": 0
+          }
+        },
+        "stopReason": "stop",
+        "timestamp": 4
+      },
+      "assistantMessageEvent": {
+        "type": "text_start",
+        "contentIndex": 0
+      }
+    },
+    {
+      "type": "message_update",
+      "message": {
+        "role": "assistant",
+        "content": [
+          {
+            "type": "text",
+            "text": "Synthetic parent result."
+          }
+        ],
+        "api": "openai-completions",
+        "provider": "openrouter",
+        "model": "fixture-model",
+        "usage": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "totalTokens": 0,
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "total": 0
+          }
+        },
+        "stopReason": "stop",
+        "timestamp": 4
+      },
+      "assistantMessageEvent": {
+        "type": "text_delta",
+        "contentIndex": 0,
+        "delta": "Synthetic parent result."
+      }
+    },
+    {
+      "type": "rlm_child_update",
+      "child": {
+        "id": "fixture-child-id",
+        "sessionName": "fixture-child",
+        "model": "openrouter/fixture-model",
+        "label": "Synthetic child task",
+        "status": "running",
+        "answerPreview": "Synthetic child result.",
+        "sessionDir": "fixture-child-directory",
+        "activity": {
+          "kind": "writing"
+        },
+        "repliedSinceTask": false,
+        "activeSessionId": "fixture-child-active"
+      }
+    },
+    {
+      "type": "rlm_child_update",
+      "child": {
+        "id": "fixture-child-id",
+        "sessionName": "fixture-child",
+        "model": "openrouter/fixture-model",
+        "label": "Synthetic child task",
+        "status": "running",
+        "answerPreview": "Synthetic child result.",
+        "tokenCount": 17,
+        "sessionDir": "fixture-child-directory",
+        "activity": {
+          "kind": "writing"
+        },
+        "repliedSinceTask": false,
+        "activeSessionId": "fixture-child-active"
+      }
+    },
+    {
+      "type": "rlm_child_update",
+      "child": {
+        "id": "fixture-child-id",
+        "sessionName": "fixture-child",
+        "model": "openrouter/fixture-model",
+        "label": "Synthetic child task",
+        "status": "running",
+        "answerPreview": "Synthetic child result.",
+        "tokenCount": 17,
+        "sessionDir": "fixture-child-directory",
+        "repliedSinceTask": false,
+        "activeSessionId": "fixture-child-active"
+      }
+    },
+    {
+      "type": "rlm_child_update",
+      "child": {
+        "id": "fixture-child-id",
+        "sessionName": "fixture-child",
+        "model": "openrouter/fixture-model",
+        "label": "Synthetic child task",
+        "status": "done",
+        "durationMs": 1,
+        "answerPreview": "Synthetic child result.",
+        "tokenCount": 17,
+        "sessionDir": "fixture-child-directory",
+        "repliedSinceTask": false,
+        "activeSessionId": "fixture-child-active"
+      }
+    },
+    {
+      "type": "session_action_update",
+      "actions": {
+        "queuedCount": 1,
+        "steering": [
+          "Agent message received: Synthetic child result is available."
+        ],
+        "followUps": []
+      }
+    },
+    {
+      "type": "message_update",
+      "message": {
+        "role": "assistant",
+        "content": [
+          {
+            "type": "text",
+            "text": "Synthetic parent result."
+          }
+        ],
+        "api": "openai-completions",
+        "provider": "openrouter",
+        "model": "fixture-model",
+        "usage": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "totalTokens": 0,
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "total": 0
+          }
+        },
+        "stopReason": "stop",
+        "timestamp": 4
+      },
+      "assistantMessageEvent": {
+        "type": "text_end",
+        "contentIndex": 0,
+        "content": "Synthetic parent result."
+      }
+    },
+    {
+      "type": "message_end",
+      "message": {
+        "role": "assistant",
+        "content": [
+          {
+            "type": "text",
+            "text": "Synthetic parent result."
+          }
+        ],
+        "api": "openai-completions",
+        "provider": "openrouter",
+        "model": "fixture-model",
+        "usage": {
+          "input": 13,
+          "output": 4,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "totalTokens": 17,
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "total": 0
+          }
+        },
+        "stopReason": "stop",
+        "timestamp": 4,
+        "responseId": "fixture-3"
+      }
+    },
+    {
+      "type": "turn_end",
+      "message": {
+        "role": "assistant",
+        "content": [
+          {
+            "type": "text",
+            "text": "Synthetic parent result."
+          }
+        ],
+        "api": "openai-completions",
+        "provider": "openrouter",
+        "model": "fixture-model",
+        "usage": {
+          "input": 13,
+          "output": 4,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "totalTokens": 17,
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "total": 0
+          }
+        },
+        "stopReason": "stop",
+        "timestamp": 4,
+        "responseId": "fixture-3"
+      },
+      "toolResults": []
+    },
+    {
+      "type": "agent_end",
+      "messages": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "Perform a synthetic delegated task."
+            }
+          ],
+          "timestamp": 1
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "toolCall",
+              "id": "fixture-tool-call",
+              "name": "ipython",
+              "arguments": {
+                "code": "print(\"Synthetic tool result\")"
+              }
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "openrouter",
+          "model": "fixture-model",
+          "usage": {
+            "input": 26,
+            "output": 8,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "totalTokens": 17,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0
+            }
+          },
+          "stopReason": "toolUse",
+          "timestamp": 2,
+          "responseId": "fixture-1"
+        },
+        {
+          "role": "toolResult",
+          "toolCallId": "fixture-tool-call",
+          "toolName": "ipython",
+          "content": [
+            {
+              "type": "text",
+              "text": "Synthetic tool result\n"
+            }
+          ],
+          "details": {
+            "durationMs": 1,
+            "status": "ok",
+            "stdout": "Synthetic tool result\n"
+          },
+          "isError": false,
+          "timestamp": 3
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "Synthetic parent result."
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "openrouter",
+          "model": "fixture-model",
+          "usage": {
+            "input": 13,
+            "output": 4,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "totalTokens": 17,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0
+            }
+          },
+          "stopReason": "stop",
+          "timestamp": 4,
+          "responseId": "fixture-3"
+        }
+      ]
+    },
+    {
+      "type": "session_action_update",
+      "actions": {
+        "queuedCount": 0,
+        "steering": [],
+        "followUps": [],
+        "active": {
+          "kind": "turn",
+          "phase": "preparing",
+          "label": "[from child:fixture-child] Agent-to-agent message received. Source: agent_message From: fixture-child, active fixture-child-active, session fixture-child-ses..."
+        }
+      }
+    },
+    {
+      "type": "session_action_update",
+      "actions": {
+        "queuedCount": 0,
+        "steering": [],
+        "followUps": [],
+        "active": {
+          "kind": "turn",
+          "phase": "committing",
+          "label": "[from child:fixture-child] Agent-to-agent message received. Source: agent_message From: fixture-child, active fixture-child-active, session fixture-child-ses..."
+        }
+      }
+    },
+    {
+      "type": "agent_start"
+    },
+    {
+      "type": "session_action_update",
+      "actions": {
+        "queuedCount": 0,
+        "steering": [],
+        "followUps": [],
+        "active": {
+          "kind": "turn",
+          "phase": "running",
+          "label": "[from child:fixture-child] Agent-to-agent message received. Source: agent_message From: fixture-child, active fixture-child-active, session fixture-child-ses..."
+        }
+      }
+    },
+    {
+      "type": "turn_start"
+    },
+    {
+      "type": "message_start",
+      "message": {
+        "role": "custom",
+        "customType": "agent_message",
+        "content": "[from child:fixture-child]\nAgent-to-agent message received.\nSource: agent_message\nFrom: fixture-child, active fixture-child-active, session fixture-child-session, client fixture-client\nTo: active fixture-parent-active, session fixture-parent-session\nMessage id: agentmsg_fixture-delivery\n\nSynthetic child result is available.",
+        "display": true,
+        "details": {
+          "id": "agentmsg_fixture-delivery",
+          "message": "Synthetic child result is available.",
+          "from": {
+            "activeSessionId": "fixture-child-active",
+            "sessionId": "fixture-child-session",
+            "sessionName": "fixture-child",
+            "runtimeKind": "subagent",
+            "clientId": "fixture-client"
+          },
+          "fromRelationship": "child",
+          "target": {
+            "activeSessionId": "fixture-parent-active",
+            "sessionId": "fixture-parent-session",
+            "runtimeKind": "top-level"
+          }
+        },
+        "timestamp": 4
+      }
+    },
+    {
+      "type": "message_end",
+      "message": {
+        "role": "custom",
+        "customType": "agent_message",
+        "content": "[from child:fixture-child]\nAgent-to-agent message received.\nSource: agent_message\nFrom: fixture-child, active fixture-child-active, session fixture-child-session, client fixture-client\nTo: active fixture-parent-active, session fixture-parent-session\nMessage id: agentmsg_fixture-delivery\n\nSynthetic child result is available.",
+        "display": true,
+        "details": {
+          "id": "agentmsg_fixture-delivery",
+          "message": "Synthetic child result is available.",
+          "from": {
+            "activeSessionId": "fixture-child-active",
+            "sessionId": "fixture-child-session",
+            "sessionName": "fixture-child",
+            "runtimeKind": "subagent",
+            "clientId": "fixture-client"
+          },
+          "fromRelationship": "child",
+          "target": {
+            "activeSessionId": "fixture-parent-active",
+            "sessionId": "fixture-parent-session",
+            "runtimeKind": "top-level"
+          }
+        },
+        "timestamp": 4
+      }
+    },
+    {
+      "type": "message_start",
+      "message": {
+        "role": "assistant",
+        "content": [],
+        "api": "openai-completions",
+        "provider": "openrouter",
+        "model": "fixture-model",
+        "usage": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "totalTokens": 0,
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "total": 0
+          }
+        },
+        "stopReason": "stop",
+        "timestamp": 6
+      }
+    },
+    {
+      "type": "message_update",
+      "message": {
+        "role": "assistant",
+        "content": [
+          {
+            "type": "text",
+            "text": ""
+          }
+        ],
+        "api": "openai-completions",
+        "provider": "openrouter",
+        "model": "fixture-model",
+        "usage": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "totalTokens": 0,
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "total": 0
+          }
+        },
+        "stopReason": "stop",
+        "timestamp": 6
+      },
+      "assistantMessageEvent": {
+        "type": "text_start",
+        "contentIndex": 0
+      }
+    },
+    {
+      "type": "message_update",
+      "message": {
+        "role": "assistant",
+        "content": [
+          {
+            "type": "text",
+            "text": "Synthetic parent result."
+          }
+        ],
+        "api": "openai-completions",
+        "provider": "openrouter",
+        "model": "fixture-model",
+        "usage": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "totalTokens": 0,
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "total": 0
+          }
+        },
+        "stopReason": "stop",
+        "timestamp": 6
+      },
+      "assistantMessageEvent": {
+        "type": "text_delta",
+        "contentIndex": 0,
+        "delta": "Synthetic parent result."
+      }
+    },
+    {
+      "type": "message_update",
+      "message": {
+        "role": "assistant",
+        "content": [
+          {
+            "type": "text",
+            "text": "Synthetic parent result."
+          }
+        ],
+        "api": "openai-completions",
+        "provider": "openrouter",
+        "model": "fixture-model",
+        "usage": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "totalTokens": 0,
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "total": 0
+          }
+        },
+        "stopReason": "stop",
+        "timestamp": 6
+      },
+      "assistantMessageEvent": {
+        "type": "text_end",
+        "contentIndex": 0,
+        "content": "Synthetic parent result."
+      }
+    },
+    {
+      "type": "message_end",
+      "message": {
+        "role": "assistant",
+        "content": [
+          {
+            "type": "text",
+            "text": "Synthetic parent result."
+          }
+        ],
+        "api": "openai-completions",
+        "provider": "openrouter",
+        "model": "fixture-model",
+        "usage": {
+          "input": 13,
+          "output": 4,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "totalTokens": 17,
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "total": 0
+          }
+        },
+        "stopReason": "stop",
+        "timestamp": 6,
+        "responseId": "fixture-4"
+      }
+    },
+    {
+      "type": "turn_end",
+      "message": {
+        "role": "assistant",
+        "content": [
+          {
+            "type": "text",
+            "text": "Synthetic parent result."
+          }
+        ],
+        "api": "openai-completions",
+        "provider": "openrouter",
+        "model": "fixture-model",
+        "usage": {
+          "input": 13,
+          "output": 4,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "totalTokens": 17,
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "total": 0
+          }
+        },
+        "stopReason": "stop",
+        "timestamp": 6,
+        "responseId": "fixture-4"
+      },
+      "toolResults": []
+    },
+    {
+      "type": "agent_end",
+      "messages": [
+        {
+          "role": "custom",
+          "customType": "agent_message",
+          "content": "[from child:fixture-child]\nAgent-to-agent message received.\nSource: agent_message\nFrom: fixture-child, active fixture-child-active, session fixture-child-session, client fixture-client\nTo: active fixture-parent-active, session fixture-parent-session\nMessage id: agentmsg_fixture-delivery\n\nSynthetic child result is available.",
+          "display": true,
+          "details": {
+            "id": "agentmsg_fixture-delivery",
+            "message": "Synthetic child result is available.",
+            "from": {
+              "activeSessionId": "fixture-child-active",
+              "sessionId": "fixture-child-session",
+              "sessionName": "fixture-child",
+              "runtimeKind": "subagent",
+              "clientId": "fixture-client"
+            },
+            "fromRelationship": "child",
+            "target": {
+              "activeSessionId": "fixture-parent-active",
+              "sessionId": "fixture-parent-session",
+              "runtimeKind": "top-level"
+            }
+          },
+          "timestamp": 4
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "Synthetic parent result."
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "openrouter",
+          "model": "fixture-model",
+          "usage": {
+            "input": 13,
+            "output": 4,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "totalTokens": 17,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0
+            }
+          },
+          "stopReason": "stop",
+          "timestamp": 6,
+          "responseId": "fixture-4"
+        }
+      ]
+    },
+    {
+      "type": "session_action_update",
+      "actions": {
+        "queuedCount": 0,
+        "steering": [],
+        "followUps": []
+      }
+    }
+  ]
+}
