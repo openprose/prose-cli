@@ -19,7 +19,7 @@ export const probability=v=>typeof v==='number'&&Number.isFinite(v)&&v>=0&&v<=1;
 export function validateProfile(p) {
   if(!exact(p,['adapter','model','acceptedModels','apiKeyEnv','options'])||!Object.hasOwn(adapters,p.adapter)||!text(p.model)||
      !Array.isArray(p.acceptedModels)||!p.acceptedModels.length||p.acceptedModels.length>16||!p.acceptedModels.every(text)||
-     new Set(p.acceptedModels).size!==p.acceptedModels.length||!(/^[A-Z][A-Z0-9_]{0,127}$/).test(p.apiKeyEnv)||!object(p.options))fail();
+     new Set(p.acceptedModels).size!==p.acceptedModels.length||typeof p.apiKeyEnv!=='string'||!(/^[A-Z][A-Z0-9_]{0,127}$/).test(p.apiKeyEnv)||!object(p.options))fail();
   if(p.adapter==='openai-responses') {
     if(!exact(p.options,['reasoningEffort'])||!['none','low','medium','high'].includes(p.options.reasoningEffort))fail();
   }else if(!exact(p.options,[]))fail();

@@ -30,7 +30,7 @@ export function loadConfiguration(path) {
   if(!exact(plan,['schema','composition','evaluations'])||plan.schema!=='openprose.evaluation-plan/1'||plan.composition!=='all-required'||!Array.isArray(plan.evaluations)||!plan.evaluations.length||plan.evaluations.length>limits.maxCalls)fail();
   const ids=new Set();
   for(const e of plan.evaluations) {
-    if(!exact(e,['id','subject','profile','questions','policy'])||!id(e.id)||ids.has(e.id)||!Object.hasOwn(c.profiles,e.profile))fail();ids.add(e.id);
+    if(!exact(e,['id','subject','profile','questions','policy'])||!id(e.id)||ids.has(e.id)||!id(e.profile)||!Object.hasOwn(c.profiles,e.profile))fail();ids.add(e.id);
     const s=e.subject;
     if(!exact(s,['instance','contracts','bindings'])||!text(s.instance)||!Array.isArray(s.contracts)||!s.contracts.length||!s.contracts.every(p=>text(p)&&isAbsolute(p))||new Set(s.contracts).size!==s.contracts.length||typeof s.bindings!=='string')fail();
     if(!object(e.questions)||!Object.keys(e.questions).length||Object.keys(e.questions).length>64)fail();

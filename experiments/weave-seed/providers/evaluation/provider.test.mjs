@@ -154,3 +154,14 @@ test('process stdout remains compatible and errors expose no source data',()=>{
     assert.equal(bad.status,1);assert.equal(bad.stdout,'');assert.equal(bad.stderr,'EVALUATION_FAILED\n');
   }finally{f.close();}
 });
+
+test('configuration identifiers reject values that JavaScript would coerce to strings',()=>{
+  const f=fixture();try{
+    f.config.profiles.primary.apiKeyEnv=['TEST_PROVIDER_KEY'];f.save();assert.throws(f.load);
+    f.config.profiles.primary.apiKeyEnv='TEST_PROVIDER_KEY';
+    for(const profile of [['primary'],{toString:'primary'},null,0]) {
+      f.plan.evaluations[0].profile=profile;f.save();assert.throws(f.load);
+    }
+    f.plan.evaluations[0].profile='primary';f.save();assert.doesNotThrow(f.load);
+  }finally{f.close();}
+});
