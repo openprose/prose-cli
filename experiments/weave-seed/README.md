@@ -1,20 +1,22 @@
-# Weave development seed
+# Bounded execution and evaluation
+
+The current role names are executor and evaluator. Existing `actor`, `assessor` and `weave` paths, command names and protocol fields retain their exact identifiers. A normal executor return triggers evaluation; it does not establish fulfillment.
 
 Weave is an unpublished experiment in deciding when a caller's evidence needs work. This directory contains independent Rust and JavaScript loop implementations for comparison. It is a locally consumable source SDK and sidecar, not a published package or a `prose weave` command. Start with the provider-free seed examples below; see [candidate readiness](../../docs/weave-v1-readiness.md) before making product or release claims.
 
-The selected OpenProse kernel and adopted contracts remain authoritative. They define the entire invocation's obligations, including required reports and steps. The loop receives an explicit binding and evidence through caller-supplied capabilities. It neither parses prose nor discovers an agreement. An assessor judges evidence against the resolved agreement; an actor attempts permitted work. The runtime controls their sequence and checks for changed or expired evidence.
+The selected OpenProse kernel and adopted contracts remain authoritative. They define the entire invocation's obligations, including required reports and steps. The loop receives an explicit binding and evidence through caller-supplied capabilities. It neither parses prose nor discovers an agreement. An evaluator judges evidence against the resolved agreement; an executor attempts permitted work. The runtime controls their sequence and checks for changed or expired evidence.
 
 ## Start here
 
 For a private compiled bundle, first follow [offline installation](distribution/INSTALL.md). Its receipt exposes the installed setup helpers. The [host-binding helper](getting-started/README.md#generate-an-explicit-prose-cli-weave-host-binding) connects an explicitly selected Prose CLI to either coordinator and prints both argument arrays and copyable POSIX commands. The experimental command is `prose cli weave`; top-level language commands are unchanged.
 
 1. [Create and run the offline example](getting-started/README.md). One setup command creates a private example directory and prints the exact commands to inspect, repair and watch it. No credentials or network are used.
-2. [Configure your own program and providers](getting-started/BYOK.md). Keep the selected kernel, contracts and evidence explicit. The local profile uses a Jev assessor and the existing Agents SDK action route with the caller's keys; it requires no OpenProse account.
+2. [Configure your own program and providers](getting-started/BYOK.md). Keep the selected kernel, contracts and evidence explicit. The local profile uses a Jev evaluator and the existing Agents SDK action route with the caller's keys; it requires no OpenProse account.
 3. [Embed the SDK](SDK.md) in a Bun or Rust application. The core is independent of provider, storage and command-line choices.
 
 The [Bun coordinator](local/README.md) and [native Rust coordinator](rust-local/README.md) expose bounded local steps, persisted status and serving. Ordinary code observes selected files; changed content or expired acceptance triggers assessment. Work is attempted only after an actionable assessment, then the evidence is read and assessed again. Unchanged fresh acceptance avoids both provider calls.
 
-These are unpublished sidecars and source packages. Existing top-level Prose language requests remain unchanged. Login, hosted deployment and publication are planned separately and are not needed for local execution. The initial actor profile is Agents SDK with an OpenAI API key; other providers have not been qualified through this adapter.
+These are unpublished sidecars and source packages. Existing top-level Prose language requests remain unchanged. Login, hosted deployment and publication are planned separately and are not needed for local execution. The initial executor profile is Agents SDK with an OpenAI API key; other providers have not been qualified through this adapter.
 
 ## First local run
 
@@ -57,7 +59,7 @@ A host must resolve the contract, select evidence, enforce permissions, serializ
 
 Evidence must cover every obligation being assessed. If an invocation owes a new report for each batch, unchanged maintained state alone cannot justify skipping that report. A digest identifies selected content; it does not prove source authority, completeness, or freshness. Evidence gaps and `unknown` assessments do not authorize action.
 
-One step can attempt at most one action. The pending attempt must be saved before the effect. Normal actor return is followed by fresh observation and assessment; it is not fulfillment. An interrupted or uncertain action requires [explicit recovery](local/RECOVERY.md) before replay. Attempt limits are cumulative for the checkpoint, and settlement does not replenish them. External effects are not transactional with the checkpoint, and no exactly-once guarantee is made.
+One step can attempt at most one action. The pending attempt must be saved before the effect. Normal executor return is followed by fresh observation and assessment; it is not fulfillment. An interrupted or uncertain action requires [explicit recovery](local/RECOVERY.md) before replay. Attempt limits are cumulative for the checkpoint, and settlement does not replenish them. External effects are not transactional with the checkpoint, and no exactly-once guarantee is made.
 
 ## Build a private review bundle
 
