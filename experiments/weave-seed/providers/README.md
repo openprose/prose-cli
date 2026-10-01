@@ -1,6 +1,6 @@
-# Explicit Jev process assessor
+# Explicit Jev process evaluator
 
-This experimental adapter makes at most one TypeSafe Jev request for the existing synchronous [process capability](../integration/process.mjs). The child uses async HTTP; the parent still waits for one bounded process result. It has no account service, credential discovery, retry loop, actor, or automatic publication.
+This experimental adapter makes at most one TypeSafe Jev request for the existing synchronous [process capability](../integration/process.mjs). The child uses async HTTP; the parent still waits for one bounded process result. It has no account service, credential discovery, retry loop, executor, or automatic publication.
 
 The process reads `openprose.weave-input/1` from stdin. Successful stdout is exactly `{"judgment":"satisfied"}`, `{"judgment":"work-needed"}`, or `{"judgment":"unknown"}` plus a newline. Invalid configuration, source binding, response, usage or transport causes exit 1, empty stdout and the fixed stderr message `JEV_ASSESSMENT_FAILED`. The parent must preserve that failure and must not reinterpret it as permission to act.
 
@@ -8,7 +8,7 @@ The process reads `openprose.weave-input/1` from stdin. Successful stdout is exa
 
 Copy and review [jev.config.example.json](jev.config.example.json) and [jev.question.example.json](jev.question.example.json) into the selected source root. These examples are experimental policy inputs, not a recommended or calibrated assessment policy. In particular, a broad agreement question has failed retained lab negatives even when operation traces were supplied. A high reported probability or confidence does not establish correctness.
 
-Configure the assessor argument array as:
+Configure the evaluator argument array as:
 
 ```json
 ["/absolute/path/to/bun", "/absolute/path/to/providers/jev.mjs", "--config", "/absolute/source/root/jev.config.json"]

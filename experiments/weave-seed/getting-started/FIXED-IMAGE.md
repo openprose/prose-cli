@@ -1,6 +1,6 @@
 # Stage a private fixed kernel image
 
-The native actor requires a fixed image containing exactly one model-visible payload at `payload/kernel.md`. Its aggregate image identity must match the selected kernel bytes and the configured `expectedImageSha256`. An ordinary CLI that resolves a moving published kernel at run time is not that fixed-image profile.
+The native executor requires a fixed image containing exactly one model-visible payload at `payload/kernel.md`. Its aggregate image identity must match the selected kernel bytes and the configured `expectedImageSha256`. An ordinary CLI that resolves a moving published kernel at run time is not that fixed-image profile.
 
 Use the existing CLI's image format and build tools. This helper only fills in the private image manifest, preserves your exact selected kernel, and invokes the selected checkout's official `image_bundle.py build` and `check` commands. It does not interpret Markdown, resolve adopted definitions, download a kernel, build a native CLI, install dependencies, call a provider, or publish anything.
 
@@ -35,7 +35,7 @@ UTF8("payload/kernel.md") + NUL + ASCII(decimal kernel byte length) + NUL
 
 `expectedImageSha256` is that aggregate digest. `kernelSha256` hashes the raw kernel alone; `bundleSha256` hashes the serialized bundle. These three identities have different meanings and must not be substituted for each other. The official tool independently checks the staged manifest, payload and contract bytes.
 
-## Build explicitly, then configure the actor
+## Build explicitly, then configure the executor
 
 Review `staging.json` and use its `buildCommands` with installed, identified tools. The helper does not execute them. Each record supplies a working directory and literal argument array; the Rust record also supplies the three image-selection environment variables and a private Cargo target directory. Replace the leading `bun` or `cargo` name with your explicitly selected executable if it is not on your trusted PATH.
 
@@ -43,9 +43,9 @@ The Bun build uses the full checkout's `cli/bun/scripts/image-bundle.ts build` w
 
 Do not add `--require-release-eligible`: this candidate is intentionally private and not release eligible. Building it is separate from approving its kernel, granting effect permissions or authorizing provider spend. Consult the selected CLI revision's build documentation when its build interface differs; there is no silent fallback to a published or sentinel image.
 
-After an explicitly performed build, supply the resulting CLI path and its actual executable SHA-256 to the reviewed BYOK setup manifest, along with this helper's `expectedImageSha256`. Keep the original kernel file selected as the observer's kernel. Use the existing provider-free native readiness route to inspect the image delivery profile; readiness does not establish provider authentication or semantic correctness. The actor rechecks both the fixed image aggregate and delivered kernel bytes before accepting transport completion.
+After an explicitly performed build, supply the resulting CLI path and its actual executable SHA-256 to the reviewed BYOK setup manifest, along with this helper's `expectedImageSha256`. Keep the original kernel file selected as the observer's kernel. Use the existing provider-free native readiness route to inspect the image delivery profile; readiness does not establish provider authentication or semantic correctness. The executor rechecks both the fixed image aggregate and delivered kernel bytes before accepting transport completion.
 
-Kernel changes require a newly reviewed stage/build and updated actor/configuration binding. Do not replace image bytes in place under an existing accepted identity or reset unresolved checkpoint state to adopt a new build.
+Kernel changes require a newly reviewed stage/build and updated executor/configuration binding. Do not replace image bytes in place under an existing accepted identity or reset unresolved checkpoint state to adopt a new build.
 
 ## Offline checks and limits
 
