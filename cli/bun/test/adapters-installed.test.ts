@@ -1214,6 +1214,10 @@ describe("provider-free installed adapter execution", () => {
       },
       ...(malformed ? {} : {
         reason: "The process reached EOF without the required harness terminal record.",
+        transportDiagnostic: {
+          schema: "openprose.transport-diagnostic/1",
+          reason: "lifecycle-rejection",
+        },
         exitCode: 0,
       }),
     });
