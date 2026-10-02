@@ -46,6 +46,8 @@ class BudgetTest(unittest.IsolatedAsyncioTestCase):
             records=[json.loads(line) for line in output.getvalue().splitlines()]
             self.assertEqual(records[0]['limits'],dict(maxTurns=40,timeoutSeconds=300,toolTimeoutSeconds=30,maxOutputTokens=12000))
             self.assertEqual(records[-1]['type'],'final')
+            self.assertEqual(records[-1]['usage'], dict(requests=1,input_tokens=1,output_tokens=1,total_tokens=2))
+            self.assertEqual(records[-1]['usageObservation']['observedTokenTotals'], {})
 
     def test_invalid_cli_budgets_fail_before_run(self):
         for flag,value in [('--max-turns','0'),('--max-turns','-1'),('--max-turns','9007199254740992'),('--timeout','nan'),('--timeout','inf'),('--timeout','0')]:
@@ -66,6 +68,123 @@ class BudgetTest(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(records[-1]['error_type'],name if name in ('MaxTurnsExceeded','TimeoutError') else 'ExecutionError')
                 self.assertFalse(any(r['type']=='final' for r in records))
                 self.assertEqual(records[-1]['limits']['maxTurns'],40)
+
+    async def test_completed_calls_survive_error_exhaustion_and_actual_timeout(self):
+        for failure in ('ExecutionError', 'MaxTurnsExceeded', 'timeout'):
+            async def runner(agent, prompt, **kwargs):
+                hooks = kwargs['hooks']
+                self.assertTrue(agent.model_settings.preserve_raw_usage)
+                self.assertEqual(agent.instructions, 'You are a helpful coding agent. Use available tools to complete the user request.\nYour working directory is: ' + str(Path(directory).resolve()))
+                self.assertEqual([tool.name for tool in agent.tools], ['execute_shell'])
+                self.assertEqual(agent.tools[0].params_json_schema['properties'], {'command': {'title': 'Command', 'type': 'string'}})
+                for index in range(2):
+                    await hooks.on_llm_start(None, agent, 'secret prompt', [])
+                    await hooks.on_llm_end(None, agent, SimpleNamespace(response_id=str(index), raw_usage={
+                        'input_tokens': 10, 'output_tokens': 3, 'total_tokens': 13,
+                        'input_tokens_details': {'cached_tokens': 0},
+                        'output_tokens_details': {'reasoning_tokens': 2}, 'secret': 'never log'}))
+                await hooks.on_llm_start(None, agent, None, [])
+                if failure == 'timeout':
+                    await asyncio.sleep(10)
+                raise type(failure, (Exception,), {})('secret credential')
+            with tempfile.TemporaryDirectory() as directory, patch.object(harness.Runner, 'run', runner):
+                args = self.args(directory)
+                if failure == 'timeout': args.timeout = .02
+                output = io.StringIO()
+                with contextlib.redirect_stdout(output): code = await harness.run(args)
+                self.assertEqual(code, 1)
+                records = [json.loads(line) for line in output.getvalue().splitlines()]
+                self.assertEqual([r['type'] for r in records], ['start', 'error'])
+                stats = records[-1]['usageObservation']
+                self.assertEqual(stats['completedResponseCount'], 2)
+                self.assertEqual(stats['outstandingCallCount'], 1)
+                self.assertIsNone(stats['outstandingProviderRequestCount'])
+                self.assertEqual(stats['observedTokenTotals']['input_tokens'], 20)
+                self.assertEqual(stats['fieldResponseCounts']['input_tokens_details.cached_tokens'], 2)
+                self.assertFalse(stats['totalRunUsageKnown'])
+                self.assertNotIn('secret', output.getvalue())
+
+    async def test_unobserved_error_has_no_invented_zero_tokens(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(harness.Runner, 'run', AsyncMock(side_effect=RuntimeError('secret'))):
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output): await harness.run(self.args(directory))
+            stats = json.loads(output.getvalue().splitlines()[-1])['usageObservation']
+            self.assertEqual(stats['observedTokenTotals'], {})
+            self.assertEqual(stats['fieldResponseCounts'], {})
+            self.assertFalse(stats['totalRunUsageKnown'])
+
+class UsageTest(unittest.IsolatedAsyncioTestCase):
+    async def test_per_response_not_context_duplicates_and_missing_fields(self):
+        observation = harness.UsageObservation()
+        context = SimpleNamespace(usage=SimpleNamespace(input_tokens=999999))
+        for raw, identity in [({'input_tokens': 10, 'output_tokens': 0}, 'one'),
+                              ({'input_tokens': 10, 'output_tokens': 0}, 'one'),
+                              ({'input_tokens': 4, 'total_tokens': None}, 'two'),
+                              (None, 'three'),
+                              ({'input_tokens': True, 'output_tokens': -1, 'total_tokens': 1.5}, 'four')]:
+            await observation.on_llm_end(context, None, SimpleNamespace(response_id=identity, raw_usage=raw))
+        stats = observation.summary()
+        self.assertEqual(stats['completedResponseCount'], 4)
+        self.assertEqual(stats['duplicateResponseCallbackCount'], 1)
+        self.assertEqual(stats['observedTokenTotals'], {'input_tokens': 14, 'output_tokens': 0})
+        self.assertEqual(stats['fieldResponseCounts'], {'input_tokens': 2, 'output_tokens': 1})
+        self.assertEqual(stats['aggregationScope'], 'unique_completed_responses_in_this_runner_run')
+
+    async def test_response_without_provider_identity_deduplicated_by_object(self):
+        observation = harness.UsageObservation()
+        response = SimpleNamespace(raw_usage={'input_tokens': 3})
+        await observation.on_llm_end(None, None, response)
+        await observation.on_llm_end(None, None, response)
+        self.assertEqual(observation.summary()['observedTokenTotals'], {'input_tokens': 3})
+
+    async def test_malformed_ids_fall_back_without_collisions_or_leaks(self):
+        observation = harness.UsageObservation()
+        for invalid in ({'secret': 'credential'}, ['secret'], True, False, ''):
+            for _ in range(2):
+                response = SimpleNamespace(response_id=invalid, request_id=invalid,
+                    raw_usage={'input_tokens': 3})
+                await observation.on_llm_end(None, None, response)
+                await observation.on_llm_end(None, None, response)
+        stats = observation.summary()
+        self.assertEqual(stats['completedResponseCount'], 10)
+        self.assertEqual(stats['duplicateResponseCallbackCount'], 10)
+        self.assertEqual(stats['observedTokenTotals'], {'input_tokens': 30})
+        self.assertNotIn('secret', json.dumps(stats))
+        self.assertNotIn('credential', json.dumps(stats))
+
+    async def test_valid_request_id_used_when_response_id_malformed(self):
+        observation = harness.UsageObservation()
+        for _ in range(2):
+            await observation.on_llm_end(None, None, SimpleNamespace(response_id=[],
+                request_id='private-provider-id', raw_usage={'input_tokens': 3}))
+        stats = observation.summary()
+        self.assertEqual(stats['completedResponseCount'], 1)
+        self.assertEqual(stats['duplicateResponseCallbackCount'], 1)
+        self.assertNotIn('private-provider-id', json.dumps(stats))
+
+    async def test_raw_preservation_does_not_change_provider_request(self):
+        from agents.models.openai_responses import OpenAIResponsesModel
+        from agents.models.interface import ModelTracing
+        from openai.types.responses import Response
+        response = Response.model_validate(dict(id='fixture', object='response', created_at=1,
+            model='fixture', output=[], parallel_tool_calls=True, tool_choice='auto', tools=[],
+            status='completed', usage=dict(input_tokens=4, output_tokens=2, total_tokens=6,
+                input_tokens_details=dict(cached_tokens=0, cache_write_tokens=0), output_tokens_details=dict(reasoning_tokens=1))))
+        create = AsyncMock(return_value=response)
+        client = SimpleNamespace(responses=SimpleNamespace(create=create), base_url='https://api.openai.com/v1/')
+        model = OpenAIResponsesModel('fixture', client)
+        @harness.function_tool
+        async def execute_shell(command: str) -> str:
+            """Execute a bash command in the working directory. Read and edit files using ordinary shell tools."""
+            return ''
+        calls = []
+        for enabled in (False, True):
+            result = await model.get_response(system_instructions='opaque unchanged', input='opaque prompt',
+                model_settings=harness.ModelSettings(max_tokens=12000, timeout=300, preserve_raw_usage=enabled),
+                tools=[execute_shell], output_schema=None, handoffs=[], tracing=ModelTracing.DISABLED)
+            calls.append(create.call_args)
+            self.assertEqual(result.raw_usage is not None, enabled)
+        self.assertEqual(calls[0], calls[1])
 
 if __name__ == '__main__':
     unittest.main()
