@@ -9,6 +9,7 @@ from pathlib import Path
 import re
 import subprocess
 import tempfile
+import time
 import zipfile
 import tarfile
 from package_local import npm_payload_version
@@ -368,6 +369,24 @@ def registry_integrity(package, version):
     return json.loads(result.stdout)
 
 
+def await_registry_integrities(versions, expected, *, timeout=1200, interval=30):
+    # npm may accept a PUT with HTTP 202 before public metadata is visible.
+    # Poll reads only: never replay a publish or switch credentials here.
+    deadline = time.monotonic() + timeout
+    pending = dict(versions)
+    while pending:
+        for alias, version in list(pending.items()):
+            integrity = registry_integrity('@openprose/prose-cli', version)
+            require(integrity is None or integrity == expected[alias],
+                    'Published integrity mismatch; stop and inspect')
+            if integrity is not None:
+                del pending[alias]
+        if pending:
+            remaining = deadline - time.monotonic()
+            require(remaining > 0, 'Accepted npm publication is not yet visible; reconcile before resuming')
+            time.sleep(min(interval, remaining))
+
+
 def sign_artifacts(plan, root):
     signatures = root / 'signatures'
     signatures.mkdir(exist_ok=False)
@@ -408,14 +427,19 @@ def publish(plan, root, key, key_id, issuer, bootstrap=False, sign_only=False):
         sign_artifacts(plan, root)
         root_tag = 'rc' if '-rc.' in plan['version'] else 'dev' if '-dev.' in plan['version'] else 'latest'
         receipts = {}
-        for alias in PACKAGES:
-            package = root / packages[alias]
-            require(digest(package) == next(a['sha256'] for a in plan['artifacts'] if a['name'] == package.name), 'Package changed before publication')
-            tag = root_tag if alias == PACKAGES[-1] else 'platform-' + alias.removeprefix('@openprose/prose-cli-')
-            if existing[alias] is None:
-                publish_package('@openprose/prose-cli', package, tag, 'oidc', None)
-            require(registry_integrity('@openprose/prose-cli', versions[alias]) == npm_integrity(package), 'Published integrity mismatch; stop and inspect')
-            receipts[alias] = {'name': '@openprose/prose-cli', 'version': versions[alias], 'artifact': package.name, 'tag': tag, 'credentialRoute': 'oidc'}
+        expected = {alias: npm_integrity(root / packages[alias]) for alias in PACKAGES}
+        # Supporting versions may become visible asynchronously. Submit the
+        # payload cohort first, then admit every exact integrity before root.
+        for cohort in (PACKAGES[:-1], PACKAGES[-1:]):
+            for alias in cohort:
+                package = root / packages[alias]
+                require(digest(package) == next(a['sha256'] for a in plan['artifacts'] if a['name'] == package.name), 'Package changed before publication')
+                tag = root_tag if alias == PACKAGES[-1] else 'platform-' + alias.removeprefix('@openprose/prose-cli-')
+                if existing[alias] is None:
+                    publish_package('@openprose/prose-cli', package, tag, 'oidc', None)
+                receipts[alias] = {'name': '@openprose/prose-cli', 'version': versions[alias], 'artifact': package.name, 'tag': tag, 'credentialRoute': 'oidc',
+                                   'publicationStatus': 'already-published' if existing[alias] is not None else 'published-this-run'}
+            await_registry_integrities({alias: versions[alias] for alias in cohort}, expected)
         (root / 'publication-receipt.json').write_text(json.dumps({'schema': 'openprose.cli-publication-receipt/2', 'version': plan['version'], 'source': plan['source'], 'npm': receipts, 'tag': root_tag, 'githubReleasePromoted': False, 'signing': plan['signing']}, indent=2) + '\n')
         return
     existing = {name: registry_integrity(name, plan['version']) for name in PACKAGES}
