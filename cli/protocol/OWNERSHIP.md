@@ -652,3 +652,7 @@ IMP-014 lease extension: `cli/ci/test_npm_identity.py` to qualify new schema-thr
 IMP-014 lease extension: `cli/ci/run_local.py` to include same-name npm regression tests in the existing publication-contract gate, preserving the 53-gate admission plan.
 
 IMP-014 lease extension: `cli/benchmarks/installed/benchmark.py` only for the reviewed canonical npm launcher template digest, preserving all benchmark custody checks and runtime behavior. CI showed the launcher change requires refreezing this exact-byte pin.
+
+## IMP-014: qualified RC publication inventory (October 2, 2026)
+
+Codex `/root` owns Git/index operations and sole edits in isolated `codex/imp-014-rc2-publication`, based on qualified migration main `fe8b5032`. Exact paths: `cli/protocol/OWNERSHIP.md`, `cli/release/plans/0.15.0-rc.2.json`, and `docs/cli-release-next.md`. Scope: retain the exact final native/live-qualified artifact inventory, reconcile maintained release status and retire completed packaging leases. No runtime, harness, kernel, prior immutable plan or other owner's paths are claimed. Exact main runtime admission and paired live qualification remain required before publication.
