@@ -11,6 +11,13 @@ a candidate do not establish public availability or authorize publication.
 
 ## [Unreleased]
 
+## [0.15.0-rc.2] — 2026-10-02
+
+These are accumulated changes in the 0.15 candidate train; some capabilities
+also appeared in earlier candidates. This candidate remains explicitly unsigned
+on macOS. Its exact bytes require the reviewed native and live qualification
+before publication; the version heading does not establish availability.
+
 ### npm distribution
 
 - Kernel release candidates use the existing `@openprose/prose-cli` npm identity
