@@ -437,6 +437,48 @@ class LocalAdmissionTest(unittest.TestCase):
         self.assertEqual(failure.exit_code, runner.UNSETTLED_EXIT_CODE)
         self.assertIn("cannot guarantee descendant cleanup", str(failure))
 
+    def test_signal_permission_error_still_checks_eventual_settlement(self) -> None:
+        for denied_signal in (signal.SIGTERM, signal.SIGKILL):
+            with self.subTest(signal=denied_signal):
+                runner = load_module()
+                process = mock.Mock(pid=1234)
+                process.poll.return_value = None
+                errors = [
+                    PermissionError() if sig == denied_signal else None
+                    for sig in (signal.SIGTERM, signal.SIGKILL)
+                ]
+                with (
+                    mock.patch.object(runner.os, "killpg", side_effect=errors),
+                    mock.patch.object(
+                        runner, "_wait_process", side_effect=[False, True]
+                    ) as wait,
+                    mock.patch.object(
+                        runner, "_process_group_exists", side_effect=[True, True, False]
+                    ),
+                ):
+                    self.assertEqual(
+                        runner._terminate_owned_boundary(process, platform_name="posix"),
+                        (True, True),
+                    )
+                self.assertEqual(wait.call_count, 2)
+
+    def test_persistent_signal_permission_error_does_not_establish_cleanup(self) -> None:
+        runner = load_module()
+        process = mock.Mock(pid=1234)
+        process.poll.return_value = None
+        with (
+            mock.patch.object(runner.os, "killpg", side_effect=PermissionError()),
+            mock.patch.object(runner, "_wait_process", return_value=False),
+            mock.patch.object(runner, "_process_group_exists", return_value=True),
+            mock.patch.object(runner, "_wait_until", return_value=False) as wait,
+        ):
+            self.assertEqual(
+                runner._terminate_owned_boundary(process, platform_name="posix"),
+                (False, False),
+            )
+            self.assertEqual(wait.call_count, 1)
+            self.assertFalse(wait.call_args.args[0]())
+
     def test_windows_refuses_before_spawning_without_job_object_authority(self) -> None:
         runner = load_module()
         gate = runner.Gate(

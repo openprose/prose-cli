@@ -3586,7 +3586,11 @@ fn actual_sigint_emits_one_cancelled_terminal_and_cleans_controlled_in_group_des
             let pid = Pid::from_raw(raw).unwrap();
             assert!(
                 test_kill_process(pid).is_err(),
-                "{name} {raw} survived SIGINT"
+                "{name} {raw} survived SIGINT; process state: {:?}",
+                Command::new("/bin/ps")
+                    .args(["-p", &raw.to_string(), "-o", "pid=,ppid=,pgid=,stat="])
+                    .output()
+                    .map(|output| String::from_utf8_lossy(&output.stdout).into_owned())
             );
         }
     }
