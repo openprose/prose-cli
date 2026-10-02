@@ -83,6 +83,12 @@ describe("direct process supervision", () => {
       observationFile: input.observation,
     });
     expect(result.error?.code as string | undefined).toBe(code);
+    if (scenario === "eof-without-terminal") {
+      expect(result.error?.details?.transportDiagnostic).toEqual({
+        schema: "openprose.transport-diagnostic/1",
+        reason: "lifecycle-rejection",
+      });
+    }
   });
 
   test("preserves the natural zero exit when malformed output races process reaping", async () => {

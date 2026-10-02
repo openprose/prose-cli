@@ -1063,6 +1063,7 @@ enum OmpPreludeState {
 #[derive(Debug)]
 struct OmpStagedController {
     state: OmpPreludeState,
+    native_output: bool,
     state_id: String,
     prompt_bytes: Option<Vec<u8>>,
     pending_write: Option<Vec<u8>>,
@@ -1071,9 +1072,10 @@ struct OmpStagedController {
 }
 
 impl OmpStagedController {
-    fn new(invocation_id: &str, prompt_bytes: Vec<u8>) -> Self {
+    fn new(invocation_id: &str, prompt_bytes: Vec<u8>, native_output: bool) -> Self {
         Self {
             state: OmpPreludeState::AwaitCommands,
+            native_output,
             state_id: installed_adapters::omp_rpc_id(invocation_id, "state.1"),
             prompt_bytes: Some(prompt_bytes),
             pending_write: None,
@@ -1184,6 +1186,12 @@ impl OmpStagedController {
                     return Err(stream_observer_failure(
                         FailureKind::ProtocolMalformed,
                         "OMP reported an invalid tool inventory",
+                    ));
+                }
+                if !self.native_output && !tools.is_empty() {
+                    return Err(stream_observer_failure(
+                        FailureKind::HarnessFailed,
+                        "OMP tool inventory is not empty for image-envelope output",
                     ));
                 }
                 self.tool_inventory = tools.iter().map(retained_omp_tool).collect();
@@ -2257,9 +2265,13 @@ fn execute_installed_adapter(
                     && config.output_contract.value == "native")
         })
         .map(|sink| InstalledHumanStream::new(adapter, &invocation_id, sink, protected));
-    let omp_controller = launch
-        .omp_prompt_bytes()
-        .map(|bytes| OmpStagedController::new(&invocation_id, bytes.to_vec()));
+    let omp_controller = launch.omp_prompt_bytes().map(|bytes| {
+        OmpStagedController::new(
+            &invocation_id,
+            bytes.to_vec(),
+            config.output_contract.value == "native",
+        )
+    });
     if config.output_contract.value == "native" {
         process_spec.limits.max_stdout_bytes = crate::config::native_output_bytes(config);
     }
@@ -5307,11 +5319,33 @@ mod tests {
     }
 
     #[test]
+    fn omp_controller_preserves_native_tool_admission() {
+        let prompt = b"prompt\n".to_vec();
+        let mut controller = OmpStagedController::new("fixture", prompt.clone(), true);
+        controller.observe(&json!({"type":"ready"})).unwrap();
+        controller
+            .observe(&json!({"type":"available_commands_update","commands":[]}))
+            .unwrap();
+        controller.pending_write.take();
+        controller
+            .observe(&json!({
+                "id":"fixture.omp.state.1","type":"response","command":"get_state",
+                "success":true,"data":{"dumpTools":[{"name":"example-tool"}]}
+            }))
+            .unwrap();
+        assert_eq!(controller.pending_write.take().unwrap(), prompt);
+        assert_eq!(
+            controller.tool_inventory,
+            vec![json!({"name":"example-tool"})]
+        );
+    }
+
+    #[test]
     fn omp_controller_stages_only_state_then_prompt_and_fails_closed() {
         let prompt =
             b"{\"id\":\"fixture.omp.prompt.1\",\"message\":\"task\",\"type\":\"prompt\"}\n"
                 .to_vec();
-        let mut controller = OmpStagedController::new("fixture", prompt.clone());
+        let mut controller = OmpStagedController::new("fixture", prompt.clone(), false);
         controller.observe(&json!({"type":"ready"})).unwrap();
         assert!(controller.pending_write.is_none());
         controller
@@ -5339,6 +5373,13 @@ mod tests {
             (
                 json!({
                     "id":"fixture.omp.state.1","type":"response","command":"get_state",
+                    "success":true,"data":{"dumpTools":[{"name":"example-tool"}]}
+                }),
+                FailureKind::HarnessFailed,
+            ),
+            (
+                json!({
+                    "id":"fixture.omp.state.1","type":"response","command":"get_state",
                     "success":true,"data":{"dumpTools":[{"name":""}],"candidateSecret":"must-not-be-retained"}
                 }),
                 FailureKind::ProtocolMalformed,
@@ -5351,7 +5392,8 @@ mod tests {
                 FailureKind::ProtocolMalformed,
             ),
         ] {
-            let mut candidate = OmpStagedController::new("fixture", Vec::from(&b"prompt\n"[..]));
+            let mut candidate =
+                OmpStagedController::new("fixture", Vec::from(&b"prompt\n"[..]), false);
             candidate.observe(&json!({"type":"ready"})).unwrap();
             candidate
                 .observe(&json!({"type":"available_commands_update","commands":[]}))
