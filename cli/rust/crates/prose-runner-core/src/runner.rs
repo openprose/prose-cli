@@ -5476,15 +5476,18 @@ impl NativeCapture {
         scrub(&mut record, &self.secrets);
         let mut bytes = serde_json::to_vec(&record).expect("native JSON");
         bytes.push(b'\n');
-        if self
-            .bytes
-            .checked_add(bytes.len())
-            .is_none_or(|n| n > self.limit)
-        {
-            return Err(stream_observer_failure(
-                FailureKind::Internal,
-                "native capture size exceeded",
-            ));
+        let observed = self.bytes.saturating_add(bytes.len());
+        if observed > self.limit {
+            let mut failure =
+                stream_observer_failure(FailureKind::HarnessFailed, "native capture size exceeded");
+            failure.transport_diagnostic = Some(json!({
+                "schema": "openprose.transport-diagnostic/1",
+                "reason": "native-capture-limit",
+                "observedBytes": observed.min(u32::MAX as usize),
+                "limitBytes": self.limit.min(u32::MAX as usize),
+                "saturated": observed > u32::MAX as usize || self.limit > u32::MAX as usize,
+            }));
+            return Err(failure);
         }
         self.file.write_all(&bytes).map_err(|_| {
             stream_observer_failure(FailureKind::Internal, "native capture write failed")
@@ -5605,4 +5608,46 @@ fn native_capture_exact_utf8_budget_after_redaction() {
     assert!(c.write(&json!({"text":"next"})).is_err());
     drop(c);
     assert_eq!(std::fs::read_to_string(p).unwrap(), expected);
+}
+
+#[test]
+fn native_capture_shared_diagnostics_preserve_redacted_prefix_and_public_cause() {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../../../../shared/fixtures/adapters/native-output.v1.json"
+    ))
+    .unwrap();
+    for case in fixture["captureCases"].as_array().unwrap() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("native.jsonl");
+        let limit = usize::try_from(case["limitBytes"].as_u64().unwrap()).unwrap();
+        let secret = case["secret"].as_str().unwrap();
+        let mut capture =
+            NativeCapture::open(path.to_str().unwrap(), vec![secret.into()], limit).unwrap();
+        let mut caught = None;
+        for record in case["records"].as_array().unwrap() {
+            if let Err(error) = capture.write(record) {
+                caught = Some(error);
+                break;
+            }
+        }
+        drop(capture);
+        let error = serde_json::to_value(map_supervisor_failure(&caught.unwrap())).unwrap();
+        assert_eq!(error["code"], "HARNESS_FAILED");
+        assert_eq!(error["exitCode"], 22);
+        assert_eq!(
+            error["details"]["transportDiagnostic"],
+            json!({
+                "schema":"openprose.transport-diagnostic/1", "reason":"native-capture-limit",
+                "observedBytes": case["observedBytes"], "limitBytes": case["limitBytes"], "saturated":false
+            })
+        );
+        assert!(error["details"].get("reason").is_none());
+        let bytes = std::fs::read_to_string(&path).unwrap();
+        assert!(bytes.len() <= limit);
+        assert!(!bytes.contains(secret));
+        assert_eq!(
+            bytes.lines().count() as u64,
+            case["retainedRecords"].as_u64().unwrap()
+        );
+    }
 }

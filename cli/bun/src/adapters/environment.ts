@@ -97,3 +97,28 @@ export function installedAdapterProtectedValues(input: {
   }
   return [...values].sort((left, right) => right.length - left.length);
 }
+
+/** Capture protects selected credentials and private credential state, not ordinary environment values. */
+export function installedAdapterCaptureSecrets(input: {
+  definition: InstalledAdapterDefinition;
+  credentialGroup: string;
+  environment: Readonly<Record<string, string>>;
+  credentialConfigDirectory?: string;
+  platform?: NodeJS.Platform;
+}): string[] {
+  const credentialNames = input.definition.credentialGroups[input.credentialGroup];
+  if (credentialNames === undefined) {
+    throw failure("INTERNAL_ERROR", {
+      adapterId: input.definition.id,
+      reason: "The final launch environment has an unknown credential group.",
+    });
+  }
+  const normalize = (name: string): string =>
+    (input.platform ?? process.platform) === "win32" ? name.toUpperCase() : name;
+  const selected = new Set(credentialNames.map(normalize));
+  const values = new Set(Object.entries(input.environment)
+    .filter(([name, value]) => value.length > 0 && selected.has(normalize(name)))
+    .map(([, value]) => value));
+  if (input.credentialConfigDirectory) values.add(input.credentialConfigDirectory);
+  return [...values].sort((left, right) => right.length - left.length || (left < right ? -1 : left > right ? 1 : 0));
+}

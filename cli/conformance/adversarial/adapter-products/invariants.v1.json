@@ -86,6 +86,14 @@
     {
       "id": "real-providers-are-not-literal-launch-targets",
       "test": "test_suite_has_no_literal_provider_launch"
+    },
+    {
+      "id": "native-capture-and-stdout-limits-preserve-safe-diagnosis-and-settlement",
+      "test": "test_native_output_limits_have_safe_cross_product_diagnostics"
+    },
+    {
+      "id": "capture-protects-selected-secrets-without-redacting-ordinary-environment-values",
+      "test": "test_native_capture_redacts_selected_secrets_not_ordinary_environment"
     }
   ]
 }

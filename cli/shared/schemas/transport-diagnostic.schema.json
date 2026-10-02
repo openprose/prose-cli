@@ -20,7 +20,8 @@
         "empty-record",
         "non-object-record",
         "truncated-record",
-        "lifecycle-rejection"
+        "lifecycle-rejection",
+        "native-capture-limit"
       ]
     },
     "observedBytes": {
@@ -36,5 +37,23 @@
     "saturated": {
       "type": "boolean"
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "reason": {
+            "const": "native-capture-limit"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "observedBytes",
+          "limitBytes",
+          "saturated"
+        ]
+      }
+    }
+  ]
 }

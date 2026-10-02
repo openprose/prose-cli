@@ -107,6 +107,19 @@ class ContractsTest(unittest.TestCase):
             value = {"schema": "openprose.transport-diagnostic/1", "reason": "invalid-json", **changes}
             self.assertTrue(list(validator.iter_errors(value)))
 
+    def test_native_capture_diagnostics_are_bounded_and_closed(self):
+        validator = self.validator("transport-diagnostic.schema.json")
+        for case in load_json(FIXTURES / "adapters/native-output.v1.json")["captureCases"]:
+            diagnostic = {"schema": "openprose.transport-diagnostic/1",
+                          "reason": "native-capture-limit", "saturated": False,
+                          "observedBytes": case["observedBytes"], "limitBytes": case["limitBytes"]}
+            self.assertEqual(list(validator.iter_errors(diagnostic)), [])
+            for key in ("observedBytes", "limitBytes", "saturated"):
+                self.assertTrue(list(validator.iter_errors({k: v for k, v in diagnostic.items() if k != key})))
+            for changes in ({"reason": "private text"}, {"payload": "private text"},
+                            {"observedBytes": -1}, {"observedBytes": 4294967296}):
+                self.assertTrue(list(validator.iter_errors({**diagnostic, **changes})))
+
     def test_native_sdk_limits_and_failures_are_closed(self):
         fixture=json.loads((SHARED / 'fixtures/adapters/sdk-native-limits.json').read_text())
         config=json.loads((SHARED / 'fixtures/operations/configuration-explanation.json').read_text())

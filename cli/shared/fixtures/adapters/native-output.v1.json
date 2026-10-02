@@ -4,5 +4,34 @@
     "Final arbitrary prose without any JSON."
   ],
   "visibleText": "First paragraph.\nFinal arbitrary prose without any JSON.",
-  "semanticStatus": "not-applicable"
+  "semanticStatus": "not-applicable",
+  "captureCases": [
+    {
+      "name": "exact-utf8-boundary",
+      "secret": "XY",
+      "records": [
+        {
+          "text": "éXY"
+        },
+        {
+          "text": "next"
+        }
+      ],
+      "limitBytes": 24,
+      "retainedRecords": 1,
+      "observedBytes": 40
+    },
+    {
+      "name": "redaction-expands-first-record",
+      "secret": "XY",
+      "records": [
+        {
+          "text": "éXY"
+        }
+      ],
+      "limitBytes": 18,
+      "retainedRecords": 0,
+      "observedBytes": 24
+    }
+  ]
 }
