@@ -639,3 +639,8 @@ Codex `/root` is the assigned lead and sole editor in isolated branch `codex/imp
 ## IMP-056: capture-secret selection (October 2, 2026)
 
 Codex `/root` is lead and sole editor on isolated `codex/imp-056-capture-secret-selection`, based on IMP-081 candidate `73c610be`. Root owns Git and registry operations. Exact paths: `cli/protocol/OWNERSHIP.md`, `cli/bun/src/adapters/environment.ts`, `cli/bun/src/adapters/runner.ts`, `cli/bun/test/adapters-installed.test.ts`, `cli/conformance/adversarial/adapter-products/fake_live_harness.py`, `cli/conformance/adversarial/adapter-products/test_adapter_products.py`, `cli/conformance/adversarial/adapter-products/invariants.v1.json`, `docs/native-capture.md`. Shared compiled controls first; align capture with the documented selected-secret boundary while preserving public-output suppression. Rust is independently checked against the same corpus and changed only if evidence requires a separately leased repair. No new capture format, structural privacy exemption, model calls, release or deployment. Existing broader IMP-056 acceptance remains open.
+
+
+## IMP-014: release continuation (October 2, 2026)
+
+Codex `/root` is lead and sole editor in isolated `codex/imp-014-release-oct02`, based on `cc5788ab`. Root owns Git/index operations under the user's explicit isolated-worktree assignment. Exact paths: `cli/protocol/OWNERSHIP.md`, `cli/release/plans/README.md`, `docs/cli-publication.md`, `docs/cli-distribution.md`, `docs/cli-release-next.md`. This lease corrects maintained release status and prepares the next-candidate gates. Runtime source, research branches, existing immutable plans/artifacts and language inputs remain outside this lease.

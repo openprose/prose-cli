@@ -1,13 +1,17 @@
-# Reviewed signed CLI publication plans
+# Reviewed CLI publication plans
 
-No qualified plan exists yet. Do not use a test fixture to trigger publishing.
-The main-branch plan is a reviewed inventory, not an automatic qualification
-claim. `cli/ci/publication.py` validates its exact fields and every downloaded
-byte. It requires the existing protected release preflight, kernel qualification,
-all four platforms for both implementations, the five existing npm package
-names, and notarization records binding the final macOS binaries.
+[0.15.0-rc.1.json](0.15.0-rc.1.json) is the reviewed plan for the published
+unsigned prerelease. Its source, qualification evidence and bytes are immutable.
+It does not qualify current main or authorize a new candidate.
 
-See [publication setup](../../../docs/cli-publication.md). Adding a plan requires
-review of its source, immutable evidence and signed final artifacts. Historical
-echo-image or sentinel packages do not qualify. Existing alpha authorities have
-not been replaced or declared satisfied by this directory.
+`cli/ci/publication.py` verifies the exact inventory, four platforms for both
+implementations, five npm package identities and retained qualification. An
+explicit RC may use the owner-authorized `unsigned-rc` policy; stable macOS
+publication requires Developer ID signing and notarization. Synthetic fixtures
+and development plans cannot authorize publication.
+
+See [publication setup](../../../docs/cli-publication.md) and
+[next-candidate preparation](../../../docs/cli-release-next.md). Adding a new
+plan requires review of the exact source, final bytes and immutable evidence,
+followed by approval of that concrete release. The retired functional-alpha
+publication flow remains historical.
