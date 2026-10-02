@@ -32,13 +32,15 @@ jobs:
           bun-download-url: https://github.com/oven-sh/bun/releases/download/bun-v1.3.5/bun-linux-x64-baseline.zip
       - name: Prepare locked dependencies
         run: |
-          rustup toolchain install 1.87.0 --profile minimal
+          rustup toolchain install 1.87.0 --profile minimal --component clippy,rustfmt
           rustup default 1.87.0
           cargo fetch --locked --manifest-path cli/rust/Cargo.toml
           python3 -m pip install --require-hashes --only-binary=:all: -r cli/ci/requirements-test.txt
           cd cli/bun
           bun install --frozen-lockfile --ignore-scripts
       - name: Run one bounded diagnostic
+        env:
+          RUSTUP_TOOLCHAIN: 1.87.0
         run: python3 cli/ci/diagnose_cleanup.py --output "$RUNNER_TEMP/cleanup-diagnosis" --repetitions 50
       - name: Retain diagnostic observations
         if: always()
