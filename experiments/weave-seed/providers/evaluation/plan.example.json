@@ -1,0 +1,21 @@
+{
+  "schema": "openprose.evaluation-plan/1",
+  "composition": "all-required",
+  "evaluations": [{
+    "id": "subject",
+    "subject": {"instance": "subject-1", "contracts": ["/absolute/source/contract.md"], "bindings": ""},
+    "profile": "selected",
+    "questions": {
+      "fulfillment": {
+        "instructions": "Assess this subject contract against the supplied result and its evidence. Distinguish an established violation from insufficient evidence. A successful process exit alone does not establish fulfillment.",
+        "criteria": {
+          "satisfied": "All applicable requirements are established as satisfied.",
+          "violated": "At least one applicable requirement is established as unmet.",
+          "unknown": "No violation is established, but evidence is insufficient to establish all applicable requirements."
+        },
+        "outcomes": {"satisfied": "satisfied", "violated": "violated", "unknown": "unknown"}
+      }
+    },
+    "policy": {"id": "illustrative-label-policy-not-qualified", "kind": "labels"}
+  }]
+}

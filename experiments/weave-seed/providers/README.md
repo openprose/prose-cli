@@ -1,5 +1,7 @@
 # Explicit Jev process evaluator
 
+For interchangeable provider profiles, named questions and explicit composition of contract assessments, see the [evaluator provider guide](evaluation/README.md). This page documents the original direct Jev adapter, whose configuration remains supported.
+
 This experimental adapter makes at most one TypeSafe Jev request for the existing synchronous [process capability](../integration/process.mjs). The child uses async HTTP; the parent still waits for one bounded process result. It has no account service, credential discovery, retry loop, executor, or automatic publication.
 
 The process reads `openprose.weave-input/1` from stdin. Successful stdout is exactly `{"judgment":"satisfied"}`, `{"judgment":"work-needed"}`, or `{"judgment":"unknown"}` plus a newline. Invalid configuration, source binding, response, usage or transport causes exit 1, empty stdout and the fixed stderr message `JEV_ASSESSMENT_FAILED`. The parent must preserve that failure and must not reinterpret it as permission to act.

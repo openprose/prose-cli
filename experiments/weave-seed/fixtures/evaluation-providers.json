@@ -1,0 +1,15 @@
+{
+  "schema": "openprose.evaluator-cases/1",
+  "composition": [
+    {"name":"all satisfied","statuses":["satisfied","satisfied"],"assessment":"satisfied","judgment":"satisfied"},
+    {"name":"required violation","statuses":["satisfied","violated"],"assessment":"violated","judgment":"work-needed"},
+    {"name":"required unresolved","statuses":["satisfied","unknown"],"assessment":"unknown","judgment":"unknown"},
+    {"name":"violation with incomplete assessment","statuses":["violated","unknown"],"assessment":"violated","judgment":"unknown"}
+  ],
+  "adapters": [
+    {"id":"typesafe-systemone","nativeProbabilities":true,"endpoint":"https://api.typesafe.ai/v1/systemone"},
+    {"id":"openrouter-decisions","nativeProbabilities":true,"endpoint":"https://openrouter.ai/api/alpha/decisions"},
+    {"id":"openai-responses","nativeProbabilities":false,"endpoint":"https://api.openai.com/v1/responses"},
+    {"id":"anthropic-messages","nativeProbabilities":false,"endpoint":"https://api.anthropic.com/v1/messages"}
+  ]
+}

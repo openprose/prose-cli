@@ -76,11 +76,11 @@ def main():
                      'integration/config.test.mjs', 'integration/process.test.mjs', 'integration/run.test.mjs', 'local/coordinator.test.mjs', 'local/settlement.test.mjs',
                      'integration/sdk.test.mjs', 'integration/native-actor/actor.test.mjs'):
             check(path, [bun, '--no-env-file', prefix+path])
-        for path in ('providers/jev.test.mjs', 'local/check.test.mjs', 'getting-started/walkthrough.test.mjs', 'getting-started/configure.test.mjs', 'getting-started/host-binding.test.mjs'):
+        for path in ('providers/jev.test.mjs', 'providers/evaluation/provider.test.mjs', 'local/check.test.mjs', 'getting-started/walkthrough.test.mjs', 'getting-started/configure.test.mjs', 'getting-started/host-binding.test.mjs'):
             check(path, [bun, 'test', '--no-env-file', prefix+path])
         check('Bun/Rust observer parity', [bun, '--no-env-file', prefix+'rust-binding/conformance.mjs', str(target/'debug/weave-file-binding-experiment')])
         check('Bun/Rust checkpoint interchange', [bun, '--no-env-file', prefix+'integration/interchange.test.mjs', str(target/'debug/weave-local-host-experiment')])
-        for path in ('rust-local/conformance.mjs', 'rust-local/check-parity.mjs', 'integration/local-parity.test.mjs', 'integration/config-parity.test.mjs', 'integration/full-loop.test.mjs', 'integration/settlement-parity.test.mjs'):
+        for path in ('rust-local/conformance.mjs', 'rust-local/check-parity.mjs', 'integration/local-parity.test.mjs', 'integration/config-parity.test.mjs', 'integration/full-loop.test.mjs', 'integration/evaluation-parity.test.mjs', 'integration/settlement-parity.test.mjs'):
             check(path, [bun, '--no-env-file', prefix+path, str(target/'debug/weave-rust-local')])
         env['WEAVE_RUST_LOCAL'] = str(target/'debug/weave-rust-local')
         check('Generated Bun/Rust configuration loop', [bun, 'test', '--no-env-file', prefix+'getting-started/generated-loop.test.mjs'])
