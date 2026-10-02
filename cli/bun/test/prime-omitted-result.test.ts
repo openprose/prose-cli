@@ -44,3 +44,12 @@ test("multiple omissions in separate turns keep distinct corroboration positions
   const f:any[]=copy(fixture.repeatedFrames);f.at(-2).messages[4].content[0].text="value";
   expect(()=>finish(f)).toThrow();
 });
+
+test("an observed result start requires exact terminal corroboration when its end is absent",()=>{
+  expect(finish(fixture.partialFrames)).toEqual({type:"session.completed"});
+  for(const field of ["content","isError","details","timestamp"]){
+    const f:any[]=copy(fixture.partialFrames);
+    f[8].message[field]=field==="content"?[{type:"text",text:"changed"}]:field==="isError"?true:field==="timestamp"?123:{changed:true};
+    expect(()=>finish(f)).toThrow();
+  }
+});

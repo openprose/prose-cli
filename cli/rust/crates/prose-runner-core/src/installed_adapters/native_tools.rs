@@ -1,7 +1,7 @@
 use super::{
-    ErrorCode, OmpExtensionUiDisposition, RunnerError, TransportNormalization, Value,
     has_exact_keys, json, omp_extension_ui_disposition, omp_rpc_id, prime_bounded_json,
-    record_type, valid_omp_ready,
+    record_type, valid_omp_ready, ErrorCode, OmpExtensionUiDisposition, RunnerError,
+    TransportNormalization, Value,
 };
 use std::{borrow::Cow, collections::BTreeMap};
 
@@ -649,7 +649,8 @@ fn corroborated_history<'a>(
                 "timestamp",
             ]
             .contains(&k.as_str())
-        }) || m["role"] != "toolResult"
+        }) || (!expected["started"].is_null() && m != &expected["started"])
+            || m["role"] != "toolResult"
             || m["toolCallId"] != expected["id"]
             || m["toolName"] != expected["name"]
             || m["isError"] != expected["isError"]
@@ -975,7 +976,7 @@ pub(super) fn normalize_mode(
                 if drain
                     && started
                     && turn
-                    && open.is_none()
+                    && open.as_ref().is_none_or(|v| v["role"] == "toolResult")
                     && assistant
                         .as_ref()
                         .is_some_and(|a| a["stopReason"] == "toolUse")
@@ -992,9 +993,10 @@ pub(super) fn normalize_mode(
                         omitted_results.insert(
                             history.len() + omitted_results.len(),
                             json!({
-                                "id": tool_id, "name": call.0, "result": call.3, "isError": call.4
+                                "id": tool_id, "name": call.0, "result": call.3, "isError": call.4, "started": open
                             }),
                         );
+                        open = None;
                         last_stop = Some("toolUse".to_owned());
                         turn = true;
                         assistant = None;
@@ -1705,6 +1707,27 @@ mod tests {
         let mut bad = r.clone();
         bad.pop();
         assert!(run(&bad, true).is_err());
+    }
+    #[test]
+    fn prime_partial_result_requires_exact_corroboration() {
+        let f: Value = serde_json::from_str(include_str!(
+            "../../../../../shared/fixtures/adapters/tool-lifecycle/prime-omitted-result.json"
+        ))
+        .unwrap();
+        let mut r = vec![f["stateResponse"].clone(), f["promptResponse"].clone()];
+        r.extend(f["partialFrames"].as_array().unwrap().clone());
+        let run = |r: &[Value]| normalize_mode(r, "fixture-drain", false, true, true);
+        assert!(run(&r).is_ok());
+        for field in ["content", "isError", "details", "timestamp"] {
+            let mut bad = r.clone();
+            bad[10]["message"][field] = match field {
+                "content" => json!([{"type":"text","text":"changed"}]),
+                "isError" => json!(true),
+                "timestamp" => json!(123),
+                _ => json!({"changed":true}),
+            };
+            assert!(run(&bad).is_err(), "changed start {field}");
+        }
     }
     #[test]
     fn prime_omitted_result_requires_corroboration() {

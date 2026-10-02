@@ -82,7 +82,7 @@ export class NativeToolLifecycle {
   private open: Record<string, any> | null = null;
   private assistant: Record<string, any> | null = null;
   private history: Record<string, any>[] = [];
-  private omittedResults = new Map<number, {id:string; name:string; result:any; isError:boolean}>();
+  private omittedResults = new Map<number, {id:string; name:string; result:any; isError:boolean; started:Record<string,any>|null}>();
 
   private corroboratedHistory(messages: any[]): any[] | null {
     if(this.omittedResults.size===0)return this.history;
@@ -96,6 +96,7 @@ export class NativeToolLifecycle {
       const m=messages[offset+i];
       if(!m||typeof m!=="object"||Array.isArray(m)
         ||Object.keys(m).some(k=>!["role","toolCallId","toolName","content","isError","details","timestamp"].includes(k))
+        ||(expected.started!==null&&!same(m,expected.started))
         ||m.role!=="toolResult"||m.toolCallId!==expected.id||m.toolName!==expected.name
         ||m.isError!==expected.isError||!same(m.content,expected.result.content)
         ||!same(m.details,expected.result.details)
@@ -175,13 +176,14 @@ export class NativeToolLifecycle {
         // A single completed tool can lose both result notifications and turn
         // markers. Admit continuation provisionally; final producer history must
         // corroborate its identity, content, details and error before settlement.
-        if(this.primeDrain && this.started && this.turn && !this.open
+        if(this.primeDrain && this.started && this.turn && (!this.open||this.open.role==="toolResult")
           && this.assistant?.stopReason==="toolUse" && m.role==="assistant"
           && Array.isArray(m.content) && m.content.length===0
           && this.calls.size===1 && this.results.length===0){
           const [id,c]=[...this.calls][0]!;
           if(c.state==="ended" && Array.isArray(c.result?.content) && typeof c.isError==="boolean"){
-            this.omittedResults.set(this.history.length+this.omittedResults.size,{id,name:c.name,result:c.result,isError:c.isError});
+            this.omittedResults.set(this.history.length+this.omittedResults.size,{id,name:c.name,result:c.result,isError:c.isError,started:this.open});
+            this.open=null;
             this.lastStop="toolUse";this.turn=true;this.assistant=null;this.calls.clear();this.results=[];
           }
         }
