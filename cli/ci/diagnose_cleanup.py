@@ -58,16 +58,19 @@ def main():
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--repetitions', type=int, default=50)
     parser.add_argument('--prepare-only', action='store_true')
+    parser.add_argument('--scope', choices=('omp-control', 'adapter-suite'), default='omp-control')
     args = parser.parse_args()
     if not 1 <= args.repetitions <= 50:
         parser.error('repetitions must be between 1 and 50')
+    if args.scope == 'adapter-suite' and args.repetitions > 5:
+        parser.error('complete adapter-suite diagnosis is limited to five repetitions')
     args.output.mkdir(parents=True, exist_ok=False)
     if sha(ROOT / SUPERVISOR) != SOURCE_SHA256:
         raise ValueError('supervisor input differs from the inspected source')
     record = {'purpose': 'Private diagnostic build only; assertions and product failure semantics unchanged.',
               'source_head': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
               'supervisor_before_sha256': SOURCE_SHA256, 'provider_calls': 0,
-              'repetition_limit': args.repetitions, 'attempts': []}
+              'repetition_limit': args.repetitions, 'scope': args.scope, 'attempts': []}
     environment = {k: os.environ[k] for k in ('PATH', 'HOME', 'TMPDIR', 'RUSTUP_HOME', 'CARGO_HOME',
                    'RUSTUP_TOOLCHAIN', 'LANG', 'LC_ALL') if k in os.environ}
     environment['PYTHONDONTWRITEBYTECODE'] = '1'
@@ -107,12 +110,17 @@ def main():
                 record['state'] = 'build-failed'
             else:
                 test = 'AdapterProductAdversary.test_omp_control_barrier_and_nonterminal_fail_closed_with_product_parity'
+                test_argv = [sys.executable, str(fixture)]
+                if args.scope == 'omp-control':
+                    test_argv.append(test)
+                record['test_argv'] = ['python', str(fixture.relative_to(source)), *test_argv[2:]]
+                record['attempt_timeout_seconds'] = 180 if args.scope == 'adapter-suite' else 60
                 record['state'] = 'bounded-repetitions-passed'
                 for attempt in range(1, args.repetitions + 1):
                     started = time.monotonic()
                     name = f'attempt-{attempt:03}.log'
-                    code, timed_out = run_logged([sys.executable, str(fixture), test], source, environment,
-                                                 args.output / name, 60)
+                    code, timed_out = run_logged(test_argv, source, environment,
+                                                 args.output / name, record['attempt_timeout_seconds'])
                     record['attempts'].append({'attempt': attempt, 'returncode': code, 'timed_out': timed_out,
                                                'seconds': time.monotonic() - started, 'log': name,
                                                'sha256': sha(args.output / name)})
