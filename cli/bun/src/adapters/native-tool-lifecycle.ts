@@ -82,6 +82,30 @@ export class NativeToolLifecycle {
   private open: Record<string, any> | null = null;
   private assistant: Record<string, any> | null = null;
   private history: Record<string, any>[] = [];
+  private omittedResults = new Map<number, {id:string; name:string; result:any; isError:boolean}>();
+
+  private corroboratedHistory(messages: any[]): any[] | null {
+    if(this.omittedResults.size===0)return this.history;
+    const count=this.history.length+this.omittedResults.size;
+    const offset=messages.length-count;
+    if(offset!==0 && !(offset===1 && this.primeDrain?.resumed))return null;
+    const projected:any[]=[];let observed=0;
+    for(let i=0;i<count;i++){
+      const expected=this.omittedResults.get(i);
+      if(!expected){projected.push(this.history[observed++]);continue;}
+      const m=messages[offset+i];
+      if(!m||typeof m!=="object"||Array.isArray(m)
+        ||Object.keys(m).some(k=>!["role","toolCallId","toolName","content","isError","details","timestamp"].includes(k))
+        ||m.role!=="toolResult"||m.toolCallId!==expected.id||m.toolName!==expected.name
+        ||m.isError!==expected.isError||!same(m.content,expected.result.content)
+        ||!same(m.details,expected.result.details)
+        ||("timestamp" in m && (typeof m.timestamp!=="number"||!Number.isFinite(m.timestamp)||m.timestamp<0)))return null;
+      // This is a projection for checking producer history, not an emitted event.
+      projected.push(m);
+    }
+    return projected;
+  }
+
   private calls = new Map<string, { name: string; args: unknown; state: string; result?: any; isError?: boolean }>();
   private results: Record<string, any>[] = [];
   private blockTypes = new Map<number,string>();
@@ -131,7 +155,7 @@ export class NativeToolLifecycle {
       case "agent_start":
         if(this.primeDrain?.queuedContinuationPending){
           if(!this.started||this.turn||this.open||!this.primeDrain.beginQueuedAgent())bad();
-          this.history=[];this.user=false;this.assistant=null;this.lastStop=null;
+          this.history=[];this.omittedResults.clear();this.user=false;this.assistant=null;this.lastStop=null;
           this.calls.clear();this.results=[];this.blockTypes.clear();return null;
         }
         if (this.started) bad();
@@ -146,7 +170,20 @@ export class NativeToolLifecycle {
         const m = object(r.message);
         if(this.primeDrain?.segmentClosed){
           if(this.lastStop!=="toolUse")bad();
-          this.primeDrain.segmentClosed=false;this.primeDrain.resumed=true;this.primeDrain.candidate=false;this.primeDrain.queueEmpty=false;this.history=[];
+          this.primeDrain.segmentClosed=false;this.primeDrain.resumed=true;this.primeDrain.candidate=false;this.primeDrain.queueEmpty=false;this.history=[];this.omittedResults.clear();
+        }
+        // A single completed tool can lose both result notifications and turn
+        // markers. Admit continuation provisionally; final producer history must
+        // corroborate its identity, content, details and error before settlement.
+        if(this.primeDrain && this.started && this.turn && !this.open
+          && this.assistant?.stopReason==="toolUse" && m.role==="assistant"
+          && Array.isArray(m.content) && m.content.length===0
+          && this.calls.size===1 && this.results.length===0){
+          const [id,c]=[...this.calls][0]!;
+          if(c.state==="ended" && Array.isArray(c.result?.content) && typeof c.isError==="boolean"){
+            this.omittedResults.set(this.history.length+this.omittedResults.size,{id,name:c.name,result:c.result,isError:c.isError});
+            this.lastStop="toolUse";this.turn=true;this.assistant=null;this.calls.clear();this.results=[];
+          }
         }
         // Native Prime may lose both markers after all observed tool results.
         // Infer parser state only; preserve history and emit no replacement events.
@@ -242,7 +279,9 @@ export class NativeToolLifecycle {
         this.lastStop = this.assistant!.stopReason; this.turn = false; return null;
       case "agent_end":
         if(this.primeDrain){
-          if(!this.started||this.turn||this.open||!["stop","toolUse"].includes(this.lastStop??"")||[...this.calls.values()].some(c=>c.state!=="reported")||this.primeDrain.segmentClosed||!Array.isArray(r.messages)||!this.primeDrain.history(r.messages,this.history))bad();
+          if(!this.started||this.turn||this.open||!["stop","toolUse"].includes(this.lastStop??"")||[...this.calls.values()].some(c=>c.state!=="reported")||this.primeDrain.segmentClosed||!Array.isArray(r.messages))bad();
+          const corroborated=this.corroboratedHistory(r.messages);
+          if(corroborated===null||!this.primeDrain.history(r.messages,corroborated))bad();
           if(!this.primeDrain.closeSegment(this.lastStop!))bad();return null;
         }
         if (!this.started || this.turn || this.open || this.lastStop !== "stop" || (!Array.isArray(r.messages) || r.messages.length!==this.history.length || r.messages.some((m:any,i:number)=>!this.sameMessage(m,this.history[i])))) bad();
