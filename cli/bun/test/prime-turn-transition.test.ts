@@ -9,7 +9,7 @@ test("missing both turn markers admits only completed tools and never completes 
  for(const omp of [false,true]){const strict=new NativeToolLifecycle(omp);for(const r of fixture.frames.slice(0,10))strict.accept(r);expect(()=>strict.accept(fixture.frames[12])).toThrow();}
 });
 test("inferred transition rejects pending, corrupted, nonempty and incomplete sequences",()=>{
- for(const edit of [(a:any[])=>a.splice(7,1),(a:any[])=>a.splice(9,1),(a:any[])=>a.splice(10,0,a[9]),(a:any[])=>a[9].message.toolCallId="other",(a:any[])=>a[12].message.content=[{type:"text",text:"not empty"}],(a:any[])=>a[12].message.role="user",(a:any[])=>a[5].message.stopReason="stop",(a:any[])=>a[15].messages[1].content[0].arguments.path="changed",(a:any[])=>a.pop(),(a:any[])=>a.splice(14,1)]){
+ for(const edit of [(a:any[])=>a.splice(7,1),(a:any[])=>{a.splice(9,1);a[14].messages[2].content=[{type:"text",text:"uncorroborated"}];},(a:any[])=>a.splice(10,0,a[9]),(a:any[])=>a[9].message.toolCallId="other",(a:any[])=>a[12].message.content=[{type:"text",text:"not empty"}],(a:any[])=>a[12].message.role="user",(a:any[])=>a[5].message.stopReason="stop",(a:any[])=>a[15].messages[1].content[0].arguments.path="changed",(a:any[])=>a.pop(),(a:any[])=>a.splice(14,1)]){
   const a=structuredClone(fixture.frames);edit(a);const p=make();expect(()=>{for(const r of a)p.accept(r);p.settleProcess!(0);}).toThrow();
  }
 });

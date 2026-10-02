@@ -1693,6 +1693,11 @@ mod tests {
         for index in [7usize, 9, 14] {
             let mut bad = r.clone();
             bad.remove(index + 2);
+            if index == 9 {
+                // A missing result end now requires exact terminal corroboration.
+                bad[16]["messages"][2]["content"] =
+                    json!([{"type":"text","text":"uncorroborated"}]);
+            }
             assert!(run(&bad, true).is_err());
         }
         let mut bad = r.clone();
