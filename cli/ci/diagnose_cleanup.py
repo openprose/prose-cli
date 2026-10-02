@@ -25,6 +25,18 @@ DIAGNOSTIC = '''            eprintln!(
                 stdin_settlement.as_ref().map(|s| s.as_ref().map(|(r, forced)| (r.is_ok(), *forced)))
             );
 '''
+EOF_MARKER = '    if !readers_settled || !stdin_settled {\n'
+EOF_DIAGNOSTIC = '''        eprintln!(
+            "OPENPROSE_CLEANUP_DIAGNOSTIC phase=after-eof stdout={:?} stderr={:?} stdin_settled={} stdin_ok={}",
+            stdout_settlement, stderr_settlement, stdin_settled, stdin_ok
+        );
+'''
+FIXTURE = Path('cli/conformance/adversarial/adapter-products/fake_live_harness.py')
+FIXTURE_SHA256 = '0b6f1655932b4b801843f1b4c0e83269cdfe6dad7ec2cc72a72aed3186504aa2'
+FIXTURE_MARKER = '        if control_mode in {"uncorrelated-state", "failed-state", "nonempty-tools"}:\n'
+FIXTURE_HANDSHAKE = '''        if control_mode == "nonempty-tools":
+            sys.stdin.buffer.readline()
+'''
 
 
 def sha(path):
@@ -58,7 +70,7 @@ def main():
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--repetitions', type=int, default=50)
     parser.add_argument('--prepare-only', action='store_true')
-    parser.add_argument('--scope', choices=('omp-control', 'adapter-suite', 'admission-gate'), default='omp-control')
+    parser.add_argument('--scope', choices=('omp-control', 'adapter-suite', 'admission-gate', 'accepted-input-exit'), default='omp-control')
     args = parser.parse_args()
     if not 1 <= args.repetitions <= 50:
         parser.error('repetitions must be between 1 and 50')
@@ -66,6 +78,8 @@ def main():
         parser.error('complete adapter-suite diagnosis is limited to five repetitions')
     if args.scope == 'admission-gate' and args.repetitions > 3:
         parser.error('ordinary admission-gate diagnosis is limited to three repetitions')
+    if args.scope == 'accepted-input-exit' and args.repetitions != 1:
+        parser.error('accepted-input exit diagnosis requires exactly one repetition')
     args.output.mkdir(parents=True, exist_ok=False)
     if sha(ROOT / SUPERVISOR) != SOURCE_SHA256:
         raise ValueError('supervisor input differs from the inspected source')
@@ -89,7 +103,20 @@ def main():
         assert sha(path) == SOURCE_SHA256
         original = path.read_text()
         assert original.count(MARKER) == 1
-        path.write_text(original.replace(MARKER, MARKER + DIAGNOSTIC))
+        instrumented = original.replace(MARKER, MARKER + DIAGNOSTIC)
+        if args.scope == 'accepted-input-exit':
+            assert instrumented.count(EOF_MARKER) == 1
+            instrumented = instrumented.replace(EOF_MARKER, EOF_MARKER + EOF_DIAGNOSTIC)
+            fixture_path = source / FIXTURE
+            assert sha(fixture_path) == FIXTURE_SHA256
+            fixture_text = fixture_path.read_text()
+            assert fixture_text.count(FIXTURE_MARKER) == 1
+            fixture_path.write_text(fixture_text.replace(FIXTURE_MARKER, FIXTURE_HANDSHAKE + FIXTURE_MARKER))
+            record['fixture_before_sha256'] = FIXTURE_SHA256
+            record['fixture_changed_sha256'] = sha(fixture_path)
+            record['fixture_change'] = FIXTURE_HANDSHAKE
+            record['additional_instrumentation'] = EOF_DIAGNOSTIC
+        path.write_text(instrumented)
         record['supervisor_instrumented_sha256'] = sha(path)
         record['instrumentation'] = DIAGNOSTIC
         if args.prepare_only:
@@ -113,7 +140,7 @@ def main():
             else:
                 test = 'AdapterProductAdversary.test_omp_control_barrier_and_nonterminal_fail_closed_with_product_parity'
                 test_argv = [sys.executable, str(fixture)]
-                if args.scope == 'omp-control':
+                if args.scope in ('omp-control', 'accepted-input-exit'):
                     test_argv.append(test)
                 if args.scope == 'admission-gate':
                     test_argv = [sys.executable, str(source / 'cli/ci/run_local.py'),
@@ -123,6 +150,7 @@ def main():
                     record['test_argv'] = ['python', 'cli/ci/run_local.py', *test_argv[2:]]
                 record['attempt_timeout_seconds'] = {
                     'omp-control': 60, 'adapter-suite': 180, 'admission-gate': 900,
+                    'accepted-input-exit': 60,
                 }[args.scope]
                 record['state'] = 'bounded-repetitions-passed'
                 for attempt in range(1, args.repetitions + 1):
