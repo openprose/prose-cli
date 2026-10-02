@@ -864,6 +864,29 @@ mod tests {
         (receiver, handle)
     }
 
+    fn close_unused_server(
+        socket: &Path,
+        commands: &Receiver<Value>,
+        server: thread::JoinHandle<()>,
+    ) {
+        assert!(commands.try_recv().is_err());
+        let stream = UnixStream::connect(socket).unwrap();
+        stream
+            .set_read_timeout(Some(Duration::from_secs(2)))
+            .unwrap();
+        // Send EOF without discarding the greeting. Abruptly dropping an unread
+        // socket can reset the server's read even when no command was sent.
+        stream.shutdown(std::net::Shutdown::Write).unwrap();
+        let mut greeting = String::new();
+        BufReader::new(stream).read_line(&mut greeting).unwrap();
+        assert_eq!(
+            serde_json::from_str::<Value>(&greeting).unwrap(),
+            hello(socket)
+        );
+        server.join().unwrap();
+        assert!(commands.try_recv().is_err());
+    }
+
     fn successful_response(command: &Value) -> Value {
         json!({"type":"response","id":command["id"],"command":"shutdown","success":true})
     }
@@ -1169,7 +1192,7 @@ mod tests {
         assert_eq!(error.code, ErrorCode::ConfigInvalid);
         assert_eq!(fs::read(&sibling).unwrap(), b"keep");
 
-        let (_commands, server) = spawn_server(
+        let (commands, server) = spawn_server(
             &paths.socket,
             hello(&paths.socket).to_string(),
             successful_response,
@@ -1192,14 +1215,13 @@ mod tests {
             recover_prime_owned_service(paths.root.path(), &recovery.handle, POLICY).unwrap_err();
         assert_eq!(error.code, ErrorCode::ConfigInvalid);
         assert_eq!(fs::read(&sibling).unwrap(), b"keep");
-        drop(UnixStream::connect(&paths.socket).unwrap());
-        server.join().unwrap();
+        close_unused_server(&paths.socket, &commands, server);
     }
 
     #[test]
     fn unexpected_post_marker_entry_blocks_recovery_without_removing_it() {
         let paths = recovery_paths();
-        let (_commands, server) = spawn_server(
+        let (commands, server) = spawn_server(
             &paths.socket,
             hello(&paths.socket).to_string(),
             successful_response,
@@ -1219,8 +1241,7 @@ mod tests {
             recover_prime_owned_service(paths.root.path(), &recovery.handle, POLICY).unwrap_err();
         assert_eq!(error.code, ErrorCode::ProcessCleanupFailed);
         assert_eq!(fs::read(&unexpected).unwrap(), b"do-not-touch");
-        drop(UnixStream::connect(&paths.socket).unwrap());
-        server.join().unwrap();
+        close_unused_server(&paths.socket, &commands, server);
     }
 
     #[test]
@@ -1357,7 +1378,6 @@ mod tests {
         ));
         assert!(commands.try_recv().is_err());
         assert!(paths.directory.exists());
-        drop(UnixStream::connect(&paths.socket).unwrap());
-        server.join().unwrap();
+        close_unused_server(&paths.socket, &commands, server);
     }
 }
