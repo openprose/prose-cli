@@ -325,6 +325,7 @@ fn readiness_probe_timeout_cleans_descendants_and_settles_both_readers() {
     let identities_path = root.path().join("readiness-probe-descendant.json");
     let program = r"
 import json, os, sys, time
+time.sleep(0.15)
 pid = os.fork()
 if pid == 0:
     time.sleep(30)
@@ -345,7 +346,9 @@ time.sleep(30)
             program.into(),
             identities_path.clone().into_os_string(),
         ],
-        timeout: Duration::from_millis(100),
+        // Include fixture startup in the test budget. The delayed fixture must
+        // publish its identity before this test can exercise descendant cleanup.
+        timeout: Duration::from_secs(2),
         max_output_bytes: 1024,
     };
     let started = Instant::now();
@@ -359,7 +362,9 @@ time.sleep(30)
     .unwrap_err();
     assert_eq!(error.kind, FailureKind::StartupTimeout);
     assert!(started.elapsed() < Duration::from_secs(4));
-    let identity: Value = serde_json::from_slice(&fs::read(identities_path).unwrap()).unwrap();
+    let identity_bytes = fs::read(identities_path)
+        .expect("readiness fixture did not initialize before the test probe deadline");
+    let identity: Value = serde_json::from_slice(&identity_bytes).unwrap();
     let process_group =
         Pid::from_raw(i32::try_from(identity["pgid"].as_i64().unwrap()).unwrap()).unwrap();
     assert!(test_kill_process_group(process_group).is_err());
