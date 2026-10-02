@@ -1,5 +1,5 @@
 {
-  "provenance": "Synthetic omitted-result notification control motivated by IMP-080 e002. Final history supplies the omitted result; no live provider content is included.",
+  "provenance": "Synthetic omitted-result notification control motivated by an observed native trace. Final history supplies the omitted result; no live provider content is included.",
   "invocationId": "fixture-drain",
   "sessionId": "parent-session",
   "stateResponse": {
