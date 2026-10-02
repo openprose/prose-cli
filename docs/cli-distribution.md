@@ -1,4 +1,15 @@
-# CLI distribution work in progress (IMP-014)
+# CLI distribution (IMP-014)
+
+Current status (October 2, 2026): unsigned `0.15.0-rc.1` is public through
+GitHub and pkg.prose.md. npm remains pending bootstrap; Homebrew remains a
+proposal. [Publication setup](cli-publication.md) owns current policy and
+[next-candidate preparation](cli-release-next.md) owns the next release gates.
+
+## Historical implementation record — September 16–17, 2026
+
+The sections below retain earlier work, failures and decisions. Statements about
+unmerged PRs, missing workflows, no public release and signing/name proposals
+describe those dates; current publication policy above supersedes them.
 
 This branch is independent of IMP-008 startup changes. It adds a provider-free
 Actions rehearsal for the existing packager and an adapter that exports verified

@@ -11,6 +11,7 @@ import subprocess
 import tempfile
 import zipfile
 import tarfile
+from package_local import npm_payload_version
 
 REPOSITORY = 'openprose/prose-cli'
 PLATFORMS = ('darwin-arm64', 'darwin-x64', 'linux-arm64-gnu', 'linux-x64-gnu')
@@ -52,7 +53,7 @@ def safe_name(name):
 def load_plan(path):
     plan = read_json(path)
     require(set(plan) == {'schema', 'version', 'source', 'qualification', 'artifacts', 'preflight', 'macos', 'npmProvenance', 'signing'}, 'Invalid plan fields')
-    require(plan['schema'] == 'openprose.cli-publication/1', 'Unsupported publication plan')
+    require(plan['schema'] in ('openprose.cli-publication/1', 'openprose.cli-publication/2'), 'Unsupported publication plan')
     require(re.fullmatch(r'(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-(?:rc|dev)\.(?:0|[1-9][0-9]*))?', plan['version']), 'Invalid version')
     require(re.fullmatch(r'[0-9a-f]{40}', plan['source']), 'Invalid source')
     q = plan['qualification']
@@ -135,6 +136,8 @@ def verify_local(plan, root):
         image = preflight.get('image', {})
         require(image.get('releaseEligible') is True and image.get('purpose') == 'canonical-language-runtime' and re.fullmatch(r'[0-9a-f]{64}', image.get('imageSha256', '')) and re.fullmatch(r'[0-9a-f]{64}', image.get('manifestSha256', '')), 'Protected preflight must qualify a canonical image')
         expected_image = {'formatVersion': 1, 'version': image.get('version'), 'sha256': image['imageSha256'], 'manifestSha256': image['manifestSha256'], 'purpose': image['purpose'], 'releaseEligible': True}
+    same_name = plan['schema'] == 'openprose.cli-publication/2'
+    require(not same_name or moving, 'Same-name npm layout requires published-kernel qualification')
     packages = {}
     binary_hashes = {}
     for item in plan['artifacts']:
@@ -148,8 +151,11 @@ def verify_local(plan, root):
             continue
         require('package/package.json' in members, 'Missing npm manifest')
         meta = json.loads(members['package/package.json'], object_pairs_hook=object_pairs)
+        alias = '@openprose/prose-cli' if item['platform'] == 'all' else '@openprose/prose-cli-' + item['platform']
         name = meta.get('name')
-        require(name in PACKAGES and name not in packages and meta.get('version') == plan['version'], 'Wrong npm package identity')
+        expected_name = '@openprose/prose-cli' if same_name else alias
+        expected_version = npm_payload_version(plan['version'], item['platform']) if same_name and item['platform'] != 'all' else plan['version']
+        require(alias in PACKAGES and alias not in packages and name == expected_name and meta.get('version') == expected_version, 'Wrong npm package identity')
         require(meta.get('repository', {}).get('url') == 'git+https://github.com/' + REPOSITORY + '.git', 'npm repository must match OIDC publisher')
         require(not meta.get('scripts'), 'Package lifecycle scripts are forbidden')
         config = meta.get('publishConfig', {})
@@ -157,21 +163,28 @@ def verify_local(plan, root):
         cohort = meta.get('openproseCohort', {})
         require(cohort.get('version') == plan['version'] and cohort.get('sourceRevision') == plan['source'] and cohort.get('admittedPlatforms') == sorted(PLATFORMS), 'Package cohort does not match qualified source/platforms')
         if moving:
-            require(cohort.get('schema') == 'openprose.npm-cohort/2' and cohort.get('releaseChannel') == 'kernel-release-candidate' and cohort.get('purpose') == 'published-kernel-loader' and cohort.get('imageSource') == 'published-on-run' and cohort.get('embeddedDiagnosticImage') == expected_image and cohort.get('kernelPolicy') == preflight['kernelPolicy'], 'Package does not match latest-kernel qualification')
+            require(cohort.get('schema') == ('openprose.npm-cohort/3' if same_name else 'openprose.npm-cohort/2') and cohort.get('releaseChannel') == 'kernel-release-candidate' and cohort.get('purpose') == 'published-kernel-loader' and cohort.get('imageSource') == 'published-on-run' and cohort.get('embeddedDiagnosticImage') == expected_image and cohort.get('kernelPolicy') == preflight['kernelPolicy'], 'Package does not match latest-kernel qualification')
         else:
             require(cohort.get('schema') == 'openprose.npm-cohort/1' and cohort.get('releaseChannel') == 'release-candidate' and cohort.get('image') == expected_image and cohort.get('purpose') == 'canonical-language-runtime', 'Package does not match canonical-image qualification')
         require(cohort.get('releaseEligible') is False and cohort.get('publicationAuthorized') is False, 'Local packaging must not grant publication authority')
-        if name == PACKAGES[-1]:
-            require(meta.get('optionalDependencies') == {n: plan['version'] for n in PACKAGES[:-1]}, 'Incomplete platform cohort')
+        if alias == PACKAGES[-1]:
+            expected_dependencies = {n: ('npm:@openprose/prose-cli@' + npm_payload_version(plan['version'], n.removeprefix('@openprose/prose-cli-')) if same_name else plan['version']) for n in PACKAGES[:-1]}
+            require(meta.get('optionalDependencies') == expected_dependencies, 'Incomplete platform cohort')
         else:
+            if same_name:
+                platform = item['platform']
+                os_name, cpu = platform.split('-')[:2]
+                require(meta.get('os') == [os_name] and meta.get('cpu') == [cpu]
+                        and meta.get('openprosePlatform') == platform
+                        and (meta.get('libc') == ['glibc'] if os_name == 'linux' else 'libc' not in meta), 'Wrong npm platform selectors')
             require(meta.get('openproseSourceRevision') == plan['source'], 'npm source mismatch')
             if moving:
                 require('openproseImage' not in meta and meta.get('openproseEmbeddedDiagnosticImage') == expected_image and meta.get('openproseKernelPolicy') == preflight['kernelPolicy'] and meta.get('openproseImageSource') == 'published-on-run', 'Wrong kernel-loader package metadata')
             else:
                 require(meta.get('openproseImage') == expected_image, 'Sentinel or unqualified image')
             require('package/bin/prose' in members, 'Missing npm binary')
-            binary_hashes[('npm', name.removeprefix('@openprose/prose-cli-'))] = hashlib.sha256(members['package/bin/prose']).hexdigest()
-        packages[name] = item['name']
+            binary_hashes[('npm', alias.removeprefix('@openprose/prose-cli-'))] = hashlib.sha256(members['package/bin/prose']).hexdigest()
+        packages[alias] = item['name']
     require(set(packages) == set(PACKAGES), 'All five npm packages required')
     for p in PLATFORMS:
         require(binary_hashes[('npm', p)] == binary_hashes[('bun', p)], 'npm and standalone Bun bytes differ')
@@ -353,6 +366,26 @@ def publish(plan, root, key, key_id, issuer, bootstrap=False, sign_only=False):
         return
     # Preflight every package before any registry mutation; existing exact bytes
     # support recovery after a partial publication, never version replacement.
+    if plan['schema'] == 'openprose.cli-publication/2':
+        require(not bootstrap and not bootstrap_token, 'Same-name npm publication forbids bootstrap credentials')
+        require(registry_package_exists('@openprose/prose-cli'), 'Existing root npm identity is required')
+        versions = {alias: npm_payload_version(plan['version'], alias.removeprefix('@openprose/prose-cli-')) if alias != PACKAGES[-1] else plan['version'] for alias in PACKAGES}
+        existing = {alias: registry_integrity('@openprose/prose-cli', version) for alias, version in versions.items()}
+        for alias, integrity in existing.items():
+            require(integrity is None or integrity == npm_integrity(root / packages[alias]), 'Version already exists with different bytes')
+        sign_artifacts(plan, root)
+        root_tag = 'rc' if '-rc.' in plan['version'] else 'dev' if '-dev.' in plan['version'] else 'latest'
+        receipts = {}
+        for alias in PACKAGES:
+            package = root / packages[alias]
+            require(digest(package) == next(a['sha256'] for a in plan['artifacts'] if a['name'] == package.name), 'Package changed before publication')
+            tag = root_tag if alias == PACKAGES[-1] else 'platform-' + alias.removeprefix('@openprose/prose-cli-')
+            if existing[alias] is None:
+                publish_package('@openprose/prose-cli', package, tag, 'oidc', None)
+            require(registry_integrity('@openprose/prose-cli', versions[alias]) == npm_integrity(package), 'Published integrity mismatch; stop and inspect')
+            receipts[alias] = {'name': '@openprose/prose-cli', 'version': versions[alias], 'artifact': package.name, 'tag': tag, 'credentialRoute': 'oidc'}
+        (root / 'publication-receipt.json').write_text(json.dumps({'schema': 'openprose.cli-publication-receipt/2', 'version': plan['version'], 'source': plan['source'], 'npm': receipts, 'tag': root_tag, 'githubReleasePromoted': False, 'signing': plan['signing']}, indent=2) + '\n')
+        return
     existing = {name: registry_integrity(name, plan['version']) for name in PACKAGES}
     for name, integrity in existing.items():
         require(integrity is None or integrity == npm_integrity(root / packages[name]), 'Version already exists with different bytes')

@@ -111,7 +111,7 @@ def assemble(roots, output, evidence, live_smoke=None):
     preflight_path.write_text(json.dumps(preflight, indent=2, sort_keys=True) + '\n')
     artifacts = [record for _, record in inventory.values()]
     artifacts.append({'name': preflight_path.name, 'sha256': pub.digest(preflight_path), 'size': preflight_path.stat().st_size, 'kind': 'evidence', 'platform': 'all', 'implementation': 'shared'})
-    plan = {'schema': 'openprose.cli-publication/1', 'version': version, 'source': source, 'qualification': {'status': 'kernel-smoke-qualified' if live_smoke else 'development', 'evidence': evidence}, 'artifacts': artifacts, 'preflight': preflight_path.name, 'macos': {}, 'npmProvenance': True, 'signing': 'unsigned-rc'}
+    plan = {'schema': 'openprose.cli-publication/2', 'version': version, 'source': source, 'qualification': {'status': 'kernel-smoke-qualified' if live_smoke else 'development', 'evidence': evidence}, 'artifacts': artifacts, 'preflight': preflight_path.name, 'macos': {}, 'npmProvenance': True, 'signing': 'unsigned-rc'}
     plan_path = output / 'publication-plan.json'
     plan_path.write_text(json.dumps(plan, indent=2, sort_keys=True) + '\n')
     if live_smoke:

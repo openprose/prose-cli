@@ -134,6 +134,7 @@ def gates() -> tuple[Gate, ...]:
                 "test_publication",
                 "test_distribution_plan",
                 "test_npm_identity",
+                "test_npm_same_name",
                 "test_build_kernel_rc",
                 "test_assemble_kernel_rc",
                 "test_kernel_rc_evidence",
