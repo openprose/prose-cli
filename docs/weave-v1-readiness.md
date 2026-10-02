@@ -1,4 +1,4 @@
-# Weave candidate readiness
+# Execution and evaluation candidate readiness
 
 Status: unpublished local candidate, September 18, 2026. The local implementation is usable for bounded review. It is **not qualified for v1 promotion or public distribution**. Login, hosted transfer and backend work remain deferred.
 
@@ -24,7 +24,7 @@ Kernel and adopted contract semantics remain authoritative. Explicit file identi
 4. For provider work, use the [BYOK guide](../experiments/weave-seed/getting-started/BYOK.md). Setup materializes reviewed configuration without calls or credential values; configuration and question bytes are selected evidence.
 5. Investigate uncertain effects before using [recovery](../experiments/weave-seed/local/RECOVERY.md). Settlement requires the exact pending identity, outcome and receipt. It preserves attempts, expires prior satisfaction and does not invoke a provider. There is no automatic unlock or replay.
 
-The [native actor](../experiments/weave-seed/integration/native-actor/README.md) currently supports the explicit Agents SDK/OpenAI-key profile. OpenRouter and other action profiles are not qualified here. The actor admits only a digest-pinned fixed-image CLI with test seams disabled and one payload at `payload/kernel.md`. It checks the selected kernel against that image before effects. Moving published-on-run selection is rejected. The [staging guide](../experiments/weave-seed/getting-started/FIXED-IMAGE.md) uses the official image tooling; native building remains an explicit step. There is no runtime kernel override or arbitrary multi-payload support in this profile.
+The [native executor](../experiments/weave-seed/integration/native-actor/README.md) currently supports the explicit Agents SDK/OpenAI-key profile. OpenRouter and other action profiles are not qualified here. The executor admits only a digest-pinned fixed-image CLI with test seams disabled and one payload at `payload/kernel.md`. It checks the selected kernel against that image before effects. Moving published-on-run selection is rejected. The [staging guide](../experiments/weave-seed/getting-started/FIXED-IMAGE.md) uses the official image tooling; native building remains an explicit step. There is no runtime kernel override or arbitrary multi-payload support in this profile.
 
 ## Retained qualification evidence
 
@@ -49,7 +49,7 @@ Use the [aggregate qualifier](../experiments/weave-seed/integration/qualify.py),
 
 An earlier live campaign used the real kernel, Jev `jev-1.13.0` and an Agents SDK agent across finite Bun and Rust sequences. Correct artifacts did not imply complete compliance: the shell-capable actors made prohibited Git calls in two of six actions. Artifact-only assessment lacked those operation observations. Subsequent trace disclosure, question narrowing and parsed-trace diagnostics did not reliably detect the violations. These negative cases remain required evidence, not superseded successes.
 
-A separate restricted file-tool profile passed all ten event checks across the two sequences. Removing shell/process tools restricted available effects; it did not demonstrate that the classifier can certify arbitrary procedures. The profile was a trusted laboratory harness, not an operating-system sandbox or the final portable packaged actor.
+A separate restricted file-tool profile passed all ten event checks across the two sequences. Removing shell/process tools restricted available effects; it did not demonstrate that the classifier can certify arbitrary procedures. The profile was a trusted laboratory harness, not an operating-system sandbox or the final portable packaged executor.
 
 The current local product has not had a new live BYOK campaign against its final installed artifacts. Assessment research must distinguish insufficient inputs, evidence representation, question design, decision policy and model errors. Artifact correctness, required operations, reporting duties and permission compliance need separately observable evidence and independent labels. Decomposition or clearer questions are testable proposals, not established fixes. The retained failures do not establish that the classifier approach is impossible; they prevent claiming general reliability today.
 

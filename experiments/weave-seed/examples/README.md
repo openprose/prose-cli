@@ -8,7 +8,7 @@ Run the existing Python example from the repository root:
 python3 experiments/weave/demo.py
 ```
 
-This uses the Python reference host, not an installed Rust/Bun package. Read [demo.py](../../weave/demo.py) for the complete executable example. It creates one SQLite row with a desired date, an actual date, approval, and an unrelated note. The observer selects `desired`, `actual`, and `approved`; the note is deliberately outside the selector. A deterministic assessor checks approval and compares the two date values. The actor copies the desired value to the actual value in the temporary database.
+This uses the Python reference host, not an installed Rust/Bun package. Read [demo.py](../../weave/demo.py) for the complete executable example. It creates one SQLite row with a desired date, an actual date, approval, and an unrelated note. The observer selects `desired`, `actual`, and `approved`; the note is deliberately outside the selector. A deterministic evaluator checks approval and compares the two date values. The executor copies the desired value to the actual value in the temporary database.
 
 | Event | Expected status | Cumulative assessments | Cumulative actions | Meaning |
 |---|---|---:|---:|---|
@@ -16,7 +16,7 @@ This uses the Python reference host, not an installed Rust/Bun package. Read [de
 | Irrelevant note edit | `reused` | 1 | 0 | The selected content and binding are unchanged. |
 | Desired date changes | `satisfied` | 3 | 1 | Assessment requests work, then fresh evidence is assessed after action. |
 | Duplicate event | `reused` | 3 | 1 | A new event alone does not invalidate the selected evidence. |
-| Approval is revoked | `unknown` | 4 | 1 | The assessor cannot authorize work under this fixture's rule. |
+| Approval is revoked | `unknown` | 4 | 1 | The evaluator cannot authorize work under this fixture's rule. |
 
 The host is reconstructed from its saved checkpoint for each event. Temporary files are deleted when the example ends. It makes no model or network calls and does not collect or upload feedback.
 
