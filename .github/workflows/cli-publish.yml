@@ -89,6 +89,7 @@ jobs:
         with:
           name: cli-publication-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
+            ${{ runner.temp }}/prose-publication/npm-publication-diagnostics.json
             ${{ runner.temp }}/prose-publication/publication-receipt.json
             ${{ runner.temp }}/prose-publication/signatures
           retention-days: 90

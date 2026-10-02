@@ -312,14 +312,46 @@ def publication_routes(existing, names_exist, bootstrap, token):
     return routes
 
 
+def npm_publication_diagnostic(result):
+    # Never retain raw npm output: it can contain credentials, URLs and paths.
+    # Keep only protocol status codes and strictly validated package metadata.
+    record = {'exitCode': result.returncode, 'http': [], 'dryRun': '(dry-run)' in result.stderr,
+              'staged': '(staged' in result.stdout or 'has been staged' in result.stderr}
+    try:
+        data = json.loads(result.stdout)
+    except ValueError:
+        data = {}
+    if isinstance(data, dict):
+        for key, pattern in {'name': r'@openprose/prose-cli', 'version': r'[0-9A-Za-z.+-]{1,100}',
+                             'integrity': r'sha512-[A-Za-z0-9+/]{86}==',
+                             'shasum': r'[0-9a-f]{40}', 'stageId': r'[0-9a-f-]{36}'}.items():
+            value = data.get(key)
+            if isinstance(value, str) and re.fullmatch(pattern, value):
+                record[key] = value
+        error = data.get('error', {})
+        if isinstance(error, dict) and re.fullmatch(r'E[A-Z0-9_]{1,40}', str(error.get('code', ''))):
+            record['errorCode'] = error['code']
+    record['http'] = [{'method': method, 'status': int(status)}
+                      for method, status in re.findall(r'npm http fetch (GET|POST|PUT|DELETE) ([1-5][0-9]{2}) ', result.stderr)][:50]
+    return record
+
+
 def publish_package(name, package, tag, route, token):
     require(route in {'oidc', 'bootstrap-token'}, 'Invalid registry credential route')
     if route == 'bootstrap-token':
         require(name in PACKAGES[:-1] and token, 'Bootstrap is limited to absent platform packages')
         require(not registry_package_exists(name), 'Package now exists; bootstrap refused without credential fallback')
     result = npm_command(['publish', str(package.resolve()), '--access=public', '--ignore-scripts',
-                          '--provenance', '--tag=' + tag, '--registry=https://registry.npmjs.org'],
+                          '--provenance', '--json', '--loglevel=http', '--tag=' + tag, '--registry=https://registry.npmjs.org'],
                          token if route == 'bootstrap-token' else None)
+    diagnostic = npm_publication_diagnostic(result)
+    if package.is_file():
+        path = package.parent / 'npm-publication-diagnostics.json'
+        records = json.loads(path.read_text()) if path.exists() else []
+        records.append({'artifact': package.name, 'tag': tag, 'route': route, **diagnostic})
+        path.write_text(json.dumps(records, indent=2) + '\n')
+    require(not diagnostic['dryRun'] and not diagnostic['staged'] and 'stageId' not in diagnostic,
+            'npm did not directly publish; inspect retained publication diagnostics')
     # Never retry an authentication error using a different credential route.
     require(result.returncode == 0, 'npm publication failed on the selected credential route; no fallback attempted')
 
