@@ -590,6 +590,30 @@ os._exit(0)
 }
 
 #[test]
+fn eof_after_accepted_input_settles_retained_stdin_without_terminal_success() {
+    let root = TempDir::new().unwrap();
+    let prompts = PrivatePromptFiles::create(IMAGE, TASK).unwrap();
+    let observation = root.path().join("unused-observation.json");
+    let program = r"
+import json, sys
+if sys.stdin.buffer.readline() != b'prompt\n':
+    raise RuntimeError('prompt bytes differ')
+print(json.dumps({'schema':'openprose.fake-harness-event/1','type':'session.started','sessionId':'fake-session-0001','harnessVersion':'1.0.0'}), flush=True)
+";
+    let mut spec = base_spec(root.path(), &prompts, "success", &observation);
+    spec.executable = python();
+    spec.argv = vec!["-c".into(), program.into()];
+    spec.stdin = Some(b"prompt\n".to_vec());
+    spec.stdin_lifecycle = StdinLifecycle::CloseAfterTerminalEvent;
+
+    let error = supervise(spec, &JsonlProtocol::fake_harness()).unwrap_err();
+    assert_eq!(error.kind, FailureKind::ProtocolTruncated);
+    assert_eq!(error.process_exit, Some(0));
+    assert!(!error.terminal_observed);
+    assert_eq!(error.records.len(), 1);
+}
+
+#[test]
 fn terminal_event_closes_retained_stdin_only_after_the_harness_finishes() {
     let root = TempDir::new().unwrap();
     let prompts = PrivatePromptFiles::create(IMAGE, TASK).unwrap();

@@ -347,6 +347,11 @@ def main() -> int:
         if control_mode == "duplicate-state":
             emit(state_response)
             return 0
+        if control_mode == "nonempty-tools":
+            # Accept the queued prompt before exiting without a terminal.
+            # Otherwise a raced BrokenPipe can hide a retained-stdin leak.
+            if not sys.stdin.buffer.readline():
+                raise RuntimeError("expected the queued prompt before fixture exit")
         if control_mode in {"uncorrelated-state", "failed-state", "nonempty-tools"}:
             return 0
         prompt_bytes = sys.stdin.buffer.readline()

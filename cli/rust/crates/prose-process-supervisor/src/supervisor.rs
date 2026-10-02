@@ -1049,6 +1049,12 @@ fn supervise_direct(
         return Err(error);
     }
 
+    // The direct child and both output streams have finished. Release stdin
+    // retained for a terminal event that can no longer arrive. The checks
+    // below still reject failed input delivery or a missing terminal event.
+    if let Some(writer) = stdin_writer.as_ref() {
+        writer.request_close();
+    }
     drop(receiver);
     let stdout_settlement = stdout_reader.settle(PROBE_READER_STOP_TIMEOUT);
     let stderr_settlement = stderr_reader.settle(PROBE_READER_STOP_TIMEOUT);
