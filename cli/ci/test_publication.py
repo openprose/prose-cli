@@ -365,5 +365,23 @@ class BootstrapTests(unittest.TestCase):
             call.assert_not_called()
 
 
+class PublicationDiagnosticTests(unittest.TestCase):
+    def test_keeps_status_but_excludes_credentials_paths_and_error_text(self):
+        result = p.subprocess.CompletedProcess([], 1, json.dumps({'name': '@openprose/prose-cli',
+            'version': '0.15.0-rc.2', 'error': {'code': 'E403', 'summary': 'SECRET'},
+            'stageId': 'SECRET', 'integrity': 'SECRET', 'path': '/private/SECRET'}),
+            'npm http fetch PUT 403 https://SECRET/path\nnpm notice SECRET')
+        record = p.npm_publication_diagnostic(result)
+        self.assertEqual(record['errorCode'], 'E403')
+        self.assertEqual(record['http'], [{'method': 'PUT', 'status': 403}])
+        self.assertNotIn('SECRET', json.dumps(record))
+
+    def test_detects_zero_exit_staging_and_dry_run(self):
+        result = p.subprocess.CompletedProcess([], 0, '+ package (staged)', 'notice (dry-run)')
+        record = p.npm_publication_diagnostic(result)
+        self.assertTrue(record['staged'])
+        self.assertTrue(record['dryRun'])
+
+
 if __name__ == '__main__':
     unittest.main()

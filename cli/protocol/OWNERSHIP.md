@@ -656,3 +656,7 @@ IMP-014 lease extension: `cli/benchmarks/installed/benchmark.py` only for the re
 ## IMP-014: qualified RC publication inventory (October 2, 2026)
 
 Codex `/root` owns Git/index operations and sole edits in isolated `codex/imp-014-rc2-publication`, based on qualified migration main `fe8b5032`. Exact paths: `cli/protocol/OWNERSHIP.md`, `cli/release/plans/0.15.0-rc.2.json`, and `docs/cli-release-next.md`. Scope: retain the exact final native/live-qualified artifact inventory, reconcile maintained release status and retire completed packaging leases. No runtime, harness, kernel, prior immutable plan or other owner's paths are claimed. Exact main runtime admission and paired live qualification remain required before publication.
+
+## IMP-014: npm publication recovery diagnostics (October 2, 2026)
+
+Codex `/root` owns Git/index operations and sole edits in isolated `codex/imp-014-npm-publish-diagnostics`, based on publisher main `70e5f7ab`. Exact paths: `cli/protocol/OWNERSHIP.md`, `cli/ci/publication.py`, `cli/ci/test_publication.py`, `.github/workflows/cli-publish.yml`. Scope: retain bounded, credential-free npm publication diagnostics after exit-zero/public-registry absence. Preserve exact qualified archives, one OIDC route, root-last ordering and integrity gates. No runtime, new model calls, credential fallback or other owner's paths.
