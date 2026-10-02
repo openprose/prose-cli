@@ -1791,7 +1791,12 @@ class AdapterProductAdversary(unittest.TestCase):
                     (workspace / ".native-output-limit-fixture.json").write_text(json.dumps({"mode": mode}))
                     harness_bin = temporary / "harness-bin"
                     self.install_live_harnesses(harness_bin)
-                    environment, canaries = self.make_environment(temporary, harness_bin, {"OPENAI_API_KEY": "XY"})
+                    # A one-character locale value would trigger the existing Bun
+                    # all-environment redaction policy inside its own replacement text.
+                    # Keep that separate policy out of this byte-limit parity control.
+                    environment, canaries = self.make_environment(temporary, harness_bin, {
+                        "OPENAI_API_KEY": "XY", "LANG": "en_US.UTF-8", "LC_ALL": "en_US.UTF-8",
+                    })
                     capture = temporary / "native.jsonl"
                     argv = ["--harness", "codex", "--transport", "exec-json",
                             "--auth-profile", "openai-api-key", "--output-contract", "native",
