@@ -1,6 +1,6 @@
 # Native output
 
-`--output-contract native` settles only when the selected native harness reports completion through its validated protocol. Assistant text is retained as text; no final JSON line is requested, recovered or synthesized. The result reports semantic status `not-applicable` and a null envelope digest. Native completion establishes that the harness finished, not that a program fulfilled its obligation. Evaluate program artifacts separately.
+`--output-contract native` settles only when the selected native harness reports completion through its validated protocol. Assistant text is retained as text; no final JSON line is requested, recovered or synthesized. The result reports semantic status `not-applicable` and a null envelope digest. Native completion establishes that the harness finished. It does not establish that the program satisfied its requirements. The executor’s result includes the artifacts and evidence needed for assessment. An evaluator assesses that result against the contract. A completed evaluation can find unmet subject requirements; native completion alone supplies no such assessment.
 
 `--output-contract image-envelope` remains the default compatibility mode. It additionally requires the image-declared model-authored terminal envelope. Configuration also supports `output_contract` and `PROSE_OUTPUT_CONTRACT`. This option is independent of output rendering (`human`, `json`, `jsonl`), authentication, and permissions.
 
@@ -17,3 +17,7 @@ No language constructs are interpreted by this option. Harness errors, missing n
 OMP event compatibility: its schema validator can omit optional null or string `null` fields between model tool declaration and native execution. The adapter permits only that omission while requiring every actual field and all non-null declarations to match. This checks correlated events, not full schema equivalence; event data does not expose enough schema context to prove optionality. The original failed OpenAI todo trace remains in the lab as regression evidence.
 
 OMP may also prune its terminal history after executing tools. Two verified native markers (`[Superseded by a newer read of this file]` and `[Uneventful result elided]`) with a finite nonnegative `prunedAt` timestamp are accepted only as terminal tool-result content projections. All tool identity and other metadata must still match the recorded original event. The original native tool output remains the evidence; the placeholder is not a substitute result. Other invented or altered terminal histories remain rejected.
+
+## Result and error terminology
+
+Out names a normal language result; error names execution failure. These terms do not rename process streams or the existing CLI envelope. The selected image and native protocol retain their own status and error fields. Evidence belongs in the result or its accessible references. Do not require a second evidence return value or treat an unresolved subject assessment as a transport failure.

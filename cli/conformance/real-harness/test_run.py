@@ -301,6 +301,10 @@ class RealHarnessRunnerTest(unittest.TestCase):
             if child == 0:
                 while True:
                     time.sleep(1)
+            # Existence precedes a complete record. Widen that interval so the
+            # interrupt observer must wait for publication, not file creation.
+            Path(sys.argv[1]).touch()
+            time.sleep(0.1)
             Path(sys.argv[1]).write_text(
                 f"{os.getpid()} {child} {os.getpgrp()}", encoding="utf-8"
             )
@@ -315,11 +319,15 @@ class RealHarnessRunnerTest(unittest.TestCase):
             def interrupt_after_publish(process: object, timeout: float) -> int:
                 del process, timeout
                 deadline = time.monotonic() + 3
-                while not identities.exists() and time.monotonic() < deadline:
+                while time.monotonic() < deadline:
+                    try:
+                        fields = identities.read_text(encoding="utf-8").split()
+                    except FileNotFoundError:
+                        fields = []
+                    if len(fields) == 3 and all(field.isdecimal() for field in fields):
+                        raise KeyboardInterrupt
                     time.sleep(0.01)
-                if not identities.exists():
-                    self.fail("fixture did not publish process identities")
-                raise KeyboardInterrupt
+                self.fail("fixture did not publish complete process identities")
 
             with mock.patch.object(
                 runner, "wait_for_process", side_effect=interrupt_after_publish

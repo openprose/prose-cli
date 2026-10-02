@@ -756,7 +756,9 @@ def _terminate_owned_boundary(
         except ProcessLookupError:
             pass
         except PermissionError:
-            return process.poll() is not None, False
+            # A failed signal does not establish whether the boundary will
+            # settle. Still reap and observe within the existing deadlines.
+            pass
         _wait_process(process, TERMINATION_GRACE_SECONDS)
         if _process_group_exists(process_group_id):
             try:
@@ -764,7 +766,7 @@ def _terminate_owned_boundary(
             except ProcessLookupError:
                 pass
             except PermissionError:
-                return process.poll() is not None, False
+                pass
         direct_child_reaped = _wait_process(process, KILL_GRACE_SECONDS)
         group_gone = _wait_until(
             lambda: not _process_group_exists(process_group_id),
@@ -798,7 +800,9 @@ def forced_exit_failure(
         )
     if not direct_child_reaped or not process_group_gone or not output_settled:
         return GateExecutionFailure(
-            f"{reason}; owned process boundary for {gate_name} did not settle",
+            f"{reason}; owned process boundary for {gate_name} did not settle "
+            f"(direct child reaped={direct_child_reaped}, "
+            f"process group gone={process_group_gone}, output settled={output_settled})",
             exit_code=UNSETTLED_EXIT_CODE,
         )
     return GateExecutionFailure(reason, exit_code=TIMEOUT_EXIT_CODE)

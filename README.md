@@ -1,6 +1,14 @@
 # OpenProse CLI lab
 
-Two independent outer runners, Rust and Bun (packaged through npm), connect an opaque Markdown-owned image and task to an existing agent harness. They do not interpret Contracts or implement the OpenProse language. Keep the kernel, standard library, and component definitions in the separate Markdown library.
+Contract authoring is expressing intent by composing requirements. Reusable contracts provide the building blocks; composition determines how their requirements apply together. See the [public introduction](https://prose.md/learn) for an overview; execution syntax and capabilities depend on the selected language version.
+
+Two independent outer runners, Rust and Bun (packaged through npm), connect an opaque Markdown-owned image and task to an existing agent harness. They do not interpret contracts or implement the OpenProse language. Keep the kernel, standard library, and component definitions in the separate Markdown library.
+
+## Execution and evaluation
+
+The executor performs contract work and returns a result that includes evidence. The evaluator assesses whether the contract’s requirements are satisfied. Execution and evaluation repeat as needed. The outer CLI transports a selected runtime’s inputs and results; it does not interpret requirements or turn native completion into fulfillment.
+
+The language uses out for a normal result and error for execution failure. These concepts do not change the CLI’s stdout/stderr, exit codes, native completion rules or image-declared envelope. A normal evaluator result may identify unmet subject requirements. See [native output](docs/native-output.md) for the concrete transport boundary.
 
 ## Choose the image and output contract
 
