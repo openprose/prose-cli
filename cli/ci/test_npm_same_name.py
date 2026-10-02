@@ -1,3 +1,4 @@
+from contextlib import ExitStack
 import hashlib
 import json
 import os
@@ -85,3 +86,47 @@ class SameNameNpmTests(unittest.TestCase):
                 pub.publish(plan,root,None,None,None)
             self.assertEqual(order,list(pub.PACKAGES))
             self.assertEqual(json.loads((root/'publication-receipt.json').read_text())['schema'],'openprose.cli-publication-receipt/2')
+
+    def test_partial_resume_and_conflicting_versions_preflight_before_mutation(self):
+        for conflict in (False, True):
+            with self.subTest(conflict=conflict), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                packages = {alias: alias.split('/')[1] + '.tgz' for alias in pub.PACKAGES}
+                artifacts = []
+                for alias, filename in packages.items():
+                    (root / filename).write_bytes(alias.encode())
+                    artifacts.append({'name': filename, 'sha256': pub.digest(root / filename)})
+                plan = {'schema': 'openprose.cli-publication/2', 'version': '0.15.0-rc.2',
+                        'source': 'a' * 40, 'signing': 'unsigned-rc', 'artifacts': artifacts}
+                versions = {alias: plan['version'] + ('-' + alias.removeprefix('@openprose/prose-cli-')
+                            if alias != pub.PACKAGES[-1] else '') for alias in pub.PACKAGES}
+                first = pub.PACKAGES[0]
+                published = {versions[first]: pub.npm_integrity(root / packages[first])}
+                if conflict:
+                    published[versions[pub.PACKAGES[-1]]] = 'sha512-conflicting-bytes'
+                order = []
+                def publish(name, tarball, tag, route, token):
+                    alias = next(a for a, filename in packages.items() if filename == tarball.name)
+                    order.append(alias)
+                    published[versions[alias]] = pub.npm_integrity(tarball)
+                environment = {'GITHUB_REPOSITORY': pub.REPOSITORY, 'GITHUB_REF': 'refs/heads/main',
+                               'GITHUB_EVENT_NAME': 'workflow_dispatch',
+                               'GITHUB_WORKFLOW_REF': pub.REPOSITORY + '/.github/workflows/cli-publish.yml@refs/heads/main'}
+                with ExitStack() as stack:
+                    stack.enter_context(patch.dict(os.environ, environment, clear=True))
+                    stack.enter_context(patch.object(pub, 'run', return_value='{"visibility":"public"}'))
+                    stack.enter_context(patch.object(pub, 'verify_local', return_value=(packages, {})))
+                    stack.enter_context(patch.object(pub, 'registry_package_exists', return_value=True))
+                    stack.enter_context(patch.object(pub, 'registry_integrity', side_effect=lambda name, version: published.get(version)))
+                    sign = stack.enter_context(patch.object(pub, 'sign_artifacts'))
+                    stack.enter_context(patch.object(pub, 'publish_package', side_effect=publish))
+                    if conflict:
+                        with self.assertRaisesRegex(ValueError, 'different bytes'):
+                            pub.publish(plan, root, None, None, None)
+                        sign.assert_not_called()
+                        self.assertEqual(order, [])
+                        self.assertFalse((root / 'publication-receipt.json').exists())
+                    else:
+                        pub.publish(plan, root, None, None, None)
+                        self.assertEqual(order, list(pub.PACKAGES[1:]))
+                        self.assertEqual(order[-1], pub.PACKAGES[-1])
