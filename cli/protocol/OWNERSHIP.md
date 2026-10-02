@@ -664,3 +664,7 @@ Codex `/root` owns Git/index operations and sole edits in isolated `codex/imp-01
 ## IMP-014: asynchronous registry visibility (October 2, 2026)
 
 Codex `/root` owns Git/index operations and sole edits in isolated `codex/imp-014-npm-visibility`, based on main `9c661dd3`. Exact paths: `cli/protocol/OWNERSHIP.md`, `cli/ci/publication.py`, `cli/ci/test_npm_same_name.py`, `.github/workflows/cli-publish.yml`. Scope: bounded visibility polling after npm HTTP 202 acceptance, publish supporting versions before awaiting the complete payload cohort, and keep the root unpublished until all payload integrities match. Preserve original archives, OIDC-only auth, conflicting-byte refusal and finite workflow bounds; no runtime changes or model calls.
+
+## IMP-014: RC2 publication closeout (October 2, 2026)
+
+Codex `/root` owns Git/index operations and sole edits in isolated `codex/imp-014-rc2-closeout`, based on protected publisher main `0916aee4`. Exact paths: `cli/protocol/OWNERSHIP.md` and `docs/cli-release-next.md`. Scope: reconcile actual verified publication receipts, preserve qualified runtime/publisher identities, retire this task's completed leases and require a fresh version/allocation for subsequent releases. No runtime, package bytes, publication-plan edits, other owner's leases or new model calls.
