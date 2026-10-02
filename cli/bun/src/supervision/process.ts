@@ -297,6 +297,10 @@ export async function superviseStructuredProcess(request: ProcessSupervisionRequ
   if (error === null && !protocol.terminalEventObserved) {
     error = failure("PROTOCOL_TRUNCATED", {
       reason: "The process reached EOF without the required harness terminal record.",
+      transportDiagnostic: {
+        schema: "openprose.transport-diagnostic/1",
+        reason: "lifecycle-rejection",
+      },
       exitCode: child.exitCode,
       ...(protocol.diagnostic?.("prime-lifecycle") === null
         || protocol.diagnostic?.("prime-lifecycle") === undefined

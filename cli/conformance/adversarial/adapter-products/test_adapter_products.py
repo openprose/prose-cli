@@ -1550,6 +1550,7 @@ class AdapterProductAdversary(unittest.TestCase):
             "duplicate-state": ("PROTOCOL_MALFORMED", None),
             "failed-state": ("HARNESS_FAILED", None),
             "nonempty-tools": ("HARNESS_FAILED", None),
+            "accepted-input-eof": ("PROTOCOL_TRUNCATED", None),
             "interactive-ui": ("HARNESS_FAILED", None),
             "nonterminal-settlement": (
                 "HARNESS_FAILED",
