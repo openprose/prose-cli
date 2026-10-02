@@ -650,3 +650,5 @@ IMP-014 lease extension: `cli/ci/build_kernel_rc.py`, `cli/ci/test_assemble_kern
 IMP-014 lease extension: `cli/ci/test_npm_identity.py` to qualify new schema-three kernel packages through unchanged-tarball alias installation; historical schema-one controls remain intact.
 
 IMP-014 lease extension: `cli/ci/run_local.py` to include same-name npm regression tests in the existing publication-contract gate, preserving the 53-gate admission plan.
+
+IMP-014 lease extension: `cli/benchmarks/installed/benchmark.py` only for the reviewed canonical npm launcher template digest, preserving all benchmark custody checks and runtime behavior. CI showed the launcher change requires refreezing this exact-byte pin.
