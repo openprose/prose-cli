@@ -9,7 +9,7 @@ import ompScenario from "../../shared/fixtures/adapters/scenarios/omp-rpc.v1.jso
 import primeScenario from "../../shared/fixtures/adapters/scenarios/prime-rpc.v1.json" with { type: "json" };
 import taskFixture from "../../shared/fixtures/transport/sentinel-task.json" with { type: "json" };
 import terminalCarriage from "../../shared/fixtures/adapters/functional-alpha/terminal-carriage.v1.json" with { type: "json" };
-import { buildInstalledAdapterEnvironment, installedAdapterProtectedValues } from "../src/adapters/environment";
+import { buildInstalledAdapterEnvironment, installedAdapterProtectedValues, installedAdapterCaptureSecrets } from "../src/adapters/environment";
 import { assertInstalledAdapterArgv, assertInstalledAdapterPlatform } from "../src/adapters/admission";
 import {
   assertInstalledAdapterRuntimePrerequisites,
@@ -3229,4 +3229,21 @@ describe("image-declared terminal recovery", () => {
       { type: "session.completed" },
     ], input.invocation)).toThrow(expect.objectContaining({ code: "PROTOCOL_MALFORMED" }));
   });
+});
+
+test("capture selection excludes ordinary environment values but retains credentials and private config", () => {
+  const definition = installedAdapterDefinition("prime/rpc");
+  const environment = {OPENROUTER_API_KEY: "fixture-selected-key", OPENAI_API_KEY: "unselected-key", USER: "mm", LANG: "C", HOME: "/fixture/home", PRIME_AGENT_TELEMETRY: "0"};
+  expect(installedAdapterCaptureSecrets({definition, credentialGroup: "openrouter", environment, credentialConfigDirectory: "/fixture/private-config"})).toEqual(["/fixture/private-config", "fixture-selected-key"]);
+  expect(installedAdapterCaptureSecrets({definition, credentialGroup: "prime-harness-login", environment})).toEqual([]);
+  expect(() => installedAdapterCaptureSecrets({definition, credentialGroup: "missing", environment})).toThrow();
+  expect(installedAdapterProtectedValues({definition, credentialGroup: "openrouter", environment})).toContain("mm");
+  expect(installedAdapterProtectedValues({definition, credentialGroup: "openrouter", environment})).toContain("C");
+});
+
+test("capture credential matching follows host case sensitivity and ignores empty values", () => {
+  const definition = installedAdapterDefinition("prime/rpc");
+  const environment = {openrouter_api_key: "fixture-selected-key", OPENROUTER_API_KEY: "", LANG: "C"};
+  expect(installedAdapterCaptureSecrets({definition, credentialGroup: "openrouter", environment, platform: "win32"})).toEqual(["fixture-selected-key"]);
+  expect(installedAdapterCaptureSecrets({definition, credentialGroup: "openrouter", environment, platform: "linux"})).toEqual([]);
 });

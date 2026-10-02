@@ -12,7 +12,7 @@ import {
 } from "../supervision/files";
 import { redactDiagnostic } from "../supervision/environment";
 import { superviseStructuredProcess } from "../supervision/process";
-import { buildInstalledAdapterEnvironment, installedAdapterProtectedValues } from "./environment";
+import { buildInstalledAdapterEnvironment, installedAdapterProtectedValues, installedAdapterCaptureSecrets } from "./environment";
 import { buildInstalledLaunchPlan } from "./plan";
 import { installedProtocol } from "./protocols";
 import {
@@ -157,7 +157,18 @@ export async function runInstalledAdapter(options: InstalledAdapterOptions): Pro
     const assistantMessageSink = options.createAssistantMessageSink?.(protectedValues);
     const supervisedExecutable = options.fixtureInterpreter ?? options.executable;
     const supervisedArgv = options.fixtureInterpreter === undefined ? plan.argv.slice(1) : plan.argv;
-    const capture = new NativeCapture(options.nativeLog,protectedValues,nativeOutputBytes(options));
+    const captureSecrets = [...new Set([
+      ...installedAdapterCaptureSecrets({
+        definition,
+        credentialGroup: options.credentialGroup,
+        environment,
+        ...(credentialConfigDirectory === undefined ? {} : { credentialConfigDirectory }),
+        ...(options.platform === undefined ? {} : { platform: options.platform }),
+      }),
+      options.invocation.recursionToken,
+      runNonce,
+    ])].filter(Boolean).sort((left, right) => right.length - left.length);
+    const capture = new NativeCapture(options.nativeLog, captureSecrets, nativeOutputBytes(options));
     let observed: NativeObservation | null = null;
     const protocol=installedProtocol(options.adapterId, options.harnessVersion ?? null, options.invocation.invocationId, (options.adapterId === "omp/rpc" || options.adapterId === "prime/rpc") ? plan.stdinBytes : null, options.outputContract === "native");
     if(options.nativeProfile === "claude-workspace-tools") {
