@@ -1777,6 +1777,40 @@ class AdapterProductAdversary(unittest.TestCase):
 
             self.assertEqual(diagnostics["rust"], diagnostics["bun"], f"Prime {fault}")
 
+    def test_native_capture_redacts_selected_secrets_not_ordinary_environment(self) -> None:
+        if not self.supports_host("codex/exec-json") or os.name == "nt":
+            self.skipTest("Installed Codex fixture requires a recipe-admitted POSIX host")
+        for selected_key in ("fixture-selected-key", "command_execution"):
+            for product_name, product in self.available_products():
+                with self.subTest(key=selected_key, product=product_name), tempfile.TemporaryDirectory(
+                    prefix="openprose-capture-secrets-"
+                ) as root:
+                    temporary = Path(root)
+                    workspace = temporary / "workspace"
+                    workspace.mkdir()
+                    (workspace / ".native-capture-secrets-fixture").touch()
+                    harness_bin = temporary / "harness-bin"
+                    self.install_live_harnesses(harness_bin)
+                    environment, _ = self.make_environment(temporary, harness_bin, {
+                        "OPENAI_API_KEY": selected_key, "USER": "mm", "LANG": "C", "LC_ALL": "C",
+                    })
+                    capture = temporary / "native.jsonl"
+                    completed = self.run_product(product, [
+                        "--harness", "codex", "--transport", "exec-json",
+                        "--auth-profile", "openai-api-key", "--output-contract", "native",
+                        "--native-log", str(capture), "--output", "json", "run", "fixture.prose.md",
+                    ], workspace, environment)
+                    self.assertEqual(0, completed.returncode, completed.stdout)
+                    self.assertEqual(b"", completed.stderr)
+                    raw = capture.read_text()
+                    self.assertNotIn(selected_key, raw)
+                    records = [json.loads(line) for line in raw.splitlines()]
+                    self.assertEqual(4, len(records))
+                    expected_identity = "[REDACTED]" if selected_key == "command_execution" else "command_execution"
+                    self.assertEqual(expected_identity, records[0]["thread_id"])
+                    self.assertEqual(f"C {expected_identity} mm [REDACTED] [REDACTED] [REDACTED]", records[2]["item"]["text"])
+                    self.assertEqual(0o600, capture.stat().st_mode & 0o777)
+
     def test_native_output_limits_have_safe_cross_product_diagnostics(self) -> None:
         if not self.supports_host("codex/exec-json") or os.name == "nt":
             self.skipTest("Installed Codex fixture requires a recipe-admitted POSIX host")

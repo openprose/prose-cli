@@ -395,6 +395,18 @@ def main() -> int:
         if exit_mode in {"timeout", "cancellation"}:
             time.sleep(10)
 
+    if adapter_id == "codex/exec-json" and (Path.cwd() / ".native-capture-secrets-fixture").is_file():
+        text = "C command_execution mm " + " ".join(os.environ[name] for name in (
+            "OPENAI_API_KEY", "OPENPROSE_RECURSION_TOKEN", "OPENPROSE_RUN_NONCE"
+        ))
+        emit(
+            {"type": "thread.started", "thread_id": "command_execution"},
+            {"type": "turn.started"},
+            {"type": "item.completed", "item": {"id": "item-1", "type": "agent_message", "text": text}},
+            {"type": "turn.completed", "usage": {}},
+        )
+        return 0
+
     output_fixture = Path.cwd() / ".native-output-limit-fixture.json"
     if adapter_id == "codex/exec-json" and output_fixture.is_file():
         mode = json.loads(output_fixture.read_text("utf-8"))["mode"]
