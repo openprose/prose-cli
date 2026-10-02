@@ -41,7 +41,7 @@ jobs:
       - name: Run one bounded diagnostic
         env:
           RUSTUP_TOOLCHAIN: 1.87.0
-        run: python3 cli/ci/diagnose_cleanup.py --output "$RUNNER_TEMP/cleanup-diagnosis" --scope adapter-suite --repetitions 5
+        run: python3 cli/ci/diagnose_cleanup.py --output "$RUNNER_TEMP/cleanup-diagnosis" --scope admission-gate --repetitions 3
       - name: Retain diagnostic observations
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

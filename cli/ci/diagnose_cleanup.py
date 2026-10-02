@@ -58,12 +58,14 @@ def main():
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--repetitions', type=int, default=50)
     parser.add_argument('--prepare-only', action='store_true')
-    parser.add_argument('--scope', choices=('omp-control', 'adapter-suite'), default='omp-control')
+    parser.add_argument('--scope', choices=('omp-control', 'adapter-suite', 'admission-gate'), default='omp-control')
     args = parser.parse_args()
     if not 1 <= args.repetitions <= 50:
         parser.error('repetitions must be between 1 and 50')
     if args.scope == 'adapter-suite' and args.repetitions > 5:
         parser.error('complete adapter-suite diagnosis is limited to five repetitions')
+    if args.scope == 'admission-gate' and args.repetitions > 3:
+        parser.error('ordinary admission-gate diagnosis is limited to three repetitions')
     args.output.mkdir(parents=True, exist_ok=False)
     if sha(ROOT / SUPERVISOR) != SOURCE_SHA256:
         raise ValueError('supervisor input differs from the inspected source')
@@ -113,8 +115,15 @@ def main():
                 test_argv = [sys.executable, str(fixture)]
                 if args.scope == 'omp-control':
                     test_argv.append(test)
+                if args.scope == 'admission-gate':
+                    test_argv = [sys.executable, str(source / 'cli/ci/run_local.py'),
+                                 '--only', 'adapter-product-adversary']
                 record['test_argv'] = ['python', str(fixture.relative_to(source)), *test_argv[2:]]
-                record['attempt_timeout_seconds'] = 180 if args.scope == 'adapter-suite' else 60
+                if args.scope == 'admission-gate':
+                    record['test_argv'] = ['python', 'cli/ci/run_local.py', *test_argv[2:]]
+                record['attempt_timeout_seconds'] = {
+                    'omp-control': 60, 'adapter-suite': 180, 'admission-gate': 900,
+                }[args.scope]
                 record['state'] = 'bounded-repetitions-passed'
                 for attempt in range(1, args.repetitions + 1):
                     started = time.monotonic()
