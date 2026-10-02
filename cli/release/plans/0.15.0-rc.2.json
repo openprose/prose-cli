@@ -1,0 +1,839 @@
+{
+  "artifacts": [
+    {
+      "implementation": "rust",
+      "kind": "standalone",
+      "name": "openprose-prose-cli-rust-0.15.0-rc.2-darwin-arm64.tar.gz",
+      "platform": "darwin-arm64",
+      "sha256": "9182bc65dac541aa9f0bb92500ca90274c3d36daf69b0ac0b8249adfef1f61d0",
+      "size": 3177318
+    },
+    {
+      "implementation": "bun",
+      "kind": "standalone",
+      "name": "openprose-prose-cli-bun-0.15.0-rc.2-darwin-arm64.tar.gz",
+      "platform": "darwin-arm64",
+      "sha256": "5ed473e21f8b6dd46412459ef8171f77c6eda451f02d940ff9581dd4053c6582",
+      "size": 22636646
+    },
+    {
+      "implementation": "bun",
+      "kind": "npm",
+      "name": "openprose-prose-cli-0.15.0-rc.2.tgz",
+      "platform": "all",
+      "sha256": "40642373d15fd9fb626e0fd71fc4593def62fb0e03b19a0f71a68ea2ea8c0322",
+      "size": 8385
+    },
+    {
+      "implementation": "bun",
+      "kind": "npm",
+      "name": "openprose-prose-cli-darwin-arm64-0.15.0-rc.2.tgz",
+      "platform": "darwin-arm64",
+      "sha256": "a49400fa13b1cc9b2d4dc671b3f9d68add455f4f45667f97e1f0d5c6851d9886",
+      "size": 22633393
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "darwin-arm64-logs-build-bun.log",
+      "platform": "darwin-arm64",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "darwin-arm64-logs-build-rust.log",
+      "platform": "darwin-arm64",
+      "sha256": "83e242461175f48626b46b63ad916b04d905f906cdd8fd7721559b760fcc2adf",
+      "size": 3170
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "darwin-arm64-logs-built-bun.json",
+      "platform": "darwin-arm64",
+      "sha256": "d6f86d4309a64f1191e2152b03e5dac543260311fa815aef373dd0d3071f7c28",
+      "size": 371
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "darwin-arm64-logs-built-rust.json",
+      "platform": "darwin-arm64",
+      "sha256": "a5a92d0d1ed1362ac10adf7908abe2979170d2dd554dda883166be9ea27b2f49",
+      "size": 372
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "darwin-arm64-logs-installed-bun.json",
+      "platform": "darwin-arm64",
+      "sha256": "d6f86d4309a64f1191e2152b03e5dac543260311fa815aef373dd0d3071f7c28",
+      "size": 371
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "darwin-arm64-logs-installed-npm.json",
+      "platform": "darwin-arm64",
+      "sha256": "cacdfc744b4e6dbdb6d1b6b048d1918d679d0c6372521661af59eae67ff667a9",
+      "size": 464
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "darwin-arm64-logs-installed-rust.json",
+      "platform": "darwin-arm64",
+      "sha256": "a5a92d0d1ed1362ac10adf7908abe2979170d2dd554dda883166be9ea27b2f49",
+      "size": 372
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "darwin-arm64-logs-npm-alias-install.json",
+      "platform": "darwin-arm64",
+      "sha256": "e5f8e3b828cb8bb3a4daa3b7e400cc91663f02c32e9497a71235015913799ee3",
+      "size": 304
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "darwin-arm64-logs-npm-install-cache.log",
+      "platform": "darwin-arm64",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "darwin-arm64-logs-npm-install.log",
+      "platform": "darwin-arm64",
+      "sha256": "36ebcac868c857c03b95590d4aa8374ed0b0f75c68789ce7e9ca446ca89da9b6",
+      "size": 27
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "darwin-arm64-logs-package.log",
+      "platform": "darwin-arm64",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "darwin-arm64-logs-rust-ad-hoc-sign.log",
+      "platform": "darwin-arm64",
+      "sha256": "f6620595fdae633332eac4972cabd18cb7df23d731ed458f9e8b40b9f90aedc2",
+      "size": 85
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "darwin-arm64-logs-rust-ad-hoc-verify.log",
+      "platform": "darwin-arm64",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "darwin-arm64-SHA256SUMS",
+      "platform": "darwin-arm64",
+      "sha256": "6cc09c1d158fe623b2a4c070910cc5acd60b867cc8c5087443306b5351bc2fa6",
+      "size": 803
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "darwin-arm64-dependency-evidence.json",
+      "platform": "darwin-arm64",
+      "sha256": "b3dd12bc6275d121cb3aff6e2da04d1b74445212822bd657a6c41923aaf5bce4",
+      "size": 42574
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "darwin-arm64-provenance.json",
+      "platform": "darwin-arm64",
+      "sha256": "3fe1f841ff0b6990a9704c851dabfc2b6f541b6234e76f0ef7e0ce62f4ac02f8",
+      "size": 3791
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "darwin-arm64-release-manifest.json",
+      "platform": "darwin-arm64",
+      "sha256": "7883dafe06d4ad0cf09eb77226d31e2fbdafbbd2d6b026f7e12f259d29d1ed79",
+      "size": 3548
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "darwin-arm64-sbom.cdx.json",
+      "platform": "darwin-arm64",
+      "sha256": "de193412d232ed4d0b38be59fb61d81a4939a208ec21e3b6a2816722160871b5",
+      "size": 145861
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "darwin-arm64-build-report.json",
+      "platform": "darwin-arm64",
+      "sha256": "1b4161f30de667481e8650af49bf5b9ab26f9dec7275778b83d96dacdf00ead2",
+      "size": 4191
+    },
+    {
+      "implementation": "rust",
+      "kind": "standalone",
+      "name": "openprose-prose-cli-rust-0.15.0-rc.2-darwin-x64.tar.gz",
+      "platform": "darwin-x64",
+      "sha256": "d9fd0db4f90f4a6abe9b36661c8be2166b821ba5167c9bc09845d85df67acf08",
+      "size": 3413556
+    },
+    {
+      "implementation": "bun",
+      "kind": "standalone",
+      "name": "openprose-prose-cli-bun-0.15.0-rc.2-darwin-x64.tar.gz",
+      "platform": "darwin-x64",
+      "sha256": "fe145e3afa5d6cfab15e7208a58543adaef9104e13c623954724dc49cd1d8f81",
+      "size": 25119684
+    },
+    {
+      "implementation": "bun",
+      "kind": "npm",
+      "name": "openprose-prose-cli-darwin-x64-0.15.0-rc.2.tgz",
+      "platform": "darwin-x64",
+      "sha256": "5e05f0c36e6462c74455914e10e1e0ac2373c98e814e4d9ff9b6b6c6c21a32f8",
+      "size": 25120137
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "darwin-x64-logs-build-bun.log",
+      "platform": "darwin-x64",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "darwin-x64-logs-build-rust.log",
+      "platform": "darwin-x64",
+      "sha256": "f66bd4350b8773a00cdfb53d5535706ec7a80ee35bf1d4ee3f24d426c986fb7b",
+      "size": 3170
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "darwin-x64-logs-built-bun.json",
+      "platform": "darwin-x64",
+      "sha256": "7ce13e9ad6a0b947ef77a630455d6b8edc4c372a5e72dccb848d8e7f290de600",
+      "size": 371
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "darwin-x64-logs-built-rust.json",
+      "platform": "darwin-x64",
+      "sha256": "64a49e51540817d246521b0cb8fbed9dec4e2a4b394d3e1e2bdd7de0f2cfaf75",
+      "size": 372
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "darwin-x64-logs-installed-bun.json",
+      "platform": "darwin-x64",
+      "sha256": "7ce13e9ad6a0b947ef77a630455d6b8edc4c372a5e72dccb848d8e7f290de600",
+      "size": 371
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "darwin-x64-logs-installed-npm.json",
+      "platform": "darwin-x64",
+      "sha256": "7c299e6fb4bafceef3f69c31959894abffd21d5e33dd76511606216e36853d03",
+      "size": 464
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "darwin-x64-logs-installed-rust.json",
+      "platform": "darwin-x64",
+      "sha256": "64a49e51540817d246521b0cb8fbed9dec4e2a4b394d3e1e2bdd7de0f2cfaf75",
+      "size": 372
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "darwin-x64-logs-npm-alias-install.json",
+      "platform": "darwin-x64",
+      "sha256": "a280bfcaa2f1093e320ba790aeb68261589e8812af2b54f19ef03c119e794d05",
+      "size": 302
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "darwin-x64-logs-npm-install-cache.log",
+      "platform": "darwin-x64",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "darwin-x64-logs-npm-install.log",
+      "platform": "darwin-x64",
+      "sha256": "65c731cd02e19c79f6f5a3e84a4dd64a49acd6c47d2ee551d7cc9da191e8c96c",
+      "size": 24
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "darwin-x64-logs-package.log",
+      "platform": "darwin-x64",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "darwin-x64-logs-rust-ad-hoc-sign.log",
+      "platform": "darwin-x64",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "darwin-x64-logs-rust-ad-hoc-verify.log",
+      "platform": "darwin-x64",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "darwin-x64-SHA256SUMS",
+      "platform": "darwin-x64",
+      "sha256": "5bfee0dbc6c53afc4bd931f19baf9e3c3f616477f5c1b5134633b03604ab2287",
+      "size": 797
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "darwin-x64-dependency-evidence.json",
+      "platform": "darwin-x64",
+      "sha256": "b3dd12bc6275d121cb3aff6e2da04d1b74445212822bd657a6c41923aaf5bce4",
+      "size": 42574
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "darwin-x64-provenance.json",
+      "platform": "darwin-x64",
+      "sha256": "2fdb385874c1397c91dcba4d816b4c1c3296221e0e6ab65fcaa3e011d0f6c16c",
+      "size": 3792
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "darwin-x64-release-manifest.json",
+      "platform": "darwin-x64",
+      "sha256": "24efc57ceb818ff0ec912a2f0cac89b78c2f7d65ae258809e3f441534200cbad",
+      "size": 3543
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "darwin-x64-sbom.cdx.json",
+      "platform": "darwin-x64",
+      "sha256": "d741c8c3dcce22577c948de8167e10ec209a53f747f84be7388ac14b32847312",
+      "size": 145855
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "darwin-x64-build-report.json",
+      "platform": "darwin-x64",
+      "sha256": "955a56116c4e45e721e38cd066a14994dc203e211853cf27ec2cbe5d39b5dc3b",
+      "size": 4182
+    },
+    {
+      "implementation": "rust",
+      "kind": "standalone",
+      "name": "openprose-prose-cli-rust-0.15.0-rc.2-linux-arm64-gnu.tar.gz",
+      "platform": "linux-arm64-gnu",
+      "sha256": "0ddfb835cc4debcd7c5c4e1db7cd4d7835a7682ec39e676c7174fdf76fccb954",
+      "size": 3338619
+    },
+    {
+      "implementation": "bun",
+      "kind": "standalone",
+      "name": "openprose-prose-cli-bun-0.15.0-rc.2-linux-arm64-gnu.tar.gz",
+      "platform": "linux-arm64-gnu",
+      "sha256": "a833d597fbc3f8373fb09c18e3290fe8e72e05d32b19bd736dc8948bc10e69b3",
+      "size": 38245997
+    },
+    {
+      "implementation": "bun",
+      "kind": "npm",
+      "name": "openprose-prose-cli-linux-arm64-gnu-0.15.0-rc.2.tgz",
+      "platform": "linux-arm64-gnu",
+      "sha256": "e3cc2cf25d16b36c276dbbcd1f66ca029363071b67bd94d989870722324190d1",
+      "size": 38239652
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "linux-arm64-gnu-logs-build-bun.log",
+      "platform": "linux-arm64-gnu",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "linux-arm64-gnu-logs-build-rust.log",
+      "platform": "linux-arm64-gnu",
+      "sha256": "576fc1ca16458bd5c3a39c78f90ab825bea9b001f8fa443cd348f924995dcb90",
+      "size": 3162
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "linux-arm64-gnu-logs-built-bun.json",
+      "platform": "linux-arm64-gnu",
+      "sha256": "8df7f150a59322f8f72b060f09d4306120003f8979576b286253ccd5641f0c43",
+      "size": 371
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "linux-arm64-gnu-logs-built-rust.json",
+      "platform": "linux-arm64-gnu",
+      "sha256": "bd8b77201e1031b00b21dfc16b4fa81d6da3fdde98106ca1c337d9ca0b9d08bc",
+      "size": 372
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "linux-arm64-gnu-logs-installed-bun.json",
+      "platform": "linux-arm64-gnu",
+      "sha256": "8df7f150a59322f8f72b060f09d4306120003f8979576b286253ccd5641f0c43",
+      "size": 371
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "linux-arm64-gnu-logs-installed-npm.json",
+      "platform": "linux-arm64-gnu",
+      "sha256": "1362f8aa30ea6e4d2eb4e2820f6a4af6e7b8f84dd943f1f3c33d56998f6a81bc",
+      "size": 464
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "linux-arm64-gnu-logs-installed-rust.json",
+      "platform": "linux-arm64-gnu",
+      "sha256": "bd8b77201e1031b00b21dfc16b4fa81d6da3fdde98106ca1c337d9ca0b9d08bc",
+      "size": 372
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "linux-arm64-gnu-logs-npm-alias-install.json",
+      "platform": "linux-arm64-gnu",
+      "sha256": "1598ee92789d7d9244b52eb357dbb69bb5997cd6cb8a53869e04b007c13d91ad",
+      "size": 307
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "linux-arm64-gnu-logs-npm-install-cache.log",
+      "platform": "linux-arm64-gnu",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "linux-arm64-gnu-logs-npm-install.log",
+      "platform": "linux-arm64-gnu",
+      "sha256": "da14bbb35bae8820f0a34aeba35d2675772693c80296c08a86c29112ded32b5a",
+      "size": 27
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "linux-arm64-gnu-logs-package.log",
+      "platform": "linux-arm64-gnu",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "linux-arm64-gnu-SHA256SUMS",
+      "platform": "linux-arm64-gnu",
+      "sha256": "d4898f5292d59d942e6994c9597472aed7406e0539df292664e308e5c2831fc5",
+      "size": 812
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "linux-arm64-gnu-dependency-evidence.json",
+      "platform": "linux-arm64-gnu",
+      "sha256": "b3dd12bc6275d121cb3aff6e2da04d1b74445212822bd657a6c41923aaf5bce4",
+      "size": 42574
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "linux-arm64-gnu-provenance.json",
+      "platform": "linux-arm64-gnu",
+      "sha256": "2715670ebf293d89947155a7b75bb3104ab41b79f2b8541f8554aed83e24d462",
+      "size": 3985
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "linux-arm64-gnu-release-manifest.json",
+      "platform": "linux-arm64-gnu",
+      "sha256": "88a57f3e810d34ac7fd63d63222dd4e8e079f22ffdab7944ec77758c5b2fab7f",
+      "size": 3709
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "linux-arm64-gnu-sbom.cdx.json",
+      "platform": "linux-arm64-gnu",
+      "sha256": "4560e18cb4257d6c7923b894a0fc1ec3084323b8df86ffd6ac37ff60c94dc0bb",
+      "size": 145870
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "linux-arm64-gnu-build-report.json",
+      "platform": "linux-arm64-gnu",
+      "sha256": "fdc7f74f5eba2773b99d758b1f2b0b2400af2c36565a8bd7ae5e43f0312313f7",
+      "size": 3904
+    },
+    {
+      "implementation": "rust",
+      "kind": "standalone",
+      "name": "openprose-prose-cli-rust-0.15.0-rc.2-linux-x64-gnu.tar.gz",
+      "platform": "linux-x64-gnu",
+      "sha256": "c0e1da4a25ab402b64358bfe8d95ed646bf7fd4883b8699a6e3e5e3a41402609",
+      "size": 3526989
+    },
+    {
+      "implementation": "bun",
+      "kind": "standalone",
+      "name": "openprose-prose-cli-bun-0.15.0-rc.2-linux-x64-gnu.tar.gz",
+      "platform": "linux-x64-gnu",
+      "sha256": "6da93c5a0cd500d665c7cef5426b295881aa02e5d4f858bd7bfe1764bf7fd828",
+      "size": 39657385
+    },
+    {
+      "implementation": "bun",
+      "kind": "npm",
+      "name": "openprose-prose-cli-linux-x64-gnu-0.15.0-rc.2.tgz",
+      "platform": "linux-x64-gnu",
+      "sha256": "a6270bd42130a6919831e75cdf0cdad9f9cff427aaa5e589f4c089e04f5b5b54",
+      "size": 39656129
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "linux-x64-gnu-logs-build-bun.log",
+      "platform": "linux-x64-gnu",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "linux-x64-gnu-logs-build-rust.log",
+      "platform": "linux-x64-gnu",
+      "sha256": "33cff620ffd676551d2797235fd5839cc93a80c04233a7913e66aa4d3f8210d4",
+      "size": 3162
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "linux-x64-gnu-logs-built-bun.json",
+      "platform": "linux-x64-gnu",
+      "sha256": "dd800f6dd95d0890e848f7f0e7990cc822bab045f26b2928511501d4a0be6282",
+      "size": 371
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "linux-x64-gnu-logs-built-rust.json",
+      "platform": "linux-x64-gnu",
+      "sha256": "c8e0c7b42a1c3d28fe06c1b5c237ba6e341af90102323070af2a0c1593a4748d",
+      "size": 372
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "linux-x64-gnu-logs-installed-bun.json",
+      "platform": "linux-x64-gnu",
+      "sha256": "dd800f6dd95d0890e848f7f0e7990cc822bab045f26b2928511501d4a0be6282",
+      "size": 371
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "linux-x64-gnu-logs-installed-npm.json",
+      "platform": "linux-x64-gnu",
+      "sha256": "1b46769643d1faebbdcca307e045891f4fdb4c8b01f7a57eb6bfd03e09ce77f4",
+      "size": 464
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "linux-x64-gnu-logs-installed-rust.json",
+      "platform": "linux-x64-gnu",
+      "sha256": "c8e0c7b42a1c3d28fe06c1b5c237ba6e341af90102323070af2a0c1593a4748d",
+      "size": 372
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "linux-x64-gnu-logs-npm-alias-install.json",
+      "platform": "linux-x64-gnu",
+      "sha256": "2c75a2490307a6c22c6f485c35a930cee37226ca6ac09f89768f545ec44fdd78",
+      "size": 305
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "linux-x64-gnu-logs-npm-install-cache.log",
+      "platform": "linux-x64-gnu",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "linux-x64-gnu-logs-npm-install.log",
+      "platform": "linux-x64-gnu",
+      "sha256": "4aaef3acc3c4b16766abf61c4f4aa2d3bd413e2fe822d3edd6cfa9d7e7334efa",
+      "size": 24
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "linux-x64-gnu-logs-package.log",
+      "platform": "linux-x64-gnu",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "linux-x64-gnu-SHA256SUMS",
+      "platform": "linux-x64-gnu",
+      "sha256": "ee9501d57c54cd63211c7e302ef4cd9a584ae3c7b20e7d2f9a78a89acc29dbaf",
+      "size": 806
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "linux-x64-gnu-dependency-evidence.json",
+      "platform": "linux-x64-gnu",
+      "sha256": "b3dd12bc6275d121cb3aff6e2da04d1b74445212822bd657a6c41923aaf5bce4",
+      "size": 42574
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "linux-x64-gnu-provenance.json",
+      "platform": "linux-x64-gnu",
+      "sha256": "a3706851ac2c2bc03bdbc303cd5bb53741a4c4a9bc33fbbb563baedc640deae7",
+      "size": 3986
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "linux-x64-gnu-release-manifest.json",
+      "platform": "linux-x64-gnu",
+      "sha256": "a9dc232e2410af0e22e03f110764c0ad9e1202fa6d5b92a5a92e7fb97813cdf5",
+      "size": 3704
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "linux-x64-gnu-sbom.cdx.json",
+      "platform": "linux-x64-gnu",
+      "sha256": "567812c54c2e68047698263bb335403b16f08e4b62ca03649e95ada1c4bb359e",
+      "size": 145864
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "linux-x64-gnu-build-report.json",
+      "platform": "linux-x64-gnu",
+      "sha256": "56e092c41ba008d2b24b296f1e958d0d0714b4df751a1159bcdab7fa5182c14d",
+      "size": 3896
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "SHA256SUMS",
+      "platform": "all",
+      "sha256": "5ac0d0f27804388e5ab299cb4dfb576e9b37e5fb1dbd3b597193b8d3ab559c4e",
+      "size": 1548
+    },
+    {
+      "implementation": "bun",
+      "kind": "evidence",
+      "name": "live-bun-descriptor-bun-descriptor.json",
+      "platform": "darwin-arm64",
+      "sha256": "5cf70537a3d8957b12a09aeb2ad6863e25198fa9fa7d8da8fdd71d5a147547db",
+      "size": 783
+    },
+    {
+      "implementation": "bun",
+      "kind": "evidence",
+      "name": "live-bun-inventory-bun-inventory.json",
+      "platform": "darwin-arm64",
+      "sha256": "7c5cd7df04898345f538e21c1dd04fce2dab1ab009274457ed2c564f2b4a47c3",
+      "size": 12850
+    },
+    {
+      "implementation": "bun",
+      "kind": "evidence",
+      "name": "live-bun-kernel-bun-kernel.md",
+      "platform": "darwin-arm64",
+      "sha256": "f4a133bd41f8bf42433ccf26dc48440b6ec692512e04caaa1687d42e5ec2f345",
+      "size": 5632
+    },
+    {
+      "implementation": "bun",
+      "kind": "evidence",
+      "name": "live-bun-native-bun-native.jsonl",
+      "platform": "darwin-arm64",
+      "sha256": "681c74b806fdfbf94dc437db94250d81a0abfe79c31f6558759d957ab5320cd7",
+      "size": 16692
+    },
+    {
+      "implementation": "bun",
+      "kind": "evidence",
+      "name": "live-bun-observation-bun-observation.json",
+      "platform": "darwin-arm64",
+      "sha256": "793881ee1da492504b02905c9bd92fb58953d1c13331f5f8185bea1f2d7eeb9c",
+      "size": 21136
+    },
+    {
+      "implementation": "bun",
+      "kind": "evidence",
+      "name": "live-bun-readiness-bun-readiness.json",
+      "platform": "darwin-arm64",
+      "sha256": "1c81a099a5cc57d6d2c687f25df251fd15181baaed807e2860a82095f67a8cd8",
+      "size": 1695
+    },
+    {
+      "implementation": "bun",
+      "kind": "evidence",
+      "name": "live-bun-runner-bun-runner.jsonl",
+      "platform": "darwin-arm64",
+      "sha256": "cf326468fe1a2c9c61ee23e5d9d759c598ebeb9358677b96f6ec681ed50de33a",
+      "size": 4367
+    },
+    {
+      "implementation": "bun",
+      "kind": "evidence",
+      "name": "live-bun-selection-bun-launch-selection.json",
+      "platform": "darwin-arm64",
+      "sha256": "6d27e11377f509c2704b52fb2180f53ac8fb40fa4635d68967d614279960c1f9",
+      "size": 1195
+    },
+    {
+      "implementation": "rust",
+      "kind": "evidence",
+      "name": "live-rust-descriptor-rust-descriptor.json",
+      "platform": "darwin-arm64",
+      "sha256": "5cf70537a3d8957b12a09aeb2ad6863e25198fa9fa7d8da8fdd71d5a147547db",
+      "size": 783
+    },
+    {
+      "implementation": "rust",
+      "kind": "evidence",
+      "name": "live-rust-inventory-rust-inventory.json",
+      "platform": "darwin-arm64",
+      "sha256": "7c5cd7df04898345f538e21c1dd04fce2dab1ab009274457ed2c564f2b4a47c3",
+      "size": 12850
+    },
+    {
+      "implementation": "rust",
+      "kind": "evidence",
+      "name": "live-rust-kernel-rust-kernel.md",
+      "platform": "darwin-arm64",
+      "sha256": "f4a133bd41f8bf42433ccf26dc48440b6ec692512e04caaa1687d42e5ec2f345",
+      "size": 5632
+    },
+    {
+      "implementation": "rust",
+      "kind": "evidence",
+      "name": "live-rust-native-rust-native.jsonl",
+      "platform": "darwin-arm64",
+      "sha256": "9d0b529b5641ed1d5eea7ee4d321c766f52d3fda8c22ba505efd74b548953fbd",
+      "size": 10944
+    },
+    {
+      "implementation": "rust",
+      "kind": "evidence",
+      "name": "live-rust-observation-rust-observation.json",
+      "platform": "darwin-arm64",
+      "sha256": "4e674bd37d14e66031cc3bca68cde945e5a1d795b84e11b2a2207669cd92abcb",
+      "size": 21136
+    },
+    {
+      "implementation": "rust",
+      "kind": "evidence",
+      "name": "live-rust-readiness-rust-readiness.json",
+      "platform": "darwin-arm64",
+      "sha256": "a4305b97ebc4368f2d0a6f3f4647eb65015f3098e8df1d959ec7da1bd6ce8491",
+      "size": 1696
+    },
+    {
+      "implementation": "rust",
+      "kind": "evidence",
+      "name": "live-rust-runner-rust-runner.jsonl",
+      "platform": "darwin-arm64",
+      "sha256": "9fd04943f4b5602d62630133ac239019709c19e917ff8ab3dd7dae75cff770de",
+      "size": 4367
+    },
+    {
+      "implementation": "rust",
+      "kind": "evidence",
+      "name": "live-rust-selection-rust-launch-selection.json",
+      "platform": "darwin-arm64",
+      "sha256": "8a3876bf748707535956e6c4ea087db9a0eede31ec08183b5aacf45b8b70b77a",
+      "size": 1197
+    },
+    {
+      "implementation": "shared",
+      "kind": "evidence",
+      "name": "kernel-rc-release-evidence.json",
+      "platform": "all",
+      "sha256": "73705ad60893b2e5cd2487d5be53c1b7df10cc063d8a6d268d45c682380981d1",
+      "size": 6079
+    }
+  ],
+  "macos": {},
+  "npmProvenance": true,
+  "preflight": "kernel-rc-release-evidence.json",
+  "qualification": {
+    "evidence": "https://github.com/openprose/openprose-expedition/tree/ae247835b66f9d420158dbf71cb021acca357a33/imp-014-npm-release-oct02/evidence/0.15.0-rc.2",
+    "status": "kernel-smoke-qualified"
+  },
+  "schema": "openprose.cli-publication/2",
+  "signing": "unsigned-rc",
+  "source": "fe8b50328d87a9f60f3bbf2d527edffa56f3bd12",
+  "version": "0.15.0-rc.2"
+}

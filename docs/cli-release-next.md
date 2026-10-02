@@ -1,27 +1,34 @@
 # Next CLI release preparation — October 2, 2026
 
-This is a preparation plan, not a qualified publication inventory or release
-approval. Preserve public `0.15.0-rc.1`; changed source requires a new version.
-The proposed next label is `0.15.0-rc.2`, subject to final compatibility review.
-Do not dispatch the publisher using this document.
+This guide records preparation for unsigned `0.15.0-rc.2`; use the reviewed
+[publication inventory](../cli/release/plans/0.15.0-rc.2.json) as the publisher
+input. The owner authorized completing this qualified candidate on October 2.
+Preserve immutable `0.15.0-rc.1` bytes and the stable npm default. This guide is
+not a substitute for the inventory or its retained evidence.
 
 ## Release selection
 
-The inspected main is `cc5788abfc45dfe67d47e277264d87cdb0614e4c`.
-Its [four-platform build](https://github.com/openprose/prose-cli/actions/runs/37052057798),
-[installation rehearsal](https://github.com/openprose/prose-cli/actions/runs/37052057797)
-and CodeQL pass. [Source admission](https://github.com/openprose/prose-cli/actions/runs/37052057833)
-also passed. These checks do not qualify new release bytes.
+Runtime source is frozen at `fe8b50328d87a9f60f3bbf2d527edffa56f3bd12` after
+[PR32](https://github.com/openprose/prose-cli/pull/32) passed all fifteen checks.
+The integrated tree equals that tested candidate. The explicit
+[four-platform release build](https://github.com/openprose/prose-cli/actions/runs/37065138182)
+passed and produced the original thirteen install archives. Independent npm
+identity and Bun-byte equality checks passed. The
+[paired live smoke](https://github.com/openprose/openprose-expedition/blob/ae247835b66f9d420158dbf71cb021acca357a33/imp-014-npm-release-oct02/evidence/0.15.0-rc.2/live-smoke.json)
+passed on those exact macOS ARM64 binaries. Publication additionally requires
+[exact-main source admission](https://github.com/openprose/prose-cli/actions/runs/37065118159)
+and complete inventory review; preparation alone does not claim availability.
 
-Do not freeze this revision prematurely. The finance/context research owner is
+The finance/context research owner is
 investigating Prime event-history compatibility under IMP-083. Its longer probe
 found missing tool-start events, and the compatibility candidate remains
 unqualified. Do not merge it, weaken parsing or count its paid research runs as
 release qualification. Refresh its workspace record and current remote main
 before selecting source. Either integrate an independently qualified repair or
 explicitly disclose the affected Prime route and review release scope.
-The separately recorded OMP cleanup reliability issue also remains a limitation;
-a later passing cohort does not establish its cause repaired.
+IMP-082's reproduced OMP cleanup defect is repaired and qualified on integrated
+main. Its distinct historical Bun timing observation remains unexplained; the
+release does not claim that separate observation repaired.
 
 Keep the published kernel default `0.1.0-rc.1`. The failed semantic qualification
 of kernel `0.2.0-rc.1` is separately owned and cannot be bypassed by this release.
