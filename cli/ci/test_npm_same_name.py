@@ -152,3 +152,60 @@ process.stdout.write(JSON.stringify(results));
                                 capture_output=True, check=True, text=True)
         for case, observed in zip(cases, json.loads(result.stdout)):
             self.assertEqual(observed, {'selected': case['root'], 'payloadsBelowRoot': True})
+
+
+class RegistryVisibilityTests(unittest.TestCase):
+    def test_delayed_visibility_polls_reads_without_republication(self):
+        versions = {'arm': '1.0.0-arm', 'x64': '1.0.0-x64'}
+        expected = {'arm': 'sha512-arm', 'x64': 'sha512-x64'}
+        with patch.object(pub, 'registry_integrity', side_effect=[None, 'sha512-x64', 'sha512-arm']) as read, patch.object(pub.time, 'monotonic', return_value=0), patch.object(pub.time, 'sleep') as sleep, patch.object(pub, 'publish_package') as publish:
+            pub.await_registry_integrities(versions, expected)
+        self.assertEqual(read.call_count, 3)
+        sleep.assert_called_once_with(30)
+        publish.assert_not_called()
+
+    def test_conflicting_bytes_stop_without_wait_or_publish(self):
+        with patch.object(pub, 'registry_integrity', return_value='sha512-other'), patch.object(pub.time, 'sleep') as sleep, patch.object(pub, 'publish_package') as publish:
+            with self.assertRaisesRegex(ValueError, 'integrity mismatch'):
+                pub.await_registry_integrities({'arm':'1.0.0-arm'}, {'arm':'sha512-arm'})
+        sleep.assert_not_called();publish.assert_not_called()
+
+    def test_absence_has_finite_deadline_without_republication(self):
+        with patch.object(pub, 'registry_integrity', return_value=None), patch.object(pub.time, 'monotonic', side_effect=[0, 0, 21]), patch.object(pub.time, 'sleep') as sleep, patch.object(pub, 'publish_package') as publish:
+            with self.assertRaisesRegex(ValueError, 'reconcile before resuming'):
+                pub.await_registry_integrities({'arm':'1.0.0-arm'}, {'arm':'sha512-arm'}, timeout=20)
+        sleep.assert_called_once_with(20);publish.assert_not_called()
+
+    def test_root_waits_for_all_payloads_and_stays_absent_on_timeout(self):
+        for timeout in (False, True):
+            with self.subTest(timeout=timeout), tempfile.TemporaryDirectory() as directory, ExitStack() as stack:
+                root=Path(directory); packages={a:a.split('/')[1]+'.tgz' for a in pub.PACKAGES}
+                artifacts=[]
+                for alias, filename in packages.items():
+                    (root/filename).write_bytes(alias.encode()); artifacts.append({'name':filename,'sha256':pub.digest(root/filename)})
+                plan={'schema':'openprose.cli-publication/2','version':'0.15.0-rc.2','source':'a'*40,'signing':'unsigned-rc','artifacts':artifacts}
+                versions={a:pack.npm_payload_version(plan['version'],a.removeprefix('@openprose/prose-cli-')) if a!=pub.PACKAGES[-1] else plan['version'] for a in pub.PACKAGES}
+                accepted={};visible={};order=[]
+                def publish(name, package, tag, route, token):
+                    alias=next(a for a,f in packages.items() if f==package.name)
+                    order.append(alias)
+                    if alias==pub.PACKAGES[-1]:
+                        self.assertEqual(set(visible),{versions[a] for a in pub.PACKAGES[:-1]})
+                        visible[versions[alias]]=pub.npm_integrity(package)
+                    else:accepted[versions[alias]]=pub.npm_integrity(package)
+                environment={'GITHUB_REPOSITORY':pub.REPOSITORY,'GITHUB_REF':'refs/heads/main','GITHUB_EVENT_NAME':'workflow_dispatch','GITHUB_WORKFLOW_REF':pub.REPOSITORY+'/.github/workflows/cli-publish.yml@refs/heads/main'}
+                stack.enter_context(patch.dict(os.environ,environment,clear=True))
+                stack.enter_context(patch.object(pub,'run',return_value='{"visibility":"public"}'))
+                stack.enter_context(patch.object(pub,'verify_local',return_value=(packages,{})))
+                stack.enter_context(patch.object(pub,'registry_package_exists',return_value=True))
+                stack.enter_context(patch.object(pub,'registry_integrity',side_effect=lambda name,v:visible.get(v)))
+                stack.enter_context(patch.object(pub,'sign_artifacts'))
+                stack.enter_context(patch.object(pub,'publish_package',side_effect=publish))
+                stack.enter_context(patch.object(pub.time,'sleep',side_effect=lambda seconds:visible.update(accepted)))
+                stack.enter_context(patch.object(pub.time,'monotonic',side_effect=[0,1201] if timeout else lambda:0))
+                if timeout:
+                    with self.assertRaisesRegex(ValueError,'reconcile before resuming'):pub.publish(plan,root,None,None,None)
+                    self.assertEqual(order,list(pub.PACKAGES[:-1]));self.assertFalse((root/'publication-receipt.json').exists())
+                else:
+                    pub.publish(plan,root,None,None,None)
+                    self.assertEqual(order,list(pub.PACKAGES));self.assertTrue((root/'publication-receipt.json').exists())

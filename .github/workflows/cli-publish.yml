@@ -26,7 +26,7 @@ jobs:
   publish:
     if: github.ref == 'refs/heads/main'
     runs-on: macos-15
-    timeout-minutes: 40
+    timeout-minutes: 60
     environment: publication
     permissions:
       # GitHub draft releases are visible only to identities with push access.
