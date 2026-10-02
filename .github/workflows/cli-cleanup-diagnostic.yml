@@ -1,0 +1,50 @@
+name: Temporary Linux cleanup diagnosis
+on:
+  pull_request:
+    paths:
+      - .github/workflows/cli-cleanup-diagnostic.yml
+      - cli/ci/diagnose_cleanup.py
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24.20.0'
+      - uses: astral-sh/setup-uv@d0d8abe699bfb85fec6de9f7adb5ae17292296ff
+        with:
+          version: '0.12.15'
+          enable-cache: false
+      - name: Prepare pinned Python
+        run: |
+          uv python install 3.10.20
+          uv venv --python 3.10.20 --seed "$RUNNER_TEMP/diagnostic-python"
+          echo "$RUNNER_TEMP/diagnostic-python/bin" >> "$GITHUB_PATH"
+      - uses: oven-sh/setup-bun@3d267786b128fe76c2f16a390aa2448b815359f3
+        with:
+          bun-version: '1.3.5'
+          bun-download-url: https://github.com/oven-sh/bun/releases/download/bun-v1.3.5/bun-linux-x64-baseline.zip
+      - name: Prepare locked dependencies
+        run: |
+          rustup toolchain install 1.87.0 --profile minimal
+          rustup default 1.87.0
+          cargo fetch --locked --manifest-path cli/rust/Cargo.toml
+          python3 -m pip install --require-hashes --only-binary=:all: -r cli/ci/requirements-test.txt
+          cd cli/bun
+          bun install --frozen-lockfile --ignore-scripts
+      - name: Run one bounded diagnostic
+        run: python3 cli/ci/diagnose_cleanup.py --output "$RUNNER_TEMP/cleanup-diagnosis" --repetitions 50
+      - name: Retain diagnostic observations
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: cleanup-diagnosis-linux-x64
+          path: ${{ runner.temp }}/cleanup-diagnosis
+          retention-days: 14
+          if-no-files-found: warn
