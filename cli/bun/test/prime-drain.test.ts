@@ -36,3 +36,91 @@ test("native history accounting projection is typed and never changes execution 
 });
 
 test("a prior segment empty queue cannot settle resumed work",()=>{const frames=copy(fixture.frames);const empty=frames.pop()!;frames.splice(13,0,empty);const p=start();for(const f of frames)p.accept(f);expect(()=>p.settleProcess!(0)).toThrow();});
+
+import queuedFixture from "../../shared/fixtures/adapters/tool-lifecycle/prime-queued-continuation.json";
+const queuedStart=()=>{
+ const p=installedProtocol("prime/rpc","0.7.0",queuedFixture.invocationId,new TextEncoder().encode("PROMPT\n"),true);
+ p.takeStagedStdinBytes!();p.accept(queuedFixture.stateResponse);p.takeStagedStdinBytes!();p.accept(queuedFixture.promptResponse);return p;
+};
+test("pre-observed queued child input requires a complete fresh continuation",()=>{
+ const p=queuedStart();for(const frame of queuedFixture.frames){p.accept(frame);expect(p.terminalEventObserved).toBe(false);}
+ expect(p.settleProcess!(0)).toEqual({type:"session.completed"});
+ for(let count=0;count<queuedFixture.frames.length;count++){
+  const q=queuedStart();expect(()=>{for(const f of queuedFixture.frames.slice(0,count))q.accept(f);q.settleProcess!(0);}).toThrow();
+ }
+ const q=queuedStart();for(const f of queuedFixture.frames)q.accept(f);expect(()=>q.settleProcess!(1)).toThrow();
+});
+
+const qi=queuedFixture.indexMap;
+const idle={type:"session_action_update",actions:{queuedCount:0,steering:[],followUps:[]}};
+const mutateCustom=(frames:any[],change:(m:any)=>void)=>{
+ for(const index of [qi.customStart,qi.customEnd])change(frames[index].message);
+ change(frames[qi.continuationStopEnd].messages[0]);
+};
+test("queued continuation rejects stale, uncorrelated, duplicated and incomplete work",()=>{
+ const mutations:Array<[string,(frames:any[])=>void]>=[
+  ["no preview",a=>{a.splice(qi.currentQueuedDelivery,1);}],
+  ["removed preview",a=>{a.splice(qi.parentStopEnd,0,copy(idle));}],
+  ["post-stop preview",a=>{const [q]=a.splice(qi.currentQueuedDelivery,1);a.splice(qi.parentStopEnd,0,q);}],
+  ["wrong count",a=>{a[qi.currentQueuedDelivery].actions.queuedCount=0;}],
+  ["multiple previews",a=>{a[qi.currentQueuedDelivery].actions.queuedCount=2;a[qi.currentQueuedDelivery].actions.steering.push("Agent message received: Other.");}],
+  ["non-child preview",a=>{a[qi.currentQueuedDelivery].actions.steering=["Unrelated work"]; }],
+  ["active pre-stop snapshot",a=>{a[qi.currentQueuedDelivery].actions.active={kind:"turn",phase:"running"};}],
+  ["no known child",a=>{for(let i=a.length-1;i>=0;i--)if(a[i].type==="rlm_child_update")a.splice(i,1);}],
+  ["wrong sender",a=>mutateCustom(a,m=>{m.details.from.activeSessionId="other-active";m.content=m.content.replaceAll("fixture-child-active","other-active");})],
+  ["wrong target",a=>mutateCustom(a,m=>{m.details.target.sessionId="other-parent";m.content=m.content.replaceAll("fixture-parent-session","other-parent");})],
+  ["altered body",a=>mutateCustom(a,m=>{m.details.message="Changed child body.";m.content=m.content.replace("Synthetic child result is available.","Changed child body.");})],
+  ["altered format",a=>mutateCustom(a,m=>{m.content+=" extra";})],
+  ["unknown custom field",a=>mutateCustom(a,m=>{m.extra=true;})],
+  ["negative custom time",a=>mutateCustom(a,m=>{m.timestamp=-1;})],
+  ["changed custom end",a=>{a[qi.customEnd].message.content+="changed";}],
+  ["missing custom end",a=>{a.splice(qi.customEnd,1);}],
+  ["assistant before delivery",a=>{a[qi.customStart]=copy(a[qi.continuationAssistantStart]);}],
+  ["unrelated user input",a=>{a[qi.customStart]=copy(a[qi.userStart]);}],
+  ["duplicate agent start",a=>{a.splice(qi.continuationAgentStart,0,copy(a[qi.continuationAgentStart]));}],
+  ["duplicate turn start",a=>{a.splice(qi.continuationTurnStart,0,copy(a[qi.continuationTurnStart]));}],
+  ["missing committing",a=>{a.splice(qi.committing,1);}],
+  ["session command",a=>{a[qi.preparing].actions.active.kind="session_command";}],
+  ["empty queue instead of delivery",a=>{a.splice(qi.preparing,a.length-qi.preparing,copy(idle));}],
+  ["wrong earlier history",a=>{a[qi.parentStopEnd].messages[0].content[0].text="Changed";}],
+  ["wrong later history",a=>{a[qi.continuationStopEnd].messages[1].content[0].text="Changed";}],
+  ["invalid historical usage",a=>{a[qi.parentStopEnd].messages[1].usage.input="13";}],
+  ["old idle cannot finish new segment",a=>{a.pop();a.splice(qi.continuationStopEnd,0,copy(idle));}],
+  ["reused delivery",a=>{a.splice(qi.continuationStopEnd,0,copy(a[qi.currentQueuedDelivery]));}],
+  ["new work after completed drain",a=>{a.push(copy(a[qi.preparing]));}],
+  ["new queued work after completed drain",a=>{a.push(copy(a[qi.currentQueuedDelivery]),copy(idle));}],
+  ["new queued work after admitted delivery",a=>{a.splice(qi.continuationAssistantStart,0,copy(a[qi.currentQueuedDelivery]),copy(idle));}],
+  ["new preparing phase after admitted delivery",a=>{a.splice(qi.continuationAssistantStart,0,copy(a[qi.preparing]));}],
+ ];
+ for(const key of ["continuationAgentStart","continuationTurnStart","customStart","customEnd"] as const){
+  mutations.push([`unknown outer field on ${key}`,a=>{a[qi[key]].extra=true;}]);
+ }
+ for(const [name,mutate] of mutations){
+  const frames:any[]=copy(queuedFixture.frames);mutate(frames);const p=queuedStart();
+  expect(()=>{for(const f of frames)p.accept(f);p.settleProcess!(0);},name).toThrow();
+ }
+});
+
+test("active display labels do not supply queued-delivery identity",()=>{
+ const frames:any[]=copy(queuedFixture.frames);
+ for(const i of [qi.preparing,qi.committing,qi.running])frames[i].actions.active.label="Opaque display label";
+ const p=queuedStart();for(const f of frames)p.accept(f);
+ expect(p.settleProcess!(0)).toEqual({type:"session.completed"});
+});
+
+import markerFixture from "../../shared/fixtures/adapters/tool-lifecycle/prime-turn-transition.json";
+test("queue disappearance without correlated delivery cannot settle a marker-loss trace",()=>{
+ const p=installedProtocol("prime/rpc","0.7.0",markerFixture.invocationId,new TextEncoder().encode("PROMPT\n"),true);
+ p.takeStagedStdinBytes!();p.accept(markerFixture.stateResponse);p.takeStagedStdinBytes!();p.accept(markerFixture.promptResponse);
+ const frames:any[]=copy(markerFixture.frames);
+ frames[11].actions={queuedCount:1,steering:["Agent message received: Child observation is available."],followUps:[]};
+ expect(()=>{for(const f of frames)p.accept(f);p.settleProcess!(0);}).toThrow();
+});
+
+test("a stopped current parent action can drain without a queued child continuation",()=>{
+ const frames:any[]=copy(queuedFixture.frames.slice(0,qi.parentStopEnd+1));
+ frames[qi.currentQueuedDelivery].actions={queuedCount:0,steering:[],followUps:[],active:{kind:"turn",phase:"running"}};
+ const p=queuedStart();for(const f of frames)p.accept(f);
+ expect(()=>p.settleProcess!(0)).toThrow();
+ p.accept(copy(idle));expect(p.settleProcess!(0)).toEqual({type:"session.completed"});
+});

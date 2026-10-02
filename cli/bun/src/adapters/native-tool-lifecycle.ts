@@ -112,6 +112,12 @@ export class NativeToolLifecycle {
       if(!this.started||r.toolName!=="task"||!taskArgsMatch(r.args,task.args,true,"task",this.taskDefaults)||!a||a.type!=="task"||a.jobId!==task.job||!["running","completed","failed"].includes(a.state))bad();
       return null;
     }
+    if(this.primeDrain?.queuedContinuationPending){
+      if(!this.primeDrain.permitsPendingEvent(r.type))bad();
+      const keys=r.type==="session_action_update"?["type","actions"]:
+        r.type==="message_start"||r.type==="message_end"?["type","message"]:["type"];
+      if(Object.keys(r).length!==keys.length||Object.keys(r).some(k=>!keys.includes(k)))bad();
+    }
     if(this.primeDrain?.candidate&&r.type!=="session_action_update")bad();
     switch (r.type) {
       case "session_action_update":
@@ -123,10 +129,16 @@ export class NativeToolLifecycle {
         if(this.primeDrain){if(this.primeDrain.candidate)bad();this.primeDrain.child(r.child);}
         return null;
       case "agent_start":
+        if(this.primeDrain?.queuedContinuationPending){
+          if(!this.started||this.turn||this.open||!this.primeDrain.beginQueuedAgent())bad();
+          this.history=[];this.user=false;this.assistant=null;this.lastStop=null;
+          this.calls.clear();this.results=[];this.blockTypes.clear();return null;
+        }
         if (this.started) bad();
         this.started = true;
         return { type: "session.started" };
       case "turn_start":
+        if(this.primeDrain?.queuedContinuationPending&&!this.primeDrain.beginQueuedTurn())bad();
         if (!this.started || this.turn || this.open || (this.lastStop !== null && this.lastStop !== "toolUse")) bad();
         this.turn = true; this.assistant = null; this.calls.clear(); this.results = [];
         return null;
@@ -153,7 +165,10 @@ export class NativeToolLifecycle {
         }
         if (!this.turn || this.open) bad();
         if (m.role === "user") { if (this.user || this.assistant) bad(); }
-        else if (m.role === "custom") { if (!this.omp || this.assistant || !validCustom(m)) bad(); }
+        else if (m.role === "custom") {
+          if(this.omp){if(this.assistant||!validCustom(m))bad();}
+          else if(this.assistant||!this.primeDrain?.startQueuedMessage(m))bad();
+        }
         else if (m.role === "assistant") { if (!this.user || this.assistant) bad(); this.blockTypes.clear(); }
         else if (m.role === "toolResult") {
           const c = this.calls.get(m.toolCallId) ?? bad();
@@ -177,7 +192,11 @@ export class NativeToolLifecycle {
         const m = object(r.message);
         if (!this.open || m.role !== this.open.role || (m.role !== "custom" && !Array.isArray(m.content))) bad();
         if (m.role === "user") { if (!same(m,this.open)) bad(); this.user = true; }
-        else if (m.role === "custom") { if (!this.omp || !validCustom(m) || !same(m,this.open)) bad(); }
+        else if (m.role === "custom") {
+          if(!same(m,this.open))bad();
+          if(this.omp){if(!validCustom(m))bad();}
+          else {if(!this.primeDrain?.endQueuedMessage(m))bad();this.user=true;}
+        }
         else if (m.role === "assistant") {
           if ([...this.blockTypes].some(([i,t])=>m.content[i]?.type!==t)) bad();
           if (!["stop","toolUse"].includes(m.stopReason)) throw failure("HARNESS_FAILED", { reason: "Native assistant did not finish normally." });
@@ -224,7 +243,7 @@ export class NativeToolLifecycle {
       case "agent_end":
         if(this.primeDrain){
           if(!this.started||this.turn||this.open||!["stop","toolUse"].includes(this.lastStop??"")||[...this.calls.values()].some(c=>c.state!=="reported")||this.primeDrain.segmentClosed||!Array.isArray(r.messages)||!this.primeDrain.history(r.messages,this.history))bad();
-          this.primeDrain.segmentClosed=true;this.primeDrain.candidate=this.lastStop==="stop";return null;
+          if(!this.primeDrain.closeSegment(this.lastStop!))bad();return null;
         }
         if (!this.started || this.turn || this.open || this.lastStop !== "stop" || (!Array.isArray(r.messages) || r.messages.length!==this.history.length || r.messages.some((m:any,i:number)=>!this.sameMessage(m,this.history[i])))) bad();
         if (this.omp && r.isTerminal !== true) throw failure("HARNESS_FAILED", {reason:"unsupported_nonterminal_settlement"});
