@@ -3,7 +3,7 @@ use super::{
     has_exact_keys, json, omp_extension_ui_disposition, omp_rpc_id, prime_bounded_json,
     record_type, valid_omp_ready,
 };
-use std::collections::BTreeMap;
+use std::{borrow::Cow, collections::BTreeMap};
 
 pub(super) fn rich(record: &Value) -> bool {
     record
@@ -613,6 +613,59 @@ pub(super) fn normalize(
     normalize_mode(records, id, omp, terminal, false)
 }
 
+// Fill only comparison positions whose notification was omitted. No normalized
+// tool event is generated; terminal producer history must corroborate each one.
+fn corroborated_history<'a>(
+    messages: &[Value],
+    history: &'a [Value],
+    omitted: &BTreeMap<usize, Value>,
+    resumed: bool,
+) -> Option<Cow<'a, [Value]>> {
+    if omitted.is_empty() {
+        return Some(Cow::Borrowed(history));
+    }
+    let count = history.len().checked_add(omitted.len())?;
+    let offset = messages.len().checked_sub(count)?;
+    if offset != 0 && !(offset == 1 && resumed) {
+        return None;
+    }
+    let mut projected = Vec::with_capacity(count);
+    let mut observed = history.iter();
+    for i in 0..count {
+        let Some(expected) = omitted.get(&i) else {
+            projected.push(observed.next()?.clone());
+            continue;
+        };
+        let m = messages.get(offset + i)?;
+        let fields = m.as_object()?;
+        if fields.keys().any(|k| {
+            ![
+                "role",
+                "toolCallId",
+                "toolName",
+                "content",
+                "isError",
+                "details",
+                "timestamp",
+            ]
+            .contains(&k.as_str())
+        }) || (!expected["started"].is_null() && m != &expected["started"])
+            || m["role"] != "toolResult"
+            || m["toolCallId"] != expected["id"]
+            || m["toolName"] != expected["name"]
+            || m["isError"] != expected["isError"]
+            || m.get("content") != expected["result"].get("content")
+            || m.get("details") != expected["result"].get("details")
+            || m.get("timestamp")
+                .is_some_and(|v| v.as_f64().is_none_or(|n| !n.is_finite() || n < 0.0))
+        {
+            return None;
+        }
+        projected.push(m.clone());
+    }
+    Some(Cow::Owned(projected))
+}
+
 pub(super) fn normalize_mode(
     records: &[Value],
     id: &str,
@@ -635,6 +688,7 @@ pub(super) fn normalize_mode(
     let mut assistant: Option<Value> = None;
     let mut last_stop: Option<String> = None;
     let mut history = Vec::<Value>::new();
+    let mut omitted_results = BTreeMap::<usize, Value>::new();
     let mut results = Vec::<Value>::new();
     let mut texts = Vec::<String>::new();
     let mut block_types = BTreeMap::<usize, String>::new();
@@ -791,6 +845,7 @@ pub(super) fn normalize_mode(
                         // Prior history was checked at its agent_end. New streamed
                         // history is a separate segment, never an excuse to skip it.
                         history.clear();
+                        omitted_results.clear();
                         assistant = None;
                         calls.clear();
                         results.clear();
@@ -892,6 +947,7 @@ pub(super) fn normalize_mode(
             drain_state.resumed = true;
             drain_state.queue_empty = Some(false);
             history.clear();
+            omitted_results.clear();
         }
         match kind {
             "agent_start" => {
@@ -915,6 +971,39 @@ pub(super) fn normalize_mode(
             }
             "message_start" => {
                 let m = r.get("message").filter(|m| m.is_object()).ok_or_else(bad)?;
+                // Single completed result omitted from streamed notifications.
+                // Continuation stays provisional until terminal history agrees.
+                if drain
+                    && started
+                    && turn
+                    && open.as_ref().is_none_or(|v| v["role"] == "toolResult")
+                    && assistant
+                        .as_ref()
+                        .is_some_and(|a| a["stopReason"] == "toolUse")
+                    && m["role"] == "assistant"
+                    && m["content"].as_array().is_some_and(Vec::is_empty)
+                    && calls.len() == 1
+                    && results.is_empty()
+                {
+                    let (tool_id, call) = calls.iter().next().ok_or_else(bad)?;
+                    if call.2 == 2
+                        && call.3.as_ref().is_some_and(|v| v["content"].is_array())
+                        && call.4.is_some()
+                    {
+                        omitted_results.insert(
+                            history.len() + omitted_results.len(),
+                            json!({
+                                "id": tool_id, "name": call.0, "result": call.3, "isError": call.4, "started": open
+                            }),
+                        );
+                        open = None;
+                        last_stop = Some("toolUse".to_owned());
+                        turn = true;
+                        assistant = None;
+                        calls.clear();
+                        results.clear();
+                    }
+                }
                 // Native-only inference of both missing markers; no emitted event or history deletion.
                 if drain
                     && started
@@ -1099,7 +1188,9 @@ pub(super) fn normalize_mode(
                         {
                             return Err(bad());
                         }
-                        if call.3.as_ref() != m.get("content") || call.4 != m["isError"].as_bool() {
+                        if call.3.as_ref().and_then(|v| v.get("content")) != m.get("content")
+                            || call.4 != m["isError"].as_bool()
+                        {
                             return Err(bad());
                         }
                         call.2 = 3;
@@ -1138,7 +1229,7 @@ pub(super) fn normalize_mode(
                     if call.2 != 1 || !r["isError"].is_boolean() || !r["result"].is_object() {
                         return Err(bad());
                     }
-                    call.3 = r["result"].get("content").cloned();
+                    call.3 = Some(r["result"].clone());
                     call.4 = r["isError"].as_bool();
                     call.2 = 2;
                     let a = &r["result"]["details"]["async"];
@@ -1179,7 +1270,10 @@ pub(super) fn normalize_mode(
                     return Err(bad());
                 }
                 if drain {
-                    if drain_state.segment_closed || !drain_state.history(msgs, &history) {
+                    let corroborated =
+                        corroborated_history(msgs, &history, &omitted_results, drain_state.resumed)
+                            .ok_or_else(bad)?;
+                    if drain_state.segment_closed || !drain_state.history(msgs, &corroborated) {
                         return Err(bad());
                     }
                     if last_stop.as_deref() == Some("toolUse") {
@@ -1599,6 +1693,11 @@ mod tests {
         for index in [7usize, 9, 14] {
             let mut bad = r.clone();
             bad.remove(index + 2);
+            if index == 9 {
+                // A missing result end now requires exact terminal corroboration.
+                bad[16]["messages"][2]["content"] =
+                    json!([{"type":"text","text":"uncorroborated"}]);
+            }
             assert!(run(&bad, true).is_err());
         }
         let mut bad = r.clone();
@@ -1613,6 +1712,92 @@ mod tests {
         let mut bad = r.clone();
         bad.pop();
         assert!(run(&bad, true).is_err());
+    }
+    #[test]
+    fn prime_partial_result_requires_exact_corroboration() {
+        let f: Value = serde_json::from_str(include_str!(
+            "../../../../../shared/fixtures/adapters/tool-lifecycle/prime-omitted-result.json"
+        ))
+        .unwrap();
+        let mut r = vec![f["stateResponse"].clone(), f["promptResponse"].clone()];
+        r.extend(f["partialFrames"].as_array().unwrap().clone());
+        let run = |r: &[Value]| normalize_mode(r, "fixture-drain", false, true, true);
+        assert!(run(&r).is_ok());
+        for field in ["content", "isError", "details", "timestamp"] {
+            let mut bad = r.clone();
+            bad[10]["message"][field] = match field {
+                "content" => json!([{"type":"text","text":"changed"}]),
+                "isError" => json!(true),
+                "timestamp" => json!(123),
+                _ => json!({"changed":true}),
+            };
+            assert!(run(&bad).is_err(), "changed start {field}");
+        }
+    }
+    #[test]
+    fn prime_omitted_result_requires_corroboration() {
+        let f: Value = serde_json::from_str(include_str!(
+            "../../../../../shared/fixtures/adapters/tool-lifecycle/prime-omitted-result.json"
+        ))
+        .unwrap();
+        let mut r = vec![f["stateResponse"].clone(), f["promptResponse"].clone()];
+        r.extend(f["frames"].as_array().unwrap().clone());
+        let run = |r: &[Value], terminal| normalize_mode(r, "fixture-drain", false, terminal, true);
+        assert!(run(&r, true).is_ok());
+        for end in 0..=13 {
+            assert!(run(&r[..end], true).is_err(), "truncated at {end}");
+        }
+        for end in 0..=r.len() {
+            assert!(run(&r[..end], false).is_ok(), "prefix {end}");
+        }
+        for field in [
+            "toolCallId",
+            "toolName",
+            "content",
+            "isError",
+            "details",
+            "extra",
+            "timestamp",
+        ] {
+            let mut bad = r.clone();
+            bad[13]["messages"][2][field] = match field {
+                "content" => json!([{"type":"text","text":"changed"}]),
+                "isError" => json!(true),
+                "details" => json!({"invented":true}),
+                "timestamp" => json!(-1),
+                _ => json!("changed"),
+            };
+            assert!(run(&bad, true).is_err(), "changed {field}");
+        }
+        for index in [8, 9] {
+            let mut bad = r.clone();
+            bad.remove(index);
+            assert!(run(&bad, true).is_err());
+        }
+        let mut bad = r.clone();
+        bad[13]["messages"].as_array_mut().unwrap().remove(2);
+        assert!(run(&bad, true).is_err());
+        let mut bad = r.clone();
+        let duplicate = bad[13]["messages"][2].clone();
+        bad[13]["messages"].as_array_mut().unwrap().push(duplicate);
+        assert!(run(&bad, true).is_err());
+        let mut bad = r.clone();
+        bad[10]["message"]["content"] = json!([{"type":"text","text":"not empty"}]);
+        assert!(run(&bad, true).is_err());
+        let mut bad = r.clone();
+        bad[13]["messages"][0]["content"][0]["text"] = json!("changed user");
+        assert!(run(&bad, true).is_err());
+        let mut repeated = vec![f["stateResponse"].clone(), f["promptResponse"].clone()];
+        repeated.extend(f["repeatedFrames"].as_array().unwrap().clone());
+        assert!(run(&repeated, true).is_ok());
+        let end = repeated.len() - 2;
+        repeated[end]["messages"][4]["content"][0]["text"] = json!("value");
+        assert!(run(&repeated, true).is_err());
+        let mut detailed = r.clone();
+        detailed[9]["result"]["details"] = json!({"status":"ok"});
+        detailed[13]["messages"][2]["details"] = json!({"status":"ok"});
+        detailed[13]["messages"][2]["timestamp"] = json!(123);
+        assert!(run(&detailed, true).is_ok());
     }
     #[test]
     fn prime_usage_projection_is_typed_and_only_history() {
