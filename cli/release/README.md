@@ -81,8 +81,9 @@ ranges cannot select a payload-only version. Platform tags remain separate from
 `rc` and `latest`, and the root publishes last through the existing OIDC trust.
 No bootstrap token or new package-name setup is needed for this layout.
 
-Historical schema-1 plans retain their original separate platform identities
-and first-publication controls. See [publication setup](../../docs/cli-publication.md)
+Historical schema-1 plans retain their original separate platform identities.
+First publication of those absent identities still uses the legacy bootstrap
+controls. See [publication setup](../../docs/cli-publication.md)
 for both formats and the exact workflow/environment identity. Missing trust is
 a publication blocker, not a reason to weaken CI or add permanent tokens.
 
