@@ -660,3 +660,7 @@ Codex `/root` owns Git/index operations and sole edits in isolated `codex/imp-01
 ## IMP-014: npm publication recovery diagnostics (October 2, 2026)
 
 Codex `/root` owns Git/index operations and sole edits in isolated `codex/imp-014-npm-publish-diagnostics`, based on publisher main `70e5f7ab`. Exact paths: `cli/protocol/OWNERSHIP.md`, `cli/ci/publication.py`, `cli/ci/test_publication.py`, `.github/workflows/cli-publish.yml`. Scope: retain bounded, credential-free npm publication diagnostics after exit-zero/public-registry absence. Preserve exact qualified archives, one OIDC route, root-last ordering and integrity gates. No runtime, new model calls, credential fallback or other owner's paths.
+
+## IMP-014: asynchronous registry visibility (October 2, 2026)
+
+Codex `/root` owns Git/index operations and sole edits in isolated `codex/imp-014-npm-visibility`, based on main `9c661dd3`. Exact paths: `cli/protocol/OWNERSHIP.md`, `cli/ci/publication.py`, `cli/ci/test_npm_same_name.py`, `.github/workflows/cli-publish.yml`. Scope: bounded visibility polling after npm HTTP 202 acceptance, publish supporting versions before awaiting the complete payload cohort, and keep the root unpublished until all payload integrities match. Preserve original archives, OIDC-only auth, conflicting-byte refusal and finite workflow bounds; no runtime changes or model calls.
