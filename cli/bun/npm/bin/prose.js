@@ -8,6 +8,9 @@ const { createHash } = require("node:crypto");
 
 const COHORT = __OPENPROSE_COHORT__;
 const VERSION = COHORT.version;
+const SAME_NAME = COHORT.schema === "openprose.npm-cohort/3";
+const KERNEL_COHORT = SAME_NAME || COHORT.schema === "openprose.npm-cohort/2";
+const platformVersion = (id) => SAME_NAME ? `${VERSION}-${id}` : VERSION;
 const PACKAGE_PREFIX = "@openprose/prose-cli-";
 const WINDOWS_HOST = "bin/openprose-windows-process-host.exe";
 const MINIMUM_GLIBC = "2.34";
@@ -68,7 +71,7 @@ function canonicalJson(value) {
 
 function validateCohort(value, label) {
   if (
-    !(COHORT.schema === "openprose.npm-cohort/2"
+    !(KERNEL_COHORT
       ? exactKeys(value, KERNEL_COHORT_KEYS)
         && exactKeys(value.embeddedDiagnosticImage, DIAGNOSTIC_IMAGE_KEYS)
         && exactKeys(value.kernelPolicy, KERNEL_POLICY_KEYS)
@@ -298,14 +301,14 @@ function registryRepairCommand(packageName) {
     "--ignore-scripts",
     "--prefix",
     prefix,
-    `${packageName}@${VERSION}`,
+    SAME_NAME ? `${packageName}@npm:@openprose/prose-cli@${platformVersion(platformId())}` : `${packageName}@${VERSION}`,
     `@openprose/prose-cli@${VERSION}`,
   ];
   if (process.platform === "win32") {
     return `npm argument vector (quote for your Windows shell): ${JSON.stringify(repairArguments)}`;
   }
   return `npm install --global --ignore-scripts --prefix ${posixShellQuote(prefix)} `
-    + `${posixShellQuote(`${packageName}@${VERSION}`)} `
+    + `${posixShellQuote(SAME_NAME ? `${packageName}@npm:@openprose/prose-cli@${platformVersion(platformId())}` : `${packageName}@${VERSION}`)} `
     + posixShellQuote(`@openprose/prose-cli@${VERSION}`);
 }
 
@@ -324,7 +327,7 @@ function validateMetaManifest(location, manifest, manifestSha256, launcherBytes)
     throw new Error("meta package launcher identity differs");
   }
   const expectedOptional = Object.fromEntries(
-    COHORT.admittedPlatforms.map((platform) => [`${PACKAGE_PREFIX}${platform}`, VERSION]),
+    COHORT.admittedPlatforms.map((platform) => [`${PACKAGE_PREFIX}${platform}`, SAME_NAME ? `npm:@openprose/prose-cli@${platformVersion(platform)}` : VERSION]),
   );
   if (canonicalJson(manifest.optionalDependencies) !== canonicalJson(expectedOptional)) {
     throw new Error("meta package optional platform cohort differs");
@@ -340,14 +343,14 @@ function resolveBinary(location, manifest, manifestSha256, packageName, id, meta
   const {
     installRoot, metaRoot, metaManifestPath, manifestPath, platformRoot: packageRoot,
   } = location;
-  if (manifest.name !== packageName) {
+  if (manifest.name !== (SAME_NAME ? "@openprose/prose-cli" : packageName)) {
     throw new Error(`package identity is ${manifest.name ?? "missing"}, expected ${packageName}`);
   }
   validateCohort(manifest.openproseCohort, "platform package");
   if (
     manifest.openprosePlatform !== id
     || manifest.openproseSourceRevision !== COHORT.sourceRevision
-    || (COHORT.schema === "openprose.npm-cohort/2"
+    || (KERNEL_COHORT
       ? manifest.openproseImage !== undefined
         || canonicalJson(manifest.openproseEmbeddedDiagnosticImage) !== canonicalJson(COHORT.embeddedDiagnosticImage)
         || canonicalJson(manifest.openproseKernelPolicy) !== canonicalJson(COHORT.kernelPolicy)
@@ -529,10 +532,10 @@ if (runtimeValid && !SUPPORTED.has(id)) {
     } catch (error) {
       fail(`cannot read ${packageName}: ${terminalSafeError(error)}`);
     }
-    if (manifest !== undefined && metaIdentity !== undefined && manifest.version !== VERSION) {
+    if (manifest !== undefined && metaIdentity !== undefined && manifest.version !== platformVersion(id)) {
       const installedVersion = terminalSafeScalar(manifest.version ?? "unknown");
       fail(
-        `installed ${packageName}@${installedVersion}, but this launcher requires exactly ${VERSION}. `
+        `installed ${packageName}@${installedVersion}, but this launcher requires exactly ${platformVersion(id)}. `
           + `Registry repair in this installation prefix: ${registryRepairCommand(packageName)}`,
       );
     } else if (manifest !== undefined && metaIdentity !== undefined) {

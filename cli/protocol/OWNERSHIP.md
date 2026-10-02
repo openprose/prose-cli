@@ -639,3 +639,14 @@ Codex `/root` is the assigned lead and sole editor in isolated branch `codex/imp
 ## IMP-056: capture-secret selection (October 2, 2026)
 
 Codex `/root` is lead and sole editor on isolated `codex/imp-056-capture-secret-selection`, based on IMP-081 candidate `73c610be`. Root owns Git and registry operations. Exact paths: `cli/protocol/OWNERSHIP.md`, `cli/bun/src/adapters/environment.ts`, `cli/bun/src/adapters/runner.ts`, `cli/bun/test/adapters-installed.test.ts`, `cli/conformance/adversarial/adapter-products/fake_live_harness.py`, `cli/conformance/adversarial/adapter-products/test_adapter_products.py`, `cli/conformance/adversarial/adapter-products/invariants.v1.json`, `docs/native-capture.md`. Shared compiled controls first; align capture with the documented selected-secret boundary while preserving public-output suppression. Rust is independently checked against the same corpus and changed only if evidence requires a separately leased repair. No new capture format, structural privacy exemption, model calls, release or deployment. Existing broader IMP-056 acceptance remains open.
+
+
+## IMP-014: same-name OIDC npm layout (October 2, 2026)
+
+Codex `/root` is lead and sole editor in isolated `codex/imp-014-npm-oidc-layout`, based on `cc5788ab`. Root owns Git/index operations under the explicit isolated-worktree assignment. Exact paths: `cli/protocol/OWNERSHIP.md`, `cli/ci/package_local.py`, `cli/ci/publication.py`, `cli/ci/assemble_kernel_rc.py`, `cli/ci/test_package_local.py`, `cli/ci/test_publication.py`, `cli/ci/test_kernel_rc.py`, `cli/ci/test_build_kernel_rc.py`, `cli/ci/check_published_release.py`, `cli/ci/test_check_published_release.py`, `cli/ci/kernel_rc_evidence.py`, `cli/ci/test_kernel_rc_evidence.py`, `cli/bun/npm/bin/prose.js`, `cli/bun/npm/README.md`, `cli/release/plans/README.md`, `cli/release/README.md`, `cli/CHANGELOG.md`, `docs/cli-publication.md`, `docs/cli-distribution.md`, `docs/cli-release-next.md`. Scope: new explicitly versioned same-name npm packaging and qualification, preserving immutable historical plans. Runtime research, provider adapters and language inputs are excluded. Additional exact release plan paths are claimed once their candidate identity exists.
+
+IMP-014 lease extension: `cli/ci/build_kernel_rc.py`, `cli/ci/test_assemble_kernel_rc.py`, `cli/ci/npm_alias_install.py`, `cli/ci/test_npm_alias_install.py` for exact-package hermetic alias installation and new-plan assembly; `cli/ci/test_npm_same_name.py` for same-name identity and publication regression controls.
+
+IMP-014 lease extension: `cli/ci/test_npm_identity.py` to qualify new schema-three kernel packages through unchanged-tarball alias installation; historical schema-one controls remain intact.
+
+IMP-014 lease extension: `cli/ci/run_local.py` to include same-name npm regression tests in the existing publication-contract gate, preserving the 53-gate admission plan.

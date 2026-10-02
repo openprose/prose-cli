@@ -551,7 +551,7 @@ def npm_cohort(
         admitted_platforms = list(POSIX_PUBLICATION_PLATFORMS)
     if mode == "kernel-rc":
         return {
-            "schema": "openprose.npm-cohort/2",
+            "schema": "openprose.npm-cohort/3",
             "version": version,
             "sourceRevision": source_revision,
             "releaseChannel": "kernel-release-candidate",
@@ -1511,6 +1511,25 @@ def npm_readme(
     mode: str, version: str, platform_identifier: str | None = None,
     *, publication_platforms: str | None = None,
 ) -> bytes:
+    if mode == "kernel-rc":
+        return (
+            f"# OpenProse CLI {version} (Bun)\n\n"
+            "This explicitly unsigned release candidate has no Apple Developer ID signature or notarization.\n"
+            "The npm launcher requires Node.js >=22.22.3; the selected binary includes Bun.\n\n"
+            f"Install an exact version in an isolated prefix:\n\n```sh\n"
+            f'npm install --global --ignore-scripts --prefix "$HOME/.local/openprose-cli-{version}" @openprose/prose-cli@{version}\n'
+            f'"$HOME/.local/openprose-cli-{version}/bin/prose" --version\n```\n\n'
+            "Only the current platform binary is installed through an exact dependency alias. "
+            "All payloads use the same registry name with platform-suffixed versions. "
+            "Do not install a platform payload version as the top-level CLI. "
+            "Lifecycle scripts are unnecessary. npm installs Bun; Rust has separate standalone downloads.\n\n"
+            "A CLI version pins executable bytes; normal startup resolves the latest published kernel per run. "
+            "Harness installation and authentication are separate. No mock execution is admitted in release binaries.\n\n"
+            f'Uninstall: `npm uninstall --global --prefix "$HOME/.local/openprose-cli-{version}" @openprose/prose-cli`.\n'
+            "For offline installation, populate an isolated npm cache with the exact root and matching payload "
+            "versions from a trusted registry first; then install the root with --offline. "
+            "For installation without npm registry metadata, use the separately verified standalone archive.\n"
+        ).encode()
     if mode == "development":
         if platform_identifier is None:
             raise PackageError(
@@ -1741,7 +1760,10 @@ def npm_meta_manifest(
         "bin": {"prose": "bin/prose.js"},
         "engines": {"node": NODE_ENGINE},
         "optionalDependencies": {
-            f"@openprose/prose-cli-{identifier}": version
+            f"@openprose/prose-cli-{identifier}": (
+                f"npm:@openprose/prose-cli@{version}-{identifier}"
+                if cohort["schema"] == "openprose.npm-cohort/3" else version
+            )
             for identifier in cohort["admittedPlatforms"]
         },
         "openproseCohort": cohort,
@@ -1773,8 +1795,10 @@ def npm_platform_manifest(
         "prose.exe" if platform_identifier.startswith("win32-") else "prose"
     )
     manifest = {
-        "name": f"@openprose/prose-cli-{platform_identifier}",
-        "version": version,
+        "name": ("@openprose/prose-cli" if cohort["schema"] == "openprose.npm-cohort/3"
+                 else f"@openprose/prose-cli-{platform_identifier}"),
+        "version": (f"{version}-{platform_identifier}" if cohort["schema"] == "openprose.npm-cohort/3"
+                    else version),
         "description": f"OpenProse Bun standalone for {platform_identifier}",
         "license": "MIT",
         "homepage": NPM_HOMEPAGE,
@@ -1795,7 +1819,7 @@ def npm_platform_manifest(
             "openproseEmbeddedDiagnosticImage": cohort["embeddedDiagnosticImage"],
             "openproseKernelPolicy": cohort["kernelPolicy"],
             "openproseImageSource": cohort["imageSource"],
-        } if cohort["schema"] == "openprose.npm-cohort/2" else {"openproseImage": image}),
+        } if cohort["schema"] in {"openprose.npm-cohort/2", "openprose.npm-cohort/3"} else {"openproseImage": image}),
         "openproseCohort": cohort,
         "openprosePlatform": platform_identifier,
         "openproseBunCompileTarget": BUN_RUNTIME_BY_PLATFORM[platform_identifier][
