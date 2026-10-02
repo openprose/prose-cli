@@ -49,7 +49,7 @@ rustc --edition=2021 --test experiments/weave-seed/rust/lib.rs -o "$WEAVE_TEST_D
 "$WEAVE_TEST_DIR/tests"
 ```
 
-The measured results are 25 shared lifecycle cases in each implementation, with additional save-failure and settlement checks. Rust reports four test functions containing those checks and a 10,000-step sequential stress run. Bun also runs 10,000 sequential transitions. Both check cumulative actions, reuse, changing bindings, expiry, and budget exhaustion. Bun also checks mutable observation snapshots and rejection of asynchronous callback results. See [the validation record](../../docs/weave-v1-readiness.md#checks-actually-performed) for scope and versions.
+The measured results are 25 shared lifecycle cases in each implementation, with additional save-failure and settlement checks. Rust reports four test functions containing those checks and a 10,000-step sequential stress run. Bun also runs 10,000 sequential transitions. Both check cumulative actions, reuse, changing bindings, expiry, and budget exhaustion. Bun also checks mutable observation snapshots and rejection of asynchronous callback results. See [the validation record](../../docs/weave-v1-readiness.md#retained-qualification-evidence) for scope and versions.
 
 Read the [walkthrough](examples/README.md) to understand the evidence and action boundary. Then read the [seed specification](SPEC.md) for the Rust and JavaScript capability interfaces and parity fixtures. The [Python reference](../weave/README.md) also includes a local checkpoint host and file/SQLite observers; their presence does not establish equivalent host services in the seeds.
 
@@ -57,7 +57,7 @@ Read the [walkthrough](examples/README.md) to understand the evidence and action
 
 A host must resolve the contract, select evidence, enforce permissions, serialize work, persist checkpoints, supply time and attempt identities, and bound attempts and provider costs. Its binding must identify the effective agreement, selector, assessment policy, and permissions. A changed agreement or relevant policy must invalidate reuse.
 
-Evidence must cover every obligation being assessed. If an invocation owes a new report for each batch, unchanged maintained state alone cannot justify skipping that report. A digest identifies selected content; it does not prove source authority, completeness, or freshness. Evidence gaps and `unknown` assessments do not authorize action.
+Evidence must cover every requirement being assessed. If the contract requires a new report for each batch, unchanged maintained state alone cannot justify skipping that report. A digest identifies selected content; it does not prove source authority, completeness, or freshness. Evidence gaps and `unknown` assessments do not authorize action.
 
 One step can attempt at most one action. The pending attempt must be saved before the effect. Normal executor return is followed by fresh observation and assessment; it is not fulfillment. An interrupted or uncertain action requires [explicit recovery](local/RECOVERY.md) before replay. Attempt limits are cumulative for the checkpoint, and settlement does not replenish them. External effects are not transactional with the checkpoint, and no exactly-once guarantee is made.
 
