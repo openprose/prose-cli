@@ -1,7 +1,7 @@
 use super::{
+    ErrorCode, OmpExtensionUiDisposition, RunnerError, TransportNormalization, Value,
     has_exact_keys, json, omp_extension_ui_disposition, omp_rpc_id, prime_bounded_json,
-    record_type, valid_omp_ready, ErrorCode, OmpExtensionUiDisposition, RunnerError,
-    TransportNormalization, Value,
+    record_type, valid_omp_ready,
 };
 use std::{borrow::Cow, collections::BTreeMap};
 
