@@ -10,7 +10,12 @@ const COHORT = __OPENPROSE_COHORT__;
 const VERSION = COHORT.version;
 const SAME_NAME = COHORT.schema === "openprose.npm-cohort/3";
 const KERNEL_COHORT = SAME_NAME || COHORT.schema === "openprose.npm-cohort/2";
-const platformVersion = (id) => SAME_NAME ? `${VERSION}-${id}` : VERSION;
+const platformVersion = (id) => {
+  if (!SAME_NAME) return VERSION;
+  const separator = VERSION.indexOf("-");
+  return separator < 0 ? `${VERSION}-${id}`
+    : `${VERSION.slice(0, separator)}-0.${VERSION.slice(separator + 1)}-${id}`;
+};
 const PACKAGE_PREFIX = "@openprose/prose-cli-";
 const WINDOWS_HOST = "bin/openprose-windows-process-host.exe";
 const MINIMUM_GLIBC = "2.34";

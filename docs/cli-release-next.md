@@ -95,6 +95,11 @@ source/cohort identity, OS/CPU/libc selectors and exact binary bytes, while
 resolving the installed dependency alias directory safely. Preserve no-lifecycle-
 script installation and npm/standalone Bun equality.
 
+Prerelease payload versions begin with a numeric `0` prerelease component
+(for example `0.15.0-0.rc.2-darwin-arm64`), so npm ranges select the ordinary
+root instead of a payload-only version. Stable payload versions retain the
+platform suffix below the stable root. Verify this with npm's own resolver.
+
 Publish all platform payload versions under a dedicated platform tag, then the
 root version last under its intended RC/stable tag. Platform publishes must never
 move `latest` or `rc` to a payload-only version. Preflight every exact version,

@@ -32,7 +32,7 @@ class SameNameNpmTests(unittest.TestCase):
         for platform in pub.PLATFORMS:
             payload = self.payload(cohort,image,platform,b'binary')
             self.assertEqual(payload['name'], root['name'])
-            self.assertEqual(payload['version'], cohort['version']+'-'+platform)
+            self.assertEqual(payload['version'], '0.15.0-0.rc.2-'+platform)
             self.assertEqual(root['optionalDependencies']['@openprose/prose-cli-'+platform],
                              'npm:@openprose/prose-cli@'+payload['version'])
             self.assertNotIn('scripts', payload)
@@ -77,7 +77,7 @@ class SameNameNpmTests(unittest.TestCase):
             published={};order=[]
             def publish(name,tarball,tag,route,token):
                 alias=next(a for a,f in packages.items() if f==tarball.name)
-                version=plan['version']+('-'+alias.removeprefix('@openprose/prose-cli-') if alias!=pub.PACKAGES[-1] else '')
+                version='0.15.0-0.rc.2-'+alias.removeprefix('@openprose/prose-cli-') if alias!=pub.PACKAGES[-1] else plan['version']
                 self.assertEqual((name,route,token),('@openprose/prose-cli','oidc',None))
                 self.assertEqual(tag,'rc' if alias==pub.PACKAGES[-1] else 'platform-'+alias.removeprefix('@openprose/prose-cli-'))
                 order.append(alias);published[version]=pub.npm_integrity(tarball)
@@ -98,8 +98,8 @@ class SameNameNpmTests(unittest.TestCase):
                     artifacts.append({'name': filename, 'sha256': pub.digest(root / filename)})
                 plan = {'schema': 'openprose.cli-publication/2', 'version': '0.15.0-rc.2',
                         'source': 'a' * 40, 'signing': 'unsigned-rc', 'artifacts': artifacts}
-                versions = {alias: plan['version'] + ('-' + alias.removeprefix('@openprose/prose-cli-')
-                            if alias != pub.PACKAGES[-1] else '') for alias in pub.PACKAGES}
+                versions = {alias: '0.15.0-0.rc.2-' + alias.removeprefix('@openprose/prose-cli-')
+                            if alias != pub.PACKAGES[-1] else plan['version'] for alias in pub.PACKAGES}
                 first = pub.PACKAGES[0]
                 published = {versions[first]: pub.npm_integrity(root / packages[first])}
                 if conflict:
@@ -130,3 +130,25 @@ class SameNameNpmTests(unittest.TestCase):
                         pub.publish(plan, root, None, None, None)
                         self.assertEqual(order, list(pub.PACKAGES[1:]))
                         self.assertEqual(order[-1], pub.PACKAGES[-1])
+
+    @unittest.skipUnless(shutil.which('npm') and shutil.which('node'), 'npm and Node required')
+    def test_npm_ranges_select_launcher_instead_of_payload_versions(self):
+        npm_root = Path(shutil.which('npm')).resolve().parents[1]
+        semver = npm_root / 'node_modules/semver'
+        cases = []
+        for version in ('0.15.0-rc.2', '0.15.0-dev.2', '0.15.0'):
+            payloads = [pack.npm_payload_version(version, platform) for platform in pub.PLATFORMS]
+            cases.append({'root': version, 'payloads': payloads})
+        script = r"""
+const semver = require(process.argv[1]);
+const cases = JSON.parse(process.argv[2]);
+const results = cases.map(c => ({
+  selected: semver.maxSatisfying([c.root, ...c.payloads], '^' + c.root),
+  payloadsBelowRoot: c.payloads.every(p => semver.lt(p, c.root)),
+}));
+process.stdout.write(JSON.stringify(results));
+"""
+        result = subprocess.run([shutil.which('node'), '-e', script, str(semver), json.dumps(cases)],
+                                capture_output=True, check=True, text=True)
+        for case, observed in zip(cases, json.loads(result.stdout)):
+            self.assertEqual(observed, {'selected': case['root'], 'payloadsBelowRoot': True})

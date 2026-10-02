@@ -515,6 +515,13 @@ def image_identity(image: dict[str, Any], manifest_sha256: str) -> dict[str, Any
     }
 
 
+def npm_payload_version(version: str, platform_identifier: str) -> str:
+    # Prerelease payloads must sort below the root, including caret RC ranges.
+    core, separator, prerelease = version.partition("-")
+    return (f"{core}-0.{prerelease}-{platform_identifier}" if separator
+            else f"{version}-{platform_identifier}")
+
+
 def npm_cohort(
     *, mode: str, version: str, source_revision: str, image: dict[str, Any],
     publication_platforms: str | None = None,
@@ -1761,7 +1768,7 @@ def npm_meta_manifest(
         "engines": {"node": NODE_ENGINE},
         "optionalDependencies": {
             f"@openprose/prose-cli-{identifier}": (
-                f"npm:@openprose/prose-cli@{version}-{identifier}"
+                f"npm:@openprose/prose-cli@{npm_payload_version(version, identifier)}"
                 if cohort["schema"] == "openprose.npm-cohort/3" else version
             )
             for identifier in cohort["admittedPlatforms"]
@@ -1797,7 +1804,7 @@ def npm_platform_manifest(
     manifest = {
         "name": ("@openprose/prose-cli" if cohort["schema"] == "openprose.npm-cohort/3"
                  else f"@openprose/prose-cli-{platform_identifier}"),
-        "version": (f"{version}-{platform_identifier}" if cohort["schema"] == "openprose.npm-cohort/3"
+        "version": (npm_payload_version(version, platform_identifier) if cohort["schema"] == "openprose.npm-cohort/3"
                     else version),
         "description": f"OpenProse Bun standalone for {platform_identifier}",
         "license": "MIT",

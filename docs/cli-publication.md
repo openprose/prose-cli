@@ -18,7 +18,7 @@ npm provenance do not supply Apple platform trust. See the
 New publication plans use `openprose.cli-publication/2` and packages use
 `openprose.npm-cohort/3`. All five tarballs have the same registry name,
 `@openprose/prose-cli`. The root version (for example `0.15.0-rc.2`) depends on
-exact aliases to payload versions such as `0.15.0-rc.2-darwin-arm64`.
+exact aliases to payload versions that sort below the root, such as `0.15.0-0.rc.2-darwin-arm64`.
 Users install the root version; npm selects the matching OS/CPU/libc payload.
 No lifecycle script or external binary download is needed at installation.
 
