@@ -1777,6 +1777,55 @@ class AdapterProductAdversary(unittest.TestCase):
 
             self.assertEqual(diagnostics["rust"], diagnostics["bun"], f"Prime {fault}")
 
+    def test_native_output_limits_have_safe_cross_product_diagnostics(self) -> None:
+        if not self.supports_host("codex/exec-json") or os.name == "nt":
+            self.skipTest("Installed Codex fixture requires a recipe-admitted POSIX host")
+        for mode in ("capture", "stdout"):
+            for product_name, product in self.available_products():
+                with self.subTest(mode=mode, product=product_name), tempfile.TemporaryDirectory(
+                    prefix="openprose-output-limit-"
+                ) as root:
+                    temporary = Path(root)
+                    workspace = temporary / "workspace"
+                    workspace.mkdir()
+                    (workspace / ".native-output-limit-fixture.json").write_text(json.dumps({"mode": mode}))
+                    harness_bin = temporary / "harness-bin"
+                    self.install_live_harnesses(harness_bin)
+                    environment, canaries = self.make_environment(temporary, harness_bin, {"OPENAI_API_KEY": "XY"})
+                    capture = temporary / "native.jsonl"
+                    argv = ["--harness", "codex", "--transport", "exec-json",
+                            "--auth-profile", "openai-api-key", "--output-contract", "native",
+                            "--native-output-bytes", "1048576", "--output", "json"]
+                    if mode == "capture":
+                        argv += ["--native-log", str(capture)]
+                    argv += ["run", "fixture.prose.md"]
+                    completed = self.run_product(product, argv, workspace, environment)
+                    self.assertEqual(22, completed.returncode, completed.stdout)
+                    self.assertEqual(b"", completed.stderr)
+                    self.assert_no_secrets(completed, canaries)
+                    self.assertNotIn(b"XY", completed.stdout)
+                    result = self.parse_single_json(completed)
+                    self.assert_valid_result(result)
+                    self.assertEqual("HARNESS_FAILED" if mode == "capture" else "PROTOCOL_MALFORMED", result["error"]["code"])
+                    diagnostic = result["error"]["details"]["transportDiagnostic"]
+                    self.assertEqual("native-capture-limit" if mode == "capture" else "aggregate-stdout-limit", diagnostic["reason"])
+                    self.assertEqual(1048576, diagnostic["limitBytes"])
+                    self.assertGreater(diagnostic["observedBytes"], diagnostic["limitBytes"])
+                    self.assertFalse(diagnostic.get("saturated", False))
+                    self.assertFalse(result["error"]["details"]["fallbackAttempted"])
+                    pid = int((workspace / "harness.pid").read_text())
+                    with self.assertRaises(ProcessLookupError):
+                        os.kill(pid, 0)
+                    if mode == "capture":
+                        retained = capture.read_bytes()
+                        self.assertLessEqual(len(retained), 1048576)
+                        self.assertNotIn(b"XY", retained)
+                        records = [json.loads(line) for line in retained.splitlines()]
+                        next_record = {"type": "item.completed", "item": {"id": f"item-{len(records)-2}", "type": "agent_message", "text": "é" + "[REDACTED]" * 2048}}
+                        attempted_bytes = len(json.dumps(next_record, ensure_ascii=False, separators=(",", ":")).encode()) + 1
+                        self.assertEqual(len(retained) + attempted_bytes, diagnostic["observedBytes"])
+                        self.assertNotIn("reason", result["error"]["details"])
+
     def test_prime_text_only_index_zero_success_is_cross_product_equivalent(
         self,
     ) -> None:

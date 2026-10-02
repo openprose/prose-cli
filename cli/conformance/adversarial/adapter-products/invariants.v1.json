@@ -86,6 +86,10 @@
     {
       "id": "real-providers-are-not-literal-launch-targets",
       "test": "test_suite_has_no_literal_provider_launch"
+    },
+    {
+      "id": "native-capture-and-stdout-limits-preserve-safe-diagnosis-and-settlement",
+      "test": "test_native_output_limits_have_safe_cross_product_diagnostics"
     }
   ]
 }

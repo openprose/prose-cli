@@ -395,6 +395,24 @@ def main() -> int:
         if exit_mode in {"timeout", "cancellation"}:
             time.sleep(10)
 
+    output_fixture = Path.cwd() / ".native-output-limit-fixture.json"
+    if adapter_id == "codex/exec-json" and output_fixture.is_file():
+        mode = json.loads(output_fixture.read_text("utf-8"))["mode"]
+        if mode not in {"capture", "stdout"}:
+            raise ValueError("unknown output-limit fixture")
+        (Path.cwd() / "harness.pid").write_text(str(os.getpid()), encoding="ascii")
+        emit({"type": "thread.started", "thread_id": "fixture-thread"}, {"type": "turn.started"})
+        text = "é" + ("XY" * 2048 if mode == "capture" else "a" * 16384)
+        try:
+            for index in range(100):
+                emit({"type": "item.completed", "item": {"id": f"item-{index}", "type": "agent_message", "text": text}})
+        except BrokenPipeError:
+            # The runner has closed its bounded reader. Avoid fixture shutdown noise.
+            os._exit(0)
+        # A limit failure must settle this still-running process before returning.
+        time.sleep(30)
+        return 0
+
     task = task_from_launch(argv, stdin)
     visible = ["Echoed task argv:", compact(task["argv"])]
     terminal = terminal_for_image(argv, stdin, files, task)
