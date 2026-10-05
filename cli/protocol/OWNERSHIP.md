@@ -674,3 +674,9 @@ IMP-014 October 2 closeout: the same-name layout, qualified RC2 inventory, bound
 ## IMP-014: CLI/runtime release parity audit (October 5, 2026)
 
 Codex `/root` owns Git/index operations and sole edits in isolated `codex/imp-014-rc2-parity-oct05`, based on remote main `39c90f45`. Exact paths: `cli/protocol/OWNERSHIP.md`, `docs/cli-release-next.md`, `docs/cli-rc2-parity-oct05.md`, `docs/cli-rc2-parity-oct05.json`. Scope: provider-free reconciliation of published RC2 runtime versus main, local/remote branch/worktree dispositions and exact finance-demo binary pinning. No runtime edits, paid calls, failing PR33 merge, consumer upgrade or immutable artifact replacement. Finance owns the independent PR33 qualification.
+
+IMP-014 October 5 audit closeout: the four-path parity/documentation lease is
+complete. Public artifact checks and all-ref/worktree dispositions are retained
+in `docs/cli-rc2-parity-oct05.md` and `.json`. No runtime or consumer pin was
+changed; PR33 qualification remains with the finance owner. Other owners'
+leases and immutable RC2 bytes/allocation remain unchanged.
