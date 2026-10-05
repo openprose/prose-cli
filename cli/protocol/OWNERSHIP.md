@@ -690,3 +690,15 @@ merged PR33 runtime from unchanged published RC2 and retain the unresolved
 cleanup caveat. No runtime, release-plan, artifact, consumer or budget edits.
 The documentation lease is complete after this two-path update; other owners'
 leases remain unchanged.
+
+## IMP-014: user-selected Homebrew implementation packages (October 5, 2026)
+
+Codex `/root` owns sole edits and Git in isolated
+`codex/imp-014-homebrew-docs`, from current main. Exact paths:
+`cli/protocol/OWNERSHIP.md`, `docs/cli-distribution.md`,
+`docs/cli-release-next.md`. Scope: record user-selected public tap formulae
+`prose-bun` and `prose-rust`, both providing `prose`, native link switching,
+explicit RC versions and actual installation evidence. No implementation
+default, runtime, release artifact, Apple identity or model spending is claimed.
+The Homebrew subagent owns only the new tap formula/readme/CI/record paths
+under root Git/integration ownership; other owners' leases remain unchanged.
