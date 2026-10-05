@@ -169,3 +169,14 @@ required. No accessible `openprose/homebrew-tap` was found, formula
 names and default implementation remain proposals, and current formula tooling
 requires stable artifacts. Adding an RC tap now would add an unqualified channel
 without resolving Apple prerequisites.
+
+## October 5 runtime parity audit
+
+[The provider-free parity audit](cli-rc2-parity-oct05.md) confirms published RC2
+and main `39c90f45` share runtime source `fe8b5032`. Fresh public Bun/Rust ARM64
+binaries and npm archive match the original inventory. The audit accounts for
+all local/remote CLI heads and 30 clean registered worktrees. PR33 remains an
+unqualified, owner-reviewed runtime candidate; historical documentation and
+diagnostic branches contain no missing validated runtime. Pin explicit RC2
+version, executable hash and separate kernel identity for the finance demo.
+No paid calls or immutable release changes were made.

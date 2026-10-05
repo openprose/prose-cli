@@ -670,3 +670,13 @@ Codex `/root` owns Git/index operations and sole edits in isolated `codex/imp-01
 Codex `/root` owns Git/index operations and sole edits in isolated `codex/imp-014-rc2-closeout`, based on protected publisher main `0916aee4`. Exact paths: `cli/protocol/OWNERSHIP.md` and `docs/cli-release-next.md`. Scope: reconcile actual verified publication receipts, preserve qualified runtime/publisher identities, retire this task's completed leases and require a fresh version/allocation for subsequent releases. No runtime, package bytes, publication-plan edits, other owner's leases or new model calls.
 
 IMP-014 October 2 closeout: the same-name layout, qualified RC2 inventory, bounded OIDC visibility recovery and publication-status work are complete. This task's October 2 root code/documentation leases are released after verified npm, GitHub and guarded mirror publication. Runtime remains `fe8b5032`; permanent custody is lab main `6bea65bc`. Future owners must claim their mutable paths and use a new candidate version/allocation. Preserve immutable RC1/RC2 plans, bytes and original evidence. Apple signing and Homebrew are separately open; this does not retire other owners' claims.
+
+## IMP-014: CLI/runtime release parity audit (October 5, 2026)
+
+Codex `/root` owns Git/index operations and sole edits in isolated `codex/imp-014-rc2-parity-oct05`, based on remote main `39c90f45`. Exact paths: `cli/protocol/OWNERSHIP.md`, `docs/cli-release-next.md`, `docs/cli-rc2-parity-oct05.md`, `docs/cli-rc2-parity-oct05.json`. Scope: provider-free reconciliation of published RC2 runtime versus main, local/remote branch/worktree dispositions and exact finance-demo binary pinning. No runtime edits, paid calls, failing PR33 merge, consumer upgrade or immutable artifact replacement. Finance owns the independent PR33 qualification.
+
+IMP-014 October 5 audit closeout: the four-path parity/documentation lease is
+complete. Public artifact checks and all-ref/worktree dispositions are retained
+in `docs/cli-rc2-parity-oct05.md` and `.json`. No runtime or consumer pin was
+changed; PR33 qualification remains with the finance owner. Other owners'
+leases and immutable RC2 bytes/allocation remain unchanged.
