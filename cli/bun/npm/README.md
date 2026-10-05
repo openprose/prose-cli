@@ -1,3 +1,24 @@
+# Prose CLI npm launcher
+
+The current kernel release candidate uses one registry identity,
+`@openprose/prose-cli`, with exact platform-suffixed payload versions selected
+through optional dependency aliases. Install the ordinary root version; do not
+install a payload-only version directly. npm installs the Bun implementation;
+Rust is available through separate standalone archives.
+
+The launcher verifies source/cohort identity, exact root and payload versions,
+platform/runtime admission and executable digests before spawning the binary.
+No lifecycle script is required. Missing or altered payloads fail closed.
+Historical packages retain their original layout and validation.
+
+See [publication setup](../../../docs/cli-publication.md) and
+[release preparation](../../../docs/cli-release-next.md).
+
+## Historical layouts and launcher custody
+
+The following documents the earlier package layouts. The same custody checks
+apply to the alias layout above.
+
 # npm distribution source
 
 `bin/prose.js` is the plain-Node launcher template for

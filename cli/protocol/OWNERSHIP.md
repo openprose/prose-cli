@@ -639,3 +639,44 @@ Codex `/root` is the assigned lead and sole editor in isolated branch `codex/imp
 ## IMP-056: capture-secret selection (October 2, 2026)
 
 Codex `/root` is lead and sole editor on isolated `codex/imp-056-capture-secret-selection`, based on IMP-081 candidate `73c610be`. Root owns Git and registry operations. Exact paths: `cli/protocol/OWNERSHIP.md`, `cli/bun/src/adapters/environment.ts`, `cli/bun/src/adapters/runner.ts`, `cli/bun/test/adapters-installed.test.ts`, `cli/conformance/adversarial/adapter-products/fake_live_harness.py`, `cli/conformance/adversarial/adapter-products/test_adapter_products.py`, `cli/conformance/adversarial/adapter-products/invariants.v1.json`, `docs/native-capture.md`. Shared compiled controls first; align capture with the documented selected-secret boundary while preserving public-output suppression. Rust is independently checked against the same corpus and changed only if evidence requires a separately leased repair. No new capture format, structural privacy exemption, model calls, release or deployment. Existing broader IMP-056 acceptance remains open.
+
+
+## IMP-014: same-name OIDC npm layout (October 2, 2026)
+
+Codex `/root` is lead and sole editor in isolated `codex/imp-014-npm-oidc-layout`, based on `cc5788ab`. Root owns Git/index operations under the explicit isolated-worktree assignment. Exact paths: `cli/protocol/OWNERSHIP.md`, `cli/ci/package_local.py`, `cli/ci/publication.py`, `cli/ci/assemble_kernel_rc.py`, `cli/ci/test_package_local.py`, `cli/ci/test_publication.py`, `cli/ci/test_kernel_rc.py`, `cli/ci/test_build_kernel_rc.py`, `cli/ci/check_published_release.py`, `cli/ci/test_check_published_release.py`, `cli/ci/kernel_rc_evidence.py`, `cli/ci/test_kernel_rc_evidence.py`, `cli/bun/npm/bin/prose.js`, `cli/bun/npm/README.md`, `cli/release/plans/README.md`, `cli/release/README.md`, `cli/CHANGELOG.md`, `docs/cli-publication.md`, `docs/cli-distribution.md`, `docs/cli-release-next.md`. Scope: new explicitly versioned same-name npm packaging and qualification, preserving immutable historical plans. Runtime research, provider adapters and language inputs are excluded. Additional exact release plan paths are claimed once their candidate identity exists.
+
+IMP-014 lease extension: `cli/ci/build_kernel_rc.py`, `cli/ci/test_assemble_kernel_rc.py`, `cli/ci/npm_alias_install.py`, `cli/ci/test_npm_alias_install.py` for exact-package hermetic alias installation and new-plan assembly; `cli/ci/test_npm_same_name.py` for same-name identity and publication regression controls.
+
+IMP-014 lease extension: `cli/ci/test_npm_identity.py` to qualify new schema-three kernel packages through unchanged-tarball alias installation; historical schema-one controls remain intact.
+
+IMP-014 lease extension: `cli/ci/run_local.py` to include same-name npm regression tests in the existing publication-contract gate, preserving the 53-gate admission plan.
+
+IMP-014 lease extension: `cli/benchmarks/installed/benchmark.py` only for the reviewed canonical npm launcher template digest, preserving all benchmark custody checks and runtime behavior. CI showed the launcher change requires refreezing this exact-byte pin.
+
+## IMP-014: qualified RC publication inventory (October 2, 2026)
+
+Codex `/root` owns Git/index operations and sole edits in isolated `codex/imp-014-rc2-publication`, based on qualified migration main `fe8b5032`. Exact paths: `cli/protocol/OWNERSHIP.md`, `cli/release/plans/0.15.0-rc.2.json`, and `docs/cli-release-next.md`. Scope: retain the exact final native/live-qualified artifact inventory, reconcile maintained release status and retire completed packaging leases. No runtime, harness, kernel, prior immutable plan or other owner's paths are claimed. Exact main runtime admission and paired live qualification remain required before publication.
+
+## IMP-014: npm publication recovery diagnostics (October 2, 2026)
+
+Codex `/root` owns Git/index operations and sole edits in isolated `codex/imp-014-npm-publish-diagnostics`, based on publisher main `70e5f7ab`. Exact paths: `cli/protocol/OWNERSHIP.md`, `cli/ci/publication.py`, `cli/ci/test_publication.py`, `.github/workflows/cli-publish.yml`. Scope: retain bounded, credential-free npm publication diagnostics after exit-zero/public-registry absence. Preserve exact qualified archives, one OIDC route, root-last ordering and integrity gates. No runtime, new model calls, credential fallback or other owner's paths.
+
+## IMP-014: asynchronous registry visibility (October 2, 2026)
+
+Codex `/root` owns Git/index operations and sole edits in isolated `codex/imp-014-npm-visibility`, based on main `9c661dd3`. Exact paths: `cli/protocol/OWNERSHIP.md`, `cli/ci/publication.py`, `cli/ci/test_npm_same_name.py`, `.github/workflows/cli-publish.yml`. Scope: bounded visibility polling after npm HTTP 202 acceptance, publish supporting versions before awaiting the complete payload cohort, and keep the root unpublished until all payload integrities match. Preserve original archives, OIDC-only auth, conflicting-byte refusal and finite workflow bounds; no runtime changes or model calls.
+
+## IMP-014: RC2 publication closeout (October 2, 2026)
+
+Codex `/root` owns Git/index operations and sole edits in isolated `codex/imp-014-rc2-closeout`, based on protected publisher main `0916aee4`. Exact paths: `cli/protocol/OWNERSHIP.md` and `docs/cli-release-next.md`. Scope: reconcile actual verified publication receipts, preserve qualified runtime/publisher identities, retire this task's completed leases and require a fresh version/allocation for subsequent releases. No runtime, package bytes, publication-plan edits, other owner's leases or new model calls.
+
+IMP-014 October 2 closeout: the same-name layout, qualified RC2 inventory, bounded OIDC visibility recovery and publication-status work are complete. This task's October 2 root code/documentation leases are released after verified npm, GitHub and guarded mirror publication. Runtime remains `fe8b5032`; permanent custody is lab main `6bea65bc`. Future owners must claim their mutable paths and use a new candidate version/allocation. Preserve immutable RC1/RC2 plans, bytes and original evidence. Apple signing and Homebrew are separately open; this does not retire other owners' claims.
+
+## IMP-014: CLI/runtime release parity audit (October 5, 2026)
+
+Codex `/root` owns Git/index operations and sole edits in isolated `codex/imp-014-rc2-parity-oct05`, based on remote main `39c90f45`. Exact paths: `cli/protocol/OWNERSHIP.md`, `docs/cli-release-next.md`, `docs/cli-rc2-parity-oct05.md`, `docs/cli-rc2-parity-oct05.json`. Scope: provider-free reconciliation of published RC2 runtime versus main, local/remote branch/worktree dispositions and exact finance-demo binary pinning. No runtime edits, paid calls, failing PR33 merge, consumer upgrade or immutable artifact replacement. Finance owns the independent PR33 qualification.
+
+IMP-014 October 5 audit closeout: the four-path parity/documentation lease is
+complete. Public artifact checks and all-ref/worktree dispositions are retained
+in `docs/cli-rc2-parity-oct05.md` and `.json`. No runtime or consumer pin was
+changed; PR33 qualification remains with the finance owner. Other owners'
+leases and immutable RC2 bytes/allocation remain unchanged.

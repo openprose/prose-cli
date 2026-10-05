@@ -157,10 +157,13 @@ def build(version, output):
             runner = item['implementation']
             binary = extract_binary(package / item['path'], output / 'installed' / runner / 'prose')
             check(binary, runner, 'installed-' + runner)
-    npm_items = [package / a['path'] for a in manifest['artifacts'] if a['kind'].startswith('npm-')]
     prefix = output / 'npm-prefix'
-    command(['npm', 'install', '--global', '--prefix', prefix, '--offline', '--ignore-scripts', '--no-audit',
-             '--no-fund', *npm_items], env=env, cwd=output, log=logs / 'npm-install.log', timeout=120)
+    from npm_alias_install import install as install_alias
+    meta = next(package / a['path'] for a in manifest['artifacts'] if a['kind'] == 'npm-meta')
+    platform_package = next(package / a['path'] for a in manifest['artifacts'] if a['kind'] == 'npm-platform')
+    alias_install = install_alias(meta, platform_package, prefix, env=env, cwd=output,
+                                  command=command, log=logs / 'npm-install.log')
+    (logs / 'npm-alias-install.json').write_text(json.dumps(alias_install, sort_keys=True) + '\n')
     node = shutil.which('node', path=env.get('PATH')); require(node, 'Node is required for npm launcher')
     check(prefix / 'bin/prose', 'bun', 'installed-npm', node)
     report = {'schema': 'openprose.kernel-rc-build/1', 'version': version, 'sourceRevision': revision,

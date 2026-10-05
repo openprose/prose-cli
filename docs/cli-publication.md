@@ -1,11 +1,41 @@
 # CLI publication setup
 
-Status (September 17, 2026 UTC): implementation in progress. No CLI RC has been
-published. The user approved an explicitly unsigned RC under the existing npm
-name and requires normal latest-kernel startup. Apple enrollment and signed
-macOS releases are a separate workspace task, IMP-015. Unsigned means there is
-no Developer ID signature or Apple notarization; npm provenance and Sigstore
-artifact signatures do not remove that macOS limitation.
+Status (October 2, 2026): explicitly unsigned `0.15.0-rc.1` is published on
+[GitHub](https://github.com/openprose/prose-cli/releases/tag/v0.15.0-rc.1) and
+[pkg.prose.md](https://pkg.prose.md/cli/releases/0.15.0-rc.1/manifest.json).
+Its exact runtime source is `68297eff23990a5153e5d0a938febf68c3c4751d`.
+The [publication receipt](https://github.com/openprose/openprose-distribution/blob/main/records/cli-0.15.0-rc.1.md)
+records qualification and public verification. npm publication remains pending;
+its root trusted publisher was configured by the owner on September 17, and
+has not been independently rechecked in the owner's npm account. On October 2
+the owner confirmed npm bootstrap setup and Apple enrollment are not ready.
+Unsigned means no Developer ID signature or Apple notarization. Sigstore and
+npm provenance do not supply Apple platform trust. See the
+[next-candidate preparation](cli-release-next.md) before releasing changed source.
+
+## Current npm layout
+
+New publication plans use `openprose.cli-publication/2` and packages use
+`openprose.npm-cohort/3`. All five tarballs have the same registry name,
+`@openprose/prose-cli`. The root version (for example `0.15.0-rc.2`) depends on
+exact aliases to payload versions that sort below the root, such as `0.15.0-0.rc.2-darwin-arm64`.
+Users install the root version; npm selects the matching OS/CPU/libc payload.
+No lifecycle script or external binary download is needed at installation.
+
+The existing root OIDC identity below covers every version under this name.
+No supporting package creation, extra trust mappings or bootstrap token is
+required for this layout. The publisher forbids bootstrap for new plans,
+publishes payload versions first with `platform-PLATFORM` tags, verifies their
+registry integrity and publishes the root last under `rc`, `dev` or `latest`.
+Payload tags never replace the root channel tags. Root trust/authentication
+must still be verified through the actual protected publication workflow.
+
+The previously reviewed `0.15.0-rc.1` plan remains schema one with five distinct
+npm names. Its bytes and legacy validator are preserved. The bootstrap
+instructions later in this document apply only to that historical layout;
+they are not prerequisites for the new release. Stable macOS signing remains
+separate. npm currently distributes Bun; Rust standalone downloads remain
+independently selectable.
 
 ## npm trusted publisher
 
@@ -41,7 +71,7 @@ and subsequent per-package trust setup are therefore still required. Do not
 publish placeholders or use a broad permanent token to bypass that prerequisite.
 The root package's existing trusted publisher alone cannot create the children.
 
-References checked September 17, 2026:
+References rechecked October 2, 2026:
 [npm trusted publishers](https://docs.npmjs.com/trusted-publishers/),
 [npm trust prerequisites](https://docs.npmjs.com/cli/v11/commands/npm-trust/),
 [npm provenance](https://docs.npmjs.com/generating-provenance-statements/).
@@ -147,7 +177,7 @@ A partial run can resume: already published exact bytes are verified and skipped
 existing names with unpublished versions use OIDC. The receipt records the
 credential route for each package without recording credentials.
 
-References checked 2026-09-17: [npm trust](https://docs.npmjs.com/cli/v11/commands/npm-trust/)
+References rechecked 2026-10-02: [npm trust](https://docs.npmjs.com/cli/v11/commands/npm-trust/)
 and [staged publishing](https://docs.npmjs.com/staged-publishing/).
 
 ## Signing direct downloads while npm is unavailable

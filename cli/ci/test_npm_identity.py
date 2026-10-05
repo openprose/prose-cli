@@ -138,7 +138,7 @@ class PublishedKernelCandidateTests(unittest.TestCase):
         image, digest = package.read_image_manifest(package.DIAGNOSTIC_IMAGE_MANIFEST)
         return image, package.image_identity(image, digest)
 
-    def test_schema_two_separates_diagnostic_from_runtime_policy(self):
+    def test_schema_three_separates_diagnostic_from_runtime_policy(self):
         _, image = self.diagnostic()
         hashes = []
         with tempfile.TemporaryDirectory() as temporary:
@@ -153,7 +153,7 @@ class PublishedKernelCandidateTests(unittest.TestCase):
                     manifest = json.load(archive.extractfile('package/package.json'))
                     readme = archive.extractfile('package/README.md').read()
                 cohort = manifest['openproseCohort']
-                self.assertEqual(cohort['schema'], 'openprose.npm-cohort/2')
+                self.assertEqual(cohort['schema'], 'openprose.npm-cohort/3')
                 self.assertEqual(cohort['imageSource'], 'published-on-run')
                 self.assertEqual(cohort['purpose'], 'published-kernel-loader')
                 self.assertEqual(cohort['kernelPolicy'], package.PUBLISHED_KERNEL_POLICY)
@@ -196,7 +196,7 @@ class PublishedKernelCandidateTests(unittest.TestCase):
             with self.subTest(changes=changes), self.assertRaises(package.PackageError):
                 check(dict(report, **changes))
 
-    def test_schema_two_launcher_runs_offline_and_rejects_runtime_policy_drift(self):
+    def test_schema_three_launcher_runs_offline_and_rejects_runtime_policy_drift(self):
         npm = shutil.which('npm')
         if npm is None or shutil.which('node') is None:
             self.skipTest('Node and npm required')
@@ -213,13 +213,15 @@ class PublishedKernelCandidateTests(unittest.TestCase):
             home = root / 'home'; home.mkdir()
             prefix = root / 'prefix'
             env = {'PATH': os.environ.get('PATH', ''), 'HOME': str(home), 'npm_config_cache': str(root/'cache'), 'npm_config_userconfig': str(root/'empty-npmrc'), 'npm_config_registry': 'http://127.0.0.1:9'}
-            installed = subprocess.run([npm, 'install', '--global', '--prefix', str(prefix), '--ignore-scripts', '--offline', '--no-audit', '--no-fund', str(meta), str(native)], env=env, capture_output=True, text=True, timeout=60)
-            self.assertEqual(installed.returncode, 0, installed.stderr)
+            import build_kernel_rc
+            import npm_alias_install
+            npm_alias_install.install(meta, native, prefix, env=env, cwd=root,
+                                      command=build_kernel_rc.command, log=root/'npm-install.log')
             launcher = prefix / 'bin/prose'
             ran = subprocess.run([str(launcher), 'cli', 'doctor'], env=env, capture_output=True, text=True, timeout=15)
             self.assertEqual(ran.returncode, 0, ran.stderr)
             self.assertEqual(ran.stdout, 'published-on-run doctor fixture\n')
-            native_manifest_path = prefix/'lib/node_modules/@openprose'/('prose-cli-'+platform)/'package.json'
+            native_manifest_path = next(prefix.rglob('prose-cli-'+platform+'/package.json'))
             native_manifest = json.loads(native_manifest_path.read_text())
             native_manifest['openproseKernelPolicy']['resolution'] = 'fixed-image'
             native_manifest_path.write_text(json.dumps(native_manifest))

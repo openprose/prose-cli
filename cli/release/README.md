@@ -74,12 +74,18 @@ platform trust, signs artifact digests, and publishes the reviewed npm bytes.
 It does not rebuild downloaded artifacts. Platform packages publish first and
 the root package last. Existing versions must have exactly matching integrity.
 
-The npm identity is `@openprose/prose-cli`, with four matching binary packages.
-Every package needs its own trusted publisher. First publication of absent
-platform packages requires explicit bootstrap setup; root-package trust cannot
-create the children. See [publication setup](../../docs/cli-publication.md) for
-the exact workflow, environment and npm fields. Missing owner setup is a
-publication blocker, not a reason to weaken source CI or add permanent tokens.
+New candidates use one npm identity, `@openprose/prose-cli`, for the launcher
+and four platform payload versions. Exact optional dependency aliases select
+one executable. Prerelease payload versions sort below the launcher, so npm
+ranges cannot select a payload-only version. Platform tags remain separate from
+`rc` and `latest`, and the root publishes last through the existing OIDC trust.
+No bootstrap token or new package-name setup is needed for this layout.
+
+Historical schema-1 plans retain their original separate platform identities.
+First publication of those absent identities still uses the legacy bootstrap
+controls. See [publication setup](../../docs/cli-publication.md)
+for both formats and the exact workflow/environment identity. Missing trust is
+a publication blocker, not a reason to weaken CI or add permanent tokens.
 
 No publication is authorized merely by passing CI or merging a PR. The intended
 next release requires a fresh reviewed plan and a separate explicit release
