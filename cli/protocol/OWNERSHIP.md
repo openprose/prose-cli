@@ -680,3 +680,13 @@ complete. Public artifact checks and all-ref/worktree dispositions are retained
 in `docs/cli-rc2-parity-oct05.md` and `.json`. No runtime or consumer pin was
 changed; PR33 qualification remains with the finance owner. Other owners'
 leases and immutable RC2 bytes/allocation remain unchanged.
+
+## IMP-014: merged Prime runtime publication gap (October 5, 2026)
+
+Codex `/root` owns sole edits and Git in isolated
+`codex/imp-014-pr33-release-gap`, based on main `a20ee775`. Exact paths:
+`cli/protocol/OWNERSHIP.md` and `docs/cli-release-next.md`. Scope: distinguish
+merged PR33 runtime from unchanged published RC2 and retain the unresolved
+cleanup caveat. No runtime, release-plan, artifact, consumer or budget edits.
+The documentation lease is complete after this two-path update; other owners'
+leases remain unchanged.

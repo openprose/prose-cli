@@ -1,4 +1,6 @@
-# CLI release status and next candidate — October 2, 2026
+# CLI release status and next candidate — October 5, 2026
+
+Published RC2 is behind current main runtime after [PR33](https://github.com/openprose/prose-cli/pull/33) merged on October 5. See the [current source/release difference](#current-source-and-release-difference) below.
 
 Unsigned `0.15.0-rc.2` is published on
 [npm](https://www.npmjs.com/package/@openprose/prose-cli/v/0.15.0-rc.2) and as a
@@ -180,3 +182,35 @@ unqualified, owner-reviewed runtime candidate; historical documentation and
 diagnostic branches contain no missing validated runtime. Pin explicit RC2
 version, executable hash and separate kernel identity for the finance demo.
 No paid calls or immutable release changes were made.
+
+## Current source and release difference
+
+[PR33](https://github.com/openprose/prose-cli/pull/33) merged as
+`a20ee77529b557a13b8d30bea0cae6c505d4efb8` after all fifteen checks passed on
+head `687523c2d693b8cefa24bfe80b0d165db68be6ee`; the integrated tree equals that
+checked head. [Admission custody](https://github.com/openprose/openprose-workspace/blob/64114d2/work/plans/IMP-083/evidence/README.md)
+retains both 53-gate source logs and the integration receipt. Main now includes
+bounded recovery for completed, declared Prime tools whose omitted result
+notifications are corroborated by final history. RC2 runtime remains
+`fe8b50328d87a9f60f3bbf2d527edffa56f3bd12` and does not contain this fix.
+
+The [earlier parity audit](cli-rc2-parity-oct05.md) applies to its main snapshot
+`39c90f45` and documentation integration `13d3894`. It is historical evidence,
+not a claim of parity after PR33. Broader missing native declarations/starts and
+full finance/document-workflow qualification remain separate. A demo requiring
+PR33 must identify an explicitly selected main development build; it cannot
+claim to use the unchanged public RC2 executable.
+
+Kernel qualification also retains an unresolved `PROCESS_CLEANUP_FAILED`
+observation from a private fixed-image Bun build based on released source. That
+private executable differs from published RC2 bytes. Native exit zero and
+terminal completion did not establish successful cleanup.
+[Retained diagnosis and controls](https://github.com/openprose/openprose-expedition/blob/3f37312fe9c5f8fefc5176f5e1b010d1f58ef154/kernel-evaluation-outcome-v1/qualification-oct05/review/cleanup.md)
+distinguish controlled transient-group sensitivity from reproduction of the
+original failure; its cause remains unresolved. PR33 does not repair or waive
+that failure, and kernel qualification remains stopped.
+
+No successor release, new paid qualification or consumer upgrade was authorized
+by this integration. A subsequent publication requires an unused version and
+its own exact-source/artifact qualification and allocation. Preserve RC2
+labels, bytes and the closed two-attempt live allocation.
