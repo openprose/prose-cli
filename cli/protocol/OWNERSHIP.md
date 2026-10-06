@@ -891,3 +891,20 @@ framing, mapping and shared differential checks.
 IMP-055 final documentation audit: root extends this branch's lease to
 `cli/CONTRIBUTING.md` solely to align its stated CI Python patch version with
 the existing workflow pin. No toolchain, workflow or Python source change.
+
+## IMP-014: qualified RC3 publication record (October 6, 2026)
+
+Root owns `cli/release/plans/0.15.0-rc.3.json` and
+`cli/release/plans/README.md` for the exact-source qualified unsigned prerelease
+record only. Source1941a34 and native archives remain frozen; two authorized
+MacARM live smoke attempts pass within the fresh USD20 reservation. No runtime,
+workflow, stable/latest, default implementation or kernel promotion change.
+
+## IMP-014: Linux credential escape-fixture publication repair
+
+Root owns only `#[cfg(test)] mod tests` in
+`cli/rust/crates/prose-runner-core/src/credential_store.rs` for the retained
+PR47 Linux admission failure. Publish the fixture's observed descendantPID
+before unrelated logging and validate a nonzero numericPID before procfs.
+Preserve300ms/3s bounds and killed-or-zombie assertion. Production logic,
+cleanup deadlines and frozen qualified RC3 binaries remain unchanged.
