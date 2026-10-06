@@ -14,7 +14,7 @@ adapter should remain thin.
 
 Required development tools are Python 3.10, Rust 1.87.0 with Clippy
 and rustfmt, Bun 1.3.5, Node.js 22.22.3 or newer, and npm 10 or newer. CI uses
-Python 3.10.18 and Node.js 24.20.0. Use those exact versions when you need to
+Python 3.10.20 and Node.js 24.20.0. Use those exact versions when you need to
 reproduce CI or release behavior. The hash-locked test dependencies include
 Python 3.10 native wheels; use a Python 3.10 virtual environment for the install
 and test commands below. Newer Python versions may select wheels whose hashes

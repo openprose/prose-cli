@@ -785,3 +785,7 @@ Root authorized `/root/build_docs` on `codex/imp-055-build-docs` to edit exactly
 diagnostic/test builds and explicit tool configuration; provider-free copied
 example verification. No source, release documentation, model calls or new
 Python. Root retains integration and publication ownership.
+
+IMP-055 final documentation audit: root extends this branch's lease to
+`cli/CONTRIBUTING.md` solely to align its stated CI Python patch version with
+the existing workflow pin. No toolchain, workflow or Python source change.
