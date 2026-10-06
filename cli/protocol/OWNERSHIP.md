@@ -713,3 +713,13 @@ rehearsal bytes remain private/non-publishing and cannot qualify a release.
 IMP-014 workflow admission extension: root owns `cli/ci/check_workflows.py`
 and `cli/ci/test_check_workflows.py` to admit only the reviewed immutable
 Homebrew setup action and retain mutable/unreviewed action rejection.
+
+IMP-014 admission fixture extension: root owns only
+`failure_settlement_drains_diagnostics_under_channel_backpressure` in
+`cli/rust/crates/prose-process-supervisor/src/supervisor.rs` and
+`run_deadline_does_not_hang_on_an_escaped_descendant_retaining_stream_pipes` in
+`cli/rust/crates/prose-process-supervisor/tests/fake_harness.rs`, for test
+fixture timing budgets and explanatory comments. Preserve all assertions and
+production constants; no runtime implementation is leased. This follows two
+retained macOS admission failures and a matching existing-main fixture failure.
+Root retains Git; subagent review is read-only.
