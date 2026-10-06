@@ -778,6 +778,48 @@ IMP-086 lease extension: `cli/conformance/fixtures/adapter-host-expectations.jso
 
 IMP-086 lease extension: `cli/ci/test_run_local.py` solely to make the interrupt-tree fixture reap its controlled descendant and publish readiness after signal-safe setup; supervisor behavior, 130/143 exits and PID-absence assertions remain unchanged.
 
+## IMP-014: user-selected Homebrew implementation packages (October 5, 2026)
+
+Codex `/root` owns sole edits and Git in isolated
+`codex/imp-014-homebrew-docs`, from current main. Exact paths:
+`cli/protocol/OWNERSHIP.md`, `docs/cli-distribution.md`,
+`docs/cli-release-next.md`. Scope: record user-selected public tap formulae
+`prose-bun` and `prose-rust`, both providing `prose`, native link switching,
+explicit RC versions and actual installation evidence. No implementation
+default, runtime, release artifact, Apple identity or model spending is claimed.
+The Homebrew subagent owns only the new tap formula/readme/CI/record paths
+under root Git/integration ownership; other owners' leases remain unchanged.
+
+IMP-014 Homebrew automation lease extension: root owns exact paths
+`.github/workflows/cli-distribution-check.yml`, `cli/ci/homebrew_rehearsal.py`,
+`cli/ci/test_homebrew_rehearsal.py`. Scope: provider-free Homebrew install/link
+regression checks against the existing verified local rehearsal's actual
+archives on its four native runner platforms, before release. Development
+rehearsal bytes remain private/non-publishing and cannot qualify a release.
+
+IMP-014 workflow admission extension: root owns `cli/ci/check_workflows.py`
+and `cli/ci/test_check_workflows.py` to admit only the reviewed immutable
+Homebrew setup action and retain mutable/unreviewed action rejection.
+
+IMP-014 admission fixture extension: root owns only
+`failure_settlement_drains_diagnostics_under_channel_backpressure` in
+`cli/rust/crates/prose-process-supervisor/src/supervisor.rs` and
+`run_deadline_does_not_hang_on_an_escaped_descendant_retaining_stream_pipes` in
+`cli/rust/crates/prose-process-supervisor/tests/fake_harness.rs`, for test
+fixture timing budgets and explanatory comments. Preserve all assertions and
+production constants; no runtime implementation is leased. This follows two
+retained macOS admission failures and a matching existing-main fixture failure.
+Root retains Git; subagent review is read-only.
+
+IMP-014 exact release-archive Homebrew extension: root owns
+`.github/workflows/cli-kernel-rc.yml` and retains the helper/test/registry
+leases above. The Homebrew subagent edits only `cli/ci/homebrew_rehearsal.py`
+and `cli/ci/test_homebrew_rehearsal.py`; root owns workflow edits and all Git.
+Scope: verify expected native RC source/version and report-bound archive/binary
+identities, then exercise the same install/link/switch/uninstall checks against
+those already-built release bytes. No rebuild, relabel, live qualification,
+publication authority or production runtime change.
+
 ## IMP-089 Bun natural-exit diagnosis — October 5, 2026
 
 Root authorizes `/root/bun_cleanup` on branch `codex/imp-089-bun-cleanup`

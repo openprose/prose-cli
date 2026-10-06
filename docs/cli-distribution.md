@@ -1,9 +1,68 @@
 # CLI distribution (IMP-014)
 
-Current status (October 2, 2026): unsigned `0.15.0-rc.1` is public through
-GitHub and pkg.prose.md. npm remains pending bootstrap; Homebrew remains a
-proposal. [Publication setup](cli-publication.md) owns current policy and
-[next-candidate preparation](cli-release-next.md) owns the next release gates.
+Current status (October 5, 2026): unsigned `0.15.0-rc.2` is published through
+npm, GitHub and pkg.prose.md. Homebrew tap preparation is in progress with
+user-selected formula names `prose-bun` and `prose-rust`, both providing the
+command `prose`. Neither is designated the default.
+[Publication setup](cli-publication.md) owns signing/publication policy;
+[next-candidate preparation](cli-release-next.md) owns current runtime gaps and
+release gates.
+
+## Homebrew installation and implementation selection
+
+The selected tap is `openprose/tap`. Each formula selects a verified immutable
+release; the current candidate version is `0.15.0-rc.2`. RC status appears in
+its version and installation caveats, rather than a package-name suffix.
+Both implementations are prebuilt; no Bun or Rust compiler is required.
+
+After the tap installation checks pass, select one implementation:
+
+```sh
+brew install openprose/tap/prose-bun
+# Or select Rust instead:
+brew install openprose/tap/prose-rust
+prose --version
+```
+
+Both packages provide `prose`. To switch from Bun to Rust without overwriting
+the active command:
+
+```sh
+brew unlink prose-bun
+brew install openprose/tap/prose-rust
+# If Rust is already installed, use: brew link prose-rust
+prose --version
+```
+
+Switch back with `brew unlink prose-rust` and `brew link prose-bun`. Homebrew
+retains both installed kegs, with one linked command. An attempted simultaneous
+link refuses to overwrite the existing `prose`; do not use `--overwrite`.
+An existing npm installation may precede Homebrew in PATH. Check the actual
+executable and version rather than assuming the selected package wins PATH.
+
+These are experimental prereleases. macOS binaries are not Developer ID signed
+or notarized; Linux requires glibc 2.34 or newer. Install and authenticate a
+supported harness separately. A CLI executable does not pin the selected
+kernel or harness. Homebrew packaging does not qualify program fulfillment.
+The existing public RC2 remains behind main's merged Prime fix and does not
+claim the separately observed cleanup failure repaired.
+
+No plain `prose` package alias is selected until the implementation default is
+decided. Homebrew needs no separate publisher account; the tap uses the existing
+GitHub organization. Future formula updates select a newly qualified public
+release and pass installation/switching tests before merge. CLI distribution CI
+first tests Homebrew against this checkout's verified development-rehearsal
+archives on all four native runners. These local-only bytes never become tap
+releases. The unsigned candidate build also runs the same checks against its
+already-built kernel-RC archives, binding the expected source/version, native
+custody reports and executable hashes. A failed platform withholds the candidate
+cohort; neither packaging check grants live qualification. The tap update workflow follows the guarded public RC pointer,
+verifies the immutable manifest digest and prepares a formula update branch.
+Its own-repository CI is explicitly dispatched for bot-created branches. The
+release owner opens the checked PR using existing GitHub authentication,
+respecting the organization policy against Actions-created PRs. Merging that
+checked PR selects the new Homebrew release. This avoids a separate
+cross-repository publishing token and preserves a reviewable update boundary.
 
 ## Historical implementation record — September 16–17, 2026
 
@@ -29,15 +88,11 @@ historical test tooling and is not a public migration plan. See
 [Publication and signing](cli-publication.md) for the exact OIDC identity and
 release gates.
 
-Standalone Bun and Rust downloads remain available independently. Proposed
-Homebrew setup: a public `openprose/homebrew-tap` GitHub repository, with Rust
-installed by `brew install openprose/tap/prose`, and an explicit `prose-bun`
-alternative that avoids executable collisions. These formula names and the Rust
-default are proposals, not deployed decisions. No separate Homebrew publisher
-account is required. The distribution repository can render formulae from
-qualified exact artifact plans. Stable formulae require all four declared
-platforms; RC/development consumers use explicit versioned artifacts until a
-separate prerelease formula policy is agreed.
+Standalone Bun and Rust downloads remain available independently. The historical
+Rust-default and `prose-bun` alternate-command proposal below is superseded by
+the October 5 user-selected implementation package names and common `prose`
+command above. Existing stable-only tooling remains the default, with explicit
+RC version/qualification admission added for the new tap.
 
 ## Local build and installation rehearsal
 

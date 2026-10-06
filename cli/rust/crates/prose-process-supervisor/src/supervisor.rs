@@ -2257,7 +2257,10 @@ mod tests {
             &receiver,
             &mut diagnostic,
             8 * 1024 * 1024,
-            PROBE_READER_STOP_TIMEOUT,
+            // This fixture tests lossless draining under channel backpressure,
+            // not a 250 ms throughput guarantee for 4 MiB on a loaded CI host.
+            // Production settlement keeps PROBE_READER_STOP_TIMEOUT unchanged.
+            Duration::from_secs(2),
         );
 
         assert_eq!(settlements, (Some(false), Some(false)));

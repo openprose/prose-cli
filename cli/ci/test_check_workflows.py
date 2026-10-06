@@ -182,6 +182,28 @@ class CurrentWorkflowPolicyTest(unittest.TestCase):
             for step in j["steps"] if step.get("name") == "Prepare locked toolchains and dependencies"
         ])
 
+    def test_homebrew_gates_cannot_be_removed_skipped_or_reordered(self):
+        for name, label in (("cli-distribution-check.yml", "Rehearse Homebrew against this build's verified native archives"),
+                            ("cli-kernel-rc.yml", "Rehearse Homebrew against these exact release archives")):
+            index = next(i for i, step in enumerate(self.workflows[name]["jobs"][JOBS[name]]["steps"])
+                         if step.get("name") == label)
+            self.changed(name, lambda w, j, i=index: j["steps"].pop(i))
+            self.changed(name, lambda w, j, i=index: j["steps"][i].update({"if": "false"}))
+            self.changed(name, lambda w, j, i=index: j["steps"][i].update(run="echo skipped"))
+            self.changed(name, lambda w, j: j["steps"].reverse())
+            self.changed(name, lambda w, j: [step["with"].update(path="unrelated")
+                         for step in j["steps"] if step.get("uses", "").startswith("actions/upload-artifact@")])
+
+    def test_release_homebrew_custody_cannot_select_another_source_or_version(self):
+        name = "cli-kernel-rc.yml"
+        index = next(i for i, step in enumerate(self.workflows[name]["jobs"][JOBS[name]]["steps"])
+                     if step.get("name") == "Rehearse Homebrew against these exact release archives")
+        for key in ("EXPECTED_SOURCE", "RC_VERSION"):
+            self.changed(name, lambda w, j, i=index, k=key: j["steps"][i]["env"].update({k: "unreviewed"}))
+        for argument in ("--expected-source", "--expected-version", "--kernel-rc"):
+            self.changed(name, lambda w, j, i=index, a=argument: j["steps"][i].update(
+                         run=j["steps"][i]["run"].replace(a, "--wrong-argument")))
+
     def test_locked_dependency_guards_and_required_commands(self):
         for name in JOBS:
             if name == "cli-publish.yml":
@@ -297,3 +319,13 @@ class CurrentWorkflowPolicyTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class HomebrewActionAdmissionTest(unittest.TestCase):
+    def test_only_the_reviewed_homebrew_setup_pin_is_admitted(self):
+        text = (ROOT / ".github/workflows/cli-distribution-check.yml").read_text()
+        reviewed = "Homebrew/actions/setup-homebrew@dc7099b3e807f1e2ecc61f3ecabc840eedd5586a"
+        self.assertIn(reviewed, text)
+        self.assertEqual([], audit_workflow("cli-distribution-check.yml", text))
+        for replacement in ("Homebrew/actions/setup-homebrew@main", "Homebrew/actions/setup-homebrew@" + "0" * 40):
+            self.assertTrue(audit_workflow("cli-distribution-check.yml", text.replace(reviewed, replacement)))

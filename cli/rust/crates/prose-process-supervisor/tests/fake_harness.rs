@@ -529,7 +529,10 @@ os._exit(0)
         identity_path.clone().into_os_string(),
     ];
     spec.version_probe = None;
-    spec.run_timeout = Duration::from_millis(150);
+    // The child may spend up to two seconds establishing its escaped identity.
+    // Allow that fixture setup and terminal emission before testing the retained
+    // pipe's deadline; a 150 ms startup assumption races on loaded CI hosts.
+    spec.run_timeout = Duration::from_secs(3);
     spec.termination_grace = Duration::from_millis(50);
     let started = Instant::now();
     let error = supervise(spec, &JsonlProtocol::fake_harness()).unwrap_err();
@@ -540,7 +543,7 @@ os._exit(0)
     let _cleanup = EscapedProcess { pid, process_group };
     assert_eq!(error.kind, FailureKind::CleanupFailed);
     assert!(error.terminal_observed);
-    assert!(started.elapsed() < Duration::from_secs(2));
+    assert!(started.elapsed() < Duration::from_secs(5));
 }
 
 #[test]

@@ -1,6 +1,6 @@
 # CLI release status and next candidate — October 5, 2026
 
-Published RC2 is behind current main runtime after [PR33](https://github.com/openprose/prose-cli/pull/33) merged on October 5. See the [current source/release difference](#current-source-and-release-difference) below.
+Published RC2 is behind current main runtime after [PR33](https://github.com/openprose/prose-cli/pull/33) and [PR42](https://github.com/openprose/prose-cli/pull/42) merged on October 5. See the [current source/release difference](#current-source-and-release-difference) below.
 
 Unsigned `0.15.0-rc.2` is published on
 [npm](https://www.npmjs.com/package/@openprose/prose-cli/v/0.15.0-rc.2) and as a
@@ -43,13 +43,10 @@ Earlier exact macOS payloads retain their original main-workflow provenance;
 recovery reused their matching bytes. Keep runtime and publisher identities
 separate in receipts.
 
-The finance/context research owner is
-investigating Prime event-history compatibility under IMP-083. Its longer probe
-found missing tool-start events, and the compatibility candidate remains
-unqualified. Do not merge it, weaken parsing or count its paid research runs as
-release qualification. Refresh its workspace record and current remote main
-before selecting source. Either integrate an independently qualified repair or
-explicitly disclose the affected Prime route and review release scope.
+Prime PR33 is integrated after independent review and all fifteen checks.
+Its repair is bounded to missing results for completed tools with corroborating
+same-producer history. Broader native event loss and the longer finance workflow
+remain unqualified; no research budget or run qualifies this release.
 IMP-082's reproduced OMP cleanup defect is repaired and qualified on integrated
 main. Its distinct historical Bun timing observation remains unexplained; the
 release does not claim that separate observation repaired.
@@ -58,6 +55,22 @@ Keep the published kernel default `0.1.0-rc.1`. The failed semantic qualificatio
 of kernel `0.2.0-rc.1` is separately owned and cannot be bypassed by this release.
 A CLI version pins executable bytes; normal startup can still select a moving
 kernel. Record the observed kernel identity in the new live evidence.
+
+## Assigned successor preparation
+
+The user assigned a small follow-up candidate after compatibility PR42 lands.
+It is merged at `625106e80c202e6e3916eb6cca8fd0dba2fb62a4`; refresh final main
+and its checks before freezing release source. The expected next label is
+`0.15.0-rc.3`, subject to authoritative unused-version preflight. Homebrew's
+candidate and tap integration must be checked before publication. No stable
+promotion or default implementation selection is implied.
+
+The explicit `--codex-compatibility probe` option permits mechanically admitted
+unqualified Codex versions on supported POSIX hosts; default qualification remains
+unchanged. Native `0.159.0-alpha.12.1` has provider-free capability/doctor evidence,
+not model-execution qualification. The closed RC2 live allocation cannot be
+reused. Prepare exact-byte artifacts and a concrete fresh bounded live scope
+before requesting any remaining allocation; make no paid calls before approval.
 
 ## Gates for the next unused candidate
 
@@ -74,6 +87,10 @@ kernel. Record the observed kernel identity in the new live evidence.
 
    Read the run's actual source SHA immediately. If main moved, inspect the new
    source and gates; do not treat the previously inspected head as its identity.
+   Each native job must also pass Homebrew installation, protected linking,
+   implementation switching and clean uninstall against those exact RC archives.
+   Retained results bind the expected source/version and verified native custody;
+   they do not replace the separate live qualification.
    Download all four platform artifacts from that one run and verify native
    reports, standalone and npm inventories. Never rebuild between qualification
    and publication or reuse automatic runs labeled with the old public version.
@@ -166,11 +183,12 @@ Use the existing unsigned-RC policy only with explicit disclosure and concrete
 candidate approval. Sigstore supplies workflow/byte provenance, not Developer ID
 or notarization. A signed release must use a new immutable version.
 
-Homebrew tap/formula work remains deferred; no separate Homebrew account is
-required. No accessible `openprose/homebrew-tap` was found, formula
-names and default implementation remain proposals, and current formula tooling
-requires stable artifacts. Adding an RC tap now would add an unqualified channel
-without resolving Apple prerequisites.
+Homebrew preparation is now user-assigned. The selected formula names are
+`prose-bun` and `prose-rust`, both providing `prose`; no implementation default
+or plain `prose` alias is chosen. Prerelease status stays in the version and
+caveats. [Installation and switching](cli-distribution.md#homebrew-installation-and-implementation-selection)
+uses native Homebrew unlink/link and preserves immutable RC2 bytes. Apple
+signing remains separate; Homebrew does not remove unsigned-RC limitations.
 
 ## October 5 runtime parity audit
 
