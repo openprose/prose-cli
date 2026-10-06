@@ -810,3 +810,5 @@ no new Python or architecture allowlist change is necessary.
 IMP-089 record-limit lease extension: `cli/shared/capabilities/transport-limits.v1.json`
 solely to reconcile the authoritative oversized-record error category with the
 shared controls and both products. Numeric bounds and other failures stay fixed.
+IMP-089 record-limit documentation lease: `docs/native-output-budgets.md` for
+accurate fixed record-budget reporting and resource-failure recovery only.
