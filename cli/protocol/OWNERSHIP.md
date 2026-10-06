@@ -773,3 +773,5 @@ IMP-086 lease extension: `cli/conformance/release-package/invariants.v2.json`, `
 IMP-086 lease extension: `cli/ci/rehearse_release.py` solely to require all 64 current Phase-7 cases in fresh rehearsals. Retained historical-report validation and all custody/authority checks remain unchanged.
 
 IMP-086 lease extension: `cli/ci/test_rehearse_release.py` for exact current 64-case rehearsal count assertions, preserving historical-report coverage.
+
+IMP-086 lease extension: `cli/conformance/fixtures/adapter-host-expectations.json` and the existing leased host runner/tests for independently frozen inventory expectations across admitted POSIX hosts; keep all Codex blocked-state and full-inventory assertions.

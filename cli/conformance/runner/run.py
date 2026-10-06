@@ -1642,12 +1642,19 @@ def expected_for_host(case: dict[str, Any], host_os: str | None = None,
     expected = deepcopy(case["expected"])
     oracle = json.loads((CLI / "conformance/fixtures/adapter-host-expectations.json").read_text("utf-8"))
     adapter = oracle["cases"].get(case.get("id"))
-    if adapter is None:
-        return expected
     os_name = host_os or sys.platform
     arch = host_arch or platform.machine()
     os_name = {"macos": "darwin", "windows": "win32"}.get(os_name, os_name)
     arch = {"aarch64": "arm64", "x86_64": "x64", "AMD64": "x64"}.get(arch, arch)
+    if case.get("id") in oracle["inventoryCases"]:
+        for harness in expected["resultMatches"]["harnesses"]:
+            inventory_adapter = f"{harness['id']}/{harness['transports'][0]}"
+            admitted = oracle["admittedHosts"].get(inventory_adapter)
+            if admitted is not None and f"{os_name}-{arch}" not in admitted:
+                harness["availability"] = "incompatible"
+        return expected
+    if adapter is None:
+        return expected
     if f"{os_name}-{arch}" in oracle["admittedHosts"][adapter]:
         return expected
     error = {

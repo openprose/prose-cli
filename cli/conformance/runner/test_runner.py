@@ -78,9 +78,31 @@ class RunnerUnitTest(unittest.TestCase):
                     self.assertFalse(expected["startedHarness"])
                     self.assertNotIn("forwardedTask", expected)
                     self.assertIn("HARNESS_INCOMPATIBLE", json.dumps(expected))
-                else:
+                elif case["id"] not in {
+                    "adapters.codex-doctor-probe-failed", "adapters.codex-list-probe-failed"
+                }:
                     self.assertEqual(case["expected"], expected)
             self.assertEqual(original, case)
+
+    def test_inventory_oracle_freezes_all_harnesses_and_codex_blocked_on_each_host(self):
+        for name in ("codex-doctor-probe-failed", "codex-list-probe-failed"):
+            case = json.loads((runner.CASES / f"adapters/{name}.json").read_text())
+            for os_name, arch, incompatible in [
+                ("darwin", "arm64", set()),
+                ("darwin", "x86_64", {"prime", "omp", "claude"}),
+                ("linux", "aarch64", {"prime", "omp", "claude"}),
+                ("linux", "x86_64", {"prime", "claude"}),
+            ]:
+                wanted = json.loads(json.dumps(case["expected"]))
+                for harness in wanted["resultMatches"]["harnesses"]:
+                    if harness["id"] in incompatible:
+                        harness["availability"] = "incompatible"
+                actual = runner.expected_for_host(case, os_name, arch)
+                self.assertEqual(wanted, actual)
+                codex = next(h for h in actual["resultMatches"]["harnesses"] if h["id"] == "codex")
+                self.assertEqual("blocked", codex["availability"])
+                self.assertFalse(actual["startedHarness"])
+
 
     def test_host_oracle_rejects_unsupported_host_without_skipping_case(self):
         case = json.loads((runner.CASES / "adapters/claude-functional-alpha.json").read_text())

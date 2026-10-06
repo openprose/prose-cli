@@ -49,5 +49,9 @@
       "darwin-arm64",
       "linux-x64"
     ]
-  }
+  },
+  "inventoryCases": [
+    "adapters.codex-doctor-probe-failed",
+    "adapters.codex-list-probe-failed"
+  ]
 }
