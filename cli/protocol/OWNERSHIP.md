@@ -794,3 +794,15 @@ Root authorized `/root/build_docs` on `codex/imp-055-build-docs` to edit exactly
 diagnostic/test builds and explicit tool configuration; provider-free copied
 example verification. No source, release documentation, model calls or new
 Python. Root retains integration and publication ownership.
+
+## IMP-089 agent-interface parity — active branch-scoped lease
+
+Root `/root` owns branch `codex/imp-089-agent-parity` from main625106e:
+`cli/rust/crates/prose-cli/src/main.rs`,
+`cli/rust/crates/prose-cli/tests/cli.rs`,
+`cli/bun/test/agent-account-globals.test.ts`,
+`cli/shared/fixtures/account-global-boundaries.json`, and
+`docs/agent-interface-parity.md`. Scope: existing account commands must reject
+inapplicable runner globals before credential access or side effects, retaining
+machine envelopes and allowed rendering flags. Shared controls precede changes.
+No CLI redesign, new Python, provider calls, release or deployment.
