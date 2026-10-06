@@ -108,7 +108,7 @@ jobs:
       - uses: Homebrew/actions/setup-homebrew@dc7099b3e807f1e2ecc61f3ecabc840eedd5586a
       - name: Rehearse Homebrew against this build's verified native archives
         run: >-
-          python3 cli/ci/homebrew_rehearsal.py
+          "$RUNNER_TEMP/distribution-python/bin/python3" cli/ci/homebrew_rehearsal.py
           --rehearsal "$RUNNER_TEMP/cli-rehearsal"
           --output "$RUNNER_TEMP/cli-homebrew-rehearsal"
       - name: Retain rehearsal evidence

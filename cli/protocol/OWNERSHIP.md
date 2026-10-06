@@ -709,3 +709,7 @@ IMP-014 Homebrew automation lease extension: root owns exact paths
 regression checks against the existing verified local rehearsal's actual
 archives on its four native runner platforms, before release. Development
 rehearsal bytes remain private/non-publishing and cannot qualify a release.
+
+IMP-014 workflow admission extension: root owns `cli/ci/check_workflows.py`
+and `cli/ci/test_check_workflows.py` to admit only the reviewed immutable
+Homebrew setup action and retain mutable/unreviewed action rejection.

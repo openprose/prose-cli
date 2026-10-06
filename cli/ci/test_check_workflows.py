@@ -297,3 +297,13 @@ class CurrentWorkflowPolicyTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class HomebrewActionAdmissionTest(unittest.TestCase):
+    def test_only_the_reviewed_homebrew_setup_pin_is_admitted(self):
+        text = (ROOT / ".github/workflows/cli-distribution-check.yml").read_text()
+        reviewed = "Homebrew/actions/setup-homebrew@dc7099b3e807f1e2ecc61f3ecabc840eedd5586a"
+        self.assertIn(reviewed, text)
+        self.assertEqual([], audit_workflow("cli-distribution-check.yml", text))
+        for replacement in ("Homebrew/actions/setup-homebrew@main", "Homebrew/actions/setup-homebrew@" + "0" * 40):
+            self.assertTrue(audit_workflow("cli-distribution-check.yml", text.replace(reviewed, replacement)))

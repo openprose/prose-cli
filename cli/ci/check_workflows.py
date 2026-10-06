@@ -17,6 +17,7 @@ ACTION_PINS = {
     "astral-sh/setup-uv": "d0d8abe699bfb85fec6de9f7adb5ae17292296ff",
     "oven-sh/setup-bun": "3d267786b128fe76c2f16a390aa2448b815359f3",
     "actions/upload-artifact": "ea165f8d65b6e75b540449e92b4886f43607fa02",
+    "Homebrew/actions/setup-homebrew": "dc7099b3e807f1e2ecc61f3ecabc840eedd5586a",
     "sigstore/cosign-installer": "828df1e55de306ba29db814d6057ddae71883cda",
 }
 JOBS = {
