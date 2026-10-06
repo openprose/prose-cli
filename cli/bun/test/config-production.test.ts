@@ -155,3 +155,24 @@ for(const args of [["cli","config","migrate","--json"],["cli","config","unset","
   const report=JSON.parse(stdout);expect(report).toMatchObject({code:"CONFIG_INVALID",details:{source:"HOME",configurationExplanation:{userConfigPath:null,locations:[],runtime:{transport:null}}}});
   expect(validateExplanation(report.details.configurationExplanation),JSON.stringify(validateExplanation.errors)).toBe(true);expect(await treeFiles(root)).toEqual([]);
 });
+test("migration conflict retains resolved candidates and legacy warnings without file effects",async()=>{
+  const root=await freshConfigurationRoot();const canonical=join(root,"home/.prose/cli.toml"),legacy=join(root,"legacy/openprose/cli.toml");
+  await mkdir(join(root,".git"));
+  for(const [path,bytes] of [[canonical,'# canonical\ntimeout = "2m"\n'],[legacy,'# legacy\ntimeout = "3m"\n']]){await mkdir(join(path!,".."),{recursive:true});await writeFile(path!,bytes!);}
+  let stdout="";
+  expect(await runCli(["cli","config","migrate","--json"],{processCwd:root,env:{HOME:join(root,"home"),XDG_CONFIG_HOME:join(root,"legacy")},clock:{now:()=>"2025-01-01T00:00:00Z",monotonicMs:()=>0},ids:{invocationId:()=>"fixture-invocation-0001"},writeStdout:text=>{stdout+=text;},writeStderr:()=>{}})).toBe(2);
+  const report=JSON.parse(stdout),partial=report.details.configurationExplanation;
+  expect(partial).toMatchObject({values:{timeout:{value:"2m"}},runtime:{transport:null},diagnostics:[{code:"LEGACY_CONFIG_IGNORED",severity:"warning",source:legacy},{code:"CONFIG_INVALID",severity:"error",source:canonical}]});
+  expect(Object.keys(partial.candidates)).toHaveLength(19);expect(partial.candidates.timeout).toHaveLength(2);expect(partial.locations).toHaveLength(3);
+  expect(validateExplanation(partial),JSON.stringify(validateExplanation.errors)).toBe(true);
+  expect(await readFile(canonical,"utf8")).toBe('# canonical\ntimeout = "2m"\n');expect(await readFile(legacy,"utf8")).toBe('# legacy\ntimeout = "3m"\n');expect(await treeFiles(root)).toEqual(["home/.prose/cli.toml","legacy/openprose/cli.toml"]);
+});
+test("migration conflict preserves a failed resolver's safe context without exposing invalid overrides",async()=>{
+  const root=await freshConfigurationRoot(),canonical=join(root,"home/.prose/cli.toml");await mkdir(join(root,".git"));await mkdir(join(canonical,".."),{recursive:true});await writeFile(canonical,'timeout = "2m"\n');
+  let stdout="";
+  expect(await runCli(["cli","config","migrate","--json"],{processCwd:root,env:{HOME:join(root,"home"),PROSE_OUTPUT:"invalid-output-sentinel"},clock:{now:()=>"2025-01-01T00:00:00Z",monotonicMs:()=>0},ids:{invocationId:()=>"fixture-invocation-0001"},writeStdout:text=>{stdout+=text;},writeStderr:()=>{}})).toBe(2);
+  const report=JSON.parse(stdout),partial=report.details.configurationExplanation;
+  expect(stdout).not.toContain("invalid-output-sentinel");expect(report.details.source).toBe(canonical);expect(partial.diagnostics).toMatchObject([{code:"CONFIG_INVALID",source:"PROSE_OUTPUT"},{code:"CONFIG_INVALID",source:canonical}]);
+  expect(Object.keys(partial.candidates)).toHaveLength(19);expect(partial.values.timeout.value).toBe("2m");expect(validateExplanation(partial),JSON.stringify(validateExplanation.errors)).toBe(true);
+  expect(await readFile(canonical,"utf8")).toBe('timeout = "2m"\n');expect(await treeFiles(root)).toEqual(["home/.prose/cli.toml"]);
+});

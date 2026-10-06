@@ -1297,6 +1297,9 @@ pub fn mutation_error_context(
     flags: &GlobalFlags,
     system: &SystemContext,
 ) -> RunnerError {
+    if error.code != crate::ErrorCode::ConfigInvalid {
+        return error;
+    }
     match resolve_config(flags, system) {
         Ok(config) => explanation_error(error, &config),
         Err(context) => match context
@@ -1304,7 +1307,17 @@ pub fn mutation_error_context(
             .as_deref()
             .and_then(|details| details.get("configurationExplanation"))
         {
-            Some(report) => error.with_detail("configurationExplanation", report.clone()),
+            Some(report) => {
+                let mut report = report.clone();
+                let details = error.details.as_deref();
+                let diagnostic = json!({"code":"CONFIG_INVALID","severity":"error","source":details.and_then(|details| details.get("source")).cloned().unwrap_or_else(|| json!("configuration")),"reason":details.and_then(|details| details.get("reason")).cloned().unwrap_or_else(|| json!("Runner configuration is invalid."))});
+                if let Some(diagnostics) = report["diagnostics"].as_array_mut() {
+                    if diagnostics.last() != Some(&diagnostic) {
+                        diagnostics.push(diagnostic);
+                    }
+                }
+                error.with_detail("configurationExplanation", report)
+            }
             None => error,
         },
     }
