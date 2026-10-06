@@ -2,7 +2,7 @@
 //! express compactly. Behavior is pinned by
 //! `cli/conformance/cases/service/programs/`; the Bun twin is
 //! `cli/bun/test/service-programs.test.ts`.
-use serde_json::{Value, json};
+use serde_json::Value;
 use std::process::Command;
 use tempfile::TempDir;
 

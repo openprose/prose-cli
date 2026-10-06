@@ -428,13 +428,6 @@ fn assert_release_mock_rpc_is_rejected(binary: &Path, root: &Path) {
     }
 }
 
-fn fake_harness() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../conformance/fake-harness/fake_harness.py")
-        .canonicalize()
-        .unwrap()
-}
-
 fn adapter_probe() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../../shared/fixtures/adapters/bin/adapter_probe.py")
@@ -5574,7 +5567,7 @@ fn human_doctor_confines_a_hostile_diagnostic_to_one_physical_detail_line() {
     let rendered = String::from_utf8(human.stderr).unwrap();
     assert!(rendered.contains(&format!(
         "Detail: {}\n",
-        expected_human_safe_scalar(&expected_reason)
+        expected_human_safe_scalar(expected_reason)
     )));
     assert_eq!(
         rendered

@@ -944,3 +944,5 @@ IMP-097 actual differential repair wave: `/root/conformance_plumbing` owns `cli/
 IMP-097 root full-admission repair lease: `cli/ci/check_architecture.py`, `cli/ci/test_check_architecture.py` only to stop propagating argv taint through Rust's nonbinding discard pattern `_`. Preserve real aliases and opaque-program file-read prohibitions; regression must show actual argv-derived reads still fail.
 
 IMP-097 root formatting-only integration: completed independent test lanes release `cli/rust/crates/prose-cli/tests/cli.rs` and `cli/rust/crates/prose-cli/tests/config_production.rs` to root for Rust1.87 rustfmt corrections required by full admission. No test semantics change.
+
+IMP-097 root Clippy admission cleanup extends exact lease to `cli/rust/crates/prose-cli/tests/service_programs.rs` only for removing an already-unused serde_json::json import exposed by all-target admission. Root keeps main.rs configuration preparation refactor and config.rs documentation/style corrections; no altered runtime behavior or lint suppression.

@@ -4,6 +4,7 @@ use serde::Serialize;
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
 use std::env;
+use std::fmt::Write as _;
 use std::fs;
 use std::fs::OpenOptions;
 use std::io::Write as _;
@@ -113,6 +114,10 @@ impl SystemContext {
     }
 
     /// Historical discovery is retained only as a visible migration candidate.
+    ///
+    /// # Errors
+    /// Returns `CONFIG_INVALID` for an explicit canonical root or an invalid
+    /// or absent historical configuration root.
     pub fn legacy_user_config_path(&self) -> Result<PathBuf, RunnerError> {
         if self.environment.contains_key("PROSE_CONFIG_DIR") {
             return Err(RunnerError::config(
@@ -289,14 +294,14 @@ pub fn write_user_harness(
         .ok_or_else(|| RunnerError::config("user configuration has no parent directory"))?;
     prepare_private_config_parent(parent)?;
     refuse_symlinked_config_destination(&path)?;
-    let source_path = if !path.exists() {
+    let source_path = if path.exists() {
+        &path
+    } else {
         config
             .legacy_user_config
             .as_ref()
             .filter(|legacy| legacy.is_file())
             .unwrap_or(&path)
-    } else {
-        &path
     };
     refuse_symlinked_config_destination(source_path)?;
     let existing_bytes = match fs::read(source_path) {
@@ -375,7 +380,7 @@ pub fn write_user_harness(
     }
     for key in ["auth_profile", "harness", "model"] {
         if let Some(value) = table.get(key) {
-            retained.push_str(&format!("{key} = {value}\n"));
+            writeln!(retained, "{key} = {value}").expect("writing to String cannot fail");
         }
     }
     let loaded = parse_file(&retained, &path)?;
@@ -1122,7 +1127,7 @@ fn resolve_config_inner(
         project_config.clone(),
         Some(user_config_candidate.clone()),
     );
-    config.legacy_user_config = legacy.clone();
+    config.legacy_user_config.clone_from(&legacy);
     if legacy_result.is_err()
         && !system.environment.contains_key("PROSE_CONFIG_DIR")
         && system.xdg_config_home.is_some()
@@ -1163,10 +1168,12 @@ fn resolve_config_inner(
                             })
                             .collect();
                         if !differing.is_empty() {
-                            reason.push_str(&format!(
+                            write!(
+                                reason,
                                 " Differing explicit keys: {}.",
                                 differing.join(", ")
-                            ));
+                            )
+                            .expect("writing to String cannot fail");
                         }
                     }
                     Err(_) => reason.push_str(" Ignored legacy configuration is invalid."),
@@ -1447,9 +1454,7 @@ fn contextual_defaults(config: &mut EffectiveConfig) -> Result<(), RunnerError> 
 }
 
 fn resolved_runtime(config: &EffectiveConfig) -> Value {
-    let transport = if config.transport.value != "auto" {
-        config.transport.value.as_str()
-    } else {
+    let transport = if config.transport.value == "auto" {
         crate::installed_adapters::for_harness(&config.harness.value).map_or_else(
             || {
                 if config.harness.value == "openprose" {
@@ -1460,6 +1465,8 @@ fn resolved_runtime(config: &EffectiveConfig) -> Value {
             },
             crate::installed_adapters::InstalledAdapter::transport,
         )
+    } else {
+        config.transport.value.as_str()
     };
     json!({"transport":transport,"permissionMode":config.permission_mode.value,
         "authProfile":config.auth_profile.value,"billingOwner":match config.harness.value.as_str() {"openprose" => "openprose", "mock" => "test-fixture", _ => "user-provider"},
@@ -2432,7 +2439,7 @@ mod tests {
                 home_dir: Some(absolute_home.clone()),
                 xdg_config_home: Some(PathBuf::new()),
                 appdata: None,
-                environment: BTreeMap::from([("PROSE_CONFIG_DIR".into(), "".into())]),
+                environment: BTreeMap::from([("PROSE_CONFIG_DIR".into(), String::new())]),
                 platform: Platform::Unix,
             },
             SystemContext {
