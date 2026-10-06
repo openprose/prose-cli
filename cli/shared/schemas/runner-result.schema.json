@@ -11,6 +11,7 @@
     "runnerExitCode"
   ],
   "properties": {
+    "codexCompatibility": { "$ref": "codex-compatibility.schema.json" },
     "nativeLimits": { "$ref": "native-limits.schema.json" },
     "nativeOutputLimits": { "$ref": "native-output-limits.schema.json" },
     "nativeConfiguration": { "$ref": "native-configuration.schema.json" },

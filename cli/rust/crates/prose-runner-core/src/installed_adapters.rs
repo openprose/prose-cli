@@ -23,6 +23,38 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+fn missing_codex_options<'a>(help: &str, required: &[&'a str]) -> Vec<&'a str> {
+    let advertised: std::collections::BTreeSet<&str> = help
+        .lines()
+        .filter_map(|line| {
+            let line = line.trim_start();
+            let line = if line.starts_with('-') && !line.starts_with("--") {
+                let (short, rest) = line.split_once(',')?;
+                if short.len() != 2 || !short.as_bytes()[1].is_ascii_alphabetic() {
+                    return None;
+                }
+                rest.trim_start()
+            } else {
+                line
+            };
+            let token = line.split(|c: char| c.is_whitespace() || c == '=').next()?;
+            token
+                .strip_prefix("--")
+                .filter(|s| {
+                    !s.is_empty()
+                        && s.bytes()
+                            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+                })
+                .map(|_| token)
+        })
+        .collect();
+    required
+        .iter()
+        .copied()
+        .filter(|option| !advertised.contains(option))
+        .collect()
+}
+
 const MAX_PRIME_INLINE_IMAGE_BYTES: usize = 128 * 1024;
 const MAX_ARGV_ITEMS: usize = 64;
 const MAX_POSIX_ARGUMENT_BYTES: usize = 131_071;
@@ -499,6 +531,126 @@ impl InstalledAdapter {
             .and_then(Value::as_str)
             .expect("embedded adapter recipe must declare support.repairCommand")
             .to_owned()
+    }
+
+    #[must_use]
+    pub fn codex_qualification(self, observed: Option<&str>) -> &'static str {
+        match observed {
+            None => "unknown",
+            Some(v) if self.version_is_supported(v) => "qualified",
+            Some(_) => "unqualified",
+        }
+    }
+
+    /// Native help advertises prerequisites, not a negotiated protocol or qualification.
+    pub(crate) fn check_codex_compatibility(
+        self,
+        executable: &Path,
+        cwd: &Path,
+        environment: &EnvironmentPolicy,
+        observed: &str,
+        policy: &str,
+    ) -> Result<(), RunnerError> {
+        if self != Self::CodexExecJson {
+            return if self.version_is_supported(observed) {
+                Ok(())
+            } else {
+                Err(self.incompatible_version_error(observed))
+            };
+        }
+        if !observed.starts_with("codex-cli ") {
+            return Err(self.incompatible_version_error(observed));
+        }
+        if self.version_is_supported(observed) && policy != "probe" {
+            return Ok(());
+        }
+        if cfg!(windows) {
+            return Err(RunnerError::catalog(ErrorCode::TransportUnsupported)
+                .with_detail("adapterId", self.id())
+                .with_detail(
+                    "reason",
+                    "Codex compatibility capability probing is not qualified on Windows.",
+                )
+                .with_detail("fallbackAttempted", false));
+        }
+        let contract: Value = serde_json::from_str(include_str!(
+            "../../../../shared/capabilities/adapters/codex-compatibility.v1.json"
+        ))
+        .expect("embedded Codex compatibility contract");
+        let probe = CommandProbe {
+            argv: contract["probeArgv"]
+                .as_array()
+                .expect("probe argv")
+                .iter()
+                .map(|v| OsString::from(v.as_str().expect("probe token")))
+                .collect(),
+            timeout: Duration::from_millis(contract["timeoutMs"].as_u64().expect("probe timeout")),
+            max_output_bytes: usize::try_from(
+                contract["maxOutputBytes"]
+                    .as_u64()
+                    .expect("probe output bound"),
+            )
+            .expect("bounded output"),
+        };
+        let failure = |status: &str, reason: &str| {
+            let mut error = RunnerError::catalog(ErrorCode::HarnessIncompatible)
+                .with_detail("adapterId", self.id())
+                .with_detail("detectedVersion", observed)
+                .with_detail("compatibilityStatus", status)
+                .with_detail("reason", reason)
+                .with_detail("fallbackAttempted", false);
+            let message = match status { "unqualified" => "The selected Codex version is not qualified by this Prose CLI.", "probe-failed" => "Codex compatibility could not be determined because its capability probe failed.", _ => "The selected Codex interface lacks required native capabilities." }.to_owned();
+            let action = if status == "unqualified" { "Explicitly select --codex-compatibility probe to attempt this version with runtime protocol validation, or update Prose after qualification is available." } else { "Inspect `codex exec --help` and the reported missing capabilities; update Codex or Prose to a compatible interface. No fallback was attempted." }.to_owned();
+            message.clone_into(&mut error.message);
+            action.clone_into(&mut error.action);
+            error
+        };
+        let outcome = prose_process_supervisor::probe_command(
+            executable,
+            cwd,
+            environment,
+            &probe,
+            &CancellationToken::default(),
+        )
+        .map_err(|error| {
+            if error.kind == prose_process_supervisor::FailureKind::CleanupFailed {
+                RunnerError::catalog(ErrorCode::ProcessCleanupFailed)
+                    .with_detail("adapterId", self.id())
+                    .with_detail("phase", "codex-capability-probe")
+            } else {
+                failure(
+                    "probe-failed",
+                    "The bounded native Codex capability probe failed; compatibility is unknown.",
+                )
+            }
+        })?;
+        let required: Vec<&str> = contract["requiredExecOptions"]
+            .as_array()
+            .expect("required options")
+            .iter()
+            .map(|v| v.as_str().expect("option"))
+            .collect();
+        let missing = missing_codex_options(&outcome.stdout, &required);
+        if outcome.exit_code != 0 || !missing.is_empty() {
+            return Err(failure(
+                if outcome.exit_code == 0 {
+                    "incompatible"
+                } else {
+                    "probe-failed"
+                },
+                if outcome.exit_code == 0 {
+                    "Codex does not advertise required native options."
+                } else {
+                    "Codex capability probe exited unsuccessfully; compatibility is unknown."
+                },
+            )
+            .with_detail("missingCapabilities", missing)
+            .with_detail("capabilityProbeExitCode", outcome.exit_code));
+        }
+        if !self.version_is_supported(observed) && policy != "probe" {
+            return Err(failure("unqualified", "This Codex version is not qualified. Required native options are present; no protocol failure has been observed.").with_detail("admittedVersions", self.admitted_versions()).with_detail("repairCommand", "prose --harness codex --codex-compatibility probe cli doctor --json").with_detail("recovery", "Explicitly use --codex-compatibility probe to attempt this version with runtime protocol checks, or update Prose when qualification is available."));
+        }
+        Ok(())
     }
 
     #[must_use]
@@ -7401,5 +7553,33 @@ mod prime_child_outer_tests {
                 .allowed_events
                 .contains("rlm_child_update")
         );
+    }
+}
+
+#[cfg(test)]
+mod codex_compatibility_tests {
+    use super::{InstalledAdapter, missing_codex_options};
+    #[test]
+    fn options_must_be_declarations_not_descriptions_or_prefixes() {
+        assert_eq!(
+            missing_codex_options(
+                "Description mentions --json\n  --json-future\n -s, --sandbox read-only",
+                &["--json", "--sandbox"]
+            ),
+            vec!["--json"]
+        );
+    }
+    #[test]
+    fn unqualified_is_distinct_from_known_qualified_identity() {
+        let adapter = InstalledAdapter::CodexExecJson;
+        assert_eq!(
+            adapter.codex_qualification(Some("codex-cli 0.149.0-alpha.4.1")),
+            "qualified"
+        );
+        assert_eq!(
+            adapter.codex_qualification(Some("codex-cli 0.999.0-alpha.1")),
+            "unqualified"
+        );
+        assert_eq!(adapter.codex_qualification(None), "unknown");
     }
 }

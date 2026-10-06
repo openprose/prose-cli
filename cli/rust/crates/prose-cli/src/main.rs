@@ -527,7 +527,7 @@ fn prepare(
 
 /// Every runner value option (see `invocation::is_value_option`), so a
 /// malformed later option still honors an earlier `--output`.
-const VALUE_OPTIONS: [&str; 16] = [
+const VALUE_OPTIONS: [&str; 17] = [
     "--harness",
     "--transport",
     "--cwd",
@@ -543,6 +543,7 @@ const VALUE_OPTIONS: [&str; 16] = [
     "--native-log",
     "--output-contract",
     "--permission-mode",
+    "--codex-compatibility",
     "--timeout",
 ];
 

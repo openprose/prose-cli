@@ -10,6 +10,7 @@
     "color",
     "verbose",
     "outputContract",
+    "codexCompatibility",
     "permissionMode",
     "nativeMaxTurns",
     "nativeTimeout",
@@ -216,7 +217,7 @@
     {
       "id": "env-harness-quoted",
       "environment": {
-        "PROSE_HARNESS": "a‮b"
+        "PROSE_HARNESS": "a\u202eb"
       },
       "expected": {
         "error": {
@@ -252,7 +253,7 @@
     {
       "id": "env-model-not-utf8",
       "environment": {
-        "PROSE_MODEL": "caf�"
+        "PROSE_MODEL": "caf\ufffd"
       },
       "expected": {
         "error": {
@@ -467,6 +468,92 @@
       "expected": {
         "values": {
           "timeout": "10m"
+        }
+      }
+    },
+    {
+      "id": "env-codex-probe",
+      "environment": {
+        "PROSE_HARNESS": "codex",
+        "PROSE_CODEX_COMPATIBILITY": "probe"
+      },
+      "expected": {
+        "values": {
+          "codexCompatibility": "probe",
+          "harness": "codex"
+        }
+      }
+    },
+    {
+      "id": "env-codex-qualified",
+      "environment": {
+        "PROSE_CODEX_COMPATIBILITY": "qualified"
+      },
+      "expected": {
+        "values": {
+          "codexCompatibility": "qualified"
+        }
+      }
+    },
+    {
+      "id": "env-codex-invalid-before-permission",
+      "environment": {
+        "PROSE_CODEX_COMPATIBILITY": "latest",
+        "PROSE_PERMISSION_MODE": "invalid"
+      },
+      "expected": {
+        "error": {
+          "reason": "Codex compatibility must be qualified or probe.",
+          "source": "PROSE_CODEX_COMPATIBILITY"
+        }
+      }
+    },
+    {
+      "id": "env-codex-empty",
+      "environment": {
+        "PROSE_CODEX_COMPATIBILITY": ""
+      },
+      "expected": {
+        "error": {
+          "reason": "codexCompatibility must not be empty.",
+          "source": "PROSE_CODEX_COMPATIBILITY"
+        }
+      }
+    },
+    {
+      "id": "env-codex-probe-other-harness",
+      "environment": {
+        "PROSE_HARNESS": "claude",
+        "PROSE_CODEX_COMPATIBILITY": "probe"
+      },
+      "expected": {
+        "error": {
+          "reason": "Codex compatibility probe requires the codex harness.",
+          "source": "PROSE_CODEX_COMPATIBILITY"
+        }
+      }
+    },
+    {
+      "id": "project-codex-probe",
+      "files": {
+        "project": "harness = \"codex\"\ncodex_compatibility = \"probe\"\n"
+      },
+      "expected": {
+        "values": {
+          "harness": "codex",
+          "codexCompatibility": "probe"
+        }
+      }
+    },
+    {
+      "id": "project-codex-invalid",
+      "files": {
+        "project": "codex_compatibility = \"latest\"\n"
+      },
+      "expected": {
+        "error": {
+          "reason": "Codex compatibility must be qualified or probe.",
+          "source": "{ROOT}/.prose/cli.toml:1"
         }
       }
     }

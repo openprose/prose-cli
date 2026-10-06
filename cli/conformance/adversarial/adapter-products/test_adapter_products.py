@@ -1478,20 +1478,22 @@ class AdapterProductAdversary(unittest.TestCase):
                     self.assert_no_secrets(completed, canaries)
                     problem = self.parse_single_json(completed)["problems"][0]
                     self.assertEqual("HARNESS_INCOMPATIBLE", problem["code"])
-                    self.assertEqual(
-                        {
-                            "adapterId": adapter_id,
-                            "detectedVersion": detected,
-                            "admittedVersions": self.recipes[adapter_id]["support"][
-                                "admittedVersions"
-                            ],
-                            "repairCommand": self.recipes[adapter_id]["support"][
-                                "repairCommand"
-                            ],
-                            "fallbackAttempted": False,
-                        },
-                        problem["details"],
-                    )
+                    expected_details = {
+                        "adapterId": adapter_id,
+                        "detectedVersion": detected,
+                        "admittedVersions": self.recipes[adapter_id]["support"]["admittedVersions"],
+                        "repairCommand": self.recipes[adapter_id]["support"]["repairCommand"],
+                        "fallbackAttempted": False,
+                    }
+                    if adapter_id == "codex/exec-json":
+                        expected_details.update({
+                            "compatibilityStatus": "unqualified",
+                            "reason": "This Codex version is not qualified. Required native options are present; no protocol failure has been observed.",
+                            "repairCommand": "prose --harness codex --codex-compatibility probe cli doctor --json",
+                            "recovery": "Explicitly use --codex-compatibility probe to attempt this version with runtime protocol checks, or update Prose when qualification is available.",
+                        })
+                        self.assertIn("not qualified", problem["message"])
+                    self.assertEqual(expected_details, problem["details"])
                     errors[product_name] = problem
                 self.assertEqual(errors["rust"], errors["bun"], adapter_id)
 

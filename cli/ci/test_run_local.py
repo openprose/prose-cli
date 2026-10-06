@@ -384,12 +384,32 @@ class LocalAdmissionTest(unittest.TestCase):
             ), tempfile.TemporaryDirectory() as raw:
                 root = Path(raw)
                 evidence = root / "pids.json"
-                child = (
-                    "import json, os, pathlib, subprocess, sys, time; "
-                    "grandchild=subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)']); "
-                    "pathlib.Path(sys.argv[1]).write_text(json.dumps({'child':os.getpid(),'grandchild':grandchild.pid})); "
-                    "time.sleep(60)"
-                )
+                # This controlled tree must reap its child, independently of
+                # the host's orphan/zombie cleanup policy.
+                child = """
+import json, os, pathlib, signal, sys, time
+signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGTERM})
+grandchild = os.fork()
+if grandchild == 0:
+    signal.signal(signal.SIGTERM, signal.SIG_DFL)
+    signal.pthread_sigmask(signal.SIG_UNBLOCK, {signal.SIGTERM})
+    time.sleep(60)
+    os._exit(0)
+def terminate(signum, frame):
+    try:
+        os.kill(grandchild, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    os.waitpid(grandchild, 0)
+    sys.exit(0)
+signal.signal(signal.SIGTERM, terminate)
+signal.pthread_sigmask(signal.SIG_UNBLOCK, {signal.SIGTERM})
+evidence = pathlib.Path(sys.argv[1])
+prepared = evidence.with_suffix('.tmp')
+prepared.write_text(json.dumps({'child': os.getpid(), 'grandchild': grandchild}))
+os.replace(prepared, evidence)
+time.sleep(60)
+"""
                 driver = (
                     "import importlib.util, os, pathlib, sys; "
                     f"path=pathlib.Path({str(MODULE_PATH)!r}); "

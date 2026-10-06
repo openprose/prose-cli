@@ -89,6 +89,7 @@ ALLOWED_SHARED_REFERENCE_FILES = frozenset(
     {
         "cli/conformance/cases/fixtures/runner-help.txt",
         "cli/shared/capabilities/adapters/codex-env-route.v1.json",
+        "cli/shared/capabilities/adapters/codex-compatibility.v1.json",
         "cli/shared/fixtures/adapters/claude-background-tasks.json",
         "cli/shared/fixtures/adapters/claude-native-turns.json",
         "cli/shared/fixtures/adapters/claude-shutdown.json",

@@ -405,6 +405,7 @@ export async function probeExecutableCommand(input: {
   timeoutMs: number;
   platform?: NodeJS.Platform;
   phase: string;
+  maxOutputBytes?: number;
 }): Promise<{ exitCode: number; stdout: string; stderr: string }> {
   const executable = await resolveExecutable(input.executable);
   const cwd = await resolveWorkingDirectory(input.cwd);
@@ -416,6 +417,7 @@ export async function probeExecutableCommand(input: {
     timeoutMs: input.timeoutMs,
     platform: input.platform ?? process.platform,
     phase: input.phase,
+    ...(input.maxOutputBytes === undefined ? {} : {maxOutputBytes:input.maxOutputBytes}),
     outputOverflow: () => failure("HARNESS_INCOMPATIBLE", { reason: "Harness readiness output exceeded its bound." }),
   });
 }
@@ -549,6 +551,7 @@ interface BoundedExecutableProbeRequest {
   timeoutMs: number;
   platform: NodeJS.Platform;
   phase: string;
+  maxOutputBytes?: number;
   outputOverflow: () => RunnerFailure;
 }
 
@@ -687,8 +690,8 @@ async function runBoundedExecutableProbe(
     });
   }
 
-  const stdoutReader = startBoundedTextRead(child.stdout, 64 * 1024, request.outputOverflow);
-  const stderrReader = startBoundedTextRead(child.stderr, 64 * 1024, request.outputOverflow);
+  const stdoutReader = startBoundedTextRead(child.stdout, request.maxOutputBytes ?? 64 * 1024, request.outputOverflow);
+  const stderrReader = startBoundedTextRead(child.stderr, request.maxOutputBytes ?? 64 * 1024, request.outputOverflow);
   const readers = [stdoutReader, stderrReader] as const;
   const combined = Promise.all([child.exited, stdoutReader.promise, stderrReader.promise]);
   const lifecycle = Promise.race([

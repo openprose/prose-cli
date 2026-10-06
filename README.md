@@ -58,3 +58,6 @@ The initial import preserved the predecessor's current dirty `cli/` tree. `prove
 The optional [native workspace profile](docs/native-profiles.md) exposes Claude’s ordinary workspace tools, including native delegation, with separate explicit directory access and tool permission rules. Existing defaults remain unchanged.
 
 Generic SDK budgets and their separate inner/outer deadlines are documented in [SDK execution budgets](docs/sdk-budgets.md).
+
+See [Codex compatibility and upgrades](docs/codex-compatibility.md) for qualified admission,
+explicit unqualified probing, actionable diagnostics and native validation limits.

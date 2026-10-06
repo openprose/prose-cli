@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "qualification"
+  ],
+  "properties": {
+    "qualification": {
+      "enum": [
+        "qualified",
+        "unqualified",
+        "unknown"
+      ]
+    },
+    "policy": {
+      "enum": [
+        "qualified",
+        "probe"
+      ]
+    }
+  },
+  "$id": "https://schemas.openprose.org/cli/v1/codex-compatibility.schema.json"
+}

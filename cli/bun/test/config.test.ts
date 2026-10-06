@@ -348,3 +348,22 @@ test("the maximum timeout matches the transport limits", async () => {
   expect(timeoutMs("24h")).toBe(MAX_TIMEOUT_MS);
   expect(typeof timeoutMs("1441m")).toBe("string");
 });
+
+describe("Codex compatibility policy configuration", () => {
+  test("reports project, environment and explicit override provenance", async () => {
+    const workspace = await root();
+    const user = join(workspace, "user.toml");
+    await writeFile(user, 'harness = "codex"\ncodex_compatibility = "probe"\n');
+    const dependencies = {processCwd:workspace, userConfigPath:user, env:{PROSE_CODEX_COMPATIBILITY:"qualified"}};
+    const config = await resolveConfiguration({codexCompatibility:"probe"}, dependencies);
+    expect(config.values.codexCompatibility).toBe("probe");
+    expect(config.sources.codexCompatibility).toEqual({kind:"flag",location:"--codex-compatibility"});
+    expect((await resolveConfiguration({},dependencies)).values.codexCompatibility).toBe("qualified");
+  });
+  test("rejects unsupported policies and refuses policy reuse with another harness", async () => {
+    const workspace = await root();
+    const dependencies = {processCwd:workspace,userConfigPath:join(workspace,"absent.toml"),env:{}};
+    await expect(resolveConfiguration({harness:"codex",codexCompatibility:"latest"},dependencies)).rejects.toMatchObject({code:"CONFIG_INVALID"});
+    await expect(resolveConfiguration({harness:"claude",codexCompatibility:"probe"},dependencies)).rejects.toMatchObject({code:"CONFIG_INVALID",details:{source:"--codex-compatibility"}});
+  });
+});

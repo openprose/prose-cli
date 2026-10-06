@@ -1,0 +1,165 @@
+{
+  "schema": "openprose.runner-case/1",
+  "id": "adapters.codex-doctor-probe-failed",
+  "summary": "Failed native capability probes leave Codex blocked with compatibility unknown in doctor.",
+  "phase": 3,
+  "tags": [
+    "adapter",
+    "codex",
+    "functional-alpha",
+    "provider-free",
+    "differential"
+  ],
+  "platforms": [
+    "unix"
+  ],
+  "controls": {
+    "fixedInvocationId": "00000000-0000-7000-8000-000000000301",
+    "fixedTimestamp": "2026-01-01T00:00:00.000Z",
+    "fixedMonotonicMs": 300,
+    "network": "denied",
+    "installedAdapter": {
+      "adapterId": "codex/exec-json",
+      "version": "0.999.0-alpha.1",
+      "capabilityScenario": "nonzero"
+    }
+  },
+  "invocation": {
+    "argv": [
+      "--codex-compatibility",
+      "probe",
+      "--harness",
+      "codex",
+      "--output",
+      "json",
+      "cli",
+      "doctor"
+    ],
+    "cwd": "{{WORKSPACE}}",
+    "environment": {
+      "HOME": "{{WORKSPACE}}/home",
+      "XDG_CONFIG_HOME": "{{WORKSPACE}}/config"
+    }
+  },
+  "expected": {
+    "exitCode": 10,
+    "stdout": {
+      "kind": "json",
+      "schema": "openprose.doctor-report/1"
+    },
+    "stderr": {
+      "kind": "empty"
+    },
+    "startedHarness": false,
+    "resultMatches": {
+      "harnesses": [
+        {
+          "id": "openprose",
+          "runtime": "hosted-runtime",
+          "availability": "not-implemented",
+          "detectedVersion": null,
+          "transports": [
+            "hosted"
+          ],
+          "authCategory": "openprose-account",
+          "billingOwner": "openprose",
+          "strictWrapperConformant": false,
+          "testOnly": false
+        },
+        {
+          "id": "prime",
+          "runtime": "installed-process",
+          "availability": "missing",
+          "detectedVersion": null,
+          "transports": [
+            "rpc"
+          ],
+          "authCategory": "harness-managed",
+          "billingOwner": "user-provider",
+          "strictWrapperConformant": false,
+          "testOnly": false
+        },
+        {
+          "id": "omp",
+          "runtime": "installed-process",
+          "availability": "missing",
+          "detectedVersion": null,
+          "transports": [
+            "rpc"
+          ],
+          "authCategory": "harness-managed",
+          "billingOwner": "user-provider",
+          "strictWrapperConformant": false,
+          "testOnly": false,
+          "runtimePrerequisites": [
+            {
+              "runtime": "bun",
+              "versionRange": ">=1.3.14",
+              "detectedVersion": null,
+              "availability": "missing",
+              "repairCommand": "npm install --global bun@1.3.14 @oh-my-pi/pi-coding-agent@18.0.9"
+            }
+          ]
+        },
+        {
+          "id": "codex",
+          "runtime": "installed-process",
+          "availability": "blocked",
+          "detectedVersion": "codex-cli 0.999.0-alpha.1",
+          "transports": [
+            "exec-json"
+          ],
+          "authCategory": "harness-managed",
+          "billingOwner": "user-provider",
+          "strictWrapperConformant": false,
+          "testOnly": false
+        },
+        {
+          "id": "claude",
+          "runtime": "installed-process",
+          "availability": "missing",
+          "detectedVersion": null,
+          "transports": [
+            "print-stream-json"
+          ],
+          "authCategory": "harness-managed",
+          "billingOwner": "user-provider",
+          "strictWrapperConformant": false,
+          "testOnly": false
+        },
+        {
+          "id": "agents-sdk",
+          "runtime": "installed-process",
+          "availability": "missing",
+          "detectedVersion": null,
+          "transports": [
+            "jsonl"
+          ],
+          "authCategory": "harness-managed",
+          "billingOwner": "user-provider",
+          "strictWrapperConformant": false,
+          "testOnly": false
+        },
+        {
+          "id": "mock",
+          "runtime": "deterministic-mock",
+          "availability": "available",
+          "detectedVersion": "1.0.0",
+          "transports": [
+            "deterministic",
+            "fake-process"
+          ],
+          "authCategory": "none-test-only",
+          "billingOwner": "test-fixture",
+          "strictWrapperConformant": true,
+          "testOnly": true
+        }
+      ],
+      "ready": false,
+      "codexCompatibility": {
+        "qualification": "unqualified",
+        "policy": "probe"
+      }
+    }
+  }
+}

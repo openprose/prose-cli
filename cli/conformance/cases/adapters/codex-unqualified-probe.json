@@ -1,0 +1,89 @@
+{
+  "schema": "openprose.runner-case/1",
+  "id": "adapters.codex-unqualified-probe",
+  "summary": "Codex compatibility distinguishes qualification from observed capability failure: unqualified-probe.",
+  "phase": 3,
+  "tags": [
+    "adapter",
+    "codex",
+    "functional-alpha",
+    "provider-free",
+    "differential"
+  ],
+  "platforms": [
+    "unix"
+  ],
+  "controls": {
+    "fixedInvocationId": "00000000-0000-7000-8000-000000000301",
+    "fixedTimestamp": "2026-01-01T00:00:00.000Z",
+    "fixedMonotonicMs": 300,
+    "network": "denied",
+    "installedAdapter": {
+      "adapterId": "codex/exec-json",
+      "version": "0.999.0-alpha.1"
+    }
+  },
+  "invocation": {
+    "argv": [
+      "--codex-compatibility",
+      "probe",
+      "--harness",
+      "codex",
+      "--transport",
+      "exec-json",
+      "--model",
+      "fixture/model:alpha",
+      "--auth-profile",
+      "cached-chatgpt-login",
+      "--output",
+      "json",
+      "write",
+      "Hello world"
+    ],
+    "cwd": "{{WORKSPACE}}",
+    "environment": {}
+  },
+  "expected": {
+    "exitCode": 0,
+    "stdout": {
+      "kind": "json",
+      "schema": "openprose.runner-result/1"
+    },
+    "stderr": {
+      "kind": "empty"
+    },
+    "startedHarness": true,
+    "resultMatches": {
+      "adapter": {
+        "id": "codex/exec-json"
+      },
+      "transport": "exec-json",
+      "terminal": {
+        "classification": "success",
+        "transportCompleted": true,
+        "terminalEventObserved": true,
+        "exitCode": 0,
+        "signal": null
+      },
+      "semantic": {
+        "status": "not-applicable"
+      },
+      "billing": {
+        "owner": "user-provider",
+        "authCategory": "harness-managed"
+      },
+      "runnerExitCode": 0,
+      "codexCompatibility": {
+        "qualification": "unqualified"
+      }
+    },
+    "forwardedTask": {
+      "argv": [
+        "prose",
+        "write",
+        "Hello world"
+      ],
+      "interactionMode": "non-interactive"
+    }
+  }
+}

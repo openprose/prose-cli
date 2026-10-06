@@ -1,0 +1,24 @@
+{
+  "schema": "openprose.release-package-invariants/1",
+  "surfaces": [
+    {"id": "direct-rust", "runner": "rust"},
+    {"id": "direct-bun", "runner": "bun"},
+    {"id": "npm-launcher", "runner": "bun"}
+  ],
+  "cases": [
+    {"id": "version", "argv": ["--version"], "exitCode": 0, "stdout": {"kind": "version"}},
+    {"id": "help", "argv": ["--help"], "exitCode": 0, "stdout": {"kind": "exact-file", "path": "../cases/fixtures/runner-help.txt", "byteLength": 7759, "sha256": "b8b63ec4086867ba27050dc4a451e7cc22ea012b1e82e0254f6c356f5eb62ca0"}},
+    {"id": "config-explain", "argv": ["--output", "json", "cli", "config", "explain"], "exitCode": 0, "stdout": {"kind": "json", "schema": "openprose.configuration-explanation/1"}},
+    {"id": "harness-list", "argv": ["--output", "json", "cli", "harness", "list"], "exitCode": 0, "stdout": {"kind": "json", "schema": "openprose.harness-list/1"}},
+    {"id": "doctor-default", "argv": ["--output", "json", "cli", "doctor"], "exitCode": 10, "stdout": {"kind": "json", "schema": "openprose.doctor-report/1"}},
+    {"id": "doctor-mock-refused", "argv": ["--harness", "mock", "--output", "json", "cli", "doctor"], "exitCode": 10, "stdout": {"kind": "json", "schema": "openprose.doctor-report/1"}},
+    {"id": "run-mock-refused", "argv": ["--harness", "mock", "--output", "json", "run", "fixture.prose.md"], "exitCode": 10, "stdout": {"kind": "json", "schema": "openprose.runner-result/1"}},
+    {"id": "dry-run-mock-refused", "argv": ["--harness", "mock", "--output", "json", "--dry-run", "run", "fixture.prose.md"], "exitCode": 10, "stdout": {"kind": "json", "schema": "openprose.runner-result/1"}}
+  ],
+  "claims": {
+    "fullPhase7Corpus": false,
+    "languageSemantics": false,
+    "programPortability": false,
+    "providerCalls": "none"
+  }
+}

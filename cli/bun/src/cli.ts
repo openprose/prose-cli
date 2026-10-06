@@ -37,6 +37,7 @@ import {
   inspectInstalledAdapterRuntimePrerequisites,
   probeInstalledAdapterAuth,
   probeInstalledAdapterVersion,
+  codexQualification,
   resolveInstalledExecutable,
 } from "./adapters/executable";
 import { nativeOutputText, recoverImageTerminalEnvelope } from "./adapters/terminal";
@@ -299,7 +300,9 @@ async function runOperation(
         ...item,
         availability: problem!.code === "HARNESS_NEEDS_AUTH"
           ? "needs-auth"
-          : problem!.code === "HARNESS_INCOMPATIBLE" ? "incompatible" : item.availability,
+          : problem!.code === "HARNESS_INCOMPATIBLE"
+            ? (["unqualified", "probe-failed"].includes(String(problem!.details?.compatibilityStatus)) ? "blocked" : "incompatible")
+            : item.availability,
         ...runtimePrerequisitesFromFailure(problem!),
       } : item);
     }
@@ -314,6 +317,7 @@ async function runOperation(
     cwd: config.cwd,
     selectedHarness: selected.id,
     selectedHarnessVersion: selectedStatus.detectedVersion,
+    ...(selected.id === "codex" ? {codexCompatibility:{qualification:codexQualification(selectedStatus.detectedVersion),policy:config.values.codexCompatibility ?? "qualified"}} : {}),
     selectedTransport: transport,
     selectedAdapterId: adapterId(selected, transport),
     promptPlacement: selected.id === "mock"
@@ -1006,6 +1010,7 @@ async function prepareInstalledAdapter(
     ...(dependencies.platform === undefined ? {} : { platform: dependencies.platform }),
   });
   const version = await probeInstalledAdapterVersion({
+    codexCompatibility: config.values.codexCompatibility ?? "qualified",
     adapterId,
     executable,
     cwd: config.cwd,
@@ -1397,6 +1402,7 @@ async function buildResult(input: ResultInput): Promise<Record<string, unknown>>
   const runnerExitCode = input.error?.exitCode ?? (semanticStatus === "semantic-failed" ? 30 : 0);
   return {
     schema: "openprose.runner-result/1",
+    ...(input.harness.id === "codex" ? {codexCompatibility:{qualification:codexQualification(input.harnessVersion ?? input.error?.details?.detectedVersion as string | undefined)}} : {}),
     ...(input.invocation.nativeLimits?{nativeLimits:input.invocation.nativeLimits}:{}),
     ...(input.invocation.nativeOutputLimits?{nativeOutputLimits:input.invocation.nativeOutputLimits}:{}),
     ...(input.invocation.nativeConfiguration?{nativeConfiguration:input.invocation.nativeConfiguration}:{}),
@@ -1844,7 +1850,7 @@ async function harnessInventory(
       const error = normalizeFailure(caught);
       return {
         ...item,
-        availability: error.code === "HARNESS_INCOMPATIBLE" ? "incompatible" : "missing",
+        availability: error.code === "HARNESS_INCOMPATIBLE" ? (["unqualified", "probe-failed"].includes(String(error.details?.compatibilityStatus)) ? "blocked" : "incompatible") : "missing",
         detectedVersion: typeof error.details?.detectedVersion === "string" ? error.details.detectedVersion : null,
         ...(runtimePrerequisites.length === 0 ? {} : { runtimePrerequisites }),
       };
@@ -1858,6 +1864,7 @@ async function harnessInventory(
         ...(dependencies.platform === undefined ? {} : { platform: dependencies.platform }),
       });
       const version = await probeInstalledAdapterVersion({
+        codexCompatibility: config.values.codexCompatibility ?? "qualified",
         adapterId,
         executable,
         cwd: config.cwd,
@@ -1878,7 +1885,7 @@ async function harnessInventory(
       const failurePrerequisites = runtimePrerequisitesFromFailure(error).runtimePrerequisites;
       return {
         ...item,
-        availability: error.code === "HARNESS_INCOMPATIBLE" ? "incompatible" : "missing",
+        availability: error.code === "HARNESS_INCOMPATIBLE" ? (["unqualified", "probe-failed"].includes(String(error.details?.compatibilityStatus)) ? "blocked" : "incompatible") : "missing",
         detectedVersion: typeof error.details?.detectedVersion === "string" ? error.details.detectedVersion : null,
         ...((failurePrerequisites ?? runtimePrerequisites).length === 0
           ? {}

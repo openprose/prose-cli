@@ -400,7 +400,7 @@ export function humanVersionRepairDetails(error: RunnerErrorShape): string[] {
 
 export function reportedConfigurationKeys(config: EffectiveConfiguration): Array<keyof typeof config.values> {
   return (Object.keys(config.values) as Array<keyof typeof config.values>).filter(key =>
-    !["outputContract", "permissionMode"].includes(key) || config.sources[key]?.kind !== "default");
+    !["outputContract", "permissionMode", "codexCompatibility"].includes(key) || config.sources[key]?.kind !== "default");
 }
 
 export function configurationExplanation(config: EffectiveConfiguration): Record<string, unknown> {

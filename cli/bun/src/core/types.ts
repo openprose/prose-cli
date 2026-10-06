@@ -24,6 +24,7 @@ export interface GlobalFlags {
   nativeLog?: string;
   outputContract?: string;
   permissionMode?: string;
+  codexCompatibility?: string;
   timeout?: string;
   output?: OutputMode;
   dryRun?: boolean;
@@ -50,6 +51,7 @@ export interface EffectiveValues {
   nativeLog?: string;
   outputContract?: string;
   permissionMode?: string | null;
+  codexCompatibility?: string;
 }
 
 export interface EffectiveConfiguration {
