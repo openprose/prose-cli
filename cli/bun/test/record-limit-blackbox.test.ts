@@ -3,10 +3,15 @@ import { mkdtemp, writeFile, readFile, unlink, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import fixture from "../../shared/fixtures/adapters/native-output.v1.json";
+import transportLimits from "../../shared/capabilities/transport-limits.v1.json";
 import { runCli, type CliDependencies } from "../src/cli";
 import { sentinelImage } from "../src/assets/sentinel";
 
 // The same frozen controls can also assess an independently compiled Rust CLI.
+test("frozen record controls agree with authoritative transport facts", () => {
+  expect(fixture.recordLimits.recordLimitBytes).toBe(transportLimits.maxRecordBytes);
+  expect(fixture.recordLimits.error.code).toBe(transportLimits.oversizedRecordFailure);
+});
 for (const cell of fixture.recordLimits.cases) {
   test(`record limit black box: ${cell.name}`, async () => {
     const root = await mkdtemp(join(tmpdir(), "prose-record-limit-"));
@@ -42,20 +47,23 @@ ${cell.accepted ? "console.log(JSON.stringify({type:'turn.completed',usage:{inpu
       await writeFile(join(root, "codex"), source, { mode: 0o700 });
       const argv = ["--harness", "codex", "--auth-profile", "cached-chatgpt-login", "--output-contract", "native", "--native-output-bytes", String(cell.aggregateBytes), "--timeout", "5s", "--output", "json", "--", "execute", "fixture.md"];
       let stdout = "";
+      let stderr = "";
       const dependencies: CliDependencies = {
         platform: process.platform, arch: process.arch, processCwd: root,
         env: { PATH: root, HOME: root }, userConfigPath: join(root, "absent.toml"),
         imageBundle: sentinelImage,
         clock: { now: () => "2026-01-01T00:00:00.000Z", monotonicMs: () => performance.now() },
         ids: { invocationId: () => "00000000-0000-7000-8000-000000008989" },
-        writeStdout: text => { stdout += text; }, writeStderr: () => {},
+        writeStdout: text => { stdout += text; }, writeStderr: text => { stderr += text; },
       };
       const code = await runCli(argv, dependencies);
+      expect(stderr).toBe("");
       check(JSON.parse(stdout.trim()), code);
       await checkCleanup();
       stdout = "";
       const doctorCode = await runCli(["--harness", "codex", "--auth-profile", "cached-chatgpt-login", "--output-contract", "native", "--native-output-bytes", String(cell.aggregateBytes), "cli", "doctor", "--json"], dependencies);
       expect(doctorCode).toBe(0);
+      expect(stderr).toBe("");
       expect(JSON.parse(stdout.trim()).nativeOutputLimits).toEqual({ maxRecordBytes: fixture.recordLimits.recordLimitBytes, maxAggregateStdoutBytes: cell.aggregateBytes, maxNativeCaptureBytes: cell.aggregateBytes, captureEnabled: false });
       for (const binary of [process.env.PROSE_RECORD_LIMIT_RUST_BINARY, process.env.PROSE_RECORD_LIMIT_BUN_BINARY]) {
         if (binary === undefined) continue;
@@ -77,7 +85,10 @@ ${cell.accepted ? "console.log(JSON.stringify({type:'turn.completed',usage:{inpu
       }
       async function checkCleanup() {
         const pid = Number(await readFile(pidFile, "utf8"));
-        expect(() => process.kill(pid, 0)).toThrow();
+        let missing = false;
+        try { process.kill(pid, 0); }
+        catch (error: any) { if (error.code !== "ESRCH") throw error; missing = true; }
+        expect(missing).toBe(true);
         await unlink(pidFile);
       }
       function check(result: any, code: number) {
@@ -85,6 +96,8 @@ ${cell.accepted ? "console.log(JSON.stringify({type:'turn.completed',usage:{inpu
         expect(result.nativeOutputLimits.maxAggregateStdoutBytes).toBe(cell.aggregateBytes);
         if (cell.accepted) {
           expect(code).toBe(0);
+          expect(result.terminal.transportCompleted).toBe(true);
+          expect(result.semantic.status).toBe("not-applicable");
         } else {
           expect(code).toBe(fixture.recordLimits.error.exitCode);
           for (const [key, value] of Object.entries(fixture.recordLimits.error)) expect(result.error[key]).toEqual(value);
@@ -92,7 +105,9 @@ ${cell.accepted ? "console.log(JSON.stringify({type:'turn.completed',usage:{inpu
           expect(result.error.details.transportDiagnostic.limitBytes).toBe(fixture.recordLimits.recordLimitBytes);
           expect(result.error.details.transportDiagnostic.observedBytes).toBeGreaterThan(fixture.recordLimits.recordLimitBytes);
           expect(result.error.details.terminalEventObserved).toBe(false);
-          expect(result.semanticStatus).not.toBe("fulfilled");
+          expect(result.terminal.transportCompleted).toBe(false);
+          expect(result.terminal.terminalEventObserved).toBe(false);
+          expect(result.semantic.status).toBe("unknown");
         }
       }
     } finally {

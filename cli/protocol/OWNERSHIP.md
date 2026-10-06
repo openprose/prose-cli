@@ -807,3 +807,6 @@ IMP-089 record-limit lease extension: `cli/shared/schemas/doctor-report.schema.j
 for the optional effective native output budgets in readiness reports. Frozen
 record controls are nested in the already admitted shared native-output fixture;
 no new Python or architecture allowlist change is necessary.
+IMP-089 record-limit lease extension: `cli/shared/capabilities/transport-limits.v1.json`
+solely to reconcile the authoritative oversized-record error category with the
+shared controls and both products. Numeric bounds and other failures stay fixed.

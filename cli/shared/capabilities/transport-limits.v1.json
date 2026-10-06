@@ -21,6 +21,6 @@
     }
   },
   "backpressureFailure": "HARNESS_FAILED",
-  "oversizedRecordFailure": "PROTOCOL_MALFORMED",
+  "oversizedRecordFailure": "HARNESS_FAILED",
   "silentDropPermitted": false
 }
