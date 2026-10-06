@@ -777,3 +777,15 @@ IMP-086 lease extension: `cli/ci/test_rehearse_release.py` for exact current 64-
 IMP-086 lease extension: `cli/conformance/fixtures/adapter-host-expectations.json` and the existing leased host runner/tests for independently frozen inventory expectations across admitted POSIX hosts; keep all Codex blocked-state and full-inventory assertions.
 
 IMP-086 lease extension: `cli/ci/test_run_local.py` solely to make the interrupt-tree fixture reap its controlled descendant and publish readiness after signal-safe setup; supervisor behavior, 130/143 exits and PID-absence assertions remain unchanged.
+
+## IMP-089 agent-interface parity — active branch-scoped lease
+
+Root `/root` owns branch `codex/imp-089-agent-parity` from main625106e:
+`cli/rust/crates/prose-cli/src/main.rs`,
+`cli/rust/crates/prose-cli/tests/cli.rs`,
+`cli/bun/test/agent-account-globals.test.ts`,
+`cli/shared/fixtures/account-global-boundaries.json`, and
+`docs/agent-interface-parity.md`. Scope: existing account commands must reject
+inapplicable runner globals before credential access or side effects, retaining
+machine envelopes and allowed rendering flags. Shared controls precede changes.
+No CLI redesign, new Python, provider calls, release or deployment.

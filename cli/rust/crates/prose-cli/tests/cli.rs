@@ -5684,3 +5684,83 @@ fn closed_stdout_pipe_is_silent_success() {
     assert_eq!(output.status.code(), Some(0));
     assert_eq!(String::from_utf8_lossy(&output.stderr), "");
 }
+
+#[cfg(feature = "test-seams")]
+#[test]
+fn account_commands_reject_execution_only_globals_before_credential_access() {
+    let controls: Value = serde_json::from_str(include_str!(
+        "../../../../shared/fixtures/account-global-boundaries.json"
+    ))
+    .unwrap();
+    let temp = TempDir::new().unwrap();
+    let fixture = temp.path().join("service.json");
+    let original = "malformed fixture must not be read";
+    fs::write(&fixture, &original).unwrap();
+    for command in controls["commands"].as_array().unwrap() {
+        for prefix in controls["deniedPrefixes"].as_array().unwrap() {
+            let mut args = vec!["--output", "json"];
+            args.extend(
+                prefix
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|v| v.as_str().unwrap()),
+            );
+            args.extend(
+                command
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|v| v.as_str().unwrap()),
+            );
+            let output = Command::new(env!("CARGO_BIN_EXE_prose"))
+                .args(&args)
+                .current_dir(temp.path())
+                .env_clear()
+                .env("HOME", temp.path())
+                .env("XDG_CONFIG_HOME", temp.path())
+                .env("PATH", "")
+                .env("PROSE_TEST_SERVICE_FIXTURE", &fixture)
+                .output()
+                .unwrap();
+            assert_eq!(output.status.code(), Some(2), "{args:?}");
+            assert!(output.stderr.is_empty(), "{args:?}");
+            let report: Value = serde_json::from_slice(&output.stdout).unwrap();
+            assert_eq!(report["schema"], controls["expected"]["schema"]);
+            assert_eq!(
+                report["problem"]["code"],
+                controls["expected"]["problemCode"]
+            );
+            assert!(report["result"].is_null());
+            assert_eq!(fs::read_to_string(&fixture).unwrap(), original);
+        }
+    }
+    fs::write(
+        &fixture,
+        json!({"credential":null,"storeAvailable":true,"exchanges":[]}).to_string(),
+    )
+    .unwrap();
+    for prefix in controls["allowedPrefixes"].as_array().unwrap() {
+        let mut args: Vec<&str> = prefix
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_str().unwrap())
+            .collect();
+        args.extend(["cli", "auth", "status"]);
+        let output = Command::new(env!("CARGO_BIN_EXE_prose"))
+            .args(&args)
+            .current_dir(temp.path())
+            .env_clear()
+            .env("HOME", temp.path())
+            .env("XDG_CONFIG_HOME", temp.path())
+            .env("PATH", "")
+            .env("PROSE_TEST_SERVICE_FIXTURE", &fixture)
+            .output()
+            .unwrap();
+        assert_eq!(output.status.code(), Some(0), "{args:?}");
+        assert!(output.stderr.is_empty());
+        let report: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(report["result"]["authenticated"], false);
+    }
+}

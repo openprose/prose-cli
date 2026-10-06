@@ -1,0 +1,126 @@
+{
+  "schema": "openprose.account-global-boundaries/1",
+  "summary": "Account and package commands reject execution-only runner globals before credential or network access. Rendering flags remain accepted.",
+  "commands": [
+    [
+      "cli",
+      "auth",
+      "status"
+    ],
+    [
+      "cli",
+      "auth",
+      "login"
+    ],
+    [
+      "cli",
+      "auth",
+      "logout"
+    ],
+    [
+      "cli",
+      "org",
+      "list"
+    ],
+    [
+      "cli",
+      "package",
+      "list"
+    ]
+  ],
+  "deniedPrefixes": [
+    [
+      "--harness",
+      "invalid"
+    ],
+    [
+      "--transport",
+      "rpc"
+    ],
+    [
+      "--cwd",
+      "missing"
+    ],
+    [
+      "--model",
+      "fixture/model"
+    ],
+    [
+      "--auth-profile",
+      "openai"
+    ],
+    [
+      "--native-log",
+      "private-log"
+    ],
+    [
+      "--output-contract",
+      "native"
+    ],
+    [
+      "--permission-mode",
+      "workspace-write"
+    ],
+    [
+      "--codex-compatibility",
+      "probe"
+    ],
+    [
+      "--native-profile",
+      "default"
+    ],
+    [
+      "--native-max-turns",
+      "1"
+    ],
+    [
+      "--native-timeout",
+      "1m"
+    ],
+    [
+      "--native-tool-timeout",
+      "1m"
+    ],
+    [
+      "--native-output-bytes",
+      "1048576"
+    ],
+    [
+      "--native-add-dir",
+      "extra"
+    ],
+    [
+      "--native-allow-tool",
+      "read"
+    ],
+    [
+      "--timeout",
+      "0"
+    ],
+    [
+      "--dry-run"
+    ]
+  ],
+  "allowedPrefixes": [
+    [
+      "--output",
+      "json"
+    ],
+    [
+      "--output",
+      "json",
+      "--no-color"
+    ],
+    [
+      "--output",
+      "json",
+      "--verbose"
+    ]
+  ],
+  "expected": {
+    "exitCode": 2,
+    "problemCode": "INVOCATION_INVALID",
+    "schema": "openprose.service-operation/1",
+    "stderr": ""
+  }
+}

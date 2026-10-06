@@ -1,7 +1,7 @@
 mod weave_host;
 use prose_runner_core::error::{ErrorCode, RunnerError};
 use prose_runner_core::image::RuntimeImage;
-use prose_runner_core::invocation::{Action, ParsedInvocation, RunnerCommand};
+use prose_runner_core::invocation::{Action, GlobalFlags, ParsedInvocation, RunnerCommand};
 use prose_runner_core::output::{CommandOutcome, error_outcome};
 use prose_runner_core::runner::{
     HELP, RUNNER_VERSION, execute_prime_cleanup, execute_with_cancellation_and_human_stream,
@@ -468,6 +468,24 @@ fn prepare(
             } else {
                 parsed.globals.output.unwrap_or_default()
             };
+            // Account/package operations accept rendering flags only. Never
+            // silently ignore execution controls before accessing credentials.
+            let rendering_flags = GlobalFlags {
+                output: parsed.globals.output,
+                no_color: parsed.globals.no_color,
+                verbose: parsed.globals.verbose,
+                ..GlobalFlags::default()
+            };
+            if parsed.globals != rendering_flags {
+                let error = RunnerError::catalog(ErrorCode::InvocationInvalid);
+                return prose_runner_core::service::argv_error_outcome(
+                    args,
+                    &error,
+                    mode,
+                    Some(&system),
+                )
+                .unwrap_or_else(|| error_outcome(error, mode, &clock, &ids));
+            }
             return prose_runner_core::service_account::execute_user_command(
                 command,
                 &system,
