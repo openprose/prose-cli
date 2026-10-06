@@ -3930,7 +3930,7 @@ fn harness_use_persists_an_explicit_prime_bundle_from_suffix_or_prefix_without_s
     let path = home.join(".prose/cli.toml");
     assert_eq!(
         fs::read_to_string(&path).unwrap(),
-        "harness = \"prime\"\nmodel = \"openai/gpt-5.4\"\nauth_profile = \"prime-harness-login\"\n"
+        "auth_profile = \"prime-harness-login\"\nharness = \"prime\"\nmodel = \"openai/gpt-5.4\"\n"
     );
     assert!(!observation.exists());
 
@@ -4125,7 +4125,7 @@ fn codex_claude_and_openprose_switches_clear_stale_bundle_values() {
     assert!(codex.status.success());
     assert_eq!(
         fs::read_to_string(&path).unwrap(),
-        "timeout = \"30s\"\nharness = \"codex\"\nmodel = \"gpt-5.4\"\nauth_profile = \"cached-chatgpt-login\"\n"
+        "timeout = \"30s\"\nauth_profile = \"cached-chatgpt-login\"\nharness = \"codex\"\nmodel = \"gpt-5.4\"\n"
     );
 
     let openprose = prose(
@@ -5013,7 +5013,7 @@ fn assert_guarded_model_choice(
     assert_eq!(
         fs::read_to_string(valid_root.join("home/.prose/cli.toml")).unwrap(),
         format!(
-            "harness = \"{harness}\"\nmodel = \"openai/gpt-5.4\"\nauth_profile = \"{auth_profile}\"\n"
+            "auth_profile = \"{auth_profile}\"\nharness = \"{harness}\"\nmodel = \"openai/gpt-5.4\"\n"
         )
     );
 }
