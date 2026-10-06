@@ -1,3 +1,5 @@
+import codexCompatibilityJson from "../../../shared/capabilities/adapters/codex-compatibility.v1.json" with { type: "json" };
+import { buildVersionProbeEnvironment } from "../supervision/environment";
 import { access } from "node:fs/promises";
 import { constants } from "node:fs";
 import { delimiter, isAbsolute, join } from "node:path";
@@ -181,6 +183,7 @@ function rethrowCleanupAuthority(caught: unknown): void {
 }
 
 export async function probeInstalledAdapterVersion(input: {
+  codexCompatibility?: string;
   adapterId: InstalledAdapterId;
   executable: string;
   cwd: string;
@@ -226,6 +229,24 @@ export async function probeInstalledAdapterVersion(input: {
     throw caught;
   }
   const detectedVersion = observedVersion(input.adapterId, version);
+  if (input.adapterId === "codex/exec-json" && detectedVersion !== null) {
+    if (!versionIsAdmitted(recipe.support, detectedVersion) || input.codexCompatibility === "probe") {
+      await probeCodexCapabilities(input, version);
+    }
+    if (!versionIsAdmitted(recipe.support, detectedVersion) && input.codexCompatibility !== "probe") {
+      throw codexCompatibilityFailure({
+        adapterId: input.adapterId,
+        detectedVersion: version,
+        compatibilityStatus: "unqualified",
+        reason: "This Codex version is not qualified. Required native options are present; no protocol failure has been observed.",
+        admittedVersions: recipe.support.admittedVersions,
+        repairCommand: "prose --harness codex --codex-compatibility probe cli doctor --json",
+        recovery: "Explicitly use --codex-compatibility probe to attempt this version with runtime protocol checks, or update Prose when qualification is available.",
+        fallbackAttempted: false,
+      });
+    }
+    return version;
+  }
   if (detectedVersion === null || !versionIsAdmitted(recipe.support, detectedVersion)) {
     throw failure("HARNESS_INCOMPATIBLE", {
       adapterId: input.adapterId,
@@ -351,4 +372,82 @@ function authProbeReady(adapterId: InstalledAdapterId, exitCode: number, stdout:
     return /logged in/iu.test(output) && !/not logged in/iu.test(output);
   }
   return stdout.trim().length > 0 || stderr.trim().length > 0;
+}
+
+/** Advertised options are a prerequisite, never a protocol negotiation or qualification. */
+export function missingCodexOptions(help: string): string[] {
+  const advertised = new Set(help.split("\n").flatMap(line => {
+    const match = /^\s*(?:-[A-Za-z],\s*)?(--[a-z][a-z0-9-]*)(?=\s|=|$)/u.exec(line);
+    return match === null ? [] : [match[1]!];
+  }));
+  return codexCompatibilityJson.requiredExecOptions.filter(option => !advertised.has(option));
+}
+
+export function codexQualification(version: string | null | undefined): "qualified" | "unqualified" | "unknown" {
+  if (version == null) return "unknown";
+  const parsed = observedVersion("codex/exec-json", version);
+  if (parsed === null) return "unknown";
+  return versionIsAdmitted(installedAdapterDefinition("codex/exec-json").recipe.support, parsed) ? "qualified" : "unqualified";
+}
+
+async function probeCodexCapabilities(input: {
+  executable: string;
+  cwd: string;
+  ambient: Readonly<Record<string, string | undefined>>;
+  platform?: NodeJS.Platform;
+}, version: string): Promise<void> {
+  if ((input.platform ?? process.platform) === "win32") {
+    throw failure("TRANSPORT_UNSUPPORTED", {
+      adapterId: "codex/exec-json",
+      reason: "Codex compatibility capability probing is not qualified on Windows.",
+      fallbackAttempted: false,
+    });
+  }
+  let outcome;
+  try {
+    outcome = await probeExecutableCommand({
+      executable: input.executable,
+      cwd: input.cwd,
+      environment: buildVersionProbeEnvironment(input.ambient, input.platform),
+      argv: codexCompatibilityJson.probeArgv,
+      timeoutMs: codexCompatibilityJson.timeoutMs,
+      maxOutputBytes: codexCompatibilityJson.maxOutputBytes,
+      phase: "codex-capability-probe",
+      ...(input.platform === undefined ? {} : { platform: input.platform }),
+    });
+  } catch (caught) {
+    if (caught instanceof RunnerFailure && caught.code === "PROCESS_CLEANUP_FAILED") throw caught;
+    throw codexCompatibilityFailure({
+      adapterId: "codex/exec-json",
+      detectedVersion: version,
+      compatibilityStatus: "probe-failed",
+      reason: "The bounded native Codex capability probe failed; compatibility is unknown.",
+      fallbackAttempted: false,
+    });
+  }
+  const missing = missingCodexOptions(outcome.stdout);
+  if (outcome.exitCode !== 0 || missing.length !== 0) {
+    throw codexCompatibilityFailure({
+      adapterId: "codex/exec-json",
+      detectedVersion: version,
+      compatibilityStatus: outcome.exitCode === 0 ? "incompatible" : "probe-failed",
+      reason: outcome.exitCode === 0
+        ? "Codex does not advertise required native options."
+        : "Codex capability probe exited unsuccessfully; compatibility is unknown.",
+      missingCapabilities: missing,
+      capabilityProbeExitCode: outcome.exitCode,
+      fallbackAttempted: false,
+    });
+  }
+}
+
+function codexCompatibilityFailure(details: Record<string, unknown>): RunnerFailure {
+  const {schema: _schema, ...shape} = failure("HARNESS_INCOMPATIBLE", details).toJSON();
+  const unqualified = details.compatibilityStatus === "unqualified";
+  const failed = details.compatibilityStatus === "probe-failed";
+  return new RunnerFailure({
+    ...shape,
+    message: unqualified ? "The selected Codex version is not qualified by this Prose CLI." : failed ? "Codex compatibility could not be determined because its capability probe failed." : "The selected Codex interface lacks required native capabilities.",
+    action: unqualified ? "Explicitly select --codex-compatibility probe to attempt this version with runtime protocol validation, or update Prose after qualification is available." : "Inspect `codex exec --help` and the reported missing capabilities; update Codex or Prose to a compatible interface. No fallback was attempted.",
+  });
 }

@@ -46,7 +46,9 @@
                 "omp/rpc"
               ]
             },
-            "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+            "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$" },
+            "capabilityScenario": { "enum": ["missing-json", "missing-sandbox", "prefix-json", "descriptive-json", "wrong-stream", "nonzero", "oversized"] },
+            "protocolScenario": { "enum": ["unknown-type", "missing-terminal"] },
             "telemetryScenario": { "enum": ["unknown-type", "unknown-subtype"] },
             "versionProbeScenario": {
               "enum": ["wrong-stream-success"]

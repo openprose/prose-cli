@@ -1,0 +1,21 @@
+{
+  "schema": "openprose.codex-compatibility/1",
+  "requiredExecOptions": [
+    "--skip-git-repo-check",
+    "--json",
+    "--ephemeral",
+    "--ignore-user-config",
+    "--ignore-rules",
+    "--cd",
+    "--model",
+    "--sandbox",
+    "--config"
+  ],
+  "probeArgv": [
+    "exec",
+    "--help"
+  ],
+  "timeoutMs": 5000,
+  "maxOutputBytes": 32768,
+  "policy": "Qualified identities retain exact admission; probe explicitly permits unqualified identities after capability checks. Help is not a negotiated protocol or full qualification. Runtime event validation remains mandatory."
+}

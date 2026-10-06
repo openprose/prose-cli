@@ -1,0 +1,60 @@
+{
+  "compatibilityContractSha256": "c4626d403804cfd39901e43b871444e2ccaab3a30b308d68a7acb1d3d29239f5",
+  "limitations": [
+    "Native advertised options only; no exec-json event stream, model, tool, permission enforcement, developer/base instruction config semantics, cancellation or semantic contract qualification."
+  ],
+  "missingOptions": [],
+  "nativeExecutableSha256": "1180e2d56ea06ec583092acd933345685da3441cb1769a436d76dbf320613e75",
+  "nativeHelpSha256": "0e82cfde0122715250e93dc65866caa956b2ac5b9d0b20ec4ad4f9e81486509e",
+  "nativeVersion": "codex-cli 0.159.0-alpha.12.1",
+  "providerCallsAttempted": 0,
+  "providerFreeDoctorObservations": [
+    {
+      "authReadiness": "required",
+      "buildProfile": "test-seams",
+      "credentials": "fresh empty HOME; no credential environment; no model call",
+      "executableSha256": "2e19bd7fe46bd860ffc237a04db1093fddf0f53a34b378792b699921ea124e3d",
+      "exitCode": 10,
+      "image": "sentinel transport fixture",
+      "policy": "probe",
+      "problemCodes": [
+        "HARNESS_NEEDS_AUTH"
+      ],
+      "processSettled": true,
+      "product": "rust",
+      "qualification": "unqualified",
+      "ready": false,
+      "selectedHarnessVersion": "codex-cli 0.159.0-alpha.12.1"
+    },
+    {
+      "authReadiness": "required",
+      "buildProfile": "test-seams",
+      "credentials": "fresh empty HOME; no credential environment; no model call",
+      "executableSha256": "5a5a5c65c52f78b64de5f8ca12ac07a09338cb59d44d297de653bc510d2c2128",
+      "exitCode": 10,
+      "image": "sentinel transport fixture",
+      "policy": "probe",
+      "problemCodes": [
+        "HARNESS_NEEDS_AUTH"
+      ],
+      "processSettled": true,
+      "product": "bun",
+      "qualification": "unqualified",
+      "ready": false,
+      "selectedHarnessVersion": "codex-cli 0.159.0-alpha.12.1"
+    }
+  ],
+  "qualification": "unqualified",
+  "requiredOptions": [
+    "--skip-git-repo-check",
+    "--json",
+    "--ephemeral",
+    "--ignore-user-config",
+    "--ignore-rules",
+    "--cd",
+    "--model",
+    "--sandbox",
+    "--config"
+  ],
+  "schema": "openprose.codex-native-options-observation/1"
+}

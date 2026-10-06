@@ -137,3 +137,8 @@ code, exitCode, retryable and, when one applies, details.suggestedArgv):
   24  cancelled or interrupted
   25  process cleanup failed
   70  internal error
+
+Codex admission: --codex-compatibility qualified|probe (default: qualified).
+Probe explicitly attempts an unqualified version after bounded native option
+checks; runtime protocol checks remain mandatory. It never changes permissions,
+credentials, or the selected harness.

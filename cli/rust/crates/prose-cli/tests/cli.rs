@@ -617,6 +617,10 @@ fn install_live_adapter_fake(
         ),
     );
     let source = source.replace(
+        "    if argv in ([\"--version\"], [\"-v\"]):",
+        "    if argv == [\"exec\", \"--help\"]:\n        print(\"--skip-git-repo-check\\n--json\\n--ephemeral\\n--ignore-user-config\\n--ignore-rules\\n--cd\\n--model\\n--sandbox\\n--config\")\n        return 0\n    if argv in ([\"--version\"], [\"-v\"]):",
+    );
+    let source = source.replace(
         "observation_path = os.environ.get(\"OPENPROSE_ADAPTER_OBSERVATION_PATH\")",
         &format!(
             "observation_path = {}",
@@ -2599,7 +2603,7 @@ fn rejected_adjacent_versions_report_exact_machine_and_human_repair_details() {
             "codex/exec-json",
             "codex-cli 0.149.0-alpha.4.2",
             json!(["0.149.0-alpha.4.1"]),
-            "npm install --global @openai/codex@0.149.0-alpha.4.1",
+            "prose --harness codex --codex-compatibility probe cli doctor --json",
             None,
         ),
         (

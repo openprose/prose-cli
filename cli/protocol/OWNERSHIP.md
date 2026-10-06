@@ -690,3 +690,86 @@ merged PR33 runtime from unchanged published RC2 and retain the unresolved
 cleanup caveat. No runtime, release-plan, artifact, consumer or budget edits.
 The documentation lease is complete after this two-path update; other owners'
 leases remain unchanged.
+
+## IMP-086: Codex upgrade compatibility (October 5, 2026)
+
+Codex `/root` is lead and sole implementation editor in isolated
+`codex/imp-086-codex-compatibility`, based on main `8f270711`. Root owns Git,
+integration and this registry. Exact paths: `cli/bun/src/adapters/executable.ts`,
+`cli/bun/src/adapters/recipes.ts`, `cli/bun/src/adapters/types.ts`,
+`cli/bun/src/core/args.ts`, `cli/bun/src/core/config.ts`,
+`cli/bun/src/core/types.ts`, `cli/bun/src/core/output.ts`, `cli/bun/src/cli.ts`,
+`cli/bun/test/adapters-installed.test.ts`, `cli/bun/test/args.test.ts`,
+`cli/bun/test/config.test.ts`,
+`cli/rust/crates/prose-runner-core/src/installed_adapters.rs`,
+`cli/rust/crates/prose-runner-core/src/runner.rs`,
+`cli/rust/crates/prose-runner-core/src/config.rs`,
+`cli/rust/crates/prose-runner-core/src/invocation.rs`,
+`cli/rust/crates/prose-cli/src/main.rs`,
+`cli/shared/schemas/configuration-explanation.schema.json`,
+`cli/shared/schemas/adapter-admission-recipe.schema.json`,
+`cli/shared/capabilities/adapters/recipes/codex-exec-json.v1.json`,
+`cli/shared/capabilities/adapters/recipes/codex-exec-json-base.v1.json`,
+`cli/shared/capabilities/adapters/recipes/codex-exec-json-developer.v1.json`,
+`cli/shared/capabilities/adapters/functional-alpha.v1.json`,
+`cli/shared/capabilities/adapters/codex-compatibility.v1.json`,
+`cli/shared/tests/test_contracts.py`,
+`cli/conformance/cases/adapters/codex-qualified-version.json`,
+`cli/conformance/cases/adapters/codex-unqualified-version.json`,
+`cli/conformance/cases/adapters/codex-unqualified-probe.json`,
+`cli/conformance/cases/adapters/codex-incompatible-protocol.json`,
+`cli/conformance/cases/case-manifest.schema.json`,
+`cli/conformance/adversarial/adapter-products/fake_live_harness.py`,
+`cli/conformance/adversarial/adapter-products/test_adapter_products.py`,
+`cli/conformance/real-harness/codex_compatibility.py`,
+`cli/conformance/real-harness/test_codex_compatibility.py`,
+`docs/codex-compatibility.md`, `docs/codex-compatibility-qualification.json`,
+`cli/README.md`, and `README.md`. Shared behavior is frozen in black-box cases
+before product changes. Preserve all prior owners and immutable release/evidence
+records. No merge, publication, provider budget or kernel changes are authorized.
+Independent review is required before delivery.
+
+IMP-086 lease extension: `cli/conformance/runner/run.py` for Codex fixture
+selection only; `cli/bun/src/core/config-explanation.ts` if present and
+`cli/rust/crates/prose-runner-core/src/output.rs` for explicit policy provenance.
+No unrelated runner or output behavior is changed.
+
+IMP-086 lease extension: `cli/shared/schemas/runner-result.schema.json`,
+`cli/shared/schemas/doctor-report.schema.json`,
+`cli/shared/schemas/harness-list.schema.json`,
+`cli/shared/schemas/codex-compatibility.schema.json` for honest optional
+qualification status in machine reports; `cli/rust/crates/prose-runner-core/src/error.rs`
+for actionable human compatibility diagnostics.
+
+IMP-086 lease extension: `cli/bun/src/supervision/process.ts` solely for an
+optional lower native capability-probe output bound; existing probes retain their
+current default. `cli/conformance/cases/fixtures/runner-help.txt` for the new
+explicit runner option. Qualification is not silently expanded on Windows.
+
+IMP-086 oracle lease extension: exact new cases
+`cli/conformance/cases/adapters/codex-capability-missing-sandbox.json`,
+`cli/conformance/cases/adapters/codex-capability-prefix-json.json`,
+`cli/conformance/cases/adapters/codex-capability-descriptive-json.json`,
+`cli/conformance/cases/adapters/codex-capability-wrong-stream.json`,
+`cli/conformance/cases/adapters/codex-capability-nonzero.json`,
+`cli/conformance/cases/adapters/codex-capability-oversized.json`,
+`cli/conformance/cases/adapters/codex-probe-unknown-type.json`, and
+`cli/conformance/cases/adapters/codex-probe-missing-terminal.json`.
+
+IMP-086 lease extension: `cli/bun/test/shared-contract.test.ts` for schema
+registration and `cli/conformance/cases/service/framework/help-runner-top-level.json`
+for the exact top-level help bytes; no hosted-service behavior is changed.
+
+IMP-086 lease extension: `cli/rust/crates/prose-cli/tests/cli.rs` for Codex capability fixtures and recovery assertions; `cli/conformance/runner/run.py` for optional bounded native observation capture; `cli/conformance/cases/adapters/codex-doctor-probe-failed.json` and `cli/conformance/cases/adapters/codex-list-probe-failed.json` for inventory parity.
+
+IMP-086 lease extension: `cli/ci/check_architecture.py` solely to admit the exact new shared Codex capability data contract, preserving product and language boundaries.
+
+IMP-086 lease extension: `cli/shared/fixtures/config/values-v1.json` for the new setting in canonical validation order and shared configuration acceptance/error cases.
+
+IMP-086 lease extension: `cli/conformance/runner/test_runner.py` solely to update the closed corpus count from 50 to 64 after adding fourteen shared Codex cases; host rejection assertions remain unchanged.
+
+IMP-086 lease extension: `cli/conformance/release-package/invariants.v2.json`, `cli/conformance/release-package/README.md`, and `cli/ci/release_package_admission.py` for a new closed corpus revision binding the changed help bytes. Preserve the frozen v1 corpus and historical reports; no release/publication authority changes.
+
+IMP-086 lease extension: `cli/ci/rehearse_release.py` solely to require all 64 current Phase-7 cases in fresh rehearsals. Retained historical-report validation and all custody/authority checks remain unchanged.
+
+IMP-086 lease extension: `cli/ci/test_rehearse_release.py` for exact current 64-case rehearsal count assertions, preserving historical-report coverage.

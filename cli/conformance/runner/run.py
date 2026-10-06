@@ -1111,8 +1111,9 @@ def _terminate_owned_boundary(process: subprocess.Popen[bytes]) -> bool:
 
 
 class _BoundedPipeReader:
-    def __init__(self, pipe: Any) -> None:
+    def __init__(self, pipe: Any, max_capture_bytes: int = MAX_CAPTURE_BYTES) -> None:
         self.pipe = pipe
+        self.max_capture_bytes = max_capture_bytes
         self.retained = bytearray()
         self.truncated = False
         self.error: BaseException | None = None
@@ -1122,7 +1123,7 @@ class _BoundedPipeReader:
         self.thread.start()
 
     def _drain(self) -> None:
-        retained_limit = MAX_CAPTURE_BYTES - len(CAPTURE_TRUNCATION_MARKER)
+        retained_limit = self.max_capture_bytes - len(CAPTURE_TRUNCATION_MARKER)
         try:
             while True:
                 chunk = self.pipe.read(64 * 1024)
@@ -1171,10 +1172,10 @@ def _finish_pipe_readers(
     )
 
 
-def _append_bounded(stream: bytes, suffix: bytes) -> bytes:
-    if len(suffix) >= MAX_CAPTURE_BYTES:
-        return suffix[-MAX_CAPTURE_BYTES:]
-    return stream[: MAX_CAPTURE_BYTES - len(suffix)] + suffix
+def _append_bounded(stream: bytes, suffix: bytes, max_capture_bytes: int = MAX_CAPTURE_BYTES) -> bytes:
+    if len(suffix) >= max_capture_bytes:
+        return suffix[-max_capture_bytes:]
+    return stream[: max_capture_bytes - len(suffix)] + suffix
 
 
 def run_owned_process(
@@ -1183,6 +1184,7 @@ def run_owned_process(
     cwd: Path,
     environment: dict[str, str],
     timeout_seconds: float,
+    max_capture_bytes: int = MAX_CAPTURE_BYTES,
 ) -> OwnedProcessResult:
     creation_flags = 0
     if os.name == "nt":
@@ -1211,8 +1213,8 @@ def run_owned_process(
             True,
         )
     assert process.stdout is not None and process.stderr is not None
-    stdout_reader = _BoundedPipeReader(process.stdout)
-    stderr_reader = _BoundedPipeReader(process.stderr)
+    stdout_reader = _BoundedPipeReader(process.stdout, max_capture_bytes)
+    stderr_reader = _BoundedPipeReader(process.stderr, max_capture_bytes)
     readers = (stdout_reader, stderr_reader)
     for reader in readers:
         reader.start()
@@ -1224,7 +1226,7 @@ def run_owned_process(
         return OwnedProcessResult(
             124,
             stdout_reader.value(),
-            _append_bounded(stderr_reader.value(), b"conformance runner timeout\n"),
+            _append_bounded(stderr_reader.value(), b"conformance runner timeout\n", max_capture_bytes),
             True,
             boundary_settled and readers_settled,
             stdout_reader.truncated,
@@ -1245,6 +1247,7 @@ def run_owned_process(
             _append_bounded(
                 stderr_reader.value(),
                 b"conformance runner detected an unsettled process group\n",
+                max_capture_bytes,
             ),
             False,
             False,
@@ -1523,6 +1526,8 @@ def execute(
             bun_runtime.chmod(0o700)
         if adapter_id == "claude/print-stream-json" and ("version" in installed_adapter or "telemetryScenario" in installed_adapter):
             (cwd / ".claude-compatibility-fixture.json").write_text(json.dumps(installed_adapter), encoding="utf-8")
+        if adapter_id == "codex/exec-json":
+            (cwd / ".codex-compatibility-fixture.json").write_text(json.dumps(installed_adapter), encoding="utf-8")
         additions["PATH"] = str(harness_bin)
         if adapter_id in {"prime/rpc", "omp/rpc"}:
             additions["OPENROUTER_API_KEY"] = "fixture-provider-free-openrouter-key"

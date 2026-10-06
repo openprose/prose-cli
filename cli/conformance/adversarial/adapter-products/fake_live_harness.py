@@ -279,6 +279,29 @@ def main() -> int:
         raise ValueError(f"unexpected executable identity: {executable}")
     compatibility_path = Path.cwd() / ".claude-compatibility-fixture.json"
     compatibility = json.loads(compatibility_path.read_text("utf-8")) if executable == "claude" and compatibility_path.is_file() else {}
+    if executable == "codex":
+        path = Path.cwd() / ".codex-compatibility-fixture.json"
+        compatibility = json.loads(path.read_text("utf-8")) if path.is_file() else {}
+        if "version" in compatibility:
+            compatibility["version"] = "codex-cli " + compatibility["version"]
+        if argv == ["exec", "--help"]:
+            scenario = compatibility.get("capabilityScenario")
+            options = "--skip-git-repo-check --json --ephemeral --ignore-user-config --ignore-rules --cd --model --sandbox --config"
+            if scenario == "missing-json":
+                options = options.replace("--json", "")
+            if scenario == "missing-sandbox":
+                options = options.replace("--sandbox", "")
+            if scenario == "prefix-json":
+                options = options.replace("--json", "--json-future")
+            if scenario == "descriptive-json":
+                options = options.replace("--json", "")
+            if scenario == "oversized":
+                options += " " * 32768
+            options = "\n".join(options.split()) if scenario != "oversized" else options
+            if scenario == "descriptive-json":
+                options += "\nThis describes --json"
+            print(options, file=sys.stderr if scenario == "wrong-stream" else sys.stdout)
+            return 2 if scenario == "nonzero" else 0
     if argv == ["--version"]:
         stream = sys.stderr if executable == "prime-agent" else sys.stdout
         print(compatibility.get("version", VERSIONS[executable]), file=stream)
@@ -437,6 +460,11 @@ def main() -> int:
     if service_specification and service_specification.get("exitMode") == "postprocess":
         terminal = compact({"not": "the image-declared terminal envelope"})
     if adapter_id == "codex/exec-json":
+        if compatibility.get("protocolScenario") is not None:
+            emit({"type":"thread.started","thread_id":"fixture-thread"},{"type":"turn.started"})
+            if compatibility["protocolScenario"] == "unknown-type":
+                emit({"type":"future.unsupported"})
+            return 0
         emit(
             {"type": "thread.started", "thread_id": "fixture-thread"},
             {"type": "turn.started"},

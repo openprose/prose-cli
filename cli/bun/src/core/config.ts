@@ -40,6 +40,7 @@ const fileKeyMap: Record<string, ConfigKey> = {
   native_log: "nativeLog",
   output_contract: "outputContract",
   permission_mode: "permissionMode",
+  codex_compatibility: "codexCompatibility",
 };
 
 /**
@@ -57,6 +58,7 @@ const SETTINGS: ReadonlyArray<readonly [ConfigKey, string, string | undefined, s
   ["color", "color", "PROSE_COLOR", "--no-color"],
   ["verbose", "verbose", "PROSE_VERBOSE", "--verbose"],
   ["outputContract", "output_contract", "PROSE_OUTPUT_CONTRACT", "--output-contract"],
+  ["codexCompatibility", "codex_compatibility", "PROSE_CODEX_COMPATIBILITY", "--codex-compatibility"],
   ["permissionMode", "permission_mode", "PROSE_PERMISSION_MODE", "--permission-mode"],
   ["nativeMaxTurns", "native_max_turns", "PROSE_NATIVE_MAX_TURNS", "--native-max-turns"],
   ["nativeTimeout", "native_timeout", "PROSE_NATIVE_TIMEOUT", "--native-timeout"],
@@ -94,6 +96,7 @@ const defaults: EffectiveValues = {
   authProfile: null,
   outputContract: PUBLISHED_KERNEL_STARTUP ? "native" : "image-envelope",
   permissionMode: null,
+  codexCompatibility: "qualified",
 };
 
 const supportedHarnesses = new Set(["openprose", "agents-sdk", "prime", "omp", "codex", "claude", "mock"]);
@@ -148,6 +151,8 @@ export async function resolveConfiguration(
   apply(values, sources, environment.values, "environment", environment.locations);
   const invocation = parseFlags(flags);
   apply(values, sources, invocation.values, "flag", invocation.locations);
+
+  if (values.codexCompatibility !== "qualified" && values.harness !== "codex") fail("Codex compatibility probe requires the codex harness.", sources.codexCompatibility?.location);
 
   // The checks across keys, in the one order both ports use; each names the
   // source of the setting it rejects.
@@ -551,6 +556,10 @@ function assignValidated(values: PartialValues, key: ConfigKey, raw: string | bo
   else if (key === "permissionMode") {
     if (!["default","acceptEdits","workspace-write","read-only"].includes(raw)) fail("Permission mode must be default, acceptEdits, workspace-write, or read-only.", location);
     values.permissionMode = raw;
+  }
+  else if (key === "codexCompatibility") {
+    if (raw !== "qualified" && raw !== "probe") fail("Codex compatibility must be qualified or probe.", location);
+    values.codexCompatibility = raw;
   }
   else if (key === "transport") values.transport = raw;
 }

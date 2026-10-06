@@ -23,7 +23,7 @@ ERROR_SCHEMA = "openprose.release-package-admission-error/1"
 CORPUS_SCHEMA = "openprose.release-package-invariants/1"
 HERE = Path(__file__).resolve().parent
 CLI = HERE.parent
-CORPUS = CLI / "conformance" / "release-package" / "invariants.v1.json"
+CORPUS = CLI / "conformance" / "release-package" / "invariants.v2.json"
 HELP = CLI / "conformance" / "cases" / "fixtures" / "runner-help.txt"
 BENCHMARK = CLI / "benchmarks" / "installed" / "benchmark.py"
 FULL_SHA = re.compile(r"^[0-9a-f]{40}$")
@@ -418,8 +418,8 @@ def expected_projection(
     if case_id == "help":
         return {
             "kind": "help",
-            "byteLength": 7486,
-            "sha256": "d58587215fa0a5182433a81763c3a70370a92f7926c83f0b4187069025656096",
+            "byteLength": 7759,
+            "sha256": "b8b63ec4086867ba27050dc4a451e7cc22ea012b1e82e0254f6c356f5eb62ca0",
         }
     assert value is not None
     if value.get("schema") == "openprose.configuration-explanation/1":

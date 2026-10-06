@@ -400,3 +400,8 @@ test("native output is an explicit transport option",()=>{
  expect(parseEntrypoint(["--output-contract","native","run","a.md"])).toMatchObject({global:{outputContract:"native"}});
  expect(()=>parseEntrypoint(["--output-contract","guessed","run"])).toThrow();
 });
+
+test("Codex compatibility is explicit and cannot be duplicated", () => {
+  expect(parseEntrypoint(["--harness","codex","--codex-compatibility=probe","run"]).global).toMatchObject({harness:"codex",codexCompatibility:"probe"});
+  expect(() => parseEntrypoint(["--codex-compatibility","probe","--codex-compatibility","qualified","run"])).toThrow();
+});
