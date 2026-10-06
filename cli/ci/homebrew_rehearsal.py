@@ -148,8 +148,12 @@ def run(rehearsal: Path, output: Path, brew: str) -> dict[str, Any]:
     finally:
         # Remove only packages under the newly owned rehearsal tap.
         for implementation in ('bun', 'rust'):
-            subprocess.run([brew, 'uninstall', f'{TAP}/prose-{implementation}'], env=env, text=True, capture_output=True, timeout=180)
-        subprocess.run([brew, 'untap', TAP], env=env, text=True, capture_output=True, timeout=180)
+            cleaned = subprocess.run([brew, 'uninstall', f'{TAP}/prose-{implementation}'], env=env, text=True, capture_output=True, timeout=180)
+            (output / f'cleanup-{implementation}.log').write_text(cleaned.stdout + cleaned.stderr)
+        untapped = subprocess.run([brew, 'untap', TAP], env=env, text=True, capture_output=True, timeout=180)
+        (output / 'cleanup-tap.log').write_text(untapped.stdout + untapped.stderr)
+    if TAP in command('remaining-taps', [brew, 'tap']).stdout.splitlines():
+        raise ValueError('The rehearsal tap did not uninstall cleanly')
     remaining = command('remaining-installations', [brew, 'list', '--formula', '--versions']).stdout
     if any(line.split()[0] in {'prose-bun', 'prose-rust'} for line in remaining.splitlines() if line.split()):
         raise ValueError('The rehearsal packages did not uninstall cleanly')
