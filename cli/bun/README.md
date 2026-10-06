@@ -16,44 +16,52 @@ Markdown remain owned by the separate language/image layer.
 `--output-contract native` accepts the actual native harness terminal and
 preserves final prose without requiring a model-authored JSON envelope.
 Semantic status is `not-applicable`: validate program artifacts independently.
-`image-envelope` remains the default and requires the image-declared terminal
-envelope in addition to native completion. `--output human|json|jsonl` controls
+Ordinary published-kernel builds default to `native`; explicit image and test
+builds default to `image-envelope`, which additionally requires the image-declared
+terminal envelope. `--output human|json|jsonl` controls
 rendering separately. See [native output](../../docs/native-output.md) and
 [private native capture](../../docs/native-capture.md).
 
-A build without image overrides still embeds the nonsemantic `echo-v0` image.
-That is a packaging default, not a limit on the runner: production-shaped
-builds can instead embed a verified language-owned image or minimal entry
-pointer using the documented [image bundle configuration](../shared/image/bundle/README.md).
-The configured image supplies instructions; choosing native output does not
-replace an echo image with a language interpreter. No CLI source changes are
-needed to swap image data. Native completion alone is not a release or
-language-conformance claim.
+A build without image overrides resolves and verifies the published kernel
+when preparing a run through an installed harness. It also embeds `echo-v0`
+for local diagnostics; that fixture is not a startup fallback. Help, version
+and harness inventory do not retrieve the kernel. See
+[kernel startup](../../docs/kernel-startup.md) for the acquisition policy and
+[image bundle configuration](../shared/image/bundle/README.md) for fixed inputs.
+Native completion alone does not establish contract fulfillment or language
+conformance.
 
 ## Local development
 
 ```sh
+cd cli/bun
 bun install --frozen-lockfile
 bun run check
 ./dist/prose --help
 ./dist/prose cli harness list
-./dist/prose --harness codex --output json run fixture.prose.md
+./dist/prose --harness codex --dry-run --output json run fixture.prose.md
 ```
 
+Start these commands at the repository root. The final command requires an
+installed supported Codex and may retrieve the public kernel, but makes no
+model call. Its readiness report is not proof of authentication or fulfillment.
+
 `bun run check` performs strict TypeScript checking, unit/integration/shared-
-schema tests, standalone compilation, and standalone smoke tests. The compile
+schema tests and ordinary standalone compilation. Standalone smoke assertions
+are exercised by the test suite. The compile
 command disables Bun's runtime `.env`, `bunfig.toml`, `tsconfig.json`, and
 `package.json` autoloading. A test places hostile `.env` and `bunfig.toml`
 files in the invoked working directory and proves that the standalone ignores
 them.
 
-`bun run build` is the ordinary local build, matching Rust's default: it embeds
-`echo-v0`, reports the `development` profile, and compiles with test seams off.
+`bun run build` is the ordinary local build, matching Rust's default: it enables
+published-kernel startup, reports the `development` profile, and compiles with test seams off.
 It writes `dist/prose`. `bun run build:test` is the explicit test-only build;
 it creates a private temporary `sentinel-v1` bundle, enables test seams, writes
 `dist/prose-test` by default, and removes the temporary bundle. The test-only
-command refuses to overwrite `dist/prose`. `bun run build:release` embeds the
-release-eligible `echo-v0` image with test seams off.
+command refuses to overwrite `dist/prose`. `bun run build:release` reports the
+release profile with published startup and test seams off. Its structural check
+of the embedded diagnostic image does not qualify the kernel or authorize a release.
 
 ### Developer endpoint build (OpenProse developers only)
 
@@ -71,11 +79,10 @@ the default `dist/prose` outfile. Public builds define the switch as false, so
 Bun removes the override code (`src/core/service/dev-endpoint.ts`) and the
 variable name from the binary; `test/dev-endpoint.test.ts` checks both builds.
 
-Builds without image overrides embed the deliberately nonsemantic `echo-v0` image. They can
-discover and run exactly admitted user-installed Prime, OMP, Codex, Claude, and Agents SDK
+Ordinary builds can discover and run supported user-installed Prime, OMP, Codex, Claude, and Agents SDK
 harnesses through direct argument-array subprocesses. The adapters preserve
 the complete image/task boundary, use adapter-specific credential allowlists,
-and, in the default output-contract mode, recover the image-owned terminal
+and, when `image-envelope` is explicitly selected, recover the image-owned terminal
 envelope without a shell, outer PTY, or
 harness fallback. Codex and Claude can use their installed login state. Prime
 and OMP additionally require a fully qualified `provider/model` plus an
@@ -104,9 +111,13 @@ native output, SDK support, image selection, and environment profiles.
 Functional-alpha admission is an exact audited allowlist: Prime `0.7.0` or
 `0.8.1`, OMP `18.0.9`, Codex `0.149.0-alpha.4.1`, Claude `2.1.243`,
 and the optional `prose-agents-sdk` harness `0.1.0` (currently macOS ARM64).
-Nearby patches and prereleases are detected but refused, with the detected
-identity, exact admitted set, and a copyable repair command in machine and
-human doctor/run errors. The CLI build remains on its pinned Bun 1.3.5
+These are exact audited identities, not a claim of qualification for every
+accepted version. Claude additionally permits stable versions at or above the
+recipe minimum within its major version. Codex permits an explicit
+`--codex-compatibility probe` attempt after required capabilities are observed;
+the default `qualified` mode retains its exact qualified set. Other unknown
+identities remain rejected with actionable diagnostics. See
+[Codex compatibility](../../docs/codex-compatibility.md). The CLI build remains on its pinned Bun 1.3.5
 toolchain; the separate upstream OMP package/source audit used Bun 1.3.14.
 
 Prime runs use one private per-run daemon socket. If its owned service cannot
@@ -130,8 +141,8 @@ binary uses Bun's `baseline` runtime variant rather than the AVX2-oriented
 standard target; ARM64 binaries use their exact native target. Unsupported
 build hosts fail before producing a mislabeled artifact.
 
-The exact same user journey is available in release-profile functional-alpha
-builds. A completed `echo-v0` invocation proves transport completion only: it
+Published startup also applies to ordinary release-profile builds. A completed
+explicit `echo-v0` invocation proves transport completion only: it
 does not parse OpenProse, claim semantic success, or earn a strict-wrapper
 claim. The default `openprose` identity still fails closed with
 `HOSTED_UNAVAILABLE` until OpenProse-billed execution exists.
@@ -139,7 +150,7 @@ claim. The default `openprose` identity still fails closed with
 The deterministic `mock` and `fake-process` transports remain test-only. They
 are admitted only by the explicit `bun run build:test` command, which carries
 the release-ineligible sentinel image and enables test seams. Without image overrides, ordinary
-`bun run build` and release-profile builds carry `echo-v0` with test seams off
+`bun run build` and release-profile builds use published startup with test seams off
 and refuse these transports before execution. Internal provider-free controls
 cannot be enabled in a release build and never become a harness, language, or
 billing fallback.
@@ -162,8 +173,9 @@ successfully on native Windows and that evidence is retained.
 
 ## Packaging boundary
 
-The default build produces `dist/prose`, a local Bun standalone carrying
-`echo-v0`; explicit image arguments select a different verified bundle. Functional-alpha packaging creates platform-specific npm packages
+The default build produces `dist/prose`, a local Bun standalone using published
+startup with an embedded diagnostic fixture. Explicit image arguments disable
+published acquisition and select the verified bundle. Packaging creates platform-specific npm packages
 and a small Node-compatible launcher in `@openprose/prose-cli`. Both products
 embed the same exact prerelease SemVer and source revision through
 `OPENPROSE_BUILD_VERSION` and `OPENPROSE_BUILD_COMMIT`. The launcher selects an
@@ -172,9 +184,9 @@ and SHA-256, performs no download or postinstall work, forwards signals, and
 preserves the binary exit status. Isolated install, integrity, and foreground
 signal tests exercise the packed tarballs without a registry.
 
-The functional alpha is explicitly transport-only. Its package evidence keeps
-publication and full-release admission false; a semantic release remains
-blocked on the canonical language-owned image and its external authorities.
+Build and package checks establish mechanical transport and integrity facts.
+Current publication gates and release evidence are maintained in the
+[release guide](../release/README.md); none establish contract fulfillment.
 
 The Node interpreter used by installed-package conformance is deliberately not
 copied away from its dynamic libraries. Its resolved installed executable is

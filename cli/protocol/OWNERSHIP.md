@@ -777,3 +777,11 @@ IMP-086 lease extension: `cli/ci/test_rehearse_release.py` for exact current 64-
 IMP-086 lease extension: `cli/conformance/fixtures/adapter-host-expectations.json` and the existing leased host runner/tests for independently frozen inventory expectations across admitted POSIX hosts; keep all Codex blocked-state and full-inventory assertions.
 
 IMP-086 lease extension: `cli/ci/test_run_local.py` solely to make the interrupt-tree fixture reap its controlled descendant and publish readiness after signal-safe setup; supervisor behavior, 130/143 exits and PID-absence assertions remain unchanged.
+## IMP-055 build documentation lane — October 5, 2026
+
+Root authorized `/root/build_docs` on `codex/imp-055-build-docs` to edit exactly
+`cli/bun/README.md`, `cli/rust/README.md`, `docs/kernel-startup.md`, and
+`cli/shared/image/bundle/README.md`. Scope: published startup, fixed images,
+diagnostic/test builds and explicit tool configuration; provider-free copied
+example verification. No source, release documentation, model calls or new
+Python. Root retains integration and publication ownership.

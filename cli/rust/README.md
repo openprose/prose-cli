@@ -9,19 +9,20 @@ dependency on the repository's language or kernel packages.
 `--output-contract native` accepts the actual native harness terminal and
 preserves final prose without requiring a model-authored JSON envelope.
 Semantic status is `not-applicable`: validate program artifacts independently.
-`image-envelope` remains the default and requires the image-declared terminal
-envelope in addition to native completion. `--output human|json|jsonl` controls
+Ordinary published-kernel builds default to `native`; explicit image and test
+builds default to `image-envelope`, which additionally requires the image-declared
+terminal envelope. `--output human|json|jsonl` controls
 rendering separately. See [native output](../../docs/native-output.md) and
 [private native capture](../../docs/native-capture.md).
 
-A build without image overrides still embeds the nonsemantic `echo-v0` image.
-That is a packaging default, not a limit on the runner: production-shaped
-builds can instead embed a verified language-owned image or minimal entry
-pointer using the documented [image bundle configuration](../shared/image/bundle/README.md).
-The configured image supplies instructions; choosing native output does not
-replace an echo image with a language interpreter. No CLI source changes are
-needed to swap image data. Native completion alone is not a release or
-language-conformance claim.
+A build without image overrides resolves and verifies the published kernel
+when preparing a run through an installed harness. It also embeds `echo-v0`
+for local diagnostics; that fixture is not a startup fallback. Help, version
+and harness inventory do not retrieve the kernel. See
+[kernel startup](../../docs/kernel-startup.md) for the acquisition policy and
+[image bundle configuration](../shared/image/bundle/README.md) for fixed inputs.
+Native completion alone does not establish contract fulfillment or language
+conformance.
 
 ## Local verification
 
@@ -32,6 +33,10 @@ cargo clippy --workspace --all-targets --features prose-cli/test-seams --locked 
 cargo fmt --all -- --check
 ```
 
+Start at the repository root. The remaining commands in this guide assume
+`cli/rust` as the current directory. Use the pinned toolchain and install the
+dependencies described in [contributing](../CONTRIBUTING.md) first.
+
 Build and inspect an installed harness without starting a model run:
 
 ```sh
@@ -39,6 +44,10 @@ cargo build --locked -p prose-cli
 ./target/debug/prose --output json cli harness list
 ./target/debug/prose --harness codex --dry-run --output json run example.prose.md
 ```
+
+The dry run requires an installed supported Codex and may retrieve the public
+kernel, but makes no model call. Readiness is not proof of authentication,
+model availability or contract fulfillment.
 
 The functional alpha can run installed `prime-agent`, `omp`, `codex`, and
 `claude` executables directly, plus the optional `prose-agents-sdk` harness,
@@ -67,10 +76,13 @@ native output, SDK support, image selection, and environment profiles.
 Functional-alpha admission is an exact audited allowlist: Prime `0.7.0` or
 `0.8.1`, OMP `18.0.9`, Codex `0.149.0-alpha.4.1`, Claude `2.1.243`,
 and the optional `prose-agents-sdk` harness `0.1.0` (currently macOS ARM64).
-Nearby patches and prereleases are detected but refused rather than admitted by
-range extrapolation. Machine errors include the detected identity, exact
-allowlist, and repair command; human doctor/run output prints the same copyable
-repair command.
+These are exact audited identities, not a claim of qualification for every
+accepted version. Claude additionally permits stable versions at or above the
+recipe minimum within its major version. Codex permits an explicit
+`--codex-compatibility probe` attempt after required capabilities are observed;
+the default `qualified` mode retains its exact qualified set. Other unknown
+identities remain rejected with actionable diagnostics. See
+[Codex compatibility](../../docs/codex-compatibility.md).
 
 Prime runs use one private per-run daemon socket. If its owned service cannot
 be settled, OpenProse recursively removes prompt, image, task, credential, and
@@ -93,12 +105,11 @@ OpenProse-billed adapter exists, a language run fails with
 `HOSTED_UNAVAILABLE` and exit code 10. It never falls back to a third-party
 harness.
 
-Builds without image overrides embed the release-eligible `echo-v0` Skill Runtime Image. It is
-a functional-alpha placeholder: it asks the selected harness to echo the task
-and produce a structurally verified terminal envelope, so successful runs have
-semantic status `not-applicable`. It does not implement the OpenProse language.
-Strict wrapper admission and a full semantic release still require the future
-canonical, language-owned runtime image plus versioned real-harness evidence.
+An explicit build selecting the committed `echo-v0` image exercises transport
+only: the image asks the harness to echo the task and produce a terminal
+envelope. It does not implement OpenProse. Ordinary builds instead acquire the
+published kernel on run. Both routes leave artifact fulfillment to independent
+assessment; see the [release guide](../release/README.md) for current release gates.
 
 An ordinary `cargo build` reports the development profile with test seams
 disabled. An ordinary `cargo build --release` reports the release profile with
@@ -110,7 +121,7 @@ cargo build --locked -p prose-cli --features prose-cli/test-seams
 ```
 
 The build rejects `--release` combined with `prose-cli/test-seams`. Release
-workflows can set an exact validated prerelease version without editing Cargo
+workflows can set an exact prerelease version without editing Cargo
 metadata:
 
 ```sh
@@ -118,6 +129,11 @@ OPENPROSE_BUILD_VERSION=0.1.0-alpha.1 \
 OPENPROSE_REQUIRE_RELEASE_IMAGE=1 \
 cargo build --release --locked -p prose-cli
 ```
+
+This still selects published startup unless explicit image paths are supplied.
+`OPENPROSE_REQUIRE_RELEASE_IMAGE=1` checks the embedded diagnostic image's
+structural eligibility; it does not pin or qualify the remotely selected kernel
+or authorize publication.
 
 ## Developer endpoint build (OpenProse developers only)
 
