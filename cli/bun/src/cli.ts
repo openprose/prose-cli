@@ -318,6 +318,7 @@ async function runOperation(
     selectedHarness: selected.id,
     selectedHarnessVersion: selectedStatus.detectedVersion,
     ...(selected.id === "codex" ? {codexCompatibility:{qualification:codexQualification(selectedStatus.detectedVersion),policy:config.values.codexCompatibility ?? "qualified"}} : {}),
+    ...(nativeOutputLimits(config.values) ? { nativeOutputLimits: nativeOutputLimits(config.values)! } : {}),
     selectedTransport: transport,
     selectedAdapterId: adapterId(selected, transport),
     promptPlacement: selected.id === "mock"

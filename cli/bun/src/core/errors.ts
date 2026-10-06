@@ -2,6 +2,10 @@ import taxonomy from "../../../shared/errors/taxonomy.v1.json" with { type: "jso
 import { RunnerFailure, type RunnerErrorCode, type RunnerErrorShape } from "./types";
 
 export function failure(code: RunnerErrorCode, details?: Record<string, unknown>): RunnerFailure {
+  const diagnostic = details?.transportDiagnostic as { reason?: unknown } | undefined;
+  if ((code === "PROTOCOL_MALFORMED" || code === "HARNESS_FAILED") && diagnostic?.reason === "record-byte-limit") {
+    return new RunnerFailure({ ...taxonomy.recordByteLimit, code: "HARNESS_FAILED", boundary: "process", ...(details === undefined ? {} : { details }) });
+  }
   const definition = taxonomy.errors.find((item) => item.code === code);
   if (definition === undefined) throw new Error(`Missing shared error taxonomy entry for ${code}`);
   return new RunnerFailure({

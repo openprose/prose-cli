@@ -7,7 +7,7 @@ export function validateNativeOutputBytes(value: string): number {
  return n;
 }
 export function nativeOutputBytes(input: Selection): number { return input.nativeOutputBytes===undefined?DEFAULT_NATIVE_OUTPUT_BYTES:validateNativeOutputBytes(input.nativeOutputBytes); }
-export function nativeOutputLimits(input: Selection): {maxAggregateStdoutBytes:number;maxNativeCaptureBytes:number;captureEnabled:boolean}|undefined {
+export function nativeOutputLimits(input: Selection): {maxRecordBytes:number;maxAggregateStdoutBytes:number;maxNativeCaptureBytes:number;captureEnabled:boolean}|undefined {
  if(input.nativeOutputBytes!==undefined&&input.outputContract!=="native")throw failure("CONFIG_INVALID",{reason:"Native output bytes require native output mode."});
- return input.outputContract==="native"?{maxAggregateStdoutBytes:nativeOutputBytes(input),maxNativeCaptureBytes:nativeOutputBytes(input),captureEnabled:input.nativeLog!==undefined}:undefined;
+ return input.outputContract==="native"?{maxRecordBytes:1_048_576,maxAggregateStdoutBytes:nativeOutputBytes(input),maxNativeCaptureBytes:nativeOutputBytes(input),captureEnabled:input.nativeLog!==undefined}:undefined;
 }

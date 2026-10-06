@@ -777,3 +777,33 @@ IMP-086 lease extension: `cli/ci/test_rehearse_release.py` for exact current 64-
 IMP-086 lease extension: `cli/conformance/fixtures/adapter-host-expectations.json` and the existing leased host runner/tests for independently frozen inventory expectations across admitted POSIX hosts; keep all Codex blocked-state and full-inventory assertions.
 
 IMP-086 lease extension: `cli/ci/test_run_local.py` solely to make the interrupt-tree fixture reap its controlled descendant and publish readiness after signal-safe setup; supervisor behavior, 130/143 exits and PID-absence assertions remain unchanged.
+
+## IMP-089: native record limit diagnostics (October 5, 2026)
+
+Codex `/root/record_limits` owns narrowly scoped edits on isolated branch
+`codex/imp-089-record-limits`, coordinated by lead `/root`. Exact paths:
+`cli/shared/errors/taxonomy.v1.json`,
+`cli/shared/schemas/native-output-limits.schema.json`,
+`cli/shared/schemas/runner-error.schema.json`,
+`cli/shared/fixtures/native-record-limits.json`,
+`cli/shared/fixtures/transport-diagnostics.json`,
+`cli/shared/fixtures/adapters/native-output.v1.json`,
+`cli/bun/src/core/errors.ts`, `cli/bun/src/core/types.ts`,
+`cli/bun/src/supervision/jsonl.ts`, `cli/bun/src/adapters/native-capture.ts`,
+`cli/bun/src/adapters/output-budget.ts`, `cli/bun/src/cli.ts`,
+`cli/bun/test/supervision-jsonl.test.ts`,
+`cli/bun/test/native-output-budget.test.ts`,
+`cli/bun/test/record-limit-blackbox.test.ts`,
+`cli/rust/crates/prose-runner-core/src/error.rs`,
+`cli/rust/crates/prose-runner-core/src/runner.rs`,
+`cli/rust/crates/prose-runner-core/src/config.rs`.
+The agent may commit its own scoped branch after review of its diff; root owns
+push, PR and integration. Shared controls precede product changes. No limit
+increase, new setting, provider calls, releases, kernel semantics or Python.
+IMP-089 record-limit lease extension: `cli/bun/src/supervision/fake-failure.ts`
+solely to preserve diagnosed resource-limit evidence in final test-transport
+receipts after honest HARNESS_FAILED classification.
+IMP-089 record-limit lease extension: `cli/shared/schemas/doctor-report.schema.json`
+for the optional effective native output budgets in readiness reports. Frozen
+record controls are nested in the already admitted shared native-output fixture;
+no new Python or architecture allowlist change is necessary.

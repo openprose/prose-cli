@@ -3,6 +3,9 @@ import type { ProcessSupervisionResult } from "./types";
 /** Preserve bounded, runner-authored diagnostics on the test transport. */
 export function fakeProtocolFailureDetails(outcome: Pick<ProcessSupervisionResult, "error" | "events">): Record<string, unknown> {
   const error = outcome.error;
+  if (error?.code === "HARNESS_FAILED" && (error.details?.transportDiagnostic as {reason?: unknown} | undefined)?.reason === "record-byte-limit") {
+    return { transportDiagnostic: error.details?.transportDiagnostic, admittedRecordCount: outcome.events.length };
+  }
   if (error?.code !== "PROTOCOL_MALFORMED" && error?.code !== "PROTOCOL_TRUNCATED") return {};
   const diagnostic = error.details?.transportDiagnostic as Record<string, unknown> | undefined;
   const framingReason = diagnostic?.reason;
