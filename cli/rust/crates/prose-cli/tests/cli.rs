@@ -5695,7 +5695,7 @@ fn account_commands_reject_execution_only_globals_before_credential_access() {
     let temp = TempDir::new().unwrap();
     let fixture = temp.path().join("service.json");
     let original = "malformed fixture must not be read";
-    fs::write(&fixture, &original).unwrap();
+    fs::write(&fixture, original).unwrap();
     for command in controls["commands"].as_array().unwrap() {
         for prefix in controls["deniedPrefixes"].as_array().unwrap() {
             let mut args = vec!["--output", "json"];
