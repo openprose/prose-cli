@@ -1648,6 +1648,10 @@ mod tests {
         c.native_output_bytes.value = None;
         assert_eq!(native_output_bytes(&c), 67_108_864);
         assert_eq!(native_output_limits(&c).unwrap()["captureEnabled"], false);
+        assert_eq!(
+            native_output_limits(&c).unwrap()["maxRecordBytes"],
+            1_048_576
+        );
     }
 
     #[test]
@@ -2397,7 +2401,7 @@ pub(crate) fn native_output_bytes(config: &EffectiveConfig) -> usize {
         })
 }
 pub(crate) fn native_output_limits(config: &EffectiveConfig) -> Option<serde_json::Value> {
-    (config.output_contract.value == "native").then(|| serde_json::json!({"maxAggregateStdoutBytes":native_output_bytes(config),"maxNativeCaptureBytes":native_output_bytes(config),"captureEnabled":config.native_log.value.is_some()}))
+    (config.output_contract.value == "native").then(|| serde_json::json!({"maxRecordBytes":prose_process_supervisor::StreamLimits::default().max_record_bytes,"maxAggregateStdoutBytes":native_output_bytes(config),"maxNativeCaptureBytes":native_output_bytes(config),"captureEnabled":config.native_log.value.is_some()}))
 }
 
 #[cfg(test)]

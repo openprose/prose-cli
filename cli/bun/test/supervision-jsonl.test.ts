@@ -49,7 +49,7 @@ describe("bounded JSONL framing", () => {
     ["malformed JSON", chunks('{"bad":}\n'), "PROTOCOL_MALFORMED"],
     ["truncated EOF", chunks('{"unfinished":'), "PROTOCOL_TRUNCATED"],
     ["empty record", chunks("\n"), "PROTOCOL_MALFORMED"],
-    ["oversized record", chunks(`${JSON.stringify({ value: "x".repeat(130) })}\n`), "PROTOCOL_MALFORMED"],
+    ["oversized record", chunks(`${JSON.stringify({ value: "x".repeat(130) })}\n`), "HARNESS_FAILED"],
     ["aggregate overflow", chunks(`${JSON.stringify({ a: "x".repeat(80) })}\n`, `${JSON.stringify({ b: "y".repeat(80) })}\n`), "PROTOCOL_MALFORMED"],
   ])("rejects %s deterministically", async (_label, stream, code) => {
     const constrained = _label === "aggregate overflow" ? { ...limits, maxAggregateStdoutBytes: 150 } : limits;
@@ -61,7 +61,7 @@ import diagnosticCases from "../../shared/fixtures/transport-diagnostics.json";
 for (const fixture of diagnosticCases) test(`safe transport diagnostic: ${fixture.name}`, async()=>{
  let caught:any;
  try {await readBoundedJsonLines(chunks(fixture.input), {...limits,maxRecordBytes:fixture.recordLimit,maxAggregateStdoutBytes:fixture.aggregateLimit},()=>{});}catch(e){caught=e;}
- expect(caught.code).toBe("PROTOCOL_MALFORMED");
+ expect(caught.code).toBe(fixture.reason === "record-byte-limit" ? "HARNESS_FAILED" : "PROTOCOL_MALFORMED");
  expect(caught.details.transportDiagnostic.reason).toBe(fixture.reason);
  if("limitBytes" in fixture)expect(caught.details.transportDiagnostic.limitBytes).toBe(fixture.limitBytes);
  if("observedBytes" in fixture)expect(caught.details.transportDiagnostic.observedBytes).toBe(fixture.observedBytes);

@@ -12,7 +12,7 @@ test("native output shared bounds and mode",()=>{
  for(const v of fixture.valid)expect(validateNativeOutputBytes(v)).toBe(Number(v));
  for(const v of fixture.invalid)expect(()=>validateNativeOutputBytes(v)).toThrow();
  expect(()=>nativeOutputLimits({nativeOutputBytes:"1048576"})).toThrow();
- expect(nativeOutputLimits({outputContract:"native"})).toEqual({maxAggregateStdoutBytes:fixture.default,maxNativeCaptureBytes:fixture.default,captureEnabled:false});
+ expect(nativeOutputLimits({outputContract:"native"})).toEqual({maxRecordBytes:1048576,maxAggregateStdoutBytes:fixture.default,maxNativeCaptureBytes:fixture.default,captureEnabled:false});
  expect(()=>parseEntrypoint(["--native-output-bytes","1048576","--native-output-bytes","2097152","task"])).toThrow();
 });
 test("native output provenance follows file environment flag precedence",async()=>{

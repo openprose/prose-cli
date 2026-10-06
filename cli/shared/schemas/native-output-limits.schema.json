@@ -21,6 +21,9 @@
     },
     "captureEnabled": {
       "type": "boolean"
+    },
+    "maxRecordBytes": {
+      "const": 1048576
     }
   }
 }
