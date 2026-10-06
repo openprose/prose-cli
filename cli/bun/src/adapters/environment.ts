@@ -1,4 +1,5 @@
 import { failure } from "../core/errors";
+import { RunnerFailure } from "../core/types";
 import type { InstalledAdapterDefinition } from "./types";
 import { adapterAlwaysStrip, adapterBaseEnvironmentAllowlist, adapterOwnedEnvironmentControls } from "./recipes";
 
@@ -27,12 +28,17 @@ export function buildInstalledAdapterEnvironment(input: AdapterEnvironmentInput)
     throw failure("INTERNAL_ERROR", { adapterId: input.definition.id, reason: "Credential requirement is missing from the shared oracle." });
   }
   const present = (expected: string): boolean => Object.entries(input.ambient).some(([name, value]) =>
-    normalize(name) === normalize(expected) && value !== undefined && value.length > 0);
+    normalize(name) === normalize(expected) && value !== undefined && (input.definition.id==="agents-sdk/jsonl" ? value.trim().length>0 : value.length>0));
   if (requirement.kind !== "probe-owned" && !requirement.alternatives.some((alternative) => alternative.every(present))) {
-    throw failure("HARNESS_NEEDS_AUTH", {
+    const error=failure("HARNESS_NEEDS_AUTH", {
       adapterId: input.definition.id,
       authProfile: input.credentialGroup,
     });
+    if(input.definition.id==="agents-sdk/jsonl") {
+      const {schema:_,...shape}=error.toJSON();
+      throw new RunnerFailure({...shape,action:"Set OPENAI_API_KEY to an OpenAI API key in the process environment, then retry. No model request was sent."});
+    }
+    throw error;
   }
   const alwaysStrip = new Set([...adapterAlwaysStrip, "OPENPROSE_API_KEY"].map(normalize));
   const selected = new Set([

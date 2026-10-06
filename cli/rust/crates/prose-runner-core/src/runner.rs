@@ -298,7 +298,11 @@ pub fn action_output_mode(parsed: &ParsedInvocation, config: &EffectiveConfig) -
     }
 }
 
-fn validate_harness_selection(harness: &str, flags: &GlobalFlags) -> Result<(), RunnerError> {
+/// Validate the explicitly requested saved bundle without ambient execution configuration.
+///
+/// # Errors
+/// Returns invocation/configuration errors for incomplete or incompatible selections.
+pub fn validate_harness_selection(harness: &str, flags: &GlobalFlags) -> Result<(), RunnerError> {
     if harness == "openprose" {
         if flags.model.is_some() || flags.auth_profile.is_some() {
             return Err(RunnerError::catalog(ErrorCode::ConfigInvalid).with_detail(
@@ -1236,6 +1240,8 @@ struct InstalledRunObserver<'a> {
     auth_source_failed: bool,
     sdk: bool,
     native_failure: Option<Value>,
+    sdk_observations: Value,
+    sdk_requested_model: Option<String>,
     capture: Option<NativeCapture>,
     human: Option<InstalledHumanStream<'a>>,
     omp: Option<OmpStagedController>,
@@ -1254,6 +1260,13 @@ impl std::fmt::Debug for InstalledRunObserver<'_> {
 
 impl RecordObserver for InstalledRunObserver<'_> {
     fn observe_parsed(&mut self, record: &Value) -> Result<(), SupervisorFailure> {
+        if self.sdk {
+            crate::sdk_observation::update(
+                &mut self.sdk_observations,
+                record,
+                self.sdk_requested_model.as_deref(),
+            );
+        }
         if self.sdk && record.get("type").and_then(Value::as_str) == Some("error") {
             self.native_failure = Some(installed_adapters::sdk_native_failure(record));
         }
@@ -1735,6 +1748,19 @@ fn inspect_installed_adapter(
         }
     };
     let ambient = env::vars_os().collect::<Vec<_>>();
+    if adapter == installed_adapters::InstalledAdapter::AgentsSdkJsonl {
+        if let Err(problem) = installed_adapters::auth_readiness(adapter, &auth_group, &ambient) {
+            return InstalledAdapterDiscovery {
+                executable: None,
+                version: None,
+                runtime_prerequisites: Vec::new(),
+                environment: None,
+                auth_group: Some(auth_group),
+                auth_readiness: "missing",
+                problem: Some(problem.with_detail("fallbackAttempted", false)),
+            };
+        }
+    }
     let search_path = ambient
         .iter()
         .find(|(name, _)| name == std::ffi::OsStr::new("PATH"))
@@ -2278,6 +2304,8 @@ fn execute_installed_adapter(
         auth_source_failed: false,
         sdk: adapter == installed_adapters::InstalledAdapter::AgentsSdkJsonl,
         native_failure: None,
+        sdk_observations: json!({}),
+        sdk_requested_model: config.model.value.clone(),
         capture,
         human: human_stream,
         omp: omp_controller,
@@ -2439,6 +2467,7 @@ fn execute_installed_adapter(
                 &invocation_id,
                 failure,
                 run_observer.native_failure.clone(),
+                &run_observer.sdk_observations,
                 detected_version.as_deref(),
                 rendered_payload_digest.as_deref(),
                 config,
@@ -2706,6 +2735,11 @@ fn installed_adapter_success_result(
     if let Some(native) = native_configuration(config, Some(&outcome.records)) {
         result["nativeConfiguration"] = native;
     }
+    if adapter == installed_adapters::InstalledAdapter::AgentsSdkJsonl {
+        let observations =
+            crate::sdk_observation::from_records(&outcome.records, config.model.value.as_deref());
+        crate::sdk_observation::apply(&mut result, &observations);
+    }
     match mode {
         OutputMode::Human => {
             let remaining = &terminal.visible_text[human_stream_settlement.emitted_prefix_bytes..];
@@ -2846,6 +2880,7 @@ fn installed_adapter_failure_result(
     invocation_id: &str,
     failure: SupervisorFailure,
     native_failure: Option<Value>,
+    sdk_observations: &Value,
     detected_version: Option<&str>,
     rendered_payload_digest: Option<&str>,
     config: &EffectiveConfig,
@@ -2898,6 +2933,11 @@ fn installed_adapter_failure_result(
     if let Some(diagnostic) = native_failure {
         error = error.with_detail("nativeFailure", diagnostic);
     }
+    for key in ["usageObservation", "modelIdentity"] {
+        if let Some(value) = sdk_observations.get(key) {
+            error = error.with_detail(key, value.clone());
+        }
+    }
     render_installed_failure(
         adapter,
         task,
@@ -2943,6 +2983,25 @@ fn render_installed_failure(
     clock: &dyn Clock,
     native_records: Option<&[Value]>,
 ) -> CommandOutcome {
+    let mut error = error;
+    if adapter == installed_adapters::InstalledAdapter::AgentsSdkJsonl {
+        let observations = crate::sdk_observation::from_records(
+            native_records.unwrap_or(&[]),
+            config.model.value.as_deref(),
+        );
+        for key in ["usageObservation", "modelIdentity"] {
+            if error
+                .details
+                .as_ref()
+                .and_then(|details| details.get(key))
+                .is_none()
+            {
+                if let Some(value) = observations.get(key) {
+                    error = error.with_detail(key, value.clone());
+                }
+            }
+        }
+    }
     let timestamp = clock.now_rfc3339();
     let invocation = installed_invocation(adapter, task, task_digest, invocation_id, config, image);
     let invocation_digest = sha256_hex(&serde_json::to_vec(&invocation).expect("invocation JSON"));
@@ -3003,6 +3062,10 @@ fn render_installed_failure(
     }
     if let Some(native) = native_configuration(config, native_records) {
         result["nativeConfiguration"] = native;
+    }
+    if adapter == installed_adapters::InstalledAdapter::AgentsSdkJsonl {
+        let observations = result["error"]["details"].clone();
+        crate::sdk_observation::apply(&mut result, &observations);
     }
     match mode {
         OutputMode::Human => CommandOutcome::human(
@@ -4735,6 +4798,8 @@ mod tests {
             auth_source_failed: false,
             sdk: true,
             native_failure: None,
+            sdk_observations: json!({}),
+            sdk_requested_model: Some("gpt-6.1-sol".to_owned()),
             capture: None,
             human: None,
             omp: None,
@@ -4751,6 +4816,60 @@ mod tests {
             .observe_parsed(&json!({"type":"error","error_type":"MaxTurnsExceeded"}))
             .unwrap();
         assert!(observer.native_failure.is_none());
+    }
+
+    #[test]
+    fn sdk_failure_preserves_observer_identity_newer_than_retained_records() {
+        struct FixedClock;
+        impl Clock for FixedClock {
+            fn now_rfc3339(&self) -> String {
+                "2026-10-06T12:00:00.000Z".to_owned()
+            }
+        }
+        let temp = TempDir::new().unwrap();
+        let config = installed_config(
+            temp.path(),
+            "agents-sdk",
+            "jsonl",
+            Some("gpt-6.1-sol"),
+            "openai-api-key",
+        );
+        let earlier = json!({"type":"tool_result","modelIdentity":{"requested":"gpt-6.1-sol","observed":["model-a"],"serviceTier":{"requested":"default","observed":["default"]}}});
+        let newer = json!({"type":"error","modelIdentity":{"requested":"gpt-6.1-sol","observed":["model-a","model-b"],"serviceTier":{"requested":"default","observed":["default","priority"]}}});
+        let observed = crate::sdk_observation::from_records(
+            &[earlier.clone(), newer],
+            config.model.value.as_deref(),
+        );
+        let error = RunnerError::catalog(ErrorCode::HarnessFailed)
+            .with_detail("modelIdentity", observed["modelIdentity"].clone());
+        let outcome = render_installed_failure(
+            installed_adapters::InstalledAdapter::AgentsSdkJsonl,
+            &json!({}),
+            "task",
+            "invocation",
+            error,
+            true,
+            false,
+            Some(1),
+            None,
+            Some("0.1.0"),
+            None,
+            String::new(),
+            &config,
+            &sentinel_image(),
+            OutputMode::Json,
+            &FixedClock,
+            Some(&[earlier]),
+        );
+        let crate::output::Payload::JsonWithDiagnostic { value, .. } = outcome.payload else {
+            panic!("expected JSON failure");
+        };
+        assert_eq!(value["modelIdentity"], observed["modelIdentity"]);
+        assert_eq!(
+            value["error"]["details"]["modelIdentity"],
+            observed["modelIdentity"]
+        );
+        assert_eq!(value["usage"], json!({"status":"unavailable"}));
     }
 
     #[test]
@@ -4893,6 +5012,8 @@ mod tests {
             auth_source_failed: false,
             sdk: false,
             native_failure: None,
+            sdk_observations: json!({}),
+            sdk_requested_model: Some("gpt-6.1-sol".to_owned()),
             capture: None,
             human: None,
             omp: None,

@@ -390,10 +390,12 @@ fn selected_file_candidates_identify_the_assignment_line() {
         .iter()
         .find(|candidate| candidate["selected"] == true)
         .unwrap();
-    assert!(chosen["source"]["location"]
-        .as_str()
-        .unwrap()
-        .ends_with("cli.toml:2"));
+    assert!(
+        chosen["source"]["location"]
+            .as_str()
+            .unwrap()
+            .ends_with("cli.toml:2")
+    );
     assert_eq!(chosen["value"], "2m");
 }
 
@@ -465,11 +467,13 @@ fn invalid_ignored_legacy_root_has_safe_diagnostic_without_blocking_canonical() 
         .unwrap();
     let output = report(&raw, 0);
     assert_eq!(output["values"]["timeout"]["value"], "2m");
-    assert!(output["diagnostics"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .any(|diagnostic| diagnostic["source"] == "XDG_CONFIG_HOME"));
+    assert!(
+        output["diagnostics"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|diagnostic| diagnostic["source"] == "XDG_CONFIG_HOME")
+    );
     assert!(!String::from_utf8_lossy(&raw.stdout).contains("relative-legacy-root-sentinel"));
 }
 
@@ -499,21 +503,25 @@ fn readonly_physical_alias_loads_once_but_mutations_refuse_symlink() {
             .count(),
         1
     );
-    assert!(!output["diagnostics"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .any(|diagnostic| diagnostic["code"] == "LEGACY_CONFIG_IGNORED"));
+    assert!(
+        !output["diagnostics"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|diagnostic| diagnostic["code"] == "LEGACY_CONFIG_IGNORED")
+    );
     for args in [
         vec!["cli", "config", "migrate", "--json"],
         vec!["cli", "config", "unset", "timeout", "--json"],
     ] {
         let failed = report(&fixture.invoke(&args, None), 2);
         assert_eq!(failed["code"], "CONFIG_INVALID");
-        assert!(fs::symlink_metadata(fixture.path("home/.prose/cli.toml"))
-            .unwrap()
-            .file_type()
-            .is_symlink());
+        assert!(
+            fs::symlink_metadata(fixture.path("home/.prose/cli.toml"))
+                .unwrap()
+                .file_type()
+                .is_symlink()
+        );
         assert_eq!(
             fs::read(fixture.path("legacy/openprose/cli.toml")).unwrap(),
             original

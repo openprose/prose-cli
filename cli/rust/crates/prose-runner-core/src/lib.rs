@@ -30,5 +30,6 @@ pub mod kernel_startup;
 
 mod credential_store;
 pub mod registry;
+mod sdk_observation;
 pub mod service;
 pub mod service_account;

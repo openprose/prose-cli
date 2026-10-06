@@ -247,6 +247,12 @@ class BudgetTest(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(records[-1]['error_type'],'CancelledError')
             self.assertEqual(records[-1]['usageObservation']['completedResponseCount'],2)
             self.assertEqual(records[-1]['usageObservation']['observedTokenTotals']['total_tokens'],10)
+            # These records precede cancellation: outer cleanup may close stdout
+            # before the terminal error is received, so retain completed usage now.
+            shell_call = next(record for record in records if record['type'] == 'tool_call' and record['name'] == 'execute_shell')
+            self.assertEqual(shell_call['usageObservation']['completedResponseCount'], 2)
+            self.assertEqual(shell_call['usageObservation']['observedTokenTotals']['total_tokens'], 10)
+            self.assertFalse(shell_call['usageObservation']['totalRunUsageKnown'])
             self.assertFalse(any(record['type']=='final' for record in records))
             self.assertEqual(create.await_count,2)
             client.close.assert_awaited_once()

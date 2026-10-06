@@ -133,6 +133,88 @@ class ContractsTest(unittest.TestCase):
         for bad in [{'kind':'arbitrary'}, {'kind':'execution','message':'secret'}, {'kind':'timeout','elapsedSeconds':-1}]:
             self.assertTrue(list(self.validator('native-failure.schema.json').iter_errors(bad)))
 
+    def test_sdk_production_limits_and_optional_observations_are_closed(self):
+        oracle = load_json(FIXTURES / 'adapters/sdk-production.json')
+        self.assertEqual('openprose.sdk-production-oracle/1', oracle['schema'])
+        self.assertEqual(dict(harness='agents-sdk', model='gpt-6.1-sol', authProfile='openai-api-key', transport='jsonl', billingOwner='user-provider', permissionMode=None), oracle['defaults'])
+        limits = oracle['nativeLimits']
+        self.assertEqual(11, len(limits))
+        self.assertEqual(limits['maxTurns'], limits['maxAggregateRequests'])
+        self.assertEqual(limits['maxTurns'], limits['maxAggregateHostedWebCalls'])
+        self.assertEqual((80,500000,256000,8,1), tuple(limits[field] for field in ('maxAggregateFunctionTools','maxObservedTotalTokens','maxRequestInputBytes','maxChildren','maxChildDepth')))
+        self.assert_valid('native-limits.schema.json', limits)
+        self.assert_valid('native-limits.schema.json', {key: float(value) for key,value in limits.items()})
+        for field, invalid in (('maxChildren',9),('maxChildDepth',2)):
+            self.assertTrue(list(self.validator('native-limits.schema.json').iter_errors({**limits,field:invalid})))
+        historical = {field: limits[field] for field in ('maxTurns','timeoutSeconds','toolTimeoutSeconds','maxOutputTokens')}
+        self.assert_valid('native-limits.schema.json', historical)
+        for field in set(limits) - set(historical):
+            self.assertTrue(list(self.validator('native-limits.schema.json').iter_errors({**historical,field:limits[field]})))
+        observation = oracle['observation']
+        for group in ('emptyUsage','completedUsage','failureUsage'):
+            usage = observation[group]
+            self.assertEqual(10, len(usage))
+            self.assertIsNone(usage['outstandingProviderRequestCount'])
+            self.assertFalse(usage['totalRunUsageKnown'])
+            self.assert_valid('sdk-observation.schema.json', dict(usageObservation=usage, modelIdentity=observation['modelIdentity']))
+        numeric_usage = deepcopy(observation['completedUsage'])
+        numeric_usage.update(startedCallCount=3.0,completedResponseCount=3.0,duplicateResponseCallbackCount=-0.0,outstandingCallCount=-0.0)
+        numeric_usage['observedTokenTotals']['input_tokens_details.cached_tokens'] = -0.0
+        self.assert_valid('sdk-observation.schema.json', dict(usageObservation=numeric_usage))
+        for mutation in (lambda value: value['usageObservation'].update(extra='secret'),
+                         lambda value: value['usageObservation'].update(totalRunUsageKnown=True),
+                         lambda value: value['usageObservation'].update(outstandingProviderRequestCount=0),
+                         lambda value: value['usageObservation'].update(startedCallCount=True),
+                         lambda value: value['usageObservation']['observedTokenTotals'].update(unknown=3),
+                         lambda value: value['usageObservation']['observedTokenTotals'].update(input_tokens=-1),
+                         lambda value: value['modelIdentity']['observed'].append('secret\nmodel'),
+                         lambda value: value['modelIdentity']['serviceTier']['observed'].append('secret-tier'),
+                         lambda value: value['modelIdentity']['serviceTier'].update(requested='priority')):
+            value = dict(usageObservation=deepcopy(observation['completedUsage']), modelIdentity=deepcopy(observation['modelIdentity']))
+            mutation(value)
+            self.assertTrue(list(self.validator('sdk-observation.schema.json').iter_errors(value)))
+        self.assertEqual(5, len(oracle['rejectedModelIdentities']))
+        for control in oracle['rejectedModelIdentities']:
+            self.assertEqual('omit-modelIdentity', control['expected'])
+            self.assertTrue(list(self.validator('sdk-observation.schema.json').iter_errors(dict(modelIdentity=control['raw']))))
+        valid_empty = deepcopy(observation['modelIdentity'])
+        valid_empty['observed'] = []
+        valid_empty['serviceTier']['observed'] = []
+        self.assert_valid('sdk-observation.schema.json', dict(modelIdentity=valid_empty))
+        self.assert_valid('native-limits.schema.json', load_json(FIXTURES/'adapters/sdk-native-limits.json')['historicalLimits'])
+        result = load_json(FIXTURES / 'transport/runner-result-success.json')
+        result.update(nativeLimits=limits, usageObservation=observation['completedUsage'], modelIdentity=observation['modelIdentity'])
+        self.assert_valid('runner-result.schema.json', result)
+        error = next(row for row in load_json(SHARED/'errors/taxonomy.v1.json')['errors'] if row['code']=='HARNESS_FAILED')
+        error = dict(schema='openprose.runner-error/1', **error, details=dict(usageObservation=observation['failureUsage'],modelIdentity=observation['modelIdentity']))
+        self.assert_valid('runner-error.schema.json', error)
+        error['details']['usageObservation']['totalRunUsageKnown'] = True
+        self.assertTrue(list(self.validator('runner-error.schema.json').iter_errors(error)))
+
+    def test_sdk_production_cases_are_frozen_and_provider_free(self):
+        oracle = load_json(FIXTURES/'adapters/sdk-production.json')
+        identifiers = [f'adapters.sdk-production-{number:02}' for number in range(1,11)]
+        self.assertEqual(identifiers, [case['id'] for case in oracle['cases']])
+        for control in oracle['cases']:
+            case = load_json(CASES/'adapters'/f"{control['id'].split('.')[-1]}.json")
+            self.assertEqual(case['id'], control['id'])
+            self.assertEqual('denied', case['controls']['network'])
+            self.assertEqual(dict(adapterId='agents-sdk/jsonl', sdkScenario=control['scenario'], sdkInstallation=control['installation']), case['controls']['installedAdapter'])
+            self.assertEqual(not control['noStart'], case['expected']['startedHarness'])
+            if 'OPENAI_API_KEY' in case['invocation']['environment']:
+                self.assertIn(case['invocation']['environment']['OPENAI_API_KEY'], ('  ','fixture-provider-free-openai-key'))
+        recipe = load_json(SHARED/'capabilities/adapters/recipes/agents-sdk-jsonl.v1.json')
+        self.assertEqual(oracle['discovery']['admissionPlatforms'], recipe['support']['platforms'])
+        self.assertEqual(['darwin-arm64','darwin-x64','linux-arm64','linux-x64'], oracle['discovery']['platforms'])
+        self.assertEqual(['darwin-arm64','darwin-x64','linux-arm64-gnu','linux-x64-gnu'], recipe['support']['platforms'])
+        self.assertEqual('2.34', oracle['discovery']['linuxMinimumGlibc'])
+        for control in oracle['discovery']['platformControls']:
+            self.assertEqual(control['supported'], control['platform'] in recipe['support']['platforms'])
+        self.assertEqual(['parse-file-environment-flag-layers','validate-explicit-selection-target','validate-contextual-model-and-auth'], oracle['harnessUseValidationOrder'])
+        self.assertFalse(oracle['discovery']['pathFallback'])
+        self.assertFalse(oracle['discovery']['helperSymlinkAllowed'])
+        self.assertNotIn('selected-permissions', recipe['isolation']['preserved'])
+
     def test_optional_reporting_fields_are_named_and_closed(self):
         fixture=json.loads((SHARED / 'fixtures/config/optional-reporting.json').read_text())
         config=json.loads((SHARED / 'fixtures/operations/configuration-explanation.json').read_text())
@@ -314,10 +396,37 @@ class ContractsTest(unittest.TestCase):
             examples["doctor-report.json"]["runner"],
             {"name": "rust", "version": "0.1.0-fixture", "commit": "fixture-commit"},
         )
-        self.assertEqual(
-            examples["configuration-explanation.json"],
-            examples["doctor-report.json"]["configuration"],
-        )
+        # The standalone explanation is the SDK default. The hosted doctor
+        # explicitly selects its route and retains the overridden SDK candidate.
+        default_config = examples["configuration-explanation.json"]
+        doctor_config = examples["doctor-report.json"]["configuration"]
+        self.assertEqual(default_config["values"]["harness"]["value"], "agents-sdk")
+        self.assertEqual(doctor_config["values"]["harness"], {
+            "value": "openprose", "source": {"kind": "flag", "location": "--harness"},
+        })
+        self.assertEqual(doctor_config["candidates"]["harness"], [
+            {"value": "agents-sdk", "source": {"kind": "default", "location": "built-in"}, "selected": False},
+            {"value": "openprose", "source": {"kind": "flag", "location": "--harness"}, "selected": True},
+        ])
+        for key in ("model", "authProfile"):
+            self.assertEqual(doctor_config["values"][key], {
+                "value": None, "source": {"kind": "default", "location": "built-in"},
+            })
+            self.assertEqual(doctor_config["candidates"][key], [
+                {"value": None, "source": {"kind": "default", "location": "built-in"}, "selected": True},
+            ])
+        self.assertEqual(doctor_config["runtime"], {
+            "transport": "hosted", "permissionMode": None, "authProfile": None,
+            "billingOwner": "openprose", "nativeLimits": None, "nativeOutputLimits": None,
+        })
+        self.assertEqual(doctor_config["values"]["harness"]["value"], examples["doctor-report.json"]["selectedHarness"])
+        for key in default_config:
+            if key not in ("values", "candidates", "runtime"):
+                self.assertEqual(default_config[key], doctor_config[key])
+        for key in default_config["values"]:
+            if key not in ("harness", "model", "authProfile"):
+                self.assertEqual(default_config["values"][key], doctor_config["values"][key])
+                self.assertEqual(default_config["candidates"][key], doctor_config["candidates"][key])
         self.assertEqual(
             examples["doctor-report.json"]["problems"][0]["exitCode"], 10
         )
@@ -898,7 +1007,10 @@ class ContractsTest(unittest.TestCase):
                 if "errorCode" in case["expected"]:
                     frozen = taxonomy[case["expected"]["errorCode"]]
                     self.assertEqual(case["expected"]["exitCode"], frozen["exitCode"])
-                    self.assertEqual(case["expected"]["errorAction"], frozen["action"])
+                    if case["id"] in {"adapters.sdk-production-02", "adapters.sdk-production-03"}:
+                        self.assertEqual(case["expected"]["errorAction"], load_json(FIXTURES / "adapters/sdk-production.json")["credentialAbsence"]["action"])
+                    else:
+                        self.assertEqual(case["expected"]["errorAction"], frozen["action"])
         ids = [case["id"] for case in cases]
         self.assertEqual(len(ids), len(set(ids)))
         self.assertTrue({"core.initial-help", "core.opaque-argv", "core.mock-success", "core.openprose-hosted-unavailable"}.issubset(ids))

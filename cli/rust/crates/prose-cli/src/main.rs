@@ -9,7 +9,7 @@ use prose_runner_core::runner::{
 use prose_runner_core::service::ServiceCommand;
 use prose_runner_core::{
     CancellationToken, OutputMode, SignalCancellationGuard, SystemClock, SystemContext,
-    SystemIdSource, parse_invocation, resolve_config,
+    SystemIdSource, parse_invocation,
 };
 use std::collections::BTreeSet;
 use std::io;
@@ -459,6 +459,110 @@ fn account_command_outcome(
     }))
 }
 
+fn prepare_configuration(
+    parsed: &ParsedInvocation,
+    system: &SystemContext,
+) -> Result<prose_runner_core::EffectiveConfig, CommandOutcome> {
+    let clock = SystemClock;
+    let ids = SystemIdSource;
+    let mutation = if let Action::Runner { command, json } = &parsed.action {
+        let result = match command {
+            RunnerCommand::ConfigMigrate => Some(
+                prose_runner_core::config::migrate_user_configuration(system),
+            ),
+            RunnerCommand::ConfigUnset(keys) => Some(
+                prose_runner_core::config::unset_user_configuration(system, keys),
+            ),
+            _ => None,
+        };
+        match result {
+            Some(Ok(receipt)) => Some(receipt),
+            Some(Err(error)) => {
+                let error = prose_runner_core::config::mutation_error_context(
+                    error,
+                    &parsed.globals,
+                    system,
+                );
+                return Err(error_outcome(
+                    error,
+                    if *json {
+                        OutputMode::Json
+                    } else {
+                        parsed.globals.output.unwrap_or_default()
+                    },
+                    &clock,
+                    &ids,
+                ));
+            }
+            None => None,
+        }
+    } else {
+        None
+    };
+    let mut resolution_flags = parsed.globals.clone();
+    if matches!(
+        &parsed.action,
+        Action::Runner {
+            command: RunnerCommand::HarnessUse(_),
+            ..
+        }
+    ) {
+        // Selection arguments describe the new persisted bundle, not the old active harness.
+        resolution_flags.model = None;
+        resolution_flags.auth_profile = None;
+    }
+    let mut config = match prose_runner_core::config::resolve_config_with_selection_validation(
+        &resolution_flags,
+        system,
+        || {
+            if let Action::Runner {
+                command: RunnerCommand::HarnessUse(harness),
+                ..
+            } = &parsed.action
+            {
+                prose_runner_core::runner::validate_harness_selection(harness, &parsed.globals)
+            } else {
+                Ok(())
+            }
+        },
+    ) {
+        Ok(config) => config,
+        Err(error) => {
+            let mut error = error;
+            if let Action::Runner {
+                command: RunnerCommand::ConfigExplainTarget(argv),
+                ..
+            } = &parsed.action
+            {
+                if let Some(details) = error.details.as_mut() {
+                    if let Some(report) = details.get_mut("configurationExplanation") {
+                        report["target"] = serde_json::json!({"argv":argv});
+                    }
+                }
+            }
+            let mode = match parsed.action {
+                Action::Runner { json: true, .. } => OutputMode::Json,
+                _ => parsed.globals.output.unwrap_or_default(),
+            };
+            let error = if let Some(receipt) = &mutation {
+                error.with_detail("mutation", receipt.clone())
+            } else {
+                error
+            };
+            return Err(error_outcome(error, mode, &clock, &ids));
+        }
+    };
+    config.mutation = mutation;
+    if let Action::Runner {
+        command: RunnerCommand::ConfigExplainTarget(argv),
+        ..
+    } = &parsed.action
+    {
+        config.explanation_target = Some(argv.clone());
+    }
+    Ok(config)
+}
+
 fn prepare(
     args: &[String],
     cancellation: &CancellationToken,
@@ -504,87 +608,10 @@ fn prepare(
     if let Some(outcome) = account_command_outcome(&parsed, args, &system, cancellation) {
         return outcome;
     }
-    let mutation = if let Action::Runner { command, json } = &parsed.action {
-        let result = match command {
-            RunnerCommand::ConfigMigrate => Some(
-                prose_runner_core::config::migrate_user_configuration(&system),
-            ),
-            RunnerCommand::ConfigUnset(keys) => Some(
-                prose_runner_core::config::unset_user_configuration(&system, keys),
-            ),
-            _ => None,
-        };
-        match result {
-            Some(Ok(receipt)) => Some(receipt),
-            Some(Err(error)) => {
-                let error = prose_runner_core::config::mutation_error_context(
-                    error,
-                    &parsed.globals,
-                    &system,
-                );
-                return error_outcome(
-                    error,
-                    if *json {
-                        OutputMode::Json
-                    } else {
-                        parsed.globals.output.unwrap_or_default()
-                    },
-                    &clock,
-                    &ids,
-                );
-            }
-            None => None,
-        }
-    } else {
-        None
-    };
-    let mut resolution_flags = parsed.globals.clone();
-    if matches!(
-        &parsed.action,
-        Action::Runner {
-            command: RunnerCommand::HarnessUse(_),
-            ..
-        }
-    ) {
-        // Selection arguments describe the new persisted bundle, not the old active harness.
-        resolution_flags.model = None;
-        resolution_flags.auth_profile = None;
-    }
-    let mut config = match resolve_config(&resolution_flags, &system) {
+    let config = match prepare_configuration(&parsed, &system) {
         Ok(config) => config,
-        Err(error) => {
-            let mut error = error;
-            if let Action::Runner {
-                command: RunnerCommand::ConfigExplainTarget(argv),
-                ..
-            } = &parsed.action
-            {
-                if let Some(details) = error.details.as_mut() {
-                    if let Some(report) = details.get_mut("configurationExplanation") {
-                        report["target"] = serde_json::json!({"argv":argv});
-                    }
-                }
-            }
-            let mode = match parsed.action {
-                Action::Runner { json: true, .. } => OutputMode::Json,
-                _ => parsed.globals.output.unwrap_or_default(),
-            };
-            let error = if let Some(receipt) = &mutation {
-                error.with_detail("mutation", receipt.clone())
-            } else {
-                error
-            };
-            return error_outcome(error, mode, &clock, &ids);
-        }
+        Err(outcome) => return outcome,
     };
-    config.mutation = mutation;
-    if let Action::Runner {
-        command: RunnerCommand::ConfigExplainTarget(argv),
-        ..
-    } = &parsed.action
-    {
-        config.explanation_target = Some(argv.clone());
-    }
     // The default hosted harness runs no language command, so a language
     // command word that also names a service command is that rejection.
     if let Action::Forward {

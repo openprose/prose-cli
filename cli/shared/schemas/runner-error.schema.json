@@ -111,6 +111,8 @@
         "adapterDiagnostic": {
           "$ref": "adapter-diagnostic.schema.json"
         },
+        "usageObservation": { "$ref": "sdk-observation.schema.json#/$defs/usageObservation" },
+        "modelIdentity": { "$ref": "sdk-observation.schema.json#/$defs/modelIdentity" },
         "nativeFailure": {
           "$ref": "native-failure.schema.json"
         },

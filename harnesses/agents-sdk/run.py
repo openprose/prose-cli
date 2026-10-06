@@ -283,6 +283,7 @@ async def run(args):
     observed_models = set()
     observed_tiers = set()
     def emit(kind, **data):
+        data.setdefault('usageObservation', observation.summary())
         data['modelIdentity'] = {'requested': args.model, 'observed': sorted(observed_models),
                                  'serviceTier': {'requested': 'default', 'observed': sorted(observed_tiers)}}
         print(json.dumps({'type': kind, 'event': kind, 'elapsed_seconds': round(time.monotonic()-start, 3), **data}), flush=True)

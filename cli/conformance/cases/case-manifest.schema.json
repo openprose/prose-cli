@@ -4,104 +4,320 @@
   "title": "OpenProse runner black-box case v1",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema", "id", "summary", "phase", "tags", "controls", "invocation", "expected"],
+  "required": [
+    "schema",
+    "id",
+    "summary",
+    "phase",
+    "tags",
+    "controls",
+    "invocation",
+    "expected"
+  ],
   "properties": {
-    "schema": { "const": "openprose.runner-case/1" },
-    "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]+$" },
-    "summary": { "type": "string", "minLength": 1 },
-    "phase": { "type": "integer", "minimum": 0, "maximum": 7 },
-    "tags": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]+$" } },
-    "platforms": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "enum": ["all", "unix", "windows"] } },
+    "schema": {
+      "const": "openprose.runner-case/1"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]+$"
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1
+    },
+    "phase": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 7
+    },
+    "tags": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9._-]+$"
+      }
+    },
+    "platforms": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "all",
+          "unix",
+          "windows"
+        ]
+      }
+    },
     "controls": {
-      "type": "object", "additionalProperties": false,
-      "required": ["fixedInvocationId", "fixedTimestamp", "fixedMonotonicMs", "network"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fixedInvocationId",
+        "fixedTimestamp",
+        "fixedMonotonicMs",
+        "network"
+      ],
       "properties": {
-        "fixedInvocationId": { "type": "string", "minLength": 1 },
-        "fixedTimestamp": { "type": "string", "format": "date-time" },
-        "fixedMonotonicMs": { "type": "integer", "minimum": 0 },
-        "network": { "const": "denied" },
+        "fixedInvocationId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "fixedTimestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "fixedMonotonicMs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "network": {
+          "const": "denied"
+        },
         "configurationFixture": {
-          "enum": ["operations.config-production-01", "operations.config-production-02", "operations.config-production-03", "operations.config-production-04", "operations.config-production-05", "operations.config-production-06", "operations.config-production-07", "operations.config-production-08", "operations.config-production-09", "operations.config-production-10", "operations.config-production-11", "operations.config-production-12"]
+          "enum": [
+            "operations.config-production-01",
+            "operations.config-production-02",
+            "operations.config-production-03",
+            "operations.config-production-04",
+            "operations.config-production-05",
+            "operations.config-production-06",
+            "operations.config-production-07",
+            "operations.config-production-08",
+            "operations.config-production-09",
+            "operations.config-production-10",
+            "operations.config-production-11",
+            "operations.config-production-12"
+          ]
         },
         "omitEnvironment": {
           "type": "array",
           "uniqueItems": true,
-          "items": { "enum": ["HOME", "XDG_CONFIG_HOME", "APPDATA"] }
+          "items": {
+            "enum": [
+              "HOME",
+              "XDG_CONFIG_HOME",
+              "APPDATA"
+            ]
+          }
         },
         "fakeHarness": {
-          "type": "object", "additionalProperties": false,
-          "required": ["scenario"],
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "scenario"
+          ],
           "properties": {
-            "scenario": { "enum": ["success", "malformed", "truncated", "eof-without-terminal", "nonzero", "terminal-nonzero", "delay", "stderr", "fragmented", "crlf", "duplicate-terminal", "reordered", "descendant"] },
-            "delayMs": { "type": "integer", "minimum": 0 },
-            "cancelAfterMs": { "type": "integer", "minimum": 0 }
+            "scenario": {
+              "enum": [
+                "success",
+                "malformed",
+                "truncated",
+                "eof-without-terminal",
+                "nonzero",
+                "terminal-nonzero",
+                "delay",
+                "stderr",
+                "fragmented",
+                "crlf",
+                "duplicate-terminal",
+                "reordered",
+                "descendant"
+              ]
+            },
+            "delayMs": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "cancelAfterMs": {
+              "type": "integer",
+              "minimum": 0
+            }
           }
         },
         "installedAdapter": {
-          "type": "object", "additionalProperties": false,
-          "required": ["adapterId"],
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "adapterId"
+          ],
           "properties": {
             "adapterId": {
               "enum": [
                 "codex/exec-json",
                 "claude/print-stream-json",
                 "prime/rpc",
-                "omp/rpc"
+                "omp/rpc",
+                "agents-sdk/jsonl"
               ]
             },
-            "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$" },
-            "capabilityScenario": { "enum": ["missing-json", "missing-sandbox", "prefix-json", "descriptive-json", "wrong-stream", "nonzero", "oversized"] },
-            "protocolScenario": { "enum": ["unknown-type", "missing-terminal"] },
-            "telemetryScenario": { "enum": ["unknown-type", "unknown-subtype"] },
+            "version": {
+              "type": "string",
+              "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"
+            },
+            "capabilityScenario": {
+              "enum": [
+                "missing-json",
+                "missing-sandbox",
+                "prefix-json",
+                "descriptive-json",
+                "wrong-stream",
+                "nonzero",
+                "oversized"
+              ]
+            },
+            "protocolScenario": {
+              "enum": [
+                "unknown-type",
+                "missing-terminal"
+              ]
+            },
+            "telemetryScenario": {
+              "enum": [
+                "unknown-type",
+                "unknown-subtype"
+              ]
+            },
             "versionProbeScenario": {
-              "enum": ["wrong-stream-success"]
+              "enum": [
+                "wrong-stream-success"
+              ]
+            },
+            "sdkScenario": {
+              "enum": [
+                "trap",
+                "success",
+                "failure",
+                "tainted"
+              ]
+            },
+            "sdkInstallation": {
+              "enum": [
+                "sibling",
+                "symlink"
+              ]
             }
           }
         }
       }
     },
     "invocation": {
-      "type": "object", "additionalProperties": false,
-      "required": ["argv", "cwd", "environment"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "argv",
+        "cwd",
+        "environment"
+      ],
       "properties": {
-        "argv": { "type": "array", "items": { "type": "string" } },
-        "cwd": { "type": "string", "minLength": 1 },
-        "environment": { "type": "object", "additionalProperties": { "type": "string" } }
+        "argv": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "cwd": {
+          "type": "string",
+          "minLength": 1
+        },
+        "environment": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
       }
     },
     "expected": {
-      "type": "object", "additionalProperties": false,
-      "required": ["exitCode", "stdout", "stderr", "startedHarness"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "exitCode",
+        "stdout",
+        "stderr",
+        "startedHarness"
+      ],
       "dependentSchemas": {
         "resultFixture": {
           "properties": {
             "stdout": {
-              "properties": { "kind": { "const": "json" } }
+              "properties": {
+                "kind": {
+                  "const": "json"
+                }
+              }
             }
           }
         }
       },
       "properties": {
-        "exitCode": { "type": "integer", "minimum": 0, "maximum": 255 },
-        "stdout": { "$ref": "#/$defs/outputExpectation" },
-        "stderr": { "$ref": "#/$defs/outputExpectation" },
-        "startedHarness": { "type": "boolean" },
-        "errorCode": { "type": "string", "minLength": 1 },
-        "errorAction": { "type": "string", "minLength": 1 },
-        "resultMatches": { "type": "object" },
+        "exitCode": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255
+        },
+        "stdout": {
+          "$ref": "#/$defs/outputExpectation"
+        },
+        "stderr": {
+          "$ref": "#/$defs/outputExpectation"
+        },
+        "startedHarness": {
+          "type": "boolean"
+        },
+        "errorCode": {
+          "type": "string",
+          "minLength": 1
+        },
+        "errorAction": {
+          "type": "string",
+          "minLength": 1
+        },
+        "resultMatches": {
+          "type": "object"
+        },
         "resultFixture": {
           "type": "string",
           "pattern": "^cli/shared/fixtures/dx/[a-z0-9][a-z0-9._-]+\\.json$"
         },
         "forwardedTask": {
-          "type": "object", "additionalProperties": false,
-          "required": ["argv", "interactionMode"],
-          "properties": { "argv": { "type": "array", "minItems": 1, "items": { "type": "string" } }, "interactionMode": { "const": "non-interactive" } }
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "argv",
+            "interactionMode"
+          ],
+          "properties": {
+            "argv": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string"
+              }
+            },
+            "interactionMode": {
+              "const": "non-interactive"
+            }
+          }
         },
         "fakeObservation": {
-          "type": "object", "additionalProperties": false,
-          "required": ["exactImageBytes", "exactTaskBytes"],
-          "properties": { "exactImageBytes": { "const": true }, "exactTaskBytes": { "const": true } }
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "exactImageBytes",
+            "exactTaskBytes"
+          ],
+          "properties": {
+            "exactImageBytes": {
+              "const": true
+            },
+            "exactTaskBytes": {
+              "const": true
+            }
+          }
         },
         "fileEffects": {
           "type": "array",
@@ -109,10 +325,18 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["path", "utf8"],
+            "required": [
+              "path",
+              "utf8"
+            ],
             "properties": {
-              "path": { "type": "string", "minLength": 1 },
-              "utf8": { "type": "string" }
+              "path": {
+                "type": "string",
+                "minLength": 1
+              },
+              "utf8": {
+                "type": "string"
+              }
             }
           }
         }
@@ -122,11 +346,98 @@
   "$defs": {
     "outputExpectation": {
       "oneOf": [
-        { "type": "object", "additionalProperties": false, "required": ["kind"], "properties": { "kind": { "const": "empty" } } },
-        { "type": "object", "additionalProperties": false, "required": ["kind", "fixture"], "properties": { "kind": { "const": "exact-fixture" }, "fixture": { "type": "string", "minLength": 1 } } },
-        { "type": "object", "additionalProperties": false, "required": ["kind", "contains"], "properties": { "kind": { "const": "contains" }, "contains": { "type": "array", "minItems": 1, "items": { "type": "string" } } } },
-        { "type": "object", "additionalProperties": false, "required": ["kind", "schema"], "properties": { "kind": { "const": "json" }, "schema": { "type": "string", "minLength": 1 } } },
-        { "type": "object", "additionalProperties": false, "required": ["kind", "eventTypes", "terminalType"], "properties": { "kind": { "const": "jsonl" }, "eventTypes": { "type": "array", "items": { "type": "string" } }, "terminalType": { "enum": ["runner.completed", "runner.failed"] } } }
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind"
+          ],
+          "properties": {
+            "kind": {
+              "const": "empty"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "fixture"
+          ],
+          "properties": {
+            "kind": {
+              "const": "exact-fixture"
+            },
+            "fixture": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "contains"
+          ],
+          "properties": {
+            "kind": {
+              "const": "contains"
+            },
+            "contains": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "schema"
+          ],
+          "properties": {
+            "kind": {
+              "const": "json"
+            },
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "eventTypes",
+            "terminalType"
+          ],
+          "properties": {
+            "kind": {
+              "const": "jsonl"
+            },
+            "eventTypes": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "terminalType": {
+              "enum": [
+                "runner.completed",
+                "runner.failed"
+              ]
+            }
+          }
+        }
       ]
     }
   }

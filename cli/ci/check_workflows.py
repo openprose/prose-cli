@@ -213,11 +213,20 @@ def audit_workflow(name: str, text: str) -> list[str]:
             )
             require(inputs["plan"]["required"] == "true", "reviewed plan is required")
             fetch = by_name["Fetch exact draft artifacts without executing them"]
+            sdk_custody = by_name["Verify retained production SDK source and sibling custody"]
+            require(sdk_custody.get("if") is None and sdk_custody.get("env") is None,
+                    "SDK custody must be unconditional and credential-free")
+            require(sdk_custody.get("run") ==
+                    'python3 cli/ci/publication.py verify --plan "$RELEASE_PLAN" --artifacts "$RUNNER_TEMP/prose-publication"',
+                    "SDK custody must verify reviewed fetched bytes")
+            require(not any(fragment in step.get("run", "") for step in steps
+                            for fragment in ("build_agents_sdk.py", "sign_macos.py", "package_local.py", "build_kernel_rc.py")),
+                    "publisher must not reconstruct reviewed candidates")
             publish = by_name[
                 "Verify required platform trust, sign artifact digests, and publish exact npm bytes"
             ]
             require(
-                steps.index(fetch) < steps.index(publish),
+                steps.index(fetch) < steps.index(sdk_custody) < steps.index(publish),
                 "fetch exact bytes before publication",
             )
             require(
@@ -271,6 +280,20 @@ def audit_workflow(name: str, text: str) -> list[str]:
                 )
             python = by_name["Prepare pinned Python on every architecture"]
             require("uv python install 3.10.20" in python["run"], "Python pin drift")
+            if name in ("cli-distribution-check.yml", "cli-kernel-rc.yml"):
+                sdk_prepare = by_name["Prepare the separately locked Agents SDK build interpreter"]
+                sdk_test = by_name["Test the actual pinned Agents SDK runtime without provider credentials"]
+                require(sdk_prepare.get("if") is None and sdk_test.get("if") is None,
+                        "locked SDK preparation and actual runtime tests must be unconditional")
+                require(sdk_prepare.get("run") ==
+                        'uv venv --python 3.10.20 --seed "$RUNNER_TEMP/agents-sdk-python"\n'
+                        '"$RUNNER_TEMP/agents-sdk-python/bin/python3" -m pip install --require-hashes --only-binary=:all: -r harnesses/agents-sdk/requirements-build.txt\n',
+                        "SDK must use a separate pinned hash-locked interpreter")
+                require(sdk_test.get("run") ==
+                        '"$RUNNER_TEMP/agents-sdk-python/bin/python3" -m unittest discover -s harnesses/agents-sdk -p test_run.py',
+                        "test actual SDK graph under pinned build Python")
+                require(steps.index(python) < steps.index(sdk_prepare) < steps.index(sdk_test),
+                        "prepare pinned SDK interpreter before runtime qualification")
             if name == "cli-ci.yml":
                 require(
                     "rustup target add x86_64-pc-windows-msvc --toolchain 1.87.0" in prepare["run"],
@@ -305,6 +328,31 @@ def audit_workflow(name: str, text: str) -> list[str]:
                 by_name[required_step]["run"] == command,
                 "required qualification command drift",
             )
+        if name == "cli-distribution-check.yml":
+            sdk_build = by_name["Build and verify production SDK standalone and npm installations"]
+            sdk_homebrew = by_name["Rehearse Homebrew against the production SDK archives"]
+            require(sdk_build.get("if") is None and sdk_homebrew.get("if") is None,
+                    "production SDK installations must be qualified unconditionally")
+            require(sdk_build.get("env") == {"RC_VERSION": "0.15.0-rc.1"}
+                    and sdk_build.get("run") ==
+                    'python3 cli/ci/build_kernel_rc.py --version "$RC_VERSION" --out "$RUNNER_TEMP/kernel-rc" --agents-sdk-python "$RUNNER_TEMP/agents-sdk-python/bin/python3"',
+                    "production SDK must use the native source-bound RC builder")
+            require(sdk_homebrew.get("env") == {"RC_VERSION": "0.15.0-rc.1", "EXPECTED_SOURCE": "${{ github.sha }}"}
+                    and sdk_homebrew.get("run") ==
+                    '"$RUNNER_TEMP/distribution-python/bin/python3" cli/ci/homebrew_rehearsal.py \\\n'
+                    '  --kernel-rc "$RUNNER_TEMP/kernel-rc" \\\n'
+                    '  --expected-source "$EXPECTED_SOURCE" --expected-version "$RC_VERSION" \\\n'
+                    '  --output "$RUNNER_TEMP/kernel-rc/homebrew"\n',
+                    "production Homebrew must bind current source and exact SDK archives")
+            retention = next(step for step in steps if step.get("uses", "").startswith("actions/upload-artifact@"))
+            retained = retention.get("with", {}).get("path", "").splitlines()
+            require(all("${{ runner.temp }}/kernel-rc/" + path in retained for path in
+                        ("agents-sdk", "package", "logs", "build-report.json", "homebrew")),
+                    "retain SDK trio, release manifest, native probes and Homebrew custody")
+            setup = next(step for step in steps if step.get("uses", "").startswith("Homebrew/actions/setup-homebrew@"))
+            require(steps.index(sdk_test) < steps.index(sdk_build) < steps.index(setup)
+                    < steps.index(sdk_homebrew) < steps.index(retention),
+                    "freeze/install SDK before exact archive Homebrew checks and retention")
         if name in ("cli-distribution-check.yml", "cli-kernel-rc.yml"):
             kernel_rc = name == "cli-kernel-rc.yml"
             label = ("Rehearse Homebrew against these exact release archives" if kernel_rc

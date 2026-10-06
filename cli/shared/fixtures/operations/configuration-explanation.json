@@ -11,7 +11,7 @@
   "userConfigPath": "/workspace/config/openprose/cli.toml",
   "values": {
     "harness": {
-      "value": "openprose",
+      "value": "agents-sdk",
       "source": {
         "kind": "default",
         "location": "built-in"
@@ -25,10 +25,10 @@
       }
     },
     "model": {
-      "value": null,
+      "value": "gpt-6.1-sol",
       "source": {
         "kind": "default",
-        "location": "built-in"
+        "location": "built-in:agents-sdk"
       }
     },
     "timeout": {
@@ -137,10 +137,10 @@
       }
     },
     "authProfile": {
-      "value": null,
+      "value": "openai-api-key",
       "source": {
         "kind": "default",
-        "location": "built-in"
+        "location": "built-in:agents-sdk"
       }
     }
   },
@@ -162,7 +162,7 @@
   "candidates": {
     "harness": [
       {
-        "value": "openprose",
+        "value": "agents-sdk",
         "source": {
           "kind": "default",
           "location": "built-in"
@@ -182,10 +182,10 @@
     ],
     "model": [
       {
-        "value": null,
+        "value": "gpt-6.1-sol",
         "source": {
           "kind": "default",
-          "location": "built-in"
+          "location": "built-in:agents-sdk"
         },
         "selected": true
       }
@@ -350,10 +350,10 @@
     ],
     "authProfile": [
       {
-        "value": null,
+        "value": "openai-api-key",
         "source": {
           "kind": "default",
-          "location": "built-in"
+          "location": "built-in:agents-sdk"
         },
         "selected": true
       }
@@ -361,11 +361,23 @@
   },
   "diagnostics": [],
   "runtime": {
-    "transport": "hosted",
+    "transport": "jsonl",
     "permissionMode": null,
-    "authProfile": null,
-    "billingOwner": "openprose",
-    "nativeLimits": null,
+    "authProfile": "openai-api-key",
+    "billingOwner": "user-provider",
+    "nativeLimits": {
+      "maxTurns": 20,
+      "timeoutSeconds": 180,
+      "toolTimeoutSeconds": 30,
+      "maxOutputTokens": 12000,
+      "maxAggregateRequests": 20,
+      "maxAggregateHostedWebCalls": 20,
+      "maxAggregateFunctionTools": 80,
+      "maxObservedTotalTokens": 500000,
+      "maxRequestInputBytes": 256000,
+      "maxChildren": 8,
+      "maxChildDepth": 1
+    },
     "nativeOutputLimits": null
   }
 }

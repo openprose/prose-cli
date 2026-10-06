@@ -250,9 +250,12 @@ requirements. They currently carry execution evidence for Ubuntu 22.04 only;
 other Linux environments remain unverified, and the npm launcher refuses a
 detected glibc below that floor before spawning the packaged executable.
 
-The default OpenProse-billed route remains unavailable and fails closed. The
-four BYO adapters execute only when explicitly selected and never silently
-change harness, wrapper-selected credential group, or billing owner. Harness-
+The local built-in selects the packaged Agents SDK and `gpt-6.1-sol`, using
+`OPENAI_API_KEY` from the process environment. A complete installation needs
+no separately provisioned Python or PATH helper. Other harnesses remain
+explicit alternatives, saved in `~/.prose/cli.toml` or selected for one command.
+The explicitly selected OpenProse-billed local route remains unavailable and
+fails closed. No adapter silently changes harness, credential group or billing owner. Harness-
 internal account/provider routing remains harness-managed. See
 [`protocol/STATUS.md`](protocol/STATUS.md) for the evidence and open gates.
 

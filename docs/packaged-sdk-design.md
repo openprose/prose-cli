@@ -26,3 +26,74 @@ IMP-097 owns canonical discovery, migration, explicit override editing, exact-co
 The generic Python harness transports opaque instructions/tasks, offers bounded public search/retrieval, local tools and fresh child contexts without interpreting contracts. Shared aggregate bounds cover parent and child model calls, tools, usage and cancellation. Environment filtering is not filesystem isolation; permissions and effective authority must be explicit and tested. Configure API client retries as zero for qualification, so callers own retry allocation.
 
 The workspace assignment allocates $50 total and twelve top-level attempts, one at a time, including children/evaluators/failures. Freeze a matrix and conservative reservation before live calls; unknown terminal accounting retains reservation. No merge or publication is authorized. Release readiness requires independent Rust/Bun/shared/installed-route and live artifact evidence, not process completion alone.
+
+## Frozen production interface (October 6, 2026)
+
+The production built-in is `agents-sdk`, model `gpt-6.1-sol`, authentication
+`openai-api-key`, JSONL transport and `user-provider` billing. Preserve explicit
+alternative harness bundles under IMP-097 precedence. SDK permissions are host
+OS permissions, with no filesystem or network sandbox; no selected permission
+flag may imply enforcement the helper does not implement.
+
+Resolve `prose-agents-sdk` beside the canonical CLI executable, following the
+CLI's symlink to the installed payload before selecting its sibling. The helper
+must be a regular executable; reject a sibling helper symlink. Relocating
+both regular executables together preserves discovery. Never search PATH as a
+production fallback or accidentally pair a CLI with another installation's
+helper. Existing explicit developer/test seams remain separate from production.
+Repair a missing/incompatible sibling by reinstalling the CLI through its current
+installation route. Missing or blank `OPENAI_API_KEY` fails with
+`HARNESS_NEEDS_AUTH`, actionable setup guidance, no inference and no credential,
+model or harness fallback. Explanation remains pure even without either key or
+helper; it resolves static configuration and never probes executable/credentials.
+
+Every production SDK report emits all eleven `nativeLimits` fields frozen in
+`cli/shared/fixtures/adapters/sdk-production.json`. `maxAggregateRequests` and
+`maxAggregateHostedWebCalls` equal resolved `maxTurns`; fixed defaults are 80
+function tools, 500000 observed total tokens, 256000 serialized request input
+bytes, eight children and one child depth. The observed token limit stops the
+next request, not an in-flight response. Historical four-field records remain
+valid; partial mixtures of the old and expanded limits are invalid.
+
+Optional `usageObservation` and `modelIdentity` appear at the normalized result
+root and under `runner-error.details` on failure. `modelIdentity.serviceTier`
+records requested `default` and an allowlisted observed tier array. Never promote
+these observations into authoritative `usage`: SDK usage stays
+`{status:"unavailable"}` because incomplete/cancelled provider work and currency
+remain unknown. Preserve observations already received on failure or cancellation without
+inventing zeros for absent token counters. If stdio has already closed before an
+observation arrives, retain unknown usage rather than infer provider completion.
+The helper includes current usage on existing start/tool_call/tool_result events;
+this does not add event types or make total run usage known. Provider IDs, exception bodies and raw unknown
+fields are never retained.
+
+The ten usage-observation fields and six flattened token counters are closed by
+`sdk-observation.schema.json`. Counts are nonnegative safe integers;
+`outstandingProviderRequestCount` is always null and `totalRunUsageKnown` always
+false. Retain a usage group only when its mandatory counters/constants are valid;
+drop unknown properties and unknown/invalid token-counter entries. No invalid
+mandatory counter may be replaced with a zero. Requested model identity comes
+from the resolved invocation, rather than trusting an arbitrary event's request
+string. Observed models are unique sorted ASCII public identifiers, at most 128
+characters and 128 identities; unsupported values are dropped. Omit the whole model group when `observed` is not an array, `serviceTier` is absent
+or not an object, its `observed` is not an array, or its `requested` is not
+`default`. Valid empty observed arrays retain honest unknown identity/tier state.
+Within a structurally valid group, observed tiers are unique sorted members of
+the frozen enum; unsupported entries are dropped.
+Absent groups stay absent. Result/error observations must be bounded and must
+never forward raw usage, provider request IDs or unrecognized values.
+
+For `harness use`, parse file, environment and flag layers before validating the
+explicit selection target, then perform contextual model/auth semantic checks.
+Malformed configuration files retain `CONFIG_INVALID` precedence. Missing required
+explicit Prime/OMP selection options yield `INVOCATION_INVALID` before an ambient
+old route can fail against the SDK default. This ordering does not suppress layers
+or skip parsing their contents.
+
+Recipe platform support covers the existing four native release payloads. Archive
+IDs remain `linux-arm64` and `linux-x64`; runtime admission uses
+`linux-arm64-gnu` and `linux-x64-gnu`, requiring GLIBC 2.34 or newer. Musl and bare
+unspecified Linux platform identities are not admitted. This
+frozen contract is acceptance intent; it does not itself establish native build,
+installed-route, live fulfillment or release qualification. The shared black-box
+cases and independent product controls must prove each behavior before release.

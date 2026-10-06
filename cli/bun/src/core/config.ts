@@ -20,6 +20,8 @@ export interface ConfigDependencies {
   platform?: NodeJS.Platform;
   homeDir?: string;
   targetArgv?: string[];
+  /** Pure target-bundle validation after source parsing, before execution-route checks. */
+  validateSelection?: () => void;
 }
 
 type ConfigKey = keyof EffectiveValues;
@@ -92,7 +94,7 @@ export function timeoutMs(value: string): number | string {
 }
 
 const defaults: EffectiveValues = {
-  harness: "openprose",
+  harness: "agents-sdk",
   transport: "auto",
   model: null,
   timeout: "10m",
@@ -119,7 +121,12 @@ export async function resolveConfiguration(
   dependencies: ConfigDependencies,
 ): Promise<EffectiveConfiguration> {
   try {return await resolveConfigured(flags,dependencies);}
-  catch(caught) {throw earlyConfigurationFailure(caught,dependencies);}
+  catch(caught) {if(caught instanceof SelectionValidationFailure)throw caught.original;throw earlyConfigurationFailure(caught,dependencies);}
+}
+
+/** Selection errors contain only the independently validated target, never unresolved source values. */
+class SelectionValidationFailure extends Error {
+  constructor(readonly original:unknown){super("Target harness selection is invalid.");}
 }
 
 function earlyConfigurationFailure(caught:unknown,dependencies:ConfigDependencies):unknown {
@@ -207,6 +214,7 @@ async function resolveConfigured(flags: GlobalFlags,dependencies: ConfigDependen
     if (projectConfigPath !== null) overlay(await readConfig(projectConfigPath),"project-config",2);
     overlay(parseEnvironment(dependencies.env),"environment",3);
     overlay(parseFlags(flags),"flag",4);
+    try {dependencies.validateSelection?.();}catch(caught){throw new SelectionValidationFailure(caught);}
     candidates.authProfile=candidates.authProfile!.filter(candidate=>{
       if(candidate.selected || candidate.value===null)return true;
       const owner=candidateHarnesses.get(candidate);

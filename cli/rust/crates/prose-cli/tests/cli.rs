@@ -1,6 +1,6 @@
 #[cfg(feature = "test-seams")]
 use prose_runner_core::image::sha256_hex;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 #[cfg(any(feature = "test-seams", not(debug_assertions)))]
 use std::ffi::OsString;
 use std::fmt::Write as _;
@@ -65,8 +65,8 @@ impl PublishedFixtureCleanup {
 
     fn cleanup_published_group(&self) {
         use rustix::process::{
-            getpgid, getpgrp, kill_process_group, test_kill_process, test_kill_process_group,
-            Signal,
+            Signal, getpgid, getpgrp, kill_process_group, test_kill_process,
+            test_kill_process_group,
         };
 
         let Some(observed) = validated_fixture_identities(&self.identities_path) else {
@@ -428,6 +428,7 @@ fn assert_release_mock_rpc_is_rejected(binary: &Path, root: &Path) {
     }
 }
 
+#[cfg(feature = "test-seams")]
 fn fake_harness() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../../conformance/fake-harness/fake_harness.py")
@@ -554,7 +555,7 @@ os._exit(0)
 
 #[cfg(unix)]
 fn kill_escaped_identity(identity: &Path) {
-    use rustix::process::{kill_process, Pid, Signal};
+    use rustix::process::{Pid, Signal, kill_process};
 
     let Ok(bytes) = fs::read(identity) else {
         return;
@@ -1192,7 +1193,7 @@ fn operation_fixture(name: &str) -> Value {
 
 fn harness_supported(harness: &str) -> bool {
     use prose_runner_core::installed_adapters::{
-        assert_platform_supported, for_harness, HostPlatform,
+        HostPlatform, assert_platform_supported, for_harness,
     };
     assert_platform_supported(for_harness(harness).unwrap(), HostPlatform::current()).is_ok()
 }
@@ -1296,10 +1297,12 @@ fn account_verb_help_prints_its_manifest_topic_and_starts_nothing() {
         }
     }
     // Help persisted nothing.
-    assert!(fs::read_dir(temp.path().join("home").join("xdg"))
-        .unwrap()
-        .next()
-        .is_none());
+    assert!(
+        fs::read_dir(temp.path().join("home").join("xdg"))
+            .unwrap()
+            .next()
+            .is_none()
+    );
 }
 
 #[test]
@@ -1370,11 +1373,18 @@ fn prime_cleanup_uses_the_invoked_binary_and_never_an_ambient_path_prose() {
 }
 
 #[test]
-fn default_is_openprose_billed_and_never_falls_back() {
+fn explicitly_selected_openprose_billed_and_never_falls_back() {
     let temp = TempDir::new().unwrap();
     let output = prose(
         temp.path(),
-        &["--output", "json", "run", "fixture.prose.md"],
+        &[
+            "--harness",
+            "openprose",
+            "--output",
+            "json",
+            "run",
+            "fixture.prose.md",
+        ],
     );
     assert_eq!(output.status.code(), Some(10));
     let result = json_stdout(&output);
@@ -1561,6 +1571,8 @@ fn doctor_rejects_an_installed_transport_before_inventory_or_version_probes() {
 fn hosted_transport_mismatch_precedes_availability_for_doctor_and_run() {
     for args in [
         vec![
+            "--harness",
+            "openprose",
             "--transport",
             "unsupported",
             "--output",
@@ -1569,6 +1581,8 @@ fn hosted_transport_mismatch_precedes_availability_for_doctor_and_run() {
             "doctor",
         ],
         vec![
+            "--harness",
+            "openprose",
             "--transport",
             "unsupported",
             "--output",
@@ -1634,9 +1648,11 @@ fn output_parse_errors_retain_only_an_earlier_recognized_machine_channel() {
     let human_output = prose(temp.path(), &["--output=invalid", "cli", "doctor"]);
     assert_eq!(human_output.status.code(), Some(2));
     assert!(human_output.stdout.is_empty());
-    assert!(String::from_utf8(human_output.stderr)
-        .unwrap()
-        .contains("INVOCATION_INVALID at invocation"));
+    assert!(
+        String::from_utf8(human_output.stderr)
+            .unwrap()
+            .contains("INVOCATION_INVALID at invocation")
+    );
 
     let opaque = prose(
         temp.path(),
@@ -1879,8 +1895,8 @@ fn provider_free_installed_adapters_preserve_bytes_and_settle_the_echo_placehold
 
 #[cfg(all(feature = "test-seams", unix))]
 #[test]
-fn private_file_cleanup_failure_dominates_installed_success_and_child_failure_without_leaking_authority(
-) {
+fn private_file_cleanup_failure_dominates_installed_success_and_child_failure_without_leaking_authority()
+ {
     use std::os::unix::fs::PermissionsExt as _;
 
     for (harness, transport, adapter_id) in [
@@ -2289,9 +2305,11 @@ fn prime_parser_failures_expose_only_the_closed_framing_diagnostic() {
         );
         assert!(!serialized.contains("candidateSecret"), "{fault}");
         assert!(result["error"]["details"].get("reason").is_none());
-        assert!(result["error"]["details"]
-            .get("admittedRecordCount")
-            .is_none());
+        assert!(
+            result["error"]["details"]
+                .get("admittedRecordCount")
+                .is_none()
+        );
     }
 }
 
@@ -2396,10 +2414,12 @@ fn omp_runtime_prerequisite_blocks_before_omp_auth_and_never_falls_through_path(
         assert!(!rendered_error.contains(forbidden));
     }
     assert_eq!(fs::read_to_string(&bun_observation).unwrap(), "");
-    assert!(!temp
-        .path()
-        .join("omp-version-probe-observation.json")
-        .exists());
+    assert!(
+        !temp
+            .path()
+            .join("omp-version-probe-observation.json")
+            .exists()
+    );
 
     let mut doctor = base.to_vec();
     doctor.extend(["--output", "json", "cli", "doctor"]);
@@ -2433,10 +2453,12 @@ fn omp_runtime_prerequisite_blocks_before_omp_auth_and_never_falls_through_path(
         assert!(text.contains(line), "missing {line:?}: {text}");
     }
     assert!(!text.contains(temp.path().to_str().unwrap()));
-    assert!(!temp
-        .path()
-        .join("omp-version-probe-observation.json")
-        .exists());
+    assert!(
+        !temp
+            .path()
+            .join("omp-version-probe-observation.json")
+            .exists()
+    );
 
     fs::remove_file(path[1].join("bun")).unwrap();
     let output = prose_with_live_adapter_path(
@@ -2455,10 +2477,11 @@ fn omp_runtime_prerequisite_blocks_before_omp_auth_and_never_falls_through_path(
     assert_eq!(omp["availability"], "available");
     assert_eq!(omp["detectedVersion"], "omp/18.0.9");
     assert_eq!(omp["runtimePrerequisites"][0]["detectedVersion"], "1.3.14");
-    assert!(temp
-        .path()
-        .join("omp-version-probe-observation.json")
-        .exists());
+    assert!(
+        temp.path()
+            .join("omp-version-probe-observation.json")
+            .exists()
+    );
 }
 
 #[cfg(unix)]
@@ -2763,8 +2786,7 @@ fn successful_wrong_stream_versions_report_exact_safe_repair_details() {
             executable_name: "prime-agent",
             version: "prime-agent 0.7.0",
             admitted: json!(["0.7.0", "0.8.1"]),
-            repair:
-                "curl -fsSL https://app.primeintellect.ai/prime-agent/install.sh | sh -s -- 0.8.1",
+            repair: "curl -fsSL https://app.primeintellect.ai/prime-agent/install.sh | sh -s -- 0.8.1",
             auth_profile: Some("prime-harness-login"),
         },
         WrongStreamVersionCase {
@@ -2845,9 +2867,11 @@ fn prime_and_omp_harness_login_routes_require_explicit_profiles_and_qualified_mo
         let report = json_stdout(&missing_profile);
         assert_eq!(report["problems"][0]["code"], "CONFIG_INVALID");
         assert_eq!(report["problems"][0]["details"]["adapterId"], adapter_id);
-        assert!(serde_json::to_string(&report)
-            .unwrap()
-            .contains(auth_profile));
+        assert!(
+            serde_json::to_string(&report)
+                .unwrap()
+                .contains(auth_profile)
+        );
 
         for invalid in [
             "unqualified",
@@ -2882,9 +2906,11 @@ fn prime_and_omp_harness_login_routes_require_explicit_profiles_and_qualified_mo
             let report = json_stdout(&output);
             assert_eq!(report["code"], "CONFIG_INVALID");
             assert_eq!(report["boundary"], "configuration");
-            assert!(serde_json::to_string(&report)
-                .unwrap()
-                .contains("provider/model"));
+            assert!(
+                serde_json::to_string(&report)
+                    .unwrap()
+                    .contains("provider/model")
+            );
         }
     }
 }
@@ -3329,9 +3355,11 @@ fn fake_process_protocol_failures_and_stderr_keep_stream_contracts() {
     assert_eq!(result["terminal"]["exitCode"], 17);
     assert_eq!(result["terminal"]["signal"], Value::Null);
     assert_eq!(result["semantic"]["status"], "unknown");
-    assert!(result["semantic"]["terminalEnvelopeDigestSha256"]
-        .as_str()
-        .is_some());
+    assert!(
+        result["semantic"]["terminalEnvelopeDigestSha256"]
+            .as_str()
+            .is_some()
+    );
     assert_eq!(
         result["error"]["details"],
         json!({
@@ -3501,7 +3529,7 @@ fn fake_process_cancellation_reports_native_signal_and_cleans_descendants() {
 #[cfg(all(feature = "test-seams", unix))]
 #[test]
 fn actual_sigint_emits_one_cancelled_terminal_and_cleans_controlled_in_group_descendants() {
-    use rustix::process::{kill_process, test_kill_process, Pid, Signal};
+    use rustix::process::{Pid, Signal, kill_process, test_kill_process};
 
     for output_mode in ["json", "jsonl"] {
         let temp = TempDir::new().unwrap();
@@ -3913,7 +3941,7 @@ fn harness_use_persists_an_explicit_prime_bundle_from_suffix_or_prefix_without_s
     let path = home.join(".prose/cli.toml");
     assert_eq!(
         fs::read_to_string(&path).unwrap(),
-        "harness = \"prime\"\nmodel = \"openai/gpt-5.4\"\nauth_profile = \"prime-harness-login\"\n"
+        "auth_profile = \"prime-harness-login\"\nharness = \"prime\"\nmodel = \"openai/gpt-5.4\"\n"
     );
     assert!(!observation.exists());
 
@@ -4002,7 +4030,9 @@ fn missing_prime_selection_options_have_exact_human_invocation_repair() {
     assert_eq!(output.status.code(), Some(2));
     assert!(output.stdout.is_empty());
     let stderr = String::from_utf8(output.stderr).unwrap();
-    assert!(stderr.starts_with("INVOCATION_INVALID at invocation: Runner invocation is invalid.\n"));
+    assert!(
+        stderr.starts_with("INVOCATION_INVALID at invocation: Runner invocation is invalid.\n")
+    );
     assert!(stderr.contains(
         "Detail: Prime and OMP selection requires explicit CLI --model and --auth-profile options; inherited configuration does not select a credential route.\n"
     ));
@@ -4106,7 +4136,7 @@ fn codex_claude_and_openprose_switches_clear_stale_bundle_values() {
     assert!(codex.status.success());
     assert_eq!(
         fs::read_to_string(&path).unwrap(),
-        "timeout = \"30s\"\nharness = \"codex\"\nmodel = \"gpt-5.4\"\nauth_profile = \"cached-chatgpt-login\"\n"
+        "timeout = \"30s\"\nauth_profile = \"cached-chatgpt-login\"\nharness = \"codex\"\nmodel = \"gpt-5.4\"\n"
     );
 
     let openprose = prose(
@@ -4270,21 +4300,31 @@ fn dry_run_is_machine_readable_and_starts_no_run() {
         assert_eq!(report["configuration"][0]["redacted"], false);
         assert_eq!(report["configuration"][8]["redacted"], false);
         assert_eq!(report["configuration"][8]["value"], Value::Null);
-        assert!(report["configuration"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .take(8)
-            .all(|entry| entry["redacted"] == false));
+        assert!(
+            report["configuration"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .take(8)
+                .all(|entry| entry["redacted"] == false)
+        );
     }
 }
 
 #[test]
-fn default_dry_run_identifies_the_hosted_adapter_without_fallback() {
+fn explicit_hosted_dry_run_identifies_the_hosted_adapter_without_fallback() {
     let temp = TempDir::new().unwrap();
     let output = prose(
         temp.path(),
-        &["--dry-run", "--output", "json", "write", "fixture.prose.md"],
+        &[
+            "--harness",
+            "openprose",
+            "--dry-run",
+            "--output",
+            "json",
+            "write",
+            "fixture.prose.md",
+        ],
     );
     assert_eq!(output.status.code(), Some(10));
     let report = json_stdout(&output);
@@ -4761,8 +4801,15 @@ fn runner_diagnostics_and_identity_stay_local() {
     assert_eq!(doctor.status.code(), Some(10));
     let doctor_report = json_stdout(&doctor);
     assert_eq!(doctor_report["schema"], "openprose.doctor-report/1");
-    assert_eq!(doctor_report["selectedHarness"], "openprose");
+    assert_eq!(doctor_report["selectedHarness"], "agents-sdk");
     assert_eq!(doctor_report["ready"], false);
+    assert_eq!(doctor_report["selectedAdapterId"], "agents-sdk/jsonl");
+    assert_eq!(doctor_report["billingOwner"], "user-provider");
+    assert_eq!(doctor_report["problems"][0]["code"], "HARNESS_UNAVAILABLE");
+    assert_eq!(
+        doctor_report["problems"][0]["details"]["fallbackAttempted"],
+        false
+    );
 
     let list = prose(temp.path(), &["cli", "harness", "list", "--json"]);
     assert!(list.status.success());
@@ -4874,6 +4921,7 @@ fn harness_list_matches_the_closed_ordered_inventory() {
     assert!(output.status.success());
     let mut expected = operation_fixture("harnesses");
     expected["harnesses"] = expected_harness_inventory();
+    expected["selected"] = json!("agents-sdk");
     assert_eq!(json_stdout(&output), expected);
 }
 
@@ -4884,9 +4932,15 @@ fn human_harness_list_marks_the_default_and_gives_ordered_next_actions() {
     assert!(output.status.success());
     assert!(output.stderr.is_empty());
     let stdout = String::from_utf8(output.stdout).unwrap();
-    assert!(
-        stdout.contains("* openprose availability=not-implemented transport=hosted (selected)\n")
-    );
+    assert!(stdout.contains("  openprose availability=not-implemented transport=hosted\n"));
+    let sdk_availability = if harness_supported("agents-sdk") {
+        "missing"
+    } else {
+        "incompatible"
+    };
+    assert!(stdout.contains(&format!(
+        "* agents-sdk availability={sdk_availability} transport=jsonl (selected)\n"
+    )));
     for (harness, transport) in [
         ("prime", "rpc"),
         ("omp", "rpc"),
@@ -4992,7 +5046,7 @@ fn assert_guarded_model_choice(
     assert_eq!(
         fs::read_to_string(valid_root.join("home/.prose/cli.toml")).unwrap(),
         format!(
-            "harness = \"{harness}\"\nmodel = \"openai/gpt-5.4\"\nauth_profile = \"{auth_profile}\"\n"
+            "auth_profile = \"{auth_profile}\"\nharness = \"{harness}\"\nmodel = \"openai/gpt-5.4\"\n"
         )
     );
 }
@@ -5033,11 +5087,13 @@ fn exact_runner_inventory_guidance_never_resolves_a_hostile_path_prose() {
     for line in stdout.lines().filter(|line| line.starts_with("Choose ")) {
         let (_, command) = line.rsplit_once(": ").expect("choice has a command");
         assert!(!command.contains(['<', '>', '|']));
-        assert!(Command::new("/bin/sh")
-            .args(["-n", "-c", command])
-            .status()
-            .unwrap()
-            .success());
+        assert!(
+            Command::new("/bin/sh")
+                .args(["-n", "-c", command])
+                .status()
+                .unwrap()
+                .success()
+        );
     }
     for (label, harness, profile) in [
         ("Prime", "prime", "prime-harness-login"),
@@ -5077,11 +5133,24 @@ fn human_harness_list_includes_a_safely_detected_compatible_version() {
 #[test]
 fn doctor_matches_the_closed_full_report_and_selected_problem_exit() {
     let temp = TempDir::new().unwrap();
-    let output = prose(temp.path(), &["--output", "json", "cli", "doctor"]);
+    let output = prose(
+        temp.path(),
+        &[
+            "--harness",
+            "openprose",
+            "--output",
+            "json",
+            "cli",
+            "doctor",
+        ],
+    );
     assert_eq!(output.status.code(), Some(10));
     let mut expected = operation_fixture("doctor");
     expected["cwd"] = Value::String(fs::canonicalize(temp.path()).unwrap().display().to_string());
-    expected["configuration"] = expected_configuration(temp.path());
+    let configuration_paths = expected_configuration(temp.path());
+    for field in ["cwd", "userConfigPath", "locations"] {
+        expected["configuration"][field] = configuration_paths[field].clone();
+    }
     expected["runner"] = json!({
         "name": "rust",
         "version": env!("CARGO_PKG_VERSION"),
@@ -5424,7 +5493,10 @@ fn dev_endpoint_builds_name_the_invoked_executable_in_copyable_commands() {
 #[test]
 fn human_failures_keep_result_stdout_clean() {
     let temp = TempDir::new().unwrap();
-    let output = prose(temp.path(), &["run", "fixture.prose.md"]);
+    let output = prose(
+        temp.path(),
+        &["--harness", "openprose", "run", "fixture.prose.md"],
+    );
     assert_eq!(output.status.code(), Some(10));
     assert!(output.stdout.is_empty());
     let diagnostic = String::from_utf8(output.stderr).unwrap();
@@ -5552,7 +5624,7 @@ fn human_doctor_confines_a_hostile_diagnostic_to_one_physical_detail_line() {
     let rendered = String::from_utf8(human.stderr).unwrap();
     assert!(rendered.contains(&format!(
         "Detail: {}\n",
-        expected_human_safe_scalar(&expected_reason)
+        expected_human_safe_scalar(expected_reason)
     )));
     assert_eq!(
         rendered

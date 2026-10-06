@@ -50,6 +50,7 @@ BUN_RUNTIME_FIXTURE = (
     b"raise SystemExit(64)\n"
 )
 INSTALLED_ADAPTER_EXECUTABLES = {
+    "agents-sdk/jsonl": "prose-agents-sdk",
     "codex/exec-json": "codex",
     "claude/print-stream-json": "claude",
     "prime/rpc": "prime-agent",
@@ -155,6 +156,7 @@ class Observation:
     stdout_truncated: bool = False
     stderr_truncated: bool = False
     configuration_before: dict[str, tuple[str, str]] | None = None
+    sdk_fixture: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -1621,6 +1623,107 @@ def isolate_workspace(workspace: Path) -> None:
         raise ValueError("mechanical workspace Git boundary must be a directory or file")
 
 
+def prepare_sdk_installation(product: Product, case: dict[str, Any], workspace: Path,
+                             environment_root: Path) -> tuple[Product, dict[str, Any], Path]:
+    """Exercise real sibling discovery using an exact native candidate byte copy."""
+    workspace = workspace.resolve()
+    environment_root = environment_root.resolve()
+    if product.interpreter is not None or product.execution_interpreter is not None:
+        raise ValueError("SDK installation cases require a native compiled candidate")
+    oracle = json.loads((CLI / 'shared/fixtures/adapters/sdk-production.json').read_text('utf-8'))
+    entries = [entry for entry in oracle['cases'] if entry['id'] == case['id']]
+    if len(entries) != 1:
+        raise ValueError("SDK installation case must reference its closed shared oracle")
+    fixture = entries[0]
+    control = case['controls']['installedAdapter']
+    if control.get('sdkScenario') != fixture['scenario'] or control.get('sdkInstallation') != fixture['installation']:
+        raise ValueError("SDK installation controls differ from the shared oracle")
+    install = environment_root / 'relocated installation' / 'real bin'
+    install.mkdir(parents=True, exist_ok=False)
+    source = product.execution_executable or product.executable
+    native = install / 'prose'
+    shutil.copyfile(source, native)
+    native.chmod(0o700)
+    helper = install / 'prose-agents-sdk'
+    shutil.copyfile(INSTALLED_ADAPTER_HARNESS, helper)
+    helper.chmod(0o700)
+    poison = environment_root / 'foreign-path'
+    poison.mkdir()
+    shutil.copyfile(INSTALLED_ADAPTER_HARNESS, poison / 'prose-agents-sdk')
+    (poison / 'prose-agents-sdk').chmod(0o700)
+    (poison / 'python3').symlink_to(Path(sys.executable).resolve())
+    if fixture['installation'] == 'symlink':
+        shim = environment_root / 'user bin'
+        shim.mkdir()
+        target = shim / 'prose'
+        target.symlink_to(native)
+    else:
+        target = native
+    if fixture['userConfig'] is not None:
+        user = workspace / 'home/.prose/cli.toml'
+        user.parent.mkdir(parents=True)
+        user.write_bytes(fixture['userConfig'].encode('utf-8'))
+    usage = deepcopy(oracle['observation']['failureUsage' if fixture['scenario']=='failure' else 'completedUsage'])
+    identity = deepcopy(oracle['observation']['modelIdentity'])
+    if fixture['scenario'] == 'tainted':
+        usage['unknown'] = 'sdk-unrecognized-secret-sentinel'
+        usage['observedTokenTotals'].update(unknown='sdk-unrecognized-secret-sentinel', **{'input_tokens_details.cached_tokens': -0.0, 'input_tokens_details.cache_write_tokens': -1, 'output_tokens_details.reasoning_tokens': True})
+        identity['requested'] = 'sdk-unrecognized-secret-sentinel'
+        identity['observed'].append('sdk-unrecognized-secret-sentinel\nunsafe')
+        identity['serviceTier']['requested'] = 'sdk-unrecognized-secret-sentinel'
+        identity['serviceTier']['observed'].append('sdk-unrecognized-secret-sentinel')
+    limits = {**oracle['nativeLimits'], **fixture.get('rawLimitsOverrides', {})}
+    setup = dict(scenario=fixture['scenario'],expectedHelper=str(helper.resolve()),model=oracle['defaults']['model'],limits=limits,usageObservation=usage,modelIdentity=identity,wireNumberLexemes=fixture.get('wireNumberLexemes', {}))
+    (workspace / '.sdk-compatibility-fixture.json').write_text(json.dumps(setup), encoding='utf-8')
+    execution = Product(product.name, product.executable, product.runner_name,
+                        execution_executable=target)
+    fixture = {**fixture, 'nativePath': str(native), 'nativeSha256': sha256(source.read_bytes())}
+    return execution, fixture, poison
+
+
+def validate_sdk_effects(observation: Observation) -> list[str]:
+    fixture = observation.sdk_fixture
+    if fixture is None:
+        return []
+    workspace = observation.workspace
+    failures = []
+    if workspace is None:
+        return ['SDK fixture lacks its isolated workspace']
+    try:
+        if sha256(Path(fixture['nativePath']).read_bytes()) != fixture['nativeSha256']:
+            failures.append('SDK relocated candidate bytes changed during execution')
+        if (workspace / '.sdk-wrong-helper-used').exists():
+            failures.append('SDK discovery used a foreign PATH helper')
+        if fixture['noProbe'] and (workspace / '.sdk-harness-probed').exists():
+            failures.append('Pure SDK configuration operation probed a helper')
+        if fixture['noStart'] and (workspace / '.sdk-harness-started').exists():
+            failures.append('SDK helper started for a provider-free setup/configuration failure')
+        if fixture['userConfig'] is not None and (workspace / 'home/.prose/cli.toml').read_bytes() != fixture['userConfig'].encode('utf-8'):
+            failures.append('SDK default upgrade changed an explicit alternative harness preference')
+    except OSError:
+        failures.append('SDK fixture effect bytes unavailable')
+    for group in fixture.get('absentObservationGroups', []):
+        parsed = observation.parsed
+        error = parsed.get('error') if isinstance(parsed, dict) else None
+        details = error.get('details') if isinstance(error, dict) else None
+        if isinstance(parsed, dict) and (group in parsed or (isinstance(details, dict) and group in details)):
+            failures.append('SDK malformed observation group was retained: ' + group)
+    for path in fixture.get('absentResultPaths', []):
+        current = observation.parsed
+        present = True
+        for key in path:
+            if not isinstance(current, dict) or key not in current:
+                present = False
+                break
+            current = current[key]
+        if present:
+            failures.append('SDK malformed result field was retained: $.' + '.'.join(path))
+    for sentinel in fixture['outputAbsent']:
+        if any(sentinel.encode('utf-8') in stream for stream in (observation.stdout, observation.stderr)):
+            failures.append('SDK output exposed a forbidden raw-observation sentinel')
+    return failures
+
+
 def execute(
     product: Product,
     case: dict[str, Any],
@@ -1649,6 +1752,8 @@ def execute(
     if fake is not None and installed_adapter is not None:
         raise ValueError("a case cannot select both fakeHarness and installedAdapter")
     observation_path: Path | None = None
+    execution_product = product
+    sdk_fixture = None
     if fake is not None:
         observation_path = environment_root / "fake-observation.json"
         descendant_path = environment_root / "descendants.json"
@@ -1666,7 +1771,11 @@ def execute(
             additions["OPENPROSE_CONFORMANCE_CANCEL_AFTER_MS"] = str(
                 fake["cancelAfterMs"]
             )
-    if installed_adapter is not None:
+    if installed_adapter is not None and installed_adapter["adapterId"] == "agents-sdk/jsonl":
+        execution_product, sdk_fixture, poison = prepare_sdk_installation(product, case, canonical_workspace, environment_root)
+        additions["PATH"] = str(poison)
+        observation_path = canonical_workspace / ".sdk-harness-started"
+    elif installed_adapter is not None:
         adapter_id = installed_adapter["adapterId"]
         executable_name = INSTALLED_ADAPTER_EXECUTABLES[adapter_id]
         harness_bin = environment_root / "installed-adapter-bin"
@@ -1696,7 +1805,7 @@ def execute(
     for name in case["controls"].get("omitEnvironment", []):
         environment.pop(name, None)
     completed = run_owned_process(
-        product.execution_argv(case["invocation"]["argv"]),
+        execution_product.execution_argv(case["invocation"]["argv"]),
         cwd=cwd,
         environment=environment,
         timeout_seconds=15,
@@ -1713,6 +1822,7 @@ def execute(
         stdout_truncated=completed.stdout_truncated,
         stderr_truncated=completed.stderr_truncated,
         configuration_before=configuration_before,
+        sdk_fixture=sdk_fixture,
     )
 
 
@@ -1986,7 +2096,10 @@ def validate_output(observation: Observation, contracts: ContractRegistry) -> li
                         f"exact JSON fixture {expected['resultFixture']}: {difference}"
                     )
         if "errorCode" in expected:
-            error_record = result.get("error")
+            error_record = (
+                result if result.get("schema") == "openprose.runner-error/1"
+                else result.get("error")
+            )
             if (
                 error_record is None
                 and result.get("schema") == "openprose.runner-dry-run-report/1"
@@ -2077,6 +2190,7 @@ def validate_output(observation: Observation, contracts: ContractRegistry) -> li
                 f"got {sha256(actual.encode('utf-8'))}"
             )
     failures.extend(validate_configuration_effects(observation))
+    failures.extend(validate_sdk_effects(observation))
     return failures
 
 

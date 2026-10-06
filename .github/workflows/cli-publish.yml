@@ -63,6 +63,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: python3 cli/ci/publication.py fetch --plan "$RELEASE_PLAN" --artifacts "$RUNNER_TEMP/prose-publication"
+      - name: Verify retained production SDK source and sibling custody
+        # The reviewed manifests bind the helper, build receipt and notices
+        # across standalone/npm payloads. Never rebuild fetched candidates.
+        run: python3 cli/ci/publication.py verify --plan "$RELEASE_PLAN" --artifacts "$RUNNER_TEMP/prose-publication"
       - name: Verify required platform trust, sign artifact digests, and publish exact npm bytes
         env:
           GH_TOKEN: ${{ github.token }}

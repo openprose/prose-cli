@@ -109,7 +109,122 @@ class RunnerUnitTest(unittest.TestCase):
         wanted = runner.expected_for_host(case, "linux", "aarch64")
         self.assertEqual("arm64", wanted["resultMatches"]["error"]["details"]["hostArchitecture"])
         self.assertTrue(runner.deep_subset({"terminal": {"classification": "success"}}, wanted["resultMatches"]))
-        self.assertEqual(76, len(list(runner.case_paths(7, set()))))
+        self.assertEqual(86, len(list(runner.case_paths(7, set()))))
+
+    def test_sdk_installation_fixture_executes_canonical_clone_and_keeps_helper_off_path(self):
+        for number in range(1,11):
+            case = json.loads((runner.CASES/'adapters'/f'sdk-production-{number:02}.json').read_text())
+            with self.subTest(case=case['id']), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                environment, workspace = runner.product_roots(root, 'fixture')
+                runner.isolate_workspace(workspace)
+                product = runner.Product('fixture', Path('/usr/bin/true'))
+                execution, fixture, poison = runner.prepare_sdk_installation(product,case,workspace,environment)
+                native = Path(fixture['nativePath'])
+                self.assertEqual(product.executable.read_bytes(), native.read_bytes())
+                argv = execution.execution_argv(case['invocation']['argv'])
+                self.assertEqual(Path(argv[0]).resolve(), native)
+                self.assertEqual(case['controls']['installedAdapter']['sdkInstallation']=='symlink', Path(argv[0]).is_symlink())
+                self.assertTrue((native.parent/'prose-agents-sdk').is_file())
+                self.assertNotEqual(native.parent,poison)
+                self.assertTrue((poison/'prose-agents-sdk').is_file())
+                observation = runner.Observation(product,case,0,b'',b'',workspace=workspace,sdk_fixture=fixture)
+                self.assertEqual([],runner.validate_sdk_effects(observation))
+                (workspace/'.sdk-wrong-helper-used').touch()
+                self.assertIn('SDK discovery used a foreign PATH helper',runner.validate_sdk_effects(observation))
+
+    def test_sdk_fixture_refuses_unfrozen_controls_and_interpreted_candidates(self):
+        case = json.loads((runner.CASES/'adapters/sdk-production-04.json').read_text())
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            with self.assertRaisesRegex(ValueError,'native compiled'):
+                runner.prepare_sdk_installation(runner.Product('fixture',Path('/usr/bin/true'),interpreter=Path(sys.executable)),case,root,root/'environment')
+            case['controls']['installedAdapter']['sdkScenario']='trap'
+            with self.assertRaisesRegex(ValueError,'differ from'):
+                runner.prepare_sdk_installation(runner.Product('fixture',Path('/usr/bin/true')),case,root,root/'environment')
+
+    def test_sdk_fake_wire_is_provider_free_and_reuses_frozen_observations(self):
+        oracle = json.loads((runner.CLI/'shared/fixtures/adapters/sdk-production.json').read_text())
+        for number in (4,5,6,9,10):
+            case = json.loads((runner.CASES/'adapters'/f'sdk-production-{number:02}.json').read_text())
+            with self.subTest(case=case['id']), tempfile.TemporaryDirectory() as temporary:
+                root=Path(temporary); environment,workspace=runner.product_roots(root,'fixture')
+                runner.isolate_workspace(workspace)
+                _,fixture,poison=runner.prepare_sdk_installation(runner.Product('fixture',Path('/usr/bin/true')),case,workspace,environment)
+                helper=Path(fixture['nativePath']).parent/'prose-agents-sdk'
+                image=workspace/'instructions';image.write_bytes(b'OPENPROSE_SENTINEL_IMAGE_V1')
+                argv=[sys.executable,str(helper),'--cwd',str(workspace),'--instructions',str(image),'--model','gpt-6.1-sol','--prompt',json.dumps({'argv':['prose','run','input.prose.md']})]
+                result=runner.run_owned_process(argv,cwd=workspace,environment=runner.hermetic_environment(environment,{'PATH':str(poison)}),timeout_seconds=3)
+                self.assertEqual(1 if number in (5,9,10) else 0,result.exit_code,result.stderr)
+                records=[json.loads(line) for line in result.stdout.splitlines()]
+                self.assertEqual('start',records[0]['type'])
+                self.assertEqual('error' if number in (5,9,10) else 'final',records[-1]['type'])
+                if number!=6:
+                    self.assertEqual(oracle['observation']['failureUsage' if number in (5,9,10) else 'completedUsage'],records[-1]['usageObservation'])
+                    self.assertEqual(oracle['observation']['modelIdentity'],records[-1]['modelIdentity'])
+                else:
+                    self.assertEqual('sdk-unrecognized-secret-sentinel',records[-1]['usageObservation']['unknown'])
+                if number == 5:
+                    self.assertIn(b'"maxTurns":20.0', result.stdout)
+                    self.assertIn(b'"maxOutputTokens":12000e0', result.stdout)
+                    self.assertIn(b'"maxChildren":8.0', result.stdout)
+                    self.assertIn(b'"maxChildDepth":1e0', result.stdout)
+                if number == 6:
+                    self.assertIn(b'"completedResponseCount":3e0', result.stdout)
+                    self.assertIn(b'"duplicateResponseCallbackCount":-0.0', result.stdout)
+                    self.assertIn(b'"input_tokens_details.cached_tokens":-0.0', result.stdout)
+                if number in (9,10):
+                    key = 'maxChildren' if number == 9 else 'maxChildDepth'
+                    self.assertEqual(9 if number == 9 else 2, records[-1]['limits'][key])
+                    other = 'maxChildDepth' if number == 9 else 'maxChildren'
+                    self.assertEqual(oracle['nativeLimits'][other], records[-1]['limits'][other])
+                self.assertTrue((workspace/'.sdk-harness-started').is_file())
+                if number not in (5,9,10):
+                    terminal=json.loads(records[-1]['output'])
+                    self.assertEqual('OPENPROSE_SENTINEL_TERMINAL_V1',terminal['marker'])
+
+    def test_sdk_malformed_groups_must_be_absent_without_relaxing_usage_checks(self):
+        case=json.loads((runner.CASES/'adapters/sdk-production-06.json').read_text())
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary);environment,workspace=runner.product_roots(root,'fixture');runner.isolate_workspace(workspace)
+            _,fixture,_=runner.prepare_sdk_installation(runner.Product('fixture',Path('/usr/bin/true')),case,workspace,environment)
+            observation=runner.Observation(runner.Product('fixture',Path('/usr/bin/true')),case,0,b'',b'',workspace=workspace,sdk_fixture=fixture)
+            for parsed in ({'modelIdentity':{}},{'error':{'details':{'modelIdentity':{}}}}):
+                observation.parsed=parsed
+                self.assertIn('SDK malformed observation group was retained: modelIdentity',runner.validate_sdk_effects(observation))
+            for parsed in ({'error':None},{'error':'malformed'},{}):
+                observation.parsed=parsed
+                self.assertEqual([],runner.validate_sdk_effects(observation))
+            observation.stdout=b'sdk-unrecognized-secret-sentinel'
+            self.assertEqual(['SDK output exposed a forbidden raw-observation sentinel'],runner.validate_sdk_effects(observation))
+
+    def test_sdk_invalid_child_limits_require_nested_absence_even_if_null(self):
+        for number in (9,10):
+            case=json.loads((runner.CASES/'adapters'/f'sdk-production-{number:02}.json').read_text())
+            with self.subTest(case=case['id']), tempfile.TemporaryDirectory() as temporary:
+                root=Path(temporary);environment,workspace=runner.product_roots(root,'fixture');runner.isolate_workspace(workspace)
+                _,fixture,_=runner.prepare_sdk_installation(runner.Product('fixture',Path('/usr/bin/true')),case,workspace,environment)
+                observation=runner.Observation(runner.Product('fixture',Path('/usr/bin/true')),case,22,b'',b'',workspace=workspace,sdk_fixture=fixture)
+                for retained in (None, {}, {'maxChildren':9}):
+                    observation.parsed={'error':{'details':{'nativeFailure':{'kind':'execution','limits':retained}}}}
+                    self.assertIn('SDK malformed result field was retained: $.error.details.nativeFailure.limits',runner.validate_sdk_effects(observation))
+                observation.parsed={'error':{'details':{'nativeFailure':{'kind':'execution'}}}}
+                self.assertEqual([],runner.validate_sdk_effects(observation))
+                self.assertEqual([],runner.deep_subset(observation.parsed,{'error':{'details':{'nativeFailure':{'kind':'execution'}}}}))
+                self.assertTrue(runner.deep_subset(observation.parsed,{'error':{'details':{'nativeFailure':{'kind':'timeout'}}}}))
+
+    def test_sdk_setup_errors_and_pure_operations_have_independent_marker_guards(self):
+        for number,marker,message in ((1,'.sdk-harness-probed','probed'),(2,'.sdk-harness-started','started'),(7,'.sdk-harness-started','started')):
+            case=json.loads((runner.CASES/'adapters'/f'sdk-production-{number:02}.json').read_text())
+            with self.subTest(case=case['id']), tempfile.TemporaryDirectory() as temporary:
+                root=Path(temporary);environment,workspace=runner.product_roots(root,'fixture');runner.isolate_workspace(workspace)
+                _,fixture,_=runner.prepare_sdk_installation(runner.Product('fixture',Path('/usr/bin/true')),case,workspace,environment)
+                observation=runner.Observation(runner.Product('fixture',Path('/usr/bin/true')),case,0,b'',b'',workspace=workspace,sdk_fixture=fixture)
+                self.assertEqual([],runner.validate_sdk_effects(observation))
+                (workspace/marker).touch()
+                self.assertTrue(any(message in failure for failure in runner.validate_sdk_effects(observation)))
+                Path(fixture['nativePath']).write_bytes(b'changed candidate')
+                self.assertIn('SDK relocated candidate bytes changed during execution',runner.validate_sdk_effects(observation))
 
     def test_configuration_corpus_prepares_each_product_independently_and_checks_effects(self):
         for identifier in runner.CONFIGURATION_CASE_IDS:
@@ -658,6 +773,34 @@ class RunnerUnitTest(unittest.TestCase):
             self.assertTrue(
                 any("exact JSON fixture" in failure for failure in failures)
             )
+
+    def test_bare_runner_error_checks_exact_code_and_action(self) -> None:
+        oracle = json.loads((runner.CLI / "shared/fixtures/adapters/sdk-production.json").read_text())
+        action = oracle["credentialAbsence"]["action"]
+        error = {
+            "schema": "openprose.runner-error/1", "code": "HARNESS_NEEDS_AUTH",
+            "boundary": "authentication", "exitCode": 10, "retryable": False,
+            "message": "The Agents SDK requires OPENAI_API_KEY.", "action": action,
+            "details": {"authProfile": "openai-api-key"},
+        }
+        observation = runner.Observation(
+            runner.Product("fixture", Path(sys.executable)),
+            {"expected": {
+                "exitCode": 10,
+                "stdout": {"kind": "json", "schema": "openprose.runner-error/1"},
+                "stderr": {"kind": "empty"},
+                "errorCode": "HARNESS_NEEDS_AUTH", "errorAction": action,
+            }}, 10, json.dumps(error).encode(), b"",
+        )
+        contracts = runner.ContractRegistry()
+        self.assertEqual([], runner.validate_output(observation, contracts))
+        error["code"] = "HARNESS_FAILED"
+        observation.stdout = json.dumps(error).encode()
+        self.assertTrue(any("HARNESS_NEEDS_AUTH" in failure for failure in runner.validate_output(observation, contracts)))
+        error["code"] = "HARNESS_NEEDS_AUTH"
+        error["action"] = "wrong"
+        observation.stdout = json.dumps(error).encode()
+        self.assertTrue(any(action in failure for failure in runner.validate_output(observation, contracts)))
 
     def test_dry_run_blocking_error_is_the_error_validation_surface(self) -> None:
         fixture = runner.load_exact_result_fixture(

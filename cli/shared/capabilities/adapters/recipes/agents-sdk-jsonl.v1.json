@@ -16,9 +16,12 @@
     "admittedVersions": [
       "0.1.0"
     ],
-    "repairCommand": "Install harnesses/agents-sdk requirements and expose prose-agents-sdk on PATH",
+    "repairCommand": "Reinstall or upgrade the CLI through its existing npm, standalone or Homebrew installation route to restore the packaged prose-agents-sdk sibling; do not provision Python or add a PATH harness.",
     "platforms": [
-      "darwin-arm64"
+      "darwin-arm64",
+      "darwin-x64",
+      "linux-arm64-gnu",
+      "linux-x64-gnu"
     ]
   },
   "probe": {
@@ -106,7 +109,6 @@
     "preserved": [
       "native-safety-prompt",
       "managed-policy",
-      "selected-permissions",
       "harness-auth"
     ]
   },

@@ -3,7 +3,14 @@
     "maxTurns": 20,
     "timeoutSeconds": 180,
     "toolTimeoutSeconds": 30,
-    "maxOutputTokens": 12000
+    "maxOutputTokens": 12000,
+    "maxAggregateRequests": 20,
+    "maxAggregateHostedWebCalls": 20,
+    "maxAggregateFunctionTools": 80,
+    "maxObservedTotalTokens": 500000,
+    "maxRequestInputBytes": 256000,
+    "maxChildren": 8,
+    "maxChildDepth": 1
   },
   "override": {
     "nativeMaxTurns": "40",
@@ -12,7 +19,14 @@
       "maxTurns": 40,
       "timeoutSeconds": 300,
       "toolTimeoutSeconds": 30,
-      "maxOutputTokens": 12000
+      "maxOutputTokens": 12000,
+      "maxAggregateRequests": 40,
+      "maxAggregateHostedWebCalls": 40,
+      "maxAggregateFunctionTools": 80,
+      "maxObservedTotalTokens": 500000,
+      "maxRequestInputBytes": 256000,
+      "maxChildren": 8,
+      "maxChildDepth": 1
     },
     "argv": [
       "--max-turns",
@@ -64,5 +78,11 @@
       "value": "1ms",
       "seconds": 0.001
     }
-  ]
+  ],
+  "historicalLimits": {
+    "maxTurns": 20,
+    "timeoutSeconds": 180,
+    "toolTimeoutSeconds": 30,
+    "maxOutputTokens": 12000
+  }
 }

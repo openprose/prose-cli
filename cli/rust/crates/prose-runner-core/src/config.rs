@@ -4,6 +4,7 @@ use serde::Serialize;
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
 use std::env;
+use std::fmt::Write as _;
 use std::fs;
 use std::fs::OpenOptions;
 use std::io::Write as _;
@@ -113,6 +114,10 @@ impl SystemContext {
     }
 
     /// Historical discovery is retained only as a visible migration candidate.
+    ///
+    /// # Errors
+    /// Returns `CONFIG_INVALID` for an explicit canonical root or an invalid
+    /// or absent historical configuration root.
     pub fn legacy_user_config_path(&self) -> Result<PathBuf, RunnerError> {
         if self.environment.contains_key("PROSE_CONFIG_DIR") {
             return Err(RunnerError::config(
@@ -289,14 +294,14 @@ pub fn write_user_harness(
         .ok_or_else(|| RunnerError::config("user configuration has no parent directory"))?;
     prepare_private_config_parent(parent)?;
     refuse_symlinked_config_destination(&path)?;
-    let source_path = if !path.exists() {
+    let source_path = if path.exists() {
+        &path
+    } else {
         config
             .legacy_user_config
             .as_ref()
             .filter(|legacy| legacy.is_file())
             .unwrap_or(&path)
-    } else {
-        &path
     };
     refuse_symlinked_config_destination(source_path)?;
     let existing_bytes = match fs::read(source_path) {
@@ -375,7 +380,7 @@ pub fn write_user_harness(
     }
     for key in ["auth_profile", "harness", "model"] {
         if let Some(value) = table.get(key) {
-            retained.push_str(&format!("{key} = {value}\n"));
+            writeln!(retained, "{key} = {value}").expect("writing to String cannot fail");
         }
     }
     let loaded = parse_file(&retained, &path)?;
@@ -671,7 +676,7 @@ impl EffectiveConfig {
             project_config,
             user_config,
             harness: Sourced {
-                value: "openprose".to_owned(),
+                value: "agents-sdk".to_owned(),
                 source: ConfigSource::default(),
             },
             transport: Sourced {
@@ -1034,7 +1039,29 @@ pub fn resolve_config(
     flags: &GlobalFlags,
     system: &SystemContext,
 ) -> Result<EffectiveConfig, RunnerError> {
-    resolve_config_inner(flags, system).map_err(|error| {
+    resolve_config_with_selection_validation(flags, system, || Ok(()))
+}
+
+/// Parse all configuration sources before validating an explicit saved selection.
+/// Ambient harness semantics are checked after this pure validation stage.
+///
+/// # Errors
+/// Returns configuration parse/semantic failures or the selection validator's error.
+pub fn resolve_config_with_selection_validation(
+    flags: &GlobalFlags,
+    system: &SystemContext,
+    validate_selection: impl FnOnce() -> Result<(), RunnerError>,
+) -> Result<EffectiveConfig, RunnerError> {
+    let selection_failed = std::cell::Cell::new(false);
+    resolve_config_inner(flags, system, || {
+        let result = validate_selection();
+        selection_failed.set(result.is_err());
+        result
+    })
+    .map_err(|error| {
+        if selection_failed.get() {
+            return error;
+        }
         if error
             .details
             .as_deref()
@@ -1056,6 +1083,7 @@ pub fn resolve_config(
 fn resolve_config_inner(
     flags: &GlobalFlags,
     system: &SystemContext,
+    validate_selection: impl FnOnce() -> Result<(), RunnerError>,
 ) -> Result<EffectiveConfig, RunnerError> {
     let requested_cwd = flags.cwd.as_ref().map_or_else(
         || system.current_dir.clone(),
@@ -1122,7 +1150,7 @@ fn resolve_config_inner(
         project_config.clone(),
         Some(user_config_candidate.clone()),
     );
-    config.legacy_user_config = legacy.clone();
+    config.legacy_user_config.clone_from(&legacy);
     if legacy_result.is_err()
         && !system.environment.contains_key("PROSE_CONFIG_DIR")
         && system.xdg_config_home.is_some()
@@ -1163,10 +1191,12 @@ fn resolve_config_inner(
                             })
                             .collect();
                         if !differing.is_empty() {
-                            reason.push_str(&format!(
+                            write!(
+                                reason,
                                 " Differing explicit keys: {}.",
                                 differing.join(", ")
-                            ));
+                            )
+                            .expect("writing to String cannot fail");
                         }
                     }
                     Err(_) => reason.push_str(" Ignored legacy configuration is invalid."),
@@ -1210,6 +1240,7 @@ fn resolve_config_inner(
     record_candidates(&mut config);
     apply_flags(&mut config, flags).map_err(|error| explanation_error(error, &config))?;
     record_candidates(&mut config);
+    validate_selection()?;
     contextual_defaults(&mut config).map_err(|error| explanation_error(error, &config))?;
     native_checks(&mut config).map_err(|error| explanation_error(error, &config))?;
     sanitize_overridden_profiles(&mut config);
@@ -1447,9 +1478,7 @@ fn contextual_defaults(config: &mut EffectiveConfig) -> Result<(), RunnerError> 
 }
 
 fn resolved_runtime(config: &EffectiveConfig) -> Value {
-    let transport = if config.transport.value != "auto" {
-        config.transport.value.as_str()
-    } else {
+    let transport = if config.transport.value == "auto" {
         crate::installed_adapters::for_harness(&config.harness.value).map_or_else(
             || {
                 if config.harness.value == "openprose" {
@@ -1460,6 +1489,8 @@ fn resolved_runtime(config: &EffectiveConfig) -> Value {
             },
             crate::installed_adapters::InstalledAdapter::transport,
         )
+    } else {
+        config.transport.value.as_str()
     };
     json!({"transport":transport,"permissionMode":config.permission_mode.value,
         "authProfile":config.auth_profile.value,"billingOwner":match config.harness.value.as_str() {"openprose" => "openprose", "mock" => "test-fixture", _ => "user-provider"},
@@ -2419,7 +2450,7 @@ mod tests {
             &context(&child, &parent.join("home")),
         )
         .unwrap();
-        assert_eq!(config.harness.value, "openprose");
+        assert_eq!(config.harness.value, "agents-sdk");
     }
 
     #[test]
@@ -2432,7 +2463,7 @@ mod tests {
                 home_dir: Some(absolute_home.clone()),
                 xdg_config_home: Some(PathBuf::new()),
                 appdata: None,
-                environment: BTreeMap::from([("PROSE_CONFIG_DIR".into(), "".into())]),
+                environment: BTreeMap::from([("PROSE_CONFIG_DIR".into(), String::new())]),
                 platform: Platform::Unix,
             },
             SystemContext {
@@ -2962,8 +2993,13 @@ pub(crate) fn native_limits(config: &EffectiveConfig) -> Option<serde_json::Valu
     } else {
         serde_json::json!(std::time::Duration::from_millis(ms).as_secs_f64())
     };
+    let turns = config
+        .native_max_turns
+        .value
+        .as_deref()
+        .map_or(20, |v| validate_native_turns(v).expect("validated"));
     Some(
-        serde_json::json!({"maxTurns":config.native_max_turns.value.as_deref().map_or(20, |v|validate_native_turns(v).expect("validated")),"timeoutSeconds":seconds,"toolTimeoutSeconds":tool_seconds,"maxOutputTokens":12000}),
+        serde_json::json!({"maxTurns":turns,"timeoutSeconds":seconds,"toolTimeoutSeconds":tool_seconds,"maxOutputTokens":12000,"maxAggregateRequests":turns,"maxAggregateHostedWebCalls":turns,"maxAggregateFunctionTools":80,"maxObservedTotalTokens":500_000,"maxRequestInputBytes":256_000,"maxChildren":8,"maxChildDepth":1}),
     )
 }
 

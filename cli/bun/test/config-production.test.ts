@@ -146,7 +146,7 @@ test("early cwd failure preserves the exact target and makes no runtime claims",
   const root=await freshConfigurationRoot();let stdout="";
   expect(await runCli(["cli","config","explain","--json","--","--cwd","absent","--harness","agents-sdk","run","x"],{processCwd:root,env:{HOME:join(root,"home")},clock:{now:()=>"2025-01-01T00:00:00Z",monotonicMs:()=>0},ids:{invocationId:()=>"fixture-invocation-0001"},writeStdout:text=>{stdout+=text;},writeStderr:()=>{}})).toBe(2);
   const partial=JSON.parse(stdout).details.configurationExplanation;
-  expect(partial).toMatchObject({cwd:{value:root,source:{kind:"default",location:"process cwd"}},target:{argv:["prose","run","x"]},values:{harness:{value:"openprose"}},locations:[],runtime:{transport:null}});
+  expect(partial).toMatchObject({cwd:{value:root,source:{kind:"default",location:"process cwd"}},target:{argv:["prose","run","x"]},values:{harness:{value:"agents-sdk"}},locations:[],runtime:{transport:null}});
   expect(validateExplanation(partial),JSON.stringify(validateExplanation.errors)).toBe(true);expect(await treeFiles(root)).toEqual([]);
 });
 for(const args of [["cli","config","migrate","--json"],["cli","config","unset","model","--json"]])test(`mutation preflight ${args[2]} root failure has safe partial defaults`,async()=>{

@@ -242,6 +242,54 @@ class CurrentWorkflowPolicyTest(unittest.TestCase):
                 name, lambda w, j, i=index: j["steps"][i].update({"if": "false"})
             )
 
+    def test_production_sdk_setup_and_runtime_cannot_be_bypassed(self):
+        for name in ("cli-distribution-check.yml", "cli-kernel-rc.yml"):
+            for label in ("Prepare the separately locked Agents SDK build interpreter",
+                          "Test the actual pinned Agents SDK runtime without provider credentials"):
+                index = next(i for i, step in enumerate(self.workflows[name]["jobs"][JOBS[name]]["steps"])
+                             if step.get("name") == label)
+                self.changed(name, lambda w, j, i=index: j["steps"][i].update({"if": "false"}))
+                self.changed(name, lambda w, j, i=index: j["steps"][i].update(run="echo skipped"))
+            index = next(i for i, step in enumerate(self.workflows[name]["jobs"][JOBS[name]]["steps"])
+                         if step.get("name") == "Prepare the separately locked Agents SDK build interpreter")
+            for before, after in (("--require-hashes", ""), ("3.10.20", "3.12"),
+                                  ("agents-sdk-python", "distribution-python"),
+                                  ("requirements-build.txt", "requirements.txt")):
+                self.changed(name, lambda w, j, i=index, a=before, b=after: j["steps"][i].update(
+                             run=j["steps"][i]["run"].replace(a, b)))
+
+    def test_distribution_production_sdk_custody_is_required(self):
+        name = "cli-distribution-check.yml"
+        steps = self.workflows[name]["jobs"][JOBS[name]]["steps"]
+        for label in ("Build and verify production SDK standalone and npm installations",
+                      "Rehearse Homebrew against the production SDK archives"):
+            index = next(i for i, step in enumerate(steps) if step.get("name") == label)
+            self.changed(name, lambda w, j, i=index: j["steps"].pop(i))
+            self.changed(name, lambda w, j, i=index: j["steps"][i].update({"if": "false"}))
+            self.changed(name, lambda w, j, i=index: j["steps"][i].update(run="echo skipped"))
+            self.changed(name, lambda w, j, i=index: j["steps"][i]["env"].update(RC_VERSION="unreviewed"))
+        retention = next(i for i, step in enumerate(steps)
+                         if step.get("uses", "").startswith("actions/upload-artifact@"))
+        for path in ("agents-sdk", "package", "logs", "build-report.json", "homebrew"):
+            self.changed(name, lambda w, j, i=retention, p=path: j["steps"][i]["with"].update(
+                         path=j["steps"][i]["with"]["path"].replace("${{ runner.temp }}/kernel-rc/" + p, "omitted")))
+        build = next(i for i, step in enumerate(steps)
+                     if step.get("name") == "Build and verify production SDK standalone and npm installations")
+        self.changed(name, lambda w, j, i=build: j["steps"].insert(0, j["steps"].pop(i)))
+
+    def test_publisher_sdk_custody_cannot_mutate_reviewed_candidates(self):
+        name = "cli-publish.yml"
+        steps = self.workflows[name]["jobs"][JOBS[name]]["steps"]
+        index = next(i for i, step in enumerate(steps)
+                     if step.get("name") == "Verify retained production SDK source and sibling custody")
+        self.changed(name, lambda w, j, i=index: j["steps"].pop(i))
+        self.changed(name, lambda w, j, i=index: j["steps"][i].update({"if": "false"}))
+        self.changed(name, lambda w, j, i=index: j["steps"].insert(0, j["steps"].pop(i)))
+        self.changed(name, lambda w, j, i=index: j["steps"][i].update(run="echo verified"))
+        for script in ("build_agents_sdk.py", "sign_macos.py", "package_local.py", "build_kernel_rc.py"):
+            self.changed(name, lambda w, j, p=script: j["steps"].append(
+                         {"name": "Mutate candidate", "run": "python3 cli/ci/" + p}))
+
     def test_admission_pipeline_cannot_hide_failure(self):
         self.changed(
             "cli-ci.yml",

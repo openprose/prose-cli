@@ -1,5 +1,6 @@
 import {PrimeDrain} from "./prime-drain";
 import {sdkNativeFailure} from "./sdk-limits";
+import {sdkObservations,type SdkObservations} from "./sdk-observation";
 import {hasFreshClaudeResult} from "./claude-shutdown";
 import { isDeepStrictEqual } from "node:util";
 import { NativeToolLifecycle, hasNativeTools, ompTaskDefaults } from "./native-tool-lifecycle";
@@ -125,20 +126,26 @@ class CodexProtocol extends InstalledProtocol {
 }
 
 class AgentsSdkProtocol extends InstalledProtocol {
+  sdkObservations:SdkObservations={};
+  constructor(version:string|null,private readonly requestedModel:string|null){super(version);}
   accept(value: unknown): RawTransportEvent | null {
     const record = this.record(value);
     if (record.type === "start") {
       if (typeof record.model !== "string" || typeof record.cwd !== "string") malformed("SDK start identity missing.");
-      return this.start();
+      const started=this.start();
+      this.sdkObservations={...this.sdkObservations,...sdkObservations(record,this.requestedModel)};
+      return started;
     }
     if (!this.started) malformed("SDK event before start.");
-    if (record.type === "error") throw failure("HARNESS_FAILED", {nativeFailure:sdkNativeFailure(record)});
+    if (record.type === "error") {this.sdkObservations={...this.sdkObservations,...sdkObservations(record,this.requestedModel)};throw failure("HARNESS_FAILED", {nativeFailure:sdkNativeFailure(record),...this.sdkObservations});}
     if (record.type === "tool_call" || record.type === "tool_result") {
       if (typeof record.name !== "string") malformed("SDK tool identity missing.");
+      this.sdkObservations={...this.sdkObservations,...sdkObservations(record,this.requestedModel)};
       return null;
     }
     if (record.type === "final") {
       if (typeof record.output !== "string") malformed("SDK final output must be text.");
+      this.sdkObservations={...this.sdkObservations,...sdkObservations(record,this.requestedModel)};
       this.complete();
       return this.message(record.output);
     }
@@ -769,9 +776,10 @@ export function installedProtocol(
   invocationId: string,
   ompPromptBytes: Uint8Array | null = null,
   nativeMode=false,
+  requestedModel:string|null=null,
 ): StructuredProtocolState {
   if (adapterId === "codex/exec-json") return new CodexProtocol(harnessVersion);
-  if (adapterId === "agents-sdk/jsonl") return new AgentsSdkProtocol(harnessVersion);
+  if (adapterId === "agents-sdk/jsonl") return new AgentsSdkProtocol(harnessVersion,requestedModel);
   if (adapterId === "claude/print-stream-json") return new ClaudeProtocol(harnessVersion,nativeMode);
   if (adapterId === "omp/rpc") {
     if (ompPromptBytes === null) malformed("OMP staged prompt bytes are unavailable.");

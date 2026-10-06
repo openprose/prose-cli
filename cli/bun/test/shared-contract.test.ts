@@ -26,6 +26,7 @@ for (const name of [
   "native-limits",
   "native-output-limits",
   "native-failure",
+  "sdk-observation",
   "runner-error",
   // runner-error's `details.planned` is `service-operation.schema.json#/$defs/plannedRequest`
   //; without it Ajv throws "can't resolve reference" and no test in this file runs.
@@ -150,7 +151,7 @@ describe("shared runner contracts", () => {
 
   test("hosted-unavailable is a schema-valid attempted-run result with exact taxonomy", async () => {
     const io = fixture();
-    expect(await runCli(["--output", "json", "run", "fixture.prose.md"], io.deps)).toBe(10);
+    expect(await runCli(["--harness", "openprose", "--output", "json", "run", "fixture.prose.md"], io.deps)).toBe(10);
     const result = JSON.parse(io.stdout());
     expectValid(validateResult, result);
     expect(result).toMatchObject({
@@ -159,7 +160,7 @@ describe("shared runner contracts", () => {
       error: {
         code: "HOSTED_UNAVAILABLE",
         action: "To use the hosted service, run `cli run submit FILE --preview`; running programs on this machine needs a local harness (`cli harness list`).",
-        details: { suggestedArgv: ["--output", "json", "cli", "run", "submit", "fixture.prose.md", "--preview"] },
+        details: { suggestedArgv: ["--harness", "openprose", "--output", "json", "cli", "run", "submit", "fixture.prose.md", "--preview"] },
       },
     });
     expect(io.invocations).toHaveLength(0);

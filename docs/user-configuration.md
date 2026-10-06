@@ -2,7 +2,7 @@
 
 IMP-097 design, frozen October 6, 2026. This document specifies the candidate
 behavior; implementation and qualification are recorded separately in the
-workspace task. IMP-097 retains the `openprose` default harness. IMP-098 changes
+workspace task. IMP-097 established this configuration interface with the prior harness default. IMP-098 changes
 that built-in to the packaged `agents-sdk` harness after qualification.
 
 ## Peer comparison and selected convention
