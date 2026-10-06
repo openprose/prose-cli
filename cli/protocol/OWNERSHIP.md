@@ -846,3 +846,6 @@ for provider-free compiled test-seam admission against the same frozen native
 record controls. Fake Codex uses the required Bun toolchain; no Python, shell,
 provider credentials or network. This supplements rather than replaces existing
 framing, mapping and shared differential checks.
+IMP-055 final documentation audit: root extends this branch's lease to
+`cli/CONTRIBUTING.md` solely to align its stated CI Python patch version with
+the existing workflow pin. No toolchain, workflow or Python source change.
