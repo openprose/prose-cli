@@ -777,3 +777,11 @@ IMP-086 lease extension: `cli/ci/test_rehearse_release.py` for exact current 64-
 IMP-086 lease extension: `cli/conformance/fixtures/adapter-host-expectations.json` and the existing leased host runner/tests for independently frozen inventory expectations across admitted POSIX hosts; keep all Codex blocked-state and full-inventory assertions.
 
 IMP-086 lease extension: `cli/ci/test_run_local.py` solely to make the interrupt-tree fixture reap its controlled descendant and publish readiness after signal-safe setup; supervisor behavior, 130/143 exits and PID-absence assertions remain unchanged.
+
+## IMP-089 Bun natural-exit diagnosis — October 5, 2026
+
+Root authorizes `/root/bun_cleanup` on branch `codex/imp-089-bun-cleanup`
+to edit only `cli/bun/test/supervision-process.test.ts` for bounded natural-exit
+and forced-cleanup controls, plus this lease record. Production settlement
+deadlines and classifications remain unchanged. The separate historical
+macOS timing failure remains unexplained until evidence establishes its cause.

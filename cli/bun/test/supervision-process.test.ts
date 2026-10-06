@@ -105,17 +105,19 @@ describe("direct process supervision", () => {
     }
   });
 
-  test.skipIf(process.platform === "win32")("bounded-awaits a naturally exiting malformed harness before forced cleanup", async () => {
+  test.skipIf(process.platform === "win32")("preserves a malformed harness natural exit within bounded settlement", async () => {
     const input = await fixture();
+    const scriptPath = join(input.root, "malformed-natural-exit.ts");
     const script = [
-      "import os, time",
-      "os.write(1, b'{malformed\\n')",
-      "time.sleep(0.1)",
+      'import { writeSync } from "node:fs";',
+      'writeSync(1, "{malformed\\n");',
+      "process.exit(0);",
     ].join("\n");
+    await writeFile(scriptPath, script);
     const started = performance.now();
     const result = await superviseStructuredProcess({
-      executable: Bun.which("python3") ?? "python3",
-      argv: ["-c", script],
+      executable: process.execPath,
+      argv: ["--no-env-file", `--config=${resolve(import.meta.dir, "../config/empty-bunfig.toml")}`, scriptPath],
       cwd: input.root,
       environment: { PATH: process.env.PATH },
       invocationId: input.invocation.invocationId,
@@ -129,8 +131,52 @@ describe("direct process supervision", () => {
     expect(result.error?.code).toBe("PROTOCOL_MALFORMED");
     expect(result.exitCode).toBe(0);
     expect(result.signal).toBeNull();
-    expect(performance.now() - started).toBeGreaterThanOrEqual(75);
+    expect(result.cancellationReason).toBeNull();
+    expect(processExists(result.pid)).toBeFalse();
+    expect(processExists(-result.processGroupId!)).toBeFalse();
     expect(performance.now() - started).toBeLessThan(1_000);
+  });
+
+  test.skipIf(process.platform === "win32")("forces bounded cleanup when a malformed harness does not exit naturally", async () => {
+    const input = await fixture();
+    const scriptPath = join(input.root, "malformed-held-open.ts");
+    // A requested 100 ms child sleep can exceed the supervisor's 250 ms
+    // settlement window when the child is descheduled. Cover the two defined
+    // paths separately: immediate natural exit above, deliberately retained
+    // process here. No runtime deadline or cleanup assertion is relaxed.
+    await writeFile(scriptPath, [
+      'import { writeSync } from "node:fs";',
+      "setInterval(() => {}, 10_000);",
+      'writeSync(1, "{malformed\\n");',
+    ].join("\n"));
+    const started = performance.now();
+    const result = await superviseStructuredProcess({
+      executable: process.execPath,
+      argv: ["--no-env-file", `--config=${resolve(import.meta.dir, "../config/empty-bunfig.toml")}`, scriptPath],
+      cwd: input.root,
+      environment: { PATH: process.env.PATH },
+      invocationId: input.invocation.invocationId,
+      recursionToken: input.invocation.recursionToken,
+      runNonce: "malformed-held-open-nonce",
+      startupTimeoutMs: 1_000,
+      runTimeoutMs: 2_000,
+      graceMs: 50,
+      hardKillAfterMs: 500,
+    });
+    try {
+      expect(result.error?.code).toBe("PROTOCOL_MALFORMED");
+      expect(result.exitCode).toBeNull();
+      expect(result.signal).toBe("SIGTERM");
+      expect(result.cancellationReason).toBeNull();
+      expect(processExists(result.pid)).toBeFalse();
+      expect(processExists(-result.processGroupId!)).toBeFalse();
+      expect(performance.now() - started).toBeGreaterThanOrEqual(200);
+      expect(performance.now() - started).toBeLessThan(1_000);
+    } finally {
+      // A broken cleanup implementation must fail without leaking this
+      // deliberately persistent test process into later tests.
+      await requirePidExitAfterSettlement(result.pid, 500);
+    }
   });
 
   test("preserves shell metacharacters only as task JSON data", async () => {
