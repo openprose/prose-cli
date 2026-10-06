@@ -32,6 +32,11 @@ impl Attempt {
             );
             thread::sleep(Duration::from_millis(10));
         }
+        // Fail while the guard still owns the wrapper: a leaked synthetic
+        // native process must not keep an inherited output pipe open forever.
+        if let Some(pid) = self.native_pid() {
+            assert_eq!(test_kill_process(pid), Err(rustix::io::Errno::SRCH));
+        }
         self.child.take().unwrap().wait_with_output().unwrap()
     }
 
