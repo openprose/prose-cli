@@ -54,9 +54,11 @@ release and pass installation/switching tests before merge. CLI distribution CI
 first tests Homebrew against this checkout's verified development-rehearsal
 archives on all four native runners. These local-only bytes never become tap
 releases. The tap update workflow follows the guarded public RC pointer,
-verifies the immutable manifest digest and prepares a formula update PR. Its
-own-repository CI is explicitly dispatched for bot-created branches; merging
-that checked PR selects the new Homebrew release. This avoids a separate
+verifies the immutable manifest digest and prepares a formula update branch.
+Its own-repository CI is explicitly dispatched for bot-created branches. The
+release owner opens the checked PR using existing GitHub authentication,
+respecting the organization policy against Actions-created PRs. Merging that
+checked PR selects the new Homebrew release. This avoids a separate
 cross-repository publishing token and preserves a reviewable update boundary.
 
 ## Historical implementation record — September 16–17, 2026
