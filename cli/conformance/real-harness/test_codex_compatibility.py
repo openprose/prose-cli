@@ -2,6 +2,8 @@
 import importlib.util
 from pathlib import Path
 import unittest
+import tempfile
+import json
 from unittest.mock import patch
 from types import SimpleNamespace
 
@@ -55,12 +57,46 @@ class NativeObservationTests(unittest.TestCase):
         self.assertLessEqual(len(result.stdout), 32768)
         self.assertTrue(result.settled)
         if os.name == "posix":
-            result = MODULE.run_owned_process([sys.executable, "-c", "import os,time,sys; os.fork(); sys.stderr.write('x' * 65536); sys.stderr.flush(); time.sleep(10)"],
-                                              cwd=PATH.parent, environment={}, timeout_seconds=0.1,
-                                              max_capture_bytes=32768)
-            self.assertTrue(result.timed_out)
-            self.assertTrue(result.settled)
-            self.assertLessEqual(len(result.stderr), 32768)
+            # Reap the controlled child ourselves: orphan/zombie reaping by init
+            # is host-dependent and must not be mistaken for a capture failure.
+            script = """
+import json, os, signal, sys, time
+signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGTERM})
+child = os.fork()
+if child == 0:
+    signal.signal(signal.SIGTERM, signal.SIG_DFL)
+    signal.pthread_sigmask(signal.SIG_UNBLOCK, {signal.SIGTERM})
+    time.sleep(60)
+    os._exit(0)
+def terminate(signum, frame):
+    try:
+        os.kill(child, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    os.waitpid(child, 0)
+    sys.exit(0)
+signal.signal(signal.SIGTERM, terminate)
+with open(sys.argv[1], 'w') as output:
+    json.dump({'parent': os.getpid(), 'child': child}, output)
+signal.pthread_sigmask(signal.SIG_UNBLOCK, {signal.SIGTERM})
+sys.stderr.write('x' * 65536)
+sys.stderr.flush()
+time.sleep(60)
+"""
+            with tempfile.TemporaryDirectory() as temporary:
+                identities = Path(temporary) / "identities.json"
+                result = MODULE.run_owned_process(
+                    [sys.executable, "-c", script, str(identities)],
+                    cwd=PATH.parent, environment={}, timeout_seconds=2,
+                    max_capture_bytes=32768)
+                self.assertTrue(result.timed_out)
+                self.assertTrue(result.settled)
+                self.assertTrue(result.stderr_truncated)
+                self.assertLessEqual(len(result.stderr), 32768)
+                self.assertTrue(identities.is_file())
+                for pid in json.loads(identities.read_text()).values():
+                    with self.assertRaises(ProcessLookupError):
+                        os.kill(pid, 0)
 
 
 if __name__ == "__main__":
