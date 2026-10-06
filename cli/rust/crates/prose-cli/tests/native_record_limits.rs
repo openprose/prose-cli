@@ -172,7 +172,10 @@ fn compiled_native_record_boundary_and_recovery_match_shared_controls() {
         let result: Value = serde_json::from_slice(&output.stdout).unwrap();
         assert_eq!(
             result["nativeOutputLimits"]["maxRecordBytes"],
-            limits["recordLimitBytes"]
+            limits["recordLimitBytes"],
+            "{}: compiled CLI exit {:?}, result {result}",
+            cell["name"],
+            output.status.code()
         );
         assert_eq!(
             result["nativeOutputLimits"]["maxAggregateStdoutBytes"],
