@@ -899,3 +899,12 @@ Root owns `cli/release/plans/0.15.0-rc.3.json` and
 record only. Source1941a34 and native archives remain frozen; two authorized
 MacARM live smoke attempts pass within the fresh USD20 reservation. No runtime,
 workflow, stable/latest, default implementation or kernel promotion change.
+
+## IMP-014: Linux credential escape-fixture publication repair
+
+Root owns only `#[cfg(test)] mod tests` in
+`cli/rust/crates/prose-runner-core/src/credential_store.rs` for the retained
+PR47 Linux admission failure. Publish the fixture's observed descendantPID
+before unrelated logging and validate a nonzero numericPID before procfs.
+Preserve300ms/3s bounds and killed-or-zombie assertion. Production logic,
+cleanup deadlines and frozen qualified RC3 binaries remain unchanged.

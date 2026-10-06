@@ -418,15 +418,19 @@ mod imp {
                 let script = format!(
                     r#"#!/bin/sh
 R='{root}'
+mode=
+if [ -f "$R/mode" ]; then IFS= read -r mode < "$R/mode" || :; fi
+# The short-bound escape fixture publishes its PID before unrelated logging.
+case "$mode" in
+  escape) /bin/sleep 30 & pid=$!; printf '%s\n' "$pid" > "$R/escaped.tmp"; /bin/mv "$R/escaped.tmp" "$R/escaped"; exit 0 ;;
+esac
 printf '%s\n' "$@" > "$R/cmdline"
 /usr/bin/tr '\0' '\n' < /proc/$$/environ > "$R/env"
 echo x >> "$R/calls"
-mode=$(/bin/cat "$R/mode" 2>/dev/null)
 case "$mode" in
   fail) echo 'secret-tool: Could not connect: No such file or directory' >&2; exit 1 ;;
   sleep) exec /bin/sleep 30 ;;
   grandchild) /bin/sleep 30 & /bin/sleep 30 ;;
-  escape) /bin/sleep 30 & echo "$!" > "$R/escaped"; exit 0 ;;
   garbage) printf 'rr_test_NOT-A-KEY'; exit 0 ;;
   huge) /usr/bin/head -c 20000 /dev/zero; exit 0 ;;
   signal) kill -9 $$ ;;
@@ -744,8 +748,12 @@ exit 2
                 "{:?}",
                 began.elapsed()
             );
-            let pid = fake.read("escaped");
-            let pid = pid.trim();
+            let pid: u32 = fake
+                .read("escaped")
+                .trim()
+                .parse()
+                .expect("escape fixture did not publish a complete descendant PID");
+            assert!(pid > 0, "escape fixture published a zero descendant PID");
             std::thread::sleep(Duration::from_millis(100));
             let state = fs::read_to_string(format!("/proc/{pid}/stat")).unwrap_or_default();
             // Gone, or a zombie awaiting its (dead) parent's reaper.
