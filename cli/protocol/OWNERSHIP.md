@@ -908,3 +908,9 @@ PR47 Linux admission failure. Publish the fixture's observed descendantPID
 before unrelated logging and validate a nonzero numericPID before procfs.
 Preserve300ms/3s bounds and killed-or-zombie assertion. Production logic,
 cleanup deadlines and frozen qualified RC3 binaries remain unchanged.
+
+## IMP-098 packaged SDK runtime — October 6, 2026
+
+Lead: Codex `/root`, session `01a1133b-e47b-7b32-af8e-2655afa0259c`, branch `codex/imp-098-packaged-sdk`, base `e780725`. Root owns all Git/index operations and integration. User authorizes production-readiness implementation and qualification; merge/publication remain separate.
+
+`/root/sdk_runtime` exact writable paths: `harnesses/agents-sdk/run.py`, `harnesses/agents-sdk/test_run.py`, `harnesses/agents-sdk/README.md` (new). Scope: reuse Python SDK loop; public search/retrieval and fresh bounded child contexts; safe credential setup/errors, shared aggregate bounds/usage, bounded tool-output memory, cancellation and honest permissions. No contract interpretation/company procedures. No dependency/manifests, adapters, shared files, model calls, Git/index or formatting outside lease. Dependency additions require root approval; public search uses existing SDK-supported hosted tool. Provider-free mocks precede behavior; retain cancellation/failure controls. Other lanes await exact leases and design freeze.
