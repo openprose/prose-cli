@@ -517,6 +517,11 @@ fn prepare(
         match result {
             Some(Ok(receipt)) => Some(receipt),
             Some(Err(error)) => {
+                let error = prose_runner_core::config::mutation_error_context(
+                    error,
+                    &parsed.globals,
+                    &system,
+                );
                 return error_outcome(
                     error,
                     if *json {
@@ -548,6 +553,18 @@ fn prepare(
     let mut config = match resolve_config(&resolution_flags, &system) {
         Ok(config) => config,
         Err(error) => {
+            let mut error = error;
+            if let Action::Runner {
+                command: RunnerCommand::ConfigExplainTarget(argv),
+                ..
+            } = &parsed.action
+            {
+                if let Some(details) = error.details.as_mut() {
+                    if let Some(report) = details.get_mut("configurationExplanation") {
+                        report["target"] = serde_json::json!({"argv":argv});
+                    }
+                }
+            }
             let mode = match parsed.action {
                 Action::Runner { json: true, .. } => OutputMode::Json,
                 _ => parsed.globals.output.unwrap_or_default(),

@@ -28,11 +28,12 @@ for(const fixture of corpus.cases) test(`production config black box: ${fixture.
   const number=fixture.id.split("-").at(-1)!;
   const manifest=JSON.parse(await readFile(join(import.meta.dir,`../../conformance/cases/operations/config-production-${number}.json`),"utf8"));
   const expand=(value:string)=>value.replaceAll("{{WORKSPACE}}",root);
+  const expandExpected=(value:unknown):unknown=>typeof value==="string"?expand(value):Array.isArray(value)?value.map(expandExpected):value!==null&&typeof value==="object"?Object.fromEntries(Object.entries(value).map(([key,item])=>[key,expandExpected(item)])):value;
   let stdout="",stderr="",started=false;
   const exit=await runCli(manifest.invocation.argv,{processCwd:root,env:Object.fromEntries(Object.entries(manifest.invocation.environment).map(([key,value])=>[key,expand(value as string)])),clock:{now:()=>"2025-01-01T00:00:00Z",monotonicMs:()=>0},ids:{invocationId:()=>"fixture-invocation-0001"},writeStdout:text=>{stdout+=text;},writeStderr:text=>{stderr+=text;},observeMockInvocation:()=>{started=true;}});
   expect(exit).toBe(manifest.expected.exitCode);expect(stderr).toBe("");expect(started).toBe(false);
   const report=JSON.parse(stdout);
-  expect(report).toMatchObject(manifest.expected.resultMatches);
+  expect(report).toMatchObject(expandExpected(manifest.expected.resultMatches) as Record<string,unknown>);
   const explanation=manifest.expected.exitCode===0 ? report:report.details?.configurationExplanation;
   expect(explanation).toBeDefined();expect(validateExplanation(explanation),JSON.stringify(validateExplanation.errors)).toBe(true);
   const checks=fixture.setup.checks as {unchangedFiles?:true|string[];absent?:string[];files?:Record<string,string>;outputAbsent?:string[]};
@@ -132,4 +133,25 @@ test("SDK saved harness selection reports contextual defaults without persisting
   expect(await runCli(["cli","harness","use","agents-sdk"],{processCwd:root,env:{HOME:join(root,"home")},clock:{now:()=>"2025-01-01T00:00:00Z",monotonicMs:()=>0},ids:{invocationId:()=>"fixture-invocation-0001"},writeStdout:text=>{stdout+=text;},writeStderr:()=>{}})).toBe(0);
   expect(stdout).toContain("Route: openai-api-key (Agents SDK default; not saved)");expect(stdout).toContain("Model: gpt-6.1-sol (Agents SDK default; not saved)");
   expect(await readFile(join(root,"home/.prose/cli.toml"),"utf8")).toBe('harness = "agents-sdk"\n');
+});
+for(const [label,env] of [["absent",{}],["empty",{HOME:""}],["relative",{HOME:"relative"}],["invalid override",{HOME:"/unused",PROSE_CONFIG_DIR:"relative"}]] as const)test(`early ${label} configuration root failure retains safe complete defaults`,async()=>{
+  const root=await freshConfigurationRoot();let stdout="";
+  expect(await runCli(["cli","config","explain","--json"],{processCwd:root,env,clock:{now:()=>"2025-01-01T00:00:00Z",monotonicMs:()=>0},ids:{invocationId:()=>"fixture-invocation-0001"},writeStdout:text=>{stdout+=text;},writeStderr:()=>{}})).toBe(2);
+  const report=JSON.parse(stdout);const partial=report.details.configurationExplanation;
+  expect(partial).toMatchObject({cwd:{value:root,source:{kind:"default",location:"process cwd"}},userConfigPath:null,projectConfigPath:null,target:null,locations:[],runtime:{transport:null,permissionMode:null,authProfile:null,billingOwner:null,nativeLimits:null,nativeOutputLimits:null}});
+  expect(Object.keys(partial.values)).toHaveLength(19);expect(Object.keys(partial.candidates)).toHaveLength(19);expect(partial.diagnostics).toEqual([{code:"CONFIG_INVALID",severity:"error",source:report.details.source,reason:report.details.reason}]);
+  expect(validateExplanation(partial),JSON.stringify(validateExplanation.errors)).toBe(true);expect(await treeFiles(root)).toEqual([]);
+});
+test("early cwd failure preserves the exact target and makes no runtime claims",async()=>{
+  const root=await freshConfigurationRoot();let stdout="";
+  expect(await runCli(["cli","config","explain","--json","--","--cwd","absent","--harness","agents-sdk","run","x"],{processCwd:root,env:{HOME:join(root,"home")},clock:{now:()=>"2025-01-01T00:00:00Z",monotonicMs:()=>0},ids:{invocationId:()=>"fixture-invocation-0001"},writeStdout:text=>{stdout+=text;},writeStderr:()=>{}})).toBe(2);
+  const partial=JSON.parse(stdout).details.configurationExplanation;
+  expect(partial).toMatchObject({cwd:{value:root,source:{kind:"default",location:"process cwd"}},target:{argv:["prose","run","x"]},values:{harness:{value:"openprose"}},locations:[],runtime:{transport:null}});
+  expect(validateExplanation(partial),JSON.stringify(validateExplanation.errors)).toBe(true);expect(await treeFiles(root)).toEqual([]);
+});
+for(const args of [["cli","config","migrate","--json"],["cli","config","unset","model","--json"]])test(`mutation preflight ${args[2]} root failure has safe partial defaults`,async()=>{
+  const root=await freshConfigurationRoot();let stdout="";
+  expect(await runCli(args,{processCwd:root,env:{},clock:{now:()=>"2025-01-01T00:00:00Z",monotonicMs:()=>0},ids:{invocationId:()=>"fixture-invocation-0001"},writeStdout:text=>{stdout+=text;},writeStderr:()=>{}})).toBe(2);
+  const report=JSON.parse(stdout);expect(report).toMatchObject({code:"CONFIG_INVALID",details:{source:"HOME",configurationExplanation:{userConfigPath:null,locations:[],runtime:{transport:null}}}});
+  expect(validateExplanation(report.details.configurationExplanation),JSON.stringify(validateExplanation.errors)).toBe(true);expect(await treeFiles(root)).toEqual([]);
 });

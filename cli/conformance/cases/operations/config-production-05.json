@@ -51,7 +51,9 @@
       "diagnostics": [
         {
           "code": "LEGACY_CONFIG_IGNORED",
-          "severity": "warning"
+          "severity": "warning",
+          "source": "{{WORKSPACE}}/config/openprose/cli.toml",
+          "reason": "Canonical user configuration is authoritative; legacy values are ignored. Differing explicit keys: harness, model, verbose."
         }
       ]
     }

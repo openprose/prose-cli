@@ -182,6 +182,10 @@ resolved partial report and the first blocking error in `diagnostics`. Unknown
 or unvalidated values must not appear in its candidates/values. No partial
 report authorizes execution. Human output displays winning values/sources and
 concise migration/error summaries; JSON carries the complete candidate detail.
+If cwd or the user configuration root cannot be resolved, the partial report
+contains all built-in values and candidates, the process cwd with its source,
+null configuration paths, no discovered locations, and the exact target when
+already parsed. Every runtime field is null because resolution did not complete.
 
 Migration/unset successful JSON is the same post-operation explanation with
 `mutation:{operation:"migrate"|"unset",changed,path,sourcePath,keys}`. `sourcePath`

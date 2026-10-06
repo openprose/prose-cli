@@ -122,6 +122,7 @@ class RunnerUnitTest(unittest.TestCase):
                     environment_root, workspace = runner.product_roots(case_root, name)
                     def product_call(argv, *, cwd, environment, timeout_seconds):
                         self.assertEqual(15, timeout_seconds)
+                        self.assertTrue((workspace / ".git").is_dir())
                         self.assertEqual(str(workspace.resolve() / "home"), environment["HOME"])
                         for relative, value in setup["files"].items():
                             self.assertEqual(value.encode(), (workspace / relative).read_bytes())
@@ -133,6 +134,7 @@ class RunnerUnitTest(unittest.TestCase):
                     with patch.object(runner, "run_owned_process", side_effect=product_call):
                         observation = runner.execute(runner.Product(name, Path(sys.executable)), case, environment_root, workspace)
                     self.assertEqual([], runner.validate_configuration_effects(observation))
+                    self.assertEqual(observation.configuration_before[".git"], ("directory", ""))
                     workspaces.append(workspace)
                 self.assertNotEqual(workspaces[0], workspaces[1])
                 (workspaces[0] / "unexpected-state").write_bytes(b"product-specific")
@@ -220,6 +222,28 @@ class RunnerUnitTest(unittest.TestCase):
             self.assertEqual([], runner.validate_output(observation, runner.ContractRegistry()))
             (observation.workspace / "unexpected").write_bytes(b"unexpected")
             self.assertIn("configuration effects changed the protected workspace tree", runner.validate_output(observation, runner.ContractRegistry()))
+
+    def test_workspace_boundary_preserves_nested_project_discovery_inputs(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Path(temporary) / "workspace"
+            nested = workspace / "work space"
+            nested.mkdir(parents=True)
+            (nested / ".prose").mkdir()
+            (nested / ".prose/cli.toml").write_bytes(b'timeout = "6m"\n')
+            (workspace / ".prose").mkdir()
+            (workspace / ".prose/cli.toml").write_bytes(b'timeout = "5m"\n')
+            runner.isolate_workspace(workspace)
+            self.assertTrue((workspace / ".git").is_dir())
+            self.assertFalse((nested / ".git").exists())
+            self.assertEqual(b'timeout = "6m"\n', (nested / ".prose/cli.toml").read_bytes())
+            self.assertEqual(b'timeout = "5m"\n', (workspace / ".prose/cli.toml").read_bytes())
+            # A supplied nested Git boundary and worktree-file boundary stay explicit.
+            (nested / ".git").mkdir()
+            (workspace / ".git").rmdir()
+            (workspace / ".git").write_bytes(b'gitdir: fixture-only\n')
+            runner.isolate_workspace(workspace)
+            self.assertEqual(b'gitdir: fixture-only\n', (workspace / ".git").read_bytes())
+            self.assertTrue((nested / ".git").is_dir())
 
     def test_configuration_snapshot_bounds_entries_and_bytes(self):
         with tempfile.TemporaryDirectory() as temporary:
