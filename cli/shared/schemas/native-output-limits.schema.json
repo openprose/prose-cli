@@ -4,6 +4,7 @@
   "type": "object",
   "additionalProperties": false,
   "required": [
+    "maxRecordBytes",
     "maxAggregateStdoutBytes",
     "maxNativeCaptureBytes",
     "captureEnabled"
@@ -21,6 +22,9 @@
     },
     "captureEnabled": {
       "type": "boolean"
+    },
+    "maxRecordBytes": {
+      "const": 1048576
     }
   }
 }

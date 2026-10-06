@@ -819,3 +819,75 @@ Scope: verify expected native RC source/version and report-bound archive/binary
 identities, then exercise the same install/link/switch/uninstall checks against
 those already-built release bytes. No rebuild, relabel, live qualification,
 publication authority or production runtime change.
+
+## IMP-089 Bun natural-exit diagnosis — October 5, 2026
+
+Root authorizes `/root/bun_cleanup` on branch `codex/imp-089-bun-cleanup`
+to edit only `cli/bun/test/supervision-process.test.ts` for bounded natural-exit
+and forced-cleanup controls, plus this lease record. Production settlement
+deadlines and classifications remain unchanged. The separate historical
+macOS timing failure remains unexplained until evidence establishes its cause.
+
+## IMP-055 build documentation lane — October 5, 2026
+
+Root authorized `/root/build_docs` on `codex/imp-055-build-docs` to edit exactly
+`cli/bun/README.md`, `cli/rust/README.md`, `docs/kernel-startup.md`, and
+`cli/shared/image/bundle/README.md`. Scope: published startup, fixed images,
+diagnostic/test builds and explicit tool configuration; provider-free copied
+example verification. No source, release documentation, model calls or new
+Python. Root retains integration and publication ownership.
+
+## IMP-089 agent-interface parity — active branch-scoped lease
+
+Root `/root` owns branch `codex/imp-089-agent-parity` from main625106e:
+`cli/rust/crates/prose-cli/src/main.rs`,
+`cli/rust/crates/prose-cli/tests/cli.rs`,
+`cli/bun/test/agent-account-globals.test.ts`,
+`cli/shared/fixtures/account-global-boundaries.json`, and
+`docs/agent-interface-parity.md`. Scope: existing account commands must reject
+inapplicable runner globals before credential access or side effects, retaining
+machine envelopes and allowed rendering flags. Shared controls precede changes.
+No CLI redesign, new Python, provider calls, release or deployment.
+
+## IMP-089: native record limit diagnostics (October 5, 2026)
+
+Codex `/root/record_limits` owns narrowly scoped edits on isolated branch
+`codex/imp-089-record-limits`, coordinated by lead `/root`. Exact paths:
+`cli/shared/errors/taxonomy.v1.json`,
+`cli/shared/schemas/native-output-limits.schema.json`,
+`cli/shared/schemas/runner-error.schema.json`,
+`cli/shared/fixtures/native-record-limits.json`,
+`cli/shared/fixtures/transport-diagnostics.json`,
+`cli/shared/fixtures/adapters/native-output.v1.json`,
+`cli/bun/src/core/errors.ts`, `cli/bun/src/core/types.ts`,
+`cli/bun/src/supervision/jsonl.ts`, `cli/bun/src/adapters/native-capture.ts`,
+`cli/bun/src/adapters/output-budget.ts`, `cli/bun/src/cli.ts`,
+`cli/bun/test/supervision-jsonl.test.ts`,
+`cli/bun/test/native-output-budget.test.ts`,
+`cli/bun/test/record-limit-blackbox.test.ts`,
+`cli/rust/crates/prose-runner-core/src/error.rs`,
+`cli/rust/crates/prose-runner-core/src/runner.rs`,
+`cli/rust/crates/prose-runner-core/src/config.rs`.
+The agent may commit its own scoped branch after review of its diff; root owns
+push, PR and integration. Shared controls precede product changes. No limit
+increase, new setting, provider calls, releases, kernel semantics or Python.
+IMP-089 record-limit lease extension: `cli/bun/src/supervision/fake-failure.ts`
+solely to preserve diagnosed resource-limit evidence in final test-transport
+receipts after honest HARNESS_FAILED classification.
+IMP-089 record-limit lease extension: `cli/shared/schemas/doctor-report.schema.json`
+for the optional effective native output budgets in readiness reports. Frozen
+record controls are nested in the already admitted shared native-output fixture;
+no new Python or architecture allowlist change is necessary.
+IMP-089 record-limit lease extension: `cli/shared/capabilities/transport-limits.v1.json`
+solely to reconcile the authoritative oversized-record error category with the
+shared controls and both products. Numeric bounds and other failures stay fixed.
+IMP-089 record-limit documentation lease: `docs/native-output-budgets.md` for
+accurate fixed record-budget reporting and resource-failure recovery only.
+IMP-089 mandatory Rust black-box lease: `cli/rust/crates/prose-cli/tests/native_record_limits.rs`
+for provider-free compiled test-seam admission against the same frozen native
+record controls. Fake Codex uses the required Bun toolchain; no Python, shell,
+provider credentials or network. This supplements rather than replaces existing
+framing, mapping and shared differential checks.
+IMP-055 final documentation audit: root extends this branch's lease to
+`cli/CONTRIBUTING.md` solely to align its stated CI Python patch version with
+the existing workflow pin. No toolchain, workflow or Python source change.

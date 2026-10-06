@@ -538,6 +538,9 @@ fn execute_runner_command(
             if config.harness.value == "codex" {
                 report["codexCompatibility"] = json!({"qualification":installed_adapters::InstalledAdapter::CodexExecJson.codex_qualification(selected_status.and_then(|status| status.detected_version.as_deref())),"policy":config.codex_compatibility.value});
             }
+            if let Some(limits) = crate::config::native_output_limits(config) {
+                report["nativeOutputLimits"] = limits;
+            }
             if crate::kernel_startup::PUBLISHED_KERNEL_STARTUP && !cfg!(test) {
                 report["imageSource"] = json!("published-on-run");
             }
@@ -3512,6 +3515,14 @@ fn parse_duration(value: &str) -> Option<Duration> {
 }
 
 fn map_supervisor_failure(failure: &SupervisorFailure) -> RunnerError {
+    let diagnostic = failure.transport_diagnostic();
+    let record_limit = diagnostic
+        .as_ref()
+        .is_some_and(|value| value["reason"] == "record-byte-limit")
+        && matches!(
+            failure.kind,
+            FailureKind::ProtocolMalformed | FailureKind::HarnessFailed
+        );
     let code = match failure.kind {
         FailureKind::HarnessUnavailable => ErrorCode::HarnessUnavailable,
         FailureKind::HarnessIncompatible | FailureKind::ContainmentUnsupported => {
@@ -3520,6 +3531,7 @@ fn map_supervisor_failure(failure: &SupervisorFailure) -> RunnerError {
         FailureKind::RecursiveInvocation => ErrorCode::RecursiveInvocation,
         FailureKind::StartupTimeout => ErrorCode::StartupTimeout,
         FailureKind::RunTimeout | FailureKind::HarnessFailed => ErrorCode::HarnessFailed,
+        FailureKind::ProtocolMalformed if record_limit => ErrorCode::HarnessFailed,
         FailureKind::ProtocolMalformed => ErrorCode::ProtocolMalformed,
         FailureKind::ProtocolTruncated => ErrorCode::ProtocolTruncated,
         FailureKind::Cancelled => ErrorCode::Cancelled,
@@ -3539,8 +3551,25 @@ fn map_supervisor_failure(failure: &SupervisorFailure) -> RunnerError {
                 .map_or(Value::Null, |signal| Value::from(signal.clone())),
         )
         .with_detail("terminalEventObserved", failure.terminal_observed);
-    if let Some(diagnostic) = failure.transport_diagnostic() {
+    if let Some(diagnostic) = diagnostic {
         error = error.with_detail("transportDiagnostic", diagnostic);
+    }
+    if record_limit {
+        let taxonomy: Value =
+            serde_json::from_str(include_str!("../../../../shared/errors/taxonomy.v1.json"))
+                .expect("shared error taxonomy");
+        taxonomy["recordByteLimit"]["message"]
+            .as_str()
+            .expect("record limit message")
+            .clone_into(&mut error.message);
+        taxonomy["recordByteLimit"]["action"]
+            .as_str()
+            .expect("record limit action")
+            .clone_into(&mut error.action);
+        error.retryable = taxonomy["recordByteLimit"]["retryable"]
+            .as_bool()
+            .expect("record limit retryability");
+        return error.with_detail("admittedRecordCount", failure.records.len());
     }
     if matches!(
         failure.kind,
@@ -5683,6 +5712,34 @@ fn protocol_diagnostics_do_not_echo_native_or_observer_content() {
             .unwrap()
             .get("reason"),
         Some(&json!("protocol_admission_rejected"))
+    );
+}
+
+#[test]
+fn record_limit_is_resource_failure_with_frozen_recovery() {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../../../../shared/fixtures/adapters/native-output.v1.json"
+    ))
+    .unwrap();
+    let mut failure = stream_observer_failure(
+        FailureKind::ProtocolMalformed,
+        "harness structured output exceeded a fixed record limit",
+    );
+    failure.transport_diagnostic = Some(json!({"schema":"openprose.transport-diagnostic/1",
+        "reason":"record-byte-limit","observedBytes":1_048_577,"limitBytes":1_048_576,"saturated":false}));
+    let rendered = serde_json::to_value(map_supervisor_failure(&failure)).unwrap();
+    for (key, expected) in fixture["recordLimits"]["error"].as_object().unwrap() {
+        assert_eq!(&rendered[key], expected, "{key}");
+    }
+    assert_eq!(rendered["details"]["terminalEventObserved"], false);
+    assert_eq!(
+        rendered["details"]["transportDiagnostic"]["observedBytes"],
+        1_048_577
+    );
+    failure.transport_diagnostic.as_mut().unwrap()["reason"] = json!("aggregate-stdout-limit");
+    assert_eq!(
+        map_supervisor_failure(&failure).code,
+        ErrorCode::ProtocolMalformed
     );
 }
 

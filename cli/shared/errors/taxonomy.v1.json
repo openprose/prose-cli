@@ -345,5 +345,13 @@
       "message": "This example is published outside the OpenProse service and cannot be shown here.",
       "action": "Read the example on the web at details.webUrl when it is present, or pick an example that the `cli example list` runner operation does not mark viewOnWeb."
     }
-  ]
+  ],
+  "recordByteLimit": {
+    "code": "HARNESS_FAILED",
+    "boundary": "process",
+    "exitCode": 22,
+    "retryable": false,
+    "message": "A harness structured record exceeded the per-record byte limit; its JSON validity was not established.",
+    "action": "Reduce individual tool results or save bulk data to an artifact and return a bounded summary. Raising --native-output-bytes changes aggregate and capture budgets, not this per-record limit. Reconcile any partial effects before starting another attempt."
+  }
 }

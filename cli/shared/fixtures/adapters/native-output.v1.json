@@ -33,5 +33,36 @@
       "retainedRecords": 0,
       "observedBytes": 24
     }
-  ]
+  ],
+  "recordLimits": {
+    "recordLimitBytes": 1048576,
+    "error": {
+      "code": "HARNESS_FAILED",
+      "boundary": "process",
+      "exitCode": 22,
+      "retryable": false,
+      "message": "A harness structured record exceeded the per-record byte limit; its JSON validity was not established.",
+      "action": "Reduce individual tool results or save bulk data to an artifact and return a bounded summary. Raising --native-output-bytes changes aggregate and capture budgets, not this per-record limit. Reconcile any partial effects before starting another attempt."
+    },
+    "cases": [
+      {
+        "name": "exact-record",
+        "recordBytes": 1048576,
+        "aggregateBytes": 67108864,
+        "accepted": true
+      },
+      {
+        "name": "one-over-record",
+        "recordBytes": 1048577,
+        "aggregateBytes": 67108864,
+        "accepted": false
+      },
+      {
+        "name": "raised-aggregate-is-not-record",
+        "recordBytes": 1048577,
+        "aggregateBytes": 134217728,
+        "accepted": false
+      }
+    ]
+  }
 }
