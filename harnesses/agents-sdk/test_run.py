@@ -192,6 +192,8 @@ class BudgetTest(unittest.IsolatedAsyncioTestCase):
             self.assertNotIn('opaque request', child_input)
             self.assertNotIn('parent result', child_input)
             self.assertTrue(all(request['max_tool_calls'] == 1 for request in requests))
+            self.assertTrue(all(request['service_tier'] == 'default' for request in requests))
+            self.assertEqual(json.loads(output.getvalue().splitlines()[-1])['modelIdentity']['serviceTier'], {'requested': 'default', 'observed': []})
             final = json.loads(output.getvalue().splitlines()[-1])
             self.assertEqual(final['usage']['requests'], 3)
             self.assertEqual(final['usage']['total_tokens'], 15)
@@ -248,6 +250,86 @@ class BudgetTest(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(any(record['type']=='final' for record in records))
             self.assertEqual(create.await_count,2)
             client.close.assert_awaited_once()
+
+    async def test_service_tier_observations_are_allowlisted_and_never_inferred(self):
+        observed_models, observed_tiers = set(), set()
+        resource = SimpleNamespace(create=AsyncMock())
+        guard = harness.GuardedResponses(resource, 1024, observed_models, observed_tiers)
+        for invalid in (None, '', 'private-provider-value', {}, [], True):
+            resource.create.return_value = SimpleNamespace(model='fixture', service_tier=invalid)
+            await guard.create(input=[])
+        self.assertEqual(observed_tiers, set())
+        for tier in ('auto', 'default', 'flex', 'scale', 'priority', 'fast', 'ultrafast'):
+            resource.create.return_value = SimpleNamespace(model='fixture', service_tier=tier)
+            await guard.create(input=[])
+        self.assertEqual(observed_tiers, {'auto', 'default', 'flex', 'scale', 'priority', 'fast', 'ultrafast'})
+
+    async def test_real_openai_http_transport_pins_standard_tier_and_observes_response(self):
+        import httpx2 as httpx
+        transmitted = []
+        def respond(request):
+            transmitted.append(json.loads(request.content))
+            return httpx.Response(200, json=dict(id='response', object='response', created_at=1,
+                model='fixture-observed', service_tier='default', parallel_tool_calls=False,
+                tool_choice='auto', tools=[], status='completed',
+                output=[dict(type='message', id='message', role='assistant', status='completed',
+                    content=[dict(type='output_text', text='done', annotations=[])])],
+                usage=dict(input_tokens=3,output_tokens=2,total_tokens=5,
+                    input_tokens_details=dict(cached_tokens=0,cache_write_tokens=0),
+                    output_tokens_details=dict(reasoning_tokens=0))))
+        client = harness.AsyncOpenAI(api_key='fixture-key', max_retries=0,
+            http_client=httpx.AsyncClient(transport=httpx.MockTransport(respond)))
+        with tempfile.TemporaryDirectory() as directory, patch.object(harness, 'AsyncOpenAI', return_value=client):
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                self.assertEqual(await harness.run(self.args(directory)), 0)
+        self.assertEqual(len(transmitted), 1)
+        self.assertEqual(transmitted[0]['service_tier'], 'default')
+        self.assertEqual(transmitted[0]['max_tool_calls'], 1)
+        self.assertEqual(transmitted[0]['max_output_tokens'], 12000)
+        records = [json.loads(line) for line in output.getvalue().splitlines()]
+        self.assertEqual(records[0]['modelIdentity']['serviceTier'], {'requested': 'default', 'observed': []})
+        self.assertEqual(records[-1]['modelIdentity']['serviceTier'], {'requested': 'default', 'observed': ['default']})
+        self.assertEqual(records[-1]['modelIdentity']['observed'], ['fixture-observed'])
+
+    async def test_real_openai_sdk_client_clone_cannot_bypass_input_guard(self):
+        import httpx2 as httpx
+        transmitted = []
+        def respond(request):
+            transmitted.append(request)
+            raise AssertionError('oversized request reached transport')
+        client = harness.AsyncOpenAI(api_key='fixture-key', max_retries=0,
+            http_client=httpx.AsyncClient(transport=httpx.MockTransport(respond)))
+        with tempfile.TemporaryDirectory() as directory, patch.object(harness, 'AsyncOpenAI', return_value=client):
+            args = self.args(directory)
+            args.max_input_bytes = 80
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                self.assertEqual(await harness.run(args), 1)
+        self.assertEqual(transmitted, [])
+        final = json.loads(output.getvalue().splitlines()[-1])
+        self.assertEqual(final['error_type'], 'BudgetExceeded')
+        self.assertEqual(final['modelIdentity']['observed'], [])
+        self.assertEqual(final['modelIdentity']['serviceTier']['observed'], [])
+
+    async def test_real_openai_http_409_is_not_retried_or_assumed_standard(self):
+        import httpx2 as httpx
+        transmitted = []
+        def respond(request):
+            transmitted.append(json.loads(request.content))
+            return httpx.Response(409, json={'error': {'message': 'private-provider-body',
+                'code': 'conversation_locked', 'type': 'invalid_request_error'}})
+        client = harness.AsyncOpenAI(api_key='fixture-key', max_retries=0,
+            http_client=httpx.AsyncClient(transport=httpx.MockTransport(respond)))
+        with tempfile.TemporaryDirectory() as directory, patch.object(harness, 'AsyncOpenAI', return_value=client):
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                self.assertEqual(await harness.run(self.args(directory)), 1)
+        self.assertEqual(len(transmitted), 1)
+        self.assertEqual(transmitted[0]['service_tier'], 'default')
+        final = json.loads(output.getvalue().splitlines()[-1])
+        self.assertEqual(final['modelIdentity']['serviceTier'], {'requested': 'default', 'observed': []})
+        self.assertNotIn('private-provider-body', output.getvalue())
 
     async def test_actual_request_input_guard_includes_tools_and_history(self):
         resource = SimpleNamespace(create=AsyncMock())

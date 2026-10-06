@@ -961,3 +961,5 @@ IMP-097 Bun measured compiled-identity fixture extension: `/root/configuration_c
 IMP-097 root fixture consistency extension: `cli/shared/fixtures/operations/doctor-report.json` configuration subobject only, to match the same resolver explanation oracle required by existing shared contract.
 
 IMP-097 Rust measured fixture reconciliation: `/root/sdk_final_review` owns `cli/rust/crates/prose-cli/tests/cli.rs` in place of root, limited to observed existing expectation changes for canonical paths, full explanation and earlier safe semantic validation. Preserve independent safety/lifecycle checks and report actual source failures. Root retains all production Rust.
+
+IMP-098 predictable provider tier wave: `/root/sdk_runtime` reclaims exact `harnesses/agents-sdk/run.py`, `harnesses/agents-sdk/test_run.py`, `harnesses/agents-sdk/README.md` for explicitly requested standard Responses service tier and safe requested/observed tier diagnostics, with pinned SDK tests. This supersedes earlier completed runtime repair leases. No new budget/currency settings, schema/product/Git edits or paid calls. Root freezes outer observation contract after this source change.

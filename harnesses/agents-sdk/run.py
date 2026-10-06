@@ -230,10 +230,11 @@ async def retrieve_public(url, timeout, output_limit=60000):
 
 class GuardedResponses:
     """Guard the actual SDK request after instruction/history/tool conversion."""
-    def __init__(self, resource, max_input_bytes, observed_models):
+    def __init__(self, resource, max_input_bytes, observed_models, observed_tiers=None):
         self.resource = resource
         self.max_input_bytes = max_input_bytes
         self.observed_models = observed_models
+        self.observed_tiers = observed_tiers if observed_tiers is not None else set()
 
     async def create(self, **kwargs):
         payload = {field: kwargs[field] for field in ('instructions', 'input', 'tools', 'text')
@@ -244,7 +245,28 @@ class GuardedResponses:
         model = getattr(response, 'model', None)
         if isinstance(model, str) and 0 < len(model) <= 128 and all(c.isalnum() or c in '._-/' for c in model):
             self.observed_models.add(model)
+        tier = getattr(response, 'service_tier', None)
+        if isinstance(tier, str) and tier in ('auto', 'default', 'flex', 'scale', 'priority', 'fast', 'ultrafast'):
+            self.observed_tiers.add(tier)
         return response
+
+
+class GuardedClient:
+    """Retain request guards when the SDK uses public client.with_options()."""
+    def __init__(self, client, max_input_bytes, observed_models, observed_tiers):
+        self.client = client
+        self.max_input_bytes = max_input_bytes
+        self.observed_models = observed_models
+        self.observed_tiers = observed_tiers
+        self.responses = GuardedResponses(client.responses, max_input_bytes, observed_models, observed_tiers)
+
+    def __getattr__(self, name):
+        return getattr(self.client, name)
+
+    def with_options(self, **kwargs):
+        clone = getattr(self.client, 'with_options', None)
+        client = clone(**kwargs) if callable(clone) else self.client
+        return GuardedClient(client, self.max_input_bytes, self.observed_models, self.observed_tiers)
 
 
 async def run(args):
@@ -259,8 +281,10 @@ async def run(args):
             tool_env[name] = original
     start = time.monotonic()
     observed_models = set()
+    observed_tiers = set()
     def emit(kind, **data):
-        data['modelIdentity'] = {'requested': args.model, 'observed': sorted(observed_models)}
+        data['modelIdentity'] = {'requested': args.model, 'observed': sorted(observed_models),
+                                 'serviceTier': {'requested': 'default', 'observed': sorted(observed_tiers)}}
         print(json.dumps({'type': kind, 'event': kind, 'elapsed_seconds': round(time.monotonic()-start, 3), **data}), flush=True)
     max_input_bytes = getattr(args, 'max_input_bytes', 256000)
     max_tools = getattr(args, 'max_tools', 80)
@@ -322,7 +346,7 @@ async def run(args):
         emit('tool_result', name='retrieve_url', result=result)
         return json.dumps(result)
     client = AsyncOpenAI(api_key=key.strip(), max_retries=0, timeout=args.timeout)
-    client.responses = GuardedResponses(client.responses, max_input_bytes, observed_models)
+    client = GuardedClient(client, max_input_bytes, observed_models, observed_tiers)
     config = RunConfig(tracing_disabled=True, model_provider=OpenAIProvider(openai_client=client))
     def make_agent(depth):
         @function_tool(failure_error_function=None)
@@ -354,7 +378,7 @@ async def run(args):
             model_settings=ModelSettings(max_tokens=args.max_output_tokens, timeout=args.timeout,
                 preserve_raw_usage=True, parallel_tool_calls=False,
                 retry=ModelRetrySettings(max_retries=0),
-                extra_args={'max_tool_calls': 1}))
+                extra_args={'max_tool_calls': 1, 'service_tier': 'default'}))
     emit('start', model=args.model, cwd=cwd, limits=limits,
          permissions={'shell': 'host_os_permissions', 'filesystemSandbox': False,
                       'networkSandbox': False, 'freshChildConversation': True})
