@@ -24,6 +24,94 @@ def asset_name(platform, relative, artifacts):
     return platform + '-logs-' + path.name
 
 
+SDK_NAMES = ('prose-agents-sdk', 'agents-sdk-build.json', 'AGENTS-SDK-NOTICES.txt')
+SDK_PROBES = tuple('logs/installed-sdk' + suffix + '-' + runner + '.json'
+                   for runner in ('bun', 'rust', 'npm') for suffix in ('', '-tools'))
+SDK_IMPORT_TEST = {'schema': 'openprose.sdk-packaged-self-test/1', 'openaiAgents': '0.22.2',
+                   'openai': '3.13.0', 'certificates': True, 'modelCalls': 0}
+SDK_TOOL_TEST = {'schema': 'openprose.sdk-packaged-tools-self-test/1', 'shellEffects': True,
+                 'boundedOutput': True, 'shellCancellation': True, 'mockedPublicRetrieval': True,
+                 'incompleteHttpRejected': True, 'modelCalls': 0, 'networkUsed': False}
+
+
+def validate_sdk_members(manifest, members, prefix, platform):
+    """Bind the frozen helper and its source/dependency receipt without executing it."""
+    import json
+    import publication as pub
+    sdk = manifest.get('agentsSdk')
+    keys = {'path', 'byteLength', 'sha256', 'receiptSha256', 'noticesSha256', 'python',
+            'pyinstaller', 'version', 'discovery', 'selfTest', 'toolSelfTest', 'dependencyLockSha256'}
+    require(isinstance(sdk, dict) and set(sdk) == keys, 'Production package lacks closed SDK identity')
+    require(sdk['path'] == SDK_NAMES[0] and sdk['python'] == '3.10.20'
+            and sdk['pyinstaller'] == '6.22.3' and sdk['version'] == '0.1.0'
+            and sdk['discovery'] == 'canonical-cli-sibling'
+            and sdk['selfTest'] == SDK_IMPORT_TEST and sdk['toolSelfTest'] == SDK_TOOL_TEST,
+            'Packaged SDK policy or tool qualification differs')
+    require(all(prefix + name in members for name in SDK_NAMES), 'Missing packaged SDK siblings')
+    helper, encoded, notices = (members[prefix + name] for name in SDK_NAMES)
+    require(type(sdk['byteLength']) is int and 0 < sdk['byteLength'] == len(helper)
+            and hashlib.sha256(helper).hexdigest() == sdk['sha256']
+            and hashlib.sha256(encoded).hexdigest() == sdk['receiptSha256']
+            and hashlib.sha256(notices).hexdigest() == sdk['noticesSha256'],
+            'Packaged SDK sibling bytes differ from manifest')
+    require(0 < len(encoded) <= 2 * 1024 * 1024 and 0 < len(notices) <= 8 * 1024 * 1024,
+            'Packaged SDK receipt/notices exceed bounds')
+    receipt = json.loads(encoded, object_pairs_hook=pub.object_pairs)
+    require(isinstance(receipt, dict), 'SDK build receipt must be an object')
+    os_name, architecture = platform.split('-')[:2]
+    architecture = {'darwin-arm64': 'arm64', 'darwin-x64': 'x86_64', 'linux-arm64-gnu': 'aarch64', 'linux-x64-gnu': 'x86_64'}.get(platform, architecture)
+    require(receipt.get('schema') == 'openprose.agents-sdk-build/1'
+            and receipt.get('platform') == os_name and receipt.get('architecture') == architecture
+            and receipt.get('python') == sdk['python'] and receipt.get('pyinstaller') == sdk['pyinstaller']
+            and receipt.get('helper') == {k: sdk[k] for k in ('path', 'byteLength', 'sha256')}
+            and receipt.get('selfTest') == SDK_IMPORT_TEST and receipt.get('toolSelfTest') == SDK_TOOL_TEST
+            and type(receipt.get('modelCalls')) is int and receipt['modelCalls'] == 0
+            and receipt.get('publicationAuthorized') is False,
+            'Packaged SDK build receipt identity differs')
+    sources = receipt.get('sources')
+    require(isinstance(sources, dict) and set(sources) == {
+        'harnesses/agents-sdk/run.py', 'harnesses/agents-sdk/requirements-build.txt'}
+        and all(isinstance(v, str) and re.fullmatch(r'[0-9a-f]{64}', v) for v in sources.values())
+        and sources['harnesses/agents-sdk/requirements-build.txt'] == sdk['dependencyLockSha256'],
+        'Packaged SDK source/lock binding differs')
+    require(receipt.get('notices') == {'path': SDK_NAMES[2], 'byteLength': len(notices),
+                                     'sha256': sdk['noticesSha256']}, 'SDK notices receipt differs')
+    dependencies = receipt.get('dependencies')
+    require(isinstance(dependencies, list) and dependencies, 'SDK dependency receipt is missing')
+    seen = set()
+    for package in dependencies:
+        require(isinstance(package, dict) and set(package) == {'name', 'version', 'wheelSha256'}
+                and isinstance(package['name'], str) and package['name'] not in seen
+                and isinstance(package['version'], str) and isinstance(package['wheelSha256'], list)
+                and package['wheelSha256'] and all(isinstance(h, str) and re.fullmatch(r'[0-9a-f]{64}', h) for h in package['wheelSha256']),
+                'SDK dependency receipt is malformed')
+        seen.add(package['name'])
+    if os_name == 'linux':
+        libraries = receipt.get('linuxLibraries', {})
+        maximum = libraries.get('requiredGlibcMaximum') if isinstance(libraries, dict) else None
+        require(isinstance(maximum, str) and re.fullmatch(r'[0-9]+\.[0-9]+(?:\.[0-9]+)?', maximum)
+                and tuple(map(int, maximum.split('.'))) + (0,) * (3 - len(maximum.split('.'))) <= (2, 34, 0), 'SDK Linux glibc floor differs')
+    else:
+        require(receipt.get('linuxLibraries') == 'not-applicable', 'SDK platform library receipt differs')
+    return sdk
+
+
+def validate_sdk_archives(manifest, archive_reader):
+    """All three platform payloads must contain the identical bound helper."""
+    platform = manifest['platform']
+    observed = []
+    for artifact in manifest['artifacts']:
+        if artifact['kind'] not in ('standalone-archive', 'npm-platform'):
+            continue
+        members = archive_reader(artifact['path'])
+        cli_names = [name for name in members if name.endswith('/prose') or name.endswith('/prose.exe')]
+        require(len(cli_names) == 1, 'Expected one packaged CLI for SDK sibling binding')
+        prefix = cli_names[0].rsplit('/', 1)[0] + '/'
+        observed.append(validate_sdk_members(manifest, members, prefix, platform))
+    require(len(observed) == 3, 'Three platform SDK payloads are required')
+    return manifest['agentsSdk']
+
+
 def validate_native(report, manifest, checks, final_hashes, launcher_hash):
     platform = report.get('platform')
     source, version = report.get('sourceRevision'), report.get('version')
@@ -90,7 +178,7 @@ def verify_platform_evidence(plan, root, platform, report_name, binary_hashes):
     require(manifest.get('embeddedDiagnosticImage') == preflight.get('embeddedDiagnosticImage') and manifest.get('kernelPolicy') == preflight.get('kernelPolicy'), 'Native manifest kernel policy differs from qualification')
     artifact_names = {a['path'] for a in manifest.get('artifacts', [])}
     evidence = report.get('evidence', {})
-    require(isinstance(evidence, dict) and set(CHECK_PATHS).union({'package/release-manifest.json'}).issubset(evidence), 'Required structured evidence is missing')
+    require(isinstance(evidence, dict) and set(CHECK_PATHS + SDK_PROBES).union({'package/release-manifest.json'}).issubset(evidence), 'Required structured evidence is missing')
     seen = set()
     for relative, record in evidence.items():
         name = asset_name(platform, relative, artifact_names)
@@ -110,6 +198,12 @@ def verify_platform_evidence(plan, root, platform, report_name, binary_hashes):
         require(item['sha256'] == artifact['sha256'] and item['size'] == artifact['byteLength']
                 and item['kind'] == kind and item['implementation'] == artifact['implementation']
                 and item['platform'] == (artifact['platform'] or 'all'), 'Native artifact differs from final reviewed inventory')
+    require(manifest.get('platform') == platform, 'Native manifest identity mismatch')
+    validate_sdk_archives(manifest, lambda name: pub.archive_members(root / name))
+    for relative in SDK_PROBES:
+        probe = pub.read_json(root / asset_name(platform, relative, artifact_names))
+        require(probe == (SDK_TOOL_TEST if 'sdk-tools-' in relative else SDK_IMPORT_TEST),
+                'Installed SDK probe differs: ' + relative)
     meta = next((a for a in manifest['artifacts'] if a['kind'] == 'npm-meta'), None)
     require(meta is not None, 'Missing root npm package')
     members = pub.archive_members(root / meta['path'])

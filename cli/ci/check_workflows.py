@@ -294,7 +294,7 @@ def audit_workflow(name: str, text: str) -> list[str]:
                 ),
                 "cli-kernel-rc.yml": (
                     "Build and verify fresh standalone and npm installations",
-                    'python3 cli/ci/build_kernel_rc.py --version "$RC_VERSION" --out "$RUNNER_TEMP/kernel-rc"',
+                    'python3 cli/ci/build_kernel_rc.py --version "$RC_VERSION" --out "$RUNNER_TEMP/kernel-rc" --agents-sdk-python "$RUNNER_TEMP/agents-sdk-python/bin/python3"',
                 ),
             }[name]
             require(

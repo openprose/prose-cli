@@ -1,41 +1,42 @@
-# Generic OpenAI Agents SDK local harness
+# OpenAI Agents SDK local harness
 
-A normal `Agent` + `Runner` loop with one general shell tool. The model chooses every tool action. This harness treats instruction-file contents as opaque text and has no knowledge of Contracts, references, programs, acceptance, state, or libraries. It is an optional bring-your-own-harness test implementation, not an OpenProse dependency.
+This generic `Agent` + `Runner` loop transports the caller's instructions as opaque text. It does not interpret OpenProse contracts, discover instruction files, assess fulfillment or supply company procedures. The CLI release packages a native `prose-agents-sdk` sibling executable with Python and its pinned dependencies; normal users do not provision a virtual environment. Development from source uses the release-pinned Python 3.10.20 and `pip install -r requirements.txt`.
 
-## Install and run
-
-Use Python 3.10 or later:
+Supply an OpenAI API key through `OPENAI_API_KEY` or `--env-file FILE`. Only `OPENAI_API_KEY` is read from that file, without changing the parent environment. Missing credentials fail before a model request. Rejected credentials and unavailable models produce actionable setup errors, with no credential/model fallback or exception bodies. The standalone harness model default is `gpt-6.1-sol`; the outer CLI passes its resolved model explicitly. Tracing export is disabled, and the OpenAI client and SDK runner have retries explicitly disabled, including SDK conversation-lock compatibility retries.
 
 ```sh
-python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt
-.venv/bin/python run.py --model MODEL --cwd /path/to/workspace --prompt 'Read README.md and perform the requested task.'
+prose-agents-sdk --cwd /path/to/workspace --prompt 'Read README.md and perform the requested task.'
 ```
 
-Supply `OPENAI_API_KEY` in the process environment or pass `--env-file /private/path/.env`. Only OPENAI_API_KEY is loaded from that file. An optional `--instructions FILE` appends opaque instructions to a generic coding-agent instruction. The working directory is identified in instructions. No file is automatically discovered or interpreted.
+`--instructions FILE` appends opaque instructions to the generic agent instruction; the selected working directory is identified separately. No other file is automatically loaded. Stdout is the existing version 0.1.0 JSONL event protocol: start, actual function-tool calls/results, final response/usage, or safe error. Exit zero establishes completion of the agent loop; inspect artifacts and assess requested requirements independently.
 
-JSON lines on stdout record starts, actual tool commands and results, final text and token usage, or error type. Exit 0 means Runner returned a final response, **not that the requested task passed acceptance**. Observers must inspect results independently. Tracing export is disabled. Exceptions expose types rather than potentially sensitive request bodies.
+The model has four tools:
 
-Defaults: 180 second overall timeout, 30 seconds per shell action, 20 Runner turns, 12,000 output tokens per model request. Shell timeouts and cancellation terminate the shell process group. Tool stdout/stderr are each truncated to 30,000 characters. No hidden retries, output repair, adjudication, or program-specific policy is supplied by this wrapper; SDK/provider transport behavior remains upstream behavior.
+- `execute_shell`: ordinary local Bash for reading/writing files and other host operations.
+- `web_search`: SDK-supported hosted OpenAI search with low search context. Responses limits hosted tool calls to one per model request.
+- `retrieve_url`: bounded public HTTPS GET. It rejects credentials, non-443 ports, private/non-global DNS addresses and redirects. Connections pin the vetted address while validating TLS against the original hostname. Responses support identity encoding and bounded Content-Length, EOF-delimited and chunked bodies. Declared-length and chunk framing must be complete; partial bodies fail rather than being presented as complete content. Failed or unsupported retrieval returns a safe tool error.
+- `delegate(task)`: a new independent `Agent` and `Runner` receives only the explicit task string plus the same opaque instruction file and working directory. Parent conversation, tool history and final answers are not passed automatically. Up to eight children execute serially; children cannot delegate. Files remain shared, so conversation isolation does not isolate artifacts.
 
-## Environment boundary
+## Permissions and lifecycle
 
-The shell is ordinary local bash with a supplied working directory. **This is not an OS sandbox:** use a separately isolated machine/container for untrusted programs. Keys/tokens/secrets/password variables are excluded from the shell environment, but the shell can still read host files within OS permissions. This wrapper adds no filesystem confinement. Tests use synthetic data in separate copied workspaces.
+Shell commands have the current user's OS permissions. **This is not an OS sandbox.** Commands can read host files, write outside the selected working directory and use the network. Environment names containing KEY/TOKEN/SECRET/PASSWORD are removed from shell inheritance; this cannot prevent commands from reading credentials in host files. A separately isolated machine/container is necessary for untrusted programs. Public-URL restrictions apply to `retrieve_url`, not to arbitrary shell commands. The wrapper never claims filesystem or network confinement.
 
-No web, subagent, or notification tool is provided in this initial profile. Unsupported program requirements must be handled by the model rather than silently provided by an evaluator.
+Default limits are 180 seconds for the entire parent/children invocation, 30 seconds per shell/retrieval action, 20 aggregate model requests (also the individual Runner turn cap), 80 aggregate function-tool calls and 12,000 output tokens per model request. `--max-turns` sets the shared request cap. `--max-tools` controls function tools separately; hosted calls are bounded by the request cap and one hosted call per request. `--max-input-bytes` defaults to 256,000 UTF-8 bytes per request, measured on serialized instructions, full task/history input, tools and output schema at the actual SDK Responses boundary, before transmission. Oversized instruction files fail during setup. This is a request-byte limit, not a provider token or billable-search-context measurement. `--max-total-tokens` defaults to 500,000 observed total tokens and stops the next request after the observed ceiling is reached. This observation limit does not interrupt a response already in flight and does not establish a billing ceiling. Unobserved/cancelled provider work remains unknown. Callers conducting bounded paid qualification must reserve spending conservatively before launch.
 
-## Validation
+Shell stdout/stderr capture drains pipes while retaining at most 30,000 bytes each; results disclose truncation. Retrieval retains 60,000 body bytes with a truncation flag. Child input/output is bounded to 60,000 bytes. Oversized child output fails the invocation rather than silently presenting it as complete. Shell timeout/cancellation kills its process group and waits for the direct process; descendants deliberately escaping that group are outside this guarantee. Frozen builds restore original dynamic-loader environment settings for subprocesses rather than exposing their bundled-library directory.
+
+SIGINT/SIGTERM cancel the running invocation, including active children and tool awaits. Errors, timeouts, exhaustion and cancellation preserve observed completed usage in a terminal error when the process is allowed to settle. External force-kill can prevent terminal reporting. SDK/provider and hosted-tool internals remain upstream behavior.
+
+## Usage and validation
+
+Successful `final.usage` sums the normalized usage from the parent and each independently completed child once. It overlaps `usageObservation`; do not add them together. Observations sum only allowlisted nonnegative integer counters present in raw usage on unique completed model responses across parent and children: input/output/total, cached/cache-write and reasoning tokens. Missing/invalid fields remain absent. Event `modelIdentity` records the requested model and allowlisted observed model IDs from completed provider Responses without exposing response contents. `fieldResponseCounts` shows coverage. Provider IDs stay internal to deduplication and never appear in observation records.
+
+Logical hook starts/completions do not establish provider transport billing. `outstandingProviderRequestCount` is null and `totalRunUsageKnown` remains false, including success. Preserve failed/cancelled spending reservations unless independent accounting closes them.
 
 ```sh
-.venv/bin/python test_run.py
+python test_run.py
 ```
 
-Local tests exercise actual read/write/exit behavior, process-group timeout cleanup, budget forwarding, safe failures, and provider-free usage accounting. A mocked provider request comparison verifies that raw-usage preservation changes neither request fields nor the tool schema. Initial real-model observations are in `EVIDENCE.md`. No language acceptance tests are embedded in the harness.
+Provider-free tests exercise actual local file effects, byte-bounded output capture, process-group timeout/cancellation, missing credentials before inference, safe auth/model failures, aggregate request/tool/observed-token limits, the actual transmitted request byte guard including tools and history, private URL rejection, raw-usage deduplication and genuine SDK-loop child isolation. Mocked Responses transport verifies one hosted-tool allowance per request and no transport retries. Live artifact fulfillment and installed release readiness are separate qualification gates, retained by the owning task.
 
-Implementation followed the official [Agents SDK migration example](https://developers.openai.com/cookbook/examples/agents_sdk/migrate-from-claude-agent-sdk/readme) and inspected installed SDK signatures. Pinned direct dependencies: OpenAI Agents SDK 0.22.2, OpenAI Python 3.13.0, python-dotenv 1.2.3.
-
-The outer runners expose explicit `--native-max-turns` and `--native-timeout` selections; see [SDK execution budgets](../../docs/sdk-budgets.md). Native start/error records report configured limits. Safe native error types distinguish turn exhaustion and timeout; all other exception classes become `ExecutionError`, without exception bodies.
-
-Final and error records also carry an additive `usageObservation`, collected through public SDK `RunHooks` with `ModelSettings(preserve_raw_usage=True)`. Existing successful `final.usage` remains the SDK's normalized aggregate. The new observation sums only allowlisted nonnegative integer counters actually present in raw usage on unique completed model responses: input/output/total tokens, cached/cache-write input tokens, and reasoning output tokens. Missing or invalid counters are absent, never inferred as zero. `fieldResponseCounts` reports how many completed responses supplied each counter; observed totals can therefore cover only part of a run. These totals overlap legacy `final.usage`: **do not add them together**. `aggregationScope` identifies the per-run completed-response aggregate, excluding cumulative context snapshots. Provider response/request IDs are used only for internal deduplication and are not emitted; identical callbacks without IDs are deduplicated by object identity.
-
-`startedCallCount`, `completedResponseCount`, and `outstandingCallCount` refer to logical SDK hook calls, not provider transport requests. `duplicateResponseCallbackCount` records ignored duplicate completion callbacks. Transport retries, responses without preserved raw usage, cancelled requests, and any provider work invoked separately from shell are outside this observation. Accordingly `outstandingProviderRequestCount` is null and `totalRunUsageKnown` is always false, including successful runs; these observations cannot establish total billing or justify releasing a failed run's spending reservation. An error before any observed response yields empty token totals, not measured zero usage. Ordinary SDK failure, turn exhaustion, or overall timeout preserves completed-response observations in the error record. External process termination before final/error emits no such summary. No new JSON event type, tracing export, model instruction, tool, budget, or protocol version is introduced.
+The integration reuses the pinned SDK 0.22.2 public Agent/Runner/RunHooks/ModelSettings/WebSearchTool APIs. OpenAI Python and dotenv versions are pinned in [requirements.txt](requirements.txt); packaging retains transitive dependency identities. See [SDK budgets](../../docs/sdk-budgets.md) for the outer-runner budgets and historical [evidence](EVIDENCE.md) for earlier source-only observations.

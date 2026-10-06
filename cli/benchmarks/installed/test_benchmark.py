@@ -332,6 +332,7 @@ def refresh_evidence(output: Path) -> None:
         "bun": "bun-cli",
         "cargo": "rust-cli",
         "windowsProcessHostCargo": "windows-process-host",
+        "agentsSdkPython": "agents-sdk-python",
     }
     for inventory_name, inventory in dependency_value.get("inventories", {}).items():
         group = groups.get(inventory_name)
@@ -426,6 +427,20 @@ def refresh_evidence(output: Path) -> None:
         ),
         "utf-8",
     )
+    if isinstance(release.get('agentsSdk'), dict):
+        sdk = release['agentsSdk']
+        sbom_path = output / 'sbom.cdx.json'; sbom = json.loads(sbom_path.read_text())
+        sbom['components'].append({'type': 'file', 'name': 'prose-agents-sdk',
+                                   'hashes': [{'alg': 'SHA-256', 'content': sdk['sha256']}]})
+        sbom_path.write_text(json.dumps(sbom))
+        provenance_path = output / 'provenance.json'; provenance = json.loads(provenance_path.read_text())
+        definition = provenance['predicate']['buildDefinition']
+        definition['externalParameters'] = {'agentsSdk': sdk}
+        definition['resolvedDependencies'] += [
+            {'uri': 'openprose:agents-sdk-helper', 'digest': {'sha256': sdk['sha256']}},
+            {'uri': 'openprose:agents-sdk-build-receipt', 'digest': {'sha256': sdk['receiptSha256']}},
+            {'uri': 'openprose:agents-sdk-python-lock', 'digest': {'sha256': sdk['dependencyLockSha256']}}]
+        provenance_path.write_text(json.dumps(provenance))
     paths = sorted(path for path in output.iterdir() if path.name != "SHA256SUMS")
     (output / "SHA256SUMS").write_text(
         "".join(f"{digest(path.read_bytes())}  {path.name}\n" for path in paths),
@@ -688,6 +703,27 @@ def make_release_package_output(root: Path, *, platform_value: str = PLATFORM) -
                 members[index] = (name, canonical(package), mode)
 
     rewrite_tar(platform_package, release_platform_manifest)
+    import sys
+    ci_path = str(ROOT / 'cli/ci')
+    if ci_path not in sys.path:
+        sys.path.insert(0, ci_path)
+    from test_assemble_kernel_rc import sdk_fixture
+    sdk, sdk_members = sdk_fixture(platform_value)
+    manifest['agentsSdk'] = sdk
+    for artifact in manifest['artifacts']:
+        if artifact['kind'] in ('standalone-archive', 'npm-platform'):
+            def append_sdk(members):
+                cli_name = next(n for n, d, m in members if n.endswith('/prose') or n.endswith('/prose.exe'))
+                prefix = cli_name.rsplit('/', 1)[0] + '/'
+                members.extend((prefix + n, d, m) for n, d, m in sdk_members)
+            rewrite_tar(output / artifact['path'], append_sdk)
+    dependency_path = output / 'dependency-evidence.json'; dependency = json.loads(dependency_path.read_text())
+    dependency['sources'].append({'path': 'harnesses/agents-sdk/requirements-build.txt', 'byteLength': 1, 'sha256': sdk['dependencyLockSha256']})
+    dependency['inventories']['agentsSdkPython'] = {
+        'lockfileVersion': 1, 'scopeBasis': 'hash-locked-four-platform-wheel-candidates',
+        'packages': [{'name': 'fixture', 'version': '1.0.0', 'source': 'pypi:wheel-sha256:' + 'e'*64,
+                      'scopes': ['frozen-sdk-build'], 'integrity': {'status': 'declared', 'algorithm': 'sha256', 'digest': 'e'*64}}]}
+    dependency_path.write_text(json.dumps(dependency))
     manifest_path.write_text(json.dumps(manifest, sort_keys=True), "utf-8")
     refresh_evidence(output)
     return output
@@ -758,6 +794,14 @@ def rewrite_tar(path: Path, mutate) -> None:
 
 
 class InstalledPackageBenchmarkTests(unittest.TestCase):
+    def test_release_cannot_omit_sdk_identity_after_rehashing(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            output = make_release_package_output(Path(temporary))
+            path = output / 'release-manifest.json'; manifest = json.loads(path.read_text())
+            manifest.pop('agentsSdk'); path.write_text(json.dumps(manifest)); refresh_evidence(output)
+            with self.assertRaisesRegex(BENCHMARK.BenchmarkError, 'SDK identity'):
+                BENCHMARK.verify_package_output(output, purpose='release-invariants')
+
     def test_package_verification_purpose_separates_mock_and_release_invariants(
         self,
     ) -> None:

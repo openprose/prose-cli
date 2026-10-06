@@ -199,6 +199,7 @@ class DependencyEvidenceTests(unittest.TestCase):
                 "cli/rust/crates/prose-cli/Cargo.toml",
                 "cli/rust/crates/prose-process-supervisor/Cargo.toml",
                 "cli/rust/crates/prose-runner-core/Cargo.toml",
+                "harnesses/agents-sdk/requirements-build.txt",
             ],
         )
         self.assertGreater(len(report["inventories"]["cargo"]["packages"]), 50)
@@ -211,6 +212,10 @@ class DependencyEvidenceTests(unittest.TestCase):
             len(report["inventories"]["windowsProcessHostCargo"]["packages"]), 14
         )
         self.assertEqual(len(report["inventories"]["bun"]["packages"]), 13)
+        python = report["inventories"]["agentsSdkPython"]["packages"]
+        self.assertEqual(len({p["name"] for p in python}), 46)
+        self.assertEqual(len(python), 67)
+        self.assertTrue(all(p["integrity"]["status"] == "declared" for p in python))
         for source in report["sources"]:
             self.assertRegex(source["sha256"], r"^[0-9a-f]{64}$")
             self.assertGreater(source["byteLength"], 0)
@@ -483,3 +488,18 @@ version = "1.0.0"
 
 if __name__ == "__main__":
     unittest.main()
+
+class PythonSdkDependencyEvidenceTests(unittest.TestCase):
+    def test_python_lock_candidates_bind_hashes_and_reject_unpinned_input(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary); make_fixture(root)
+            lock = root / 'harnesses/agents-sdk/requirements-build.txt'; lock.parent.mkdir(parents=True)
+            lock.write_text('openai==3.13.0 --hash=sha256:' + SHA256_A + ' --hash=sha256:' + SHA256_B + '\n')
+            report = EVIDENCE.build_report(root)
+            packages = report['inventories']['agentsSdkPython']['packages']
+            self.assertEqual([p['integrity']['digest'] for p in packages], [SHA256_A, SHA256_B])
+            self.assertIn('harnesses/agents-sdk/requirements-build.txt', [s['path'] for s in report['sources']])
+            for text in ('openai>=3\n', 'openai==3.13.0\n', '--extra-index-url https://example.invalid\n'):
+                lock.write_text(text)
+                with self.assertRaises(EVIDENCE.EvidenceError):
+                    EVIDENCE.build_report(root)

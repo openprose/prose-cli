@@ -607,6 +607,7 @@ def _build(
     executor: Executor = execute,
     package_purpose: str = ORDINARY_PACKAGE_PURPOSE,
     internal_packager: Callable[[Sequence[str]], None] | None = None,
+    agents_sdk_build: Path | None = None,
 ) -> dict[str, object]:
     if package_purpose not in PACKAGE_PURPOSES:
         raise LocalBuildError("package purpose is unsupported")
@@ -619,6 +620,22 @@ def _build(
     if install_dir is not None and os.path.lexists(install_dir):
         raise LocalBuildError("--install-dir must not already exist")
     environment = clean_environment(ambient)
+    sdk_members = []
+    if agents_sdk_build is not None:
+        sdk_snapshots = owned_root / "sdk-inputs"
+        sdk_snapshots.mkdir(mode=0o700)
+        sdk_readelf = None
+        if sys.platform.startswith("linux"):
+            discovered = shutil.which("readelf", path=environment.get("PATH"))
+            if discovered is None:
+                raise LocalBuildError("Local SDK installation requires readelf")
+            sdk_readelf = Path(discovered).resolve(strict=True)
+        try:
+            sdk_members, _sdk_record = package_local.snapshot_sdk(
+                agents_sdk_build, sdk_snapshots, package_local.current_platform_id(), "development", sdk_readelf
+            )
+        except package_local.PackageError as error:
+            raise LocalBuildError(f"Local SDK input verification failed: {error}") from error
     windows_host_record: dict[str, object] | None = None
     owned_windows_host: Path | None = None
     if IS_WINDOWS:
@@ -950,6 +967,8 @@ def _build(
                 raise LocalBuildError("Local Linux packaging requires readelf")
             exact_readelf = Path(discovered_readelf).resolve(strict=True)
             packaging_argv.extend(("--readelf", str(exact_readelf)))
+        if agents_sdk_build is not None:
+            packaging_argv.extend(("--agents-sdk-build", str(agents_sdk_build)))
         if package_purpose == ORDINARY_PACKAGE_PURPOSE:
             run_checked(
                 "Local packaging",
@@ -1007,6 +1026,10 @@ def _build(
     install_record: dict[str, object] | None = None
     if install_dir is not None:
         install_dir.mkdir(parents=True)
+        for name, data, mode in sdk_members:
+            destination = install_dir / name
+            destination.write_bytes(data)
+            destination.chmod(mode)
         install_record = {}
         for candidate in candidates:
             verify_candidate_snapshot(candidate)
@@ -1057,6 +1080,7 @@ def build(
     executor: Executor = execute,
     package_purpose: str = ORDINARY_PACKAGE_PURPOSE,
     internal_packager: Callable[[Sequence[str]], None] | None = None,
+    agents_sdk_build: Path | None = None,
 ) -> dict[str, object]:
     with tempfile.TemporaryDirectory(prefix="openprose-local-build-") as directory:
         return _build(
@@ -1069,6 +1093,7 @@ def build(
             executor=executor,
             package_purpose=package_purpose,
             internal_packager=internal_packager,
+            agents_sdk_build=agents_sdk_build,
         )
 
 
@@ -1078,6 +1103,7 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--smoke", action="store_true")
     result.add_argument("--package", type=Path)
     result.add_argument("--install-dir", type=Path)
+    result.add_argument("--agents-sdk-build", type=Path)
     result.add_argument("--json", action="store_true")
     return result
 
@@ -1091,6 +1117,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             package=args.package,
             install_dir=args.install_dir,
             ambient=os.environ,
+            agents_sdk_build=args.agents_sdk_build,
         )
     except (LocalBuildError, OSError, KeyError, json.JSONDecodeError) as error:
         print(f"local-build: {error}", file=sys.stderr)

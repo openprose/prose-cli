@@ -72,12 +72,12 @@ def prepare_macos_binary(binary, env, logs):
             cwd=ROOT, log=logs / 'rust-ad-hoc-verify.log', timeout=60)
 
 
-def extract_binary(archive, output):
+def extract_binary(archive, output, *, require_sdk=False):
     """Extract only one regular executable; reject unsafe archive metadata first."""
     with tarfile.open(archive) as source:
         members = source.getmembers()
         require(len(members) <= 100, 'Too many archive members')
-        names = set(); binaries = []; total = 0
+        names = set(); binaries = []; sdk = []; total = 0
         for member in members:
             name = PurePosixPath(member.name)
             require(not name.is_absolute() and '..' not in name.parts and '\\' not in member.name,
@@ -87,11 +87,22 @@ def extract_binary(archive, output):
             require(0 <= member.size <= MAX_BYTES and total <= MAX_BYTES, 'Archive exceeds size limit')
             if name.name == 'prose':
                 binaries.append(member)
+            if name.name in ('prose-agents-sdk', 'agents-sdk-build.json', 'AGENTS-SDK-NOTICES.txt'):
+                sdk.append(member)
         require(len(binaries) == 1 and binaries[0].mode & 0o111, 'Missing unique executable')
+        if require_sdk:
+            require({Path(m.name).name for m in sdk} == {'prose-agents-sdk', 'agents-sdk-build.json', 'AGENTS-SDK-NOTICES.txt'} and len(sdk) == 3,
+                    'Missing unique packaged SDK runtime/receipt/notices')
+            require(all(Path(m.name).parent == Path(binaries[0].name).parent for m in sdk), 'SDK members must be CLI siblings')
         output.parent.mkdir(parents=True, exist_ok=False)
         with source.extractfile(binaries[0]) as src, output.open('xb') as dst:
             shutil.copyfileobj(src, dst)
         output.chmod(0o755)
+        for member in sdk:
+            target = output.parent / Path(member.name).name
+            with source.extractfile(member) as src, target.open('xb') as dst:
+                shutil.copyfileobj(src, dst)
+            target.chmod(0o755 if target.name == 'prose-agents-sdk' else 0o644)
     return output
 
 
@@ -116,7 +127,7 @@ def verified_artifacts(package):
     return manifest
 
 
-def build(version, output):
+def build(version, output, *, agents_sdk_python=None):
     require(RC.fullmatch(version) is not None, 'Use an exact X.Y.Z-rc.N version')
     require(not output.exists() and not output.is_symlink(), 'Output must be fresh')
     revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
@@ -129,6 +140,9 @@ def build(version, output):
     env.update(OPENPROSE_BUILD_COMMIT=revision, OPENPROSE_BUILD_VERSION=version,
                OPENPROSE_REQUIRE_RELEASE_IMAGE='1', CARGO_TARGET_DIR=str(output / 'cargo-target'))
     binaries = output / 'binaries'; binaries.mkdir()
+    sdk_output = output / 'agents-sdk'
+    command([agents_sdk_python or sys.executable, ROOT / 'cli/ci/build_agents_sdk.py', '--out', sdk_output,
+             '--source-date-epoch', epoch], env=env, cwd=ROOT, log=logs / 'build-sdk.log')
     command(['bun', '--no-env-file', 'scripts/image-bundle.ts', 'build', '--require-release-eligible',
              '--outfile', binaries / 'prose-bun'], env=env, cwd=ROOT / 'cli/bun', log=logs / 'build-bun.log')
     command(['cargo', 'build', '--manifest-path', ROOT / 'cli/rust/Cargo.toml', '--release', '--locked',
@@ -147,6 +161,7 @@ def build(version, output):
     args = [sys.executable, ROOT / 'cli/ci/package_local.py', '--mode', 'kernel-rc', '--publication-platforms',
             'posix-four', '--version', version, '--source-revision', revision, '--source-date-epoch', epoch,
             '--rust-binary', binaries / 'prose-rust', '--bun-binary', binaries / 'prose-bun',
+            '--agents-sdk-build', sdk_output,
             '--image-manifest', ROOT / 'cli/shared/image/echo-v0/manifest.json', '--out', package]
     if sys.platform.startswith('linux'):
         args += ['--readelf', executable_tool('readelf', env)]
@@ -155,8 +170,12 @@ def build(version, output):
     for item in manifest['artifacts']:
         if item['kind'] == 'standalone-archive':
             runner = item['implementation']
-            binary = extract_binary(package / item['path'], output / 'installed' / runner / 'prose')
+            binary = extract_binary(package / item['path'], output / 'installed' / runner / 'prose', require_sdk=True)
             check(binary, runner, 'installed-' + runner)
+            command([binary.parent / 'prose-agents-sdk', '--packaged-self-test'], env=env, cwd=output,
+                    log=logs / ('installed-sdk-' + runner + '.json'), timeout=30)
+            command([binary.parent / 'prose-agents-sdk', '--packaged-tool-self-test'], env=env, cwd=output,
+                    log=logs / ('installed-sdk-tools-' + runner + '.json'), timeout=30)
     prefix = output / 'npm-prefix'
     from npm_alias_install import install as install_alias
     meta = next(package / a['path'] for a in manifest['artifacts'] if a['kind'] == 'npm-meta')
@@ -166,6 +185,14 @@ def build(version, output):
     (logs / 'npm-alias-install.json').write_text(json.dumps(alias_install, sort_keys=True) + '\n')
     node = shutil.which('node', path=env.get('PATH')); require(node, 'Node is required for npm launcher')
     check(prefix / 'bin/prose', 'bun', 'installed-npm', node)
+    installed_helpers = list((prefix / 'lib/node_modules').rglob('prose-agents-sdk'))
+    require(len(installed_helpers) == 1 and installed_helpers[0].is_file() and not installed_helpers[0].is_symlink(),
+            'npm installation requires one package-owned SDK helper')
+    require(digest(installed_helpers[0]) == manifest['agentsSdk']['sha256'], 'Installed npm SDK helper differs')
+    command([installed_helpers[0], '--packaged-self-test'], env=env, cwd=output,
+            log=logs / 'installed-sdk-npm.json', timeout=30)
+    command([installed_helpers[0], '--packaged-tool-self-test'], env=env, cwd=output,
+            log=logs / 'installed-sdk-tools-npm.json', timeout=30)
     report = {'schema': 'openprose.kernel-rc-build/1', 'version': version, 'sourceRevision': revision,
               'platform': manifest['platform'], 'imageSource': 'published-on-run', 'testSeamsEnabled': False,
               'signing': 'unsigned', 'modelCalls': 0, 'kernelFetches': 0,
@@ -181,8 +208,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--version', required=True)
     parser.add_argument('--out', type=Path, required=True)
+    parser.add_argument('--agents-sdk-python', type=Path, help='Separate hash-locked SDK build interpreter (defaults to current interpreter)')
     args = parser.parse_args()
     try:
-        print(json.dumps(build(args.version, args.out.absolute()), sort_keys=True))
+        print(json.dumps(build(args.version, args.out.absolute(), agents_sdk_python=args.agents_sdk_python), sort_keys=True))
     except (ValueError, OSError, subprocess.SubprocessError) as error:
         parser.exit(2, str(error) + '\n')

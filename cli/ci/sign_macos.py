@@ -118,7 +118,7 @@ def verify_existing(output: Path, identity: str, team_id: str,
         if (receipt["schema"] != "openprose.macos-signing/1"
                 or receipt["identity"] != identity or receipt["teamId"] != team_id
                 or receipt["bunEntitlements"] != BUN_ENTITLEMENTS
-                or set(receipt["binaries"]) != {"bun", "rust"}
+                or set(receipt["binaries"]) not in ({"bun", "rust"}, {"bun", "rust", "agents-sdk"})
                 or receipt["notarization"]["archive"] != "notarization.zip"
                 or receipt["notarization"]["status"] != "Accepted"):
             raise SigningError("Signing receipt does not match release policy")
@@ -136,7 +136,7 @@ def verify_existing(output: Path, identity: str, team_id: str,
         if archive_hash != receipt["notarization"]["sha256"]:
             raise SigningError("Notarization archive digest mismatch")
         with zipfile.ZipFile(archive) as zipped:
-            if sorted(zipped.namelist()) != ["prose-bun", "prose-rust"]:
+            if sorted(zipped.namelist()) != sorted(record["file"] for record in receipt["binaries"].values()) or len(zipped.infolist()) != len(receipt["binaries"]):
                 raise SigningError("Notarization archive must contain exactly both binaries")
             for record in receipt["binaries"].values():
                 info = zipped.getinfo(record["file"])
@@ -165,7 +165,7 @@ def verify_existing(output: Path, identity: str, team_id: str,
 def sign(bun: Path, rust: Path, output: Path, identity: str, team_id: str,
          notary_key: Path, notary_key_id: str, notary_issuer: str,
          keychain: Path | None = None, timeout_seconds: int = 900,
-         *, commands=None) -> dict:
+         *, commands=None, agents_sdk: Path | None = None) -> dict:
     if platform.system() != "Darwin":
         raise SigningError("Developer ID signing requires macOS")
     if not re.fullmatch(r"[A-Z0-9]{10}", team_id):
@@ -181,6 +181,25 @@ def sign(bun: Path, rust: Path, output: Path, identity: str, team_id: str,
     if type(timeout_seconds) is not int or not 30 <= timeout_seconds <= 3600:
         raise SigningError("Timeout must be between 30 and 3600 seconds")
     inputs = {"bun": regular_file(bun), "rust": regular_file(rust)}
+    sdk_build = None
+    if agents_sdk is not None:
+        inputs["agents-sdk"] = regular_file(agents_sdk)
+        build_path = regular_file(agents_sdk.parent / 'agents-sdk-build.json')
+        notices = regular_file(agents_sdk.parent / 'AGENTS-SDK-NOTICES.txt')
+        if build_path.stat().st_size > 2 * 1024 * 1024 or notices.stat().st_size > 8 * 1024 * 1024:
+            raise SigningError('SDK signing metadata exceeds bounds')
+        try:
+            sdk_build = json.loads(build_path.read_text())
+        except ValueError as error:
+            raise SigningError('SDK build receipt is malformed') from error
+        if not isinstance(sdk_build, dict):
+            raise SigningError('SDK build receipt must be an object')
+        if sdk_build.get('embeddedSigning') != {'identity': identity, 'verification': 'pyinstaller-inner-binaries-and-frozen-self-tests'}:
+            raise SigningError('SDK signing requires same-identity signed embedded binaries')
+        if sdk_build.get('helper') != {'path': 'prose-agents-sdk', 'byteLength': agents_sdk.stat().st_size, 'sha256': sha256(agents_sdk)}:
+            raise SigningError('SDK input differs from frozen build receipt')
+        if sdk_build.get('notices') != {'path': notices.name, 'byteLength': notices.stat().st_size, 'sha256': sha256(notices)}:
+            raise SigningError('SDK notices differ from frozen build receipt')
     notary_key = regular_file(notary_key)
     if keychain is not None:
         keychain = regular_file(keychain)
@@ -210,6 +229,11 @@ def sign(bun: Path, rust: Path, output: Path, identity: str, team_id: str,
         details = run(["/usr/bin/codesign", "--display", "--verbose=4", str(target)])
         signature_details(details, identity, team_id)
         verify_entitlements(run, target, BUN_ENTITLEMENTS if name == "bun" else {})
+        if name == 'agents-sdk':
+            from kernel_rc_evidence import SDK_IMPORT_TEST, SDK_TOOL_TEST
+            for flag, expected in (('--packaged-self-test', SDK_IMPORT_TEST), ('--packaged-tool-self-test', SDK_TOOL_TEST)):
+                if json.loads(run([str(target), flag])) != expected:
+                    raise SigningError('Signed SDK self-test differs from frozen tool qualification')
         if sha256(source) != original_hash:
             raise SigningError("Source binary changed during signing")
         binaries[name] = {"file": target.name, "inputSha256": original_hash,
@@ -239,6 +263,10 @@ def sign(bun: Path, rust: Path, output: Path, identity: str, team_id: str,
         sha256(output / record["file"]) != record["signedSha256"] for record in binaries.values()
     ):
         raise SigningError("Signed artifacts changed during notarization")
+    if sdk_build is not None:
+        if (json.loads(build_path.read_text()) != sdk_build
+                or sha256(notices) != sdk_build['notices']['sha256']):
+            raise SigningError('SDK build metadata changed during signing')
     # Store a bounded projection, not the raw service log, which can contain
     # local paths/account data. Native service logs remain available by ID.
     receipt = {"schema": "openprose.macos-signing/1", "teamId": team_id,
@@ -248,12 +276,22 @@ def sign(bun: Path, rust: Path, output: Path, identity: str, team_id: str,
                                 "archive": archive.name, "sha256": archive_hash},
                "stapled": False}
     (output / "receipt.json").write_text(json.dumps(receipt, indent=2) + "\n")
+    if sdk_build is not None:
+        build = sdk_build
+        signed = binaries['agents-sdk']
+        build['unsignedHelper'] = build['helper']
+        build['helper'] = {'path': 'prose-agents-sdk', 'byteLength': (output / signed['file']).stat().st_size,
+                           'sha256': signed['signedSha256']}
+        build['signing'] = 'developer-id-notarized'
+        build['signingReceiptSha256'] = sha256(output / 'receipt.json')
+        (output / 'agents-sdk-build.json').write_text(json.dumps(build, indent=2) + '\n')
+        shutil.copyfile(notices, output / notices.name)
     return receipt
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    for name in ("bun", "rust", "verify-existing"):
+    for name in ("bun", "rust", "agents-sdk", "verify-existing"):
         parser.add_argument("--" + name, type=Path)
     for name in ("output", "notary-key"):
         parser.add_argument("--" + name, type=Path, required=name == "notary-key")
@@ -265,7 +303,7 @@ def main() -> int:
         args = vars(parser.parse_args())
         existing = args.pop("verify_existing")
         if existing is not None:
-            if any([args.pop(name) is not None for name in ("bun", "rust", "output")]):
+            if any([args.pop(name) is not None for name in ("bun", "rust", "agents_sdk", "output")]):
                 raise SigningError("Verification mode cannot accept build inputs")
             args.pop("keychain")
             verify_existing(existing, **args)

@@ -2318,6 +2318,34 @@ process.stdout.write(JSON.stringify({ spawned, stderr, exitCode: fakeProcess.exi
         path.chmod(0o755)
         return source
 
+    def write_sdk_candidate(self):
+        """Native provider-free helper fixture; never qualified release evidence."""
+        directory = self.root / "sdk-fixture"; directory.mkdir()
+        helper = directory / PACKAGE_LOCAL.SDK_NAME
+        expected = {"schema": "openprose.sdk-packaged-self-test/1", "openaiAgents": "0.22.2", "openai": "3.13.0", "certificates": True, "modelCalls": 0}
+        tools = {'schema': 'openprose.sdk-packaged-tools-self-test/1', 'shellEffects': True,
+                 'boundedOutput': True, 'shellCancellation': True, 'mockedPublicRetrieval': True,
+                 'incompleteHttpRejected': True, 'modelCalls': 0, 'networkUsed': False}
+        libraries = {"schema": "openprose.sdk-packaged-libraries/1", "elfCount": 1, "requiredGlibcMaximum": "2.34", "modelCalls": 0}
+        c_source = directory / "fixture.c"
+        c_source.write_text("#include <stdio.h>\n#include <string.h>\nint main(int argc,char **argv){if(argc!=2)return 2; if(strcmp(argv[1],\"--packaged-self-test\")==0) puts(" + json.dumps(json.dumps(expected)) + "); else if(strcmp(argv[1],\"--packaged-tool-self-test\")==0) puts(" + json.dumps(json.dumps(tools)) + "); else if(strcmp(argv[1],\"--packaged-library-test\")==0) puts(" + json.dumps(json.dumps(libraries)) + "); else if(strcmp(argv[1],\"--version\")==0) puts(\"prose-agents-sdk 0.1.0\"); else return 2; return 0;}")
+        compiler = shutil.which("cc"); self.assertIsNotNone(compiler)
+        subprocess.run([compiler, "-O0", "-o", str(helper), str(c_source)], check=True, timeout=30, capture_output=True)
+        if platform.system() == "Darwin":
+            subprocess.run(["/usr/bin/codesign", "--force", "--sign", "-", str(helper)], check=True, timeout=30, capture_output=True)
+        notices = b"Hermetic native fixture; no SDK dependencies or provider calls."
+        (directory / PACKAGE_LOCAL.SDK_NOTICES).write_bytes(notices)
+        record = {"schema": "openprose.agents-sdk-build/1", "modelCalls": 0,
+                  "platform": "darwin" if platform.system() == "Darwin" else "linux",
+                  "architecture": platform.machine(), "python": "3.10.20", "pyinstaller": "6.22.3",
+                  "sources": {p: PACKAGE_LOCAL.sha256_file(ROOT / p) for p in ("harnesses/agents-sdk/run.py", "harnesses/agents-sdk/requirements-build.txt")},
+                  "helper": {"path": PACKAGE_LOCAL.SDK_NAME, "sha256": PACKAGE_LOCAL.sha256_file(helper), "byteLength": helper.stat().st_size},
+                  "notices": {"path": PACKAGE_LOCAL.SDK_NOTICES, "sha256": hashlib.sha256(notices).hexdigest(), "byteLength": len(notices)},
+                  "selfTest": expected, "toolSelfTest": tools, "linuxLibraries": libraries if platform.system() == "Linux" else "not-applicable",
+                  "authority": "hermetic-test-fixture-not-release-evidence"}
+        (directory / PACKAGE_LOCAL.SDK_RECEIPT).write_text(json.dumps(record))
+        return directory
+
     def install_npm(self, name: str, include_platform: bool) -> Path:
         npm = shutil.which("npm")
         self.assertIsNotNone(npm)
@@ -4694,6 +4722,8 @@ process.stdout.write(JSON.stringify({ spawned, stderr, exitCode: fakeProcess.exi
                         ),
                         "--image-manifest",
                         str(eligible),
+                        "--agents-sdk-build",
+                        str(self.root / "uninspected-sdk"),
                         "--canonical-profile",
                         str(canonical_profile),
                         "--release-evidence",
@@ -4744,6 +4774,7 @@ process.stdout.write(JSON.stringify({ spawned, stderr, exitCode: fakeProcess.exi
         release_evidence = self.root / "arbitrary-evidence.txt"
         canonical_profile.write_text("not authority\n", "utf-8")
         release_evidence.write_text("not validation\n", "utf-8")
+        sdk = self.write_sdk_candidate()
         output = self.root / "candidate-only-release"
         completed = subprocess.run(
             [
@@ -4761,6 +4792,8 @@ process.stdout.write(JSON.stringify({ spawned, stderr, exitCode: fakeProcess.exi
                 str(binaries["bun"]),
                 "--image-manifest",
                 str(eligible),
+                "--agents-sdk-build",
+                str(sdk),
                 "--canonical-profile",
                 str(canonical_profile),
                 "--release-evidence",
@@ -4793,3 +4826,43 @@ process.stdout.write(JSON.stringify({ spawned, stderr, exitCode: fakeProcess.exi
 
 if __name__ == "__main__":
     unittest.main()
+
+class PackagedSdkArtifactTests(unittest.TestCase):
+    def test_release_requires_packaged_helper_before_other_work(self):
+        args = argparse.Namespace(mode='kernel-rc', version='0.15.0-rc.4', source_revision='fixture', source_date_epoch=0)
+        with self.assertRaisesRegex(PACKAGE_LOCAL.PackageError, '--agents-sdk-build'):
+            PACKAGE_LOCAL.build(args)
+
+    def test_sdk_build_receipt_rejects_changed_source_before_executing(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); sdk = root / 'sdk'; sdk.mkdir(); snapshots = root / 'snapshots'; snapshots.mkdir()
+            receipt = {'schema': 'openprose.agents-sdk-build/1', 'modelCalls': 0,
+                       'platform': 'darwin', 'architecture': 'arm64', 'python': '3.10.20', 'pyinstaller': '6.22.3',
+                       'sources': {'harnesses/agents-sdk/run.py': 'a' * 64}}
+            (sdk / PACKAGE_LOCAL.SDK_RECEIPT).write_text(json.dumps(receipt))
+            with mock.patch.object(PACKAGE_LOCAL, 'run_bounded') as execute:
+                with self.assertRaisesRegex(PACKAGE_LOCAL.PackageError, 'sources differ'):
+                    PACKAGE_LOCAL.snapshot_sdk(sdk, snapshots, 'darwin-arm64', 'kernel-rc', None)
+                execute.assert_not_called()
+
+    def test_sdk_payload_is_sibling_in_standalone_and_npm(self):
+        sdk_members = [('prose-agents-sdk', b'fixture-helper', 0o755),
+                       ('agents-sdk-build.json', b'{}', 0o644), ('AGENTS-SDK-NOTICES.txt', b'notices', 0o644)]
+        image, image_sha = PACKAGE_LOCAL.read_image_manifest(ECHO_IMAGE_MANIFEST)
+        identity = PACKAGE_LOCAL.image_identity(image, image_sha)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            archive = PACKAGE_LOCAL.standalone_archive(root, 'rust', b'fixture-cli', '0.1.0', 'darwin-arm64', 0,
+                                                      'not-applicable', 'development', b'example', sdk_members=sdk_members)
+            with tarfile.open(archive) as source:
+                names = source.getnames()
+                self.assertTrue(any(n.endswith('/prose-agents-sdk') for n in names))
+                self.assertTrue(all(n.split('/')[0] == names[0].split('/')[0] for n in names))
+            _, payload = PACKAGE_LOCAL.npm_packages(root, b'fixture-cli', '0.1.0', 'darwin-arm64', 0,
+                                                    'fixture', identity, 'not-applicable', 'development', b'example', sdk_members=sdk_members)
+            with tarfile.open(payload) as source:
+                for name, data, mode in sdk_members:
+                    member = source.getmember('package/bin/' + name)
+                    self.assertTrue(member.isfile())
+                    self.assertEqual(member.mode, mode)
+                    self.assertEqual(source.extractfile(member).read(), data)

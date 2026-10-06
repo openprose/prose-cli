@@ -52,6 +52,10 @@ def assemble(roots, output, evidence, live_smoke=None):
                 inventory[name] = (actual, record)
         artifact_names = {a['path'] for a in manifest['artifacts']}
         pub.require(set(custody.CHECK_PATHS).issubset(report['evidence']), 'Required structured evidence is missing')
+        custody.validate_sdk_archives(manifest, lambda name: pub.archive_members(package / name))
+        for relative in custody.SDK_PROBES:
+            pub.require(relative in report['evidence'], 'Missing installed SDK evidence')
+            pub.require(pub.read_json(root / relative) == (custody.SDK_TOOL_TEST if 'sdk-tools-' in relative else custody.SDK_IMPORT_TEST), 'Installed SDK probe differs')
         native_hashes = {}
         launcher_hash = None
         for artifact in manifest['artifacts']:

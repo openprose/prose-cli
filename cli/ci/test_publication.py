@@ -8,6 +8,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 import publication as p
+from test_assemble_kernel_rc import sdk_fixture
 
 
 class PublicationTests(unittest.TestCase):
@@ -19,8 +20,10 @@ class PublicationTests(unittest.TestCase):
         self.image = {'formatVersion': 1, 'version': 'test', 'sha256': 'c'*64, 'manifestSha256': 'd'*64, 'purpose': 'canonical-language-runtime', 'releaseEligible': True}
         self.add('preflight.json', json.dumps({'schema': 'openprose.release-preflight-report/1', 'status': 'pass', 'failures': [], 'sourceSha': 'a'*40, 'version': self.plan['version'], 'protectedAuthority': {'status': 'pass'}, 'image': {'imageSha256': 'c'*64, 'manifestSha256': 'd'*64, 'version': 'test', 'purpose': 'canonical-language-runtime', 'releaseEligible': True}}).encode())
         for platform in p.PLATFORMS:
+            sdk, sdk_members = sdk_fixture(platform)
+            self.add(platform + '-release-manifest.json', json.dumps({'mode': 'release', 'platform': platform, 'version': self.plan['version'], 'source': {'revision': self.plan['source'], 'verification': 'matched-product-doctor'}, 'agentsSdk': sdk}).encode())
             for implementation in ('bun', 'rust'):
-                self.tar(implementation + '-' + platform + '.tgz', {'root/prose': (implementation+platform).encode()}, 'standalone', platform, implementation)
+                self.tar(implementation + '-' + platform + '.tgz', {'root/prose': (implementation+platform).encode(), **{'root/' + n: d for n, d, m in sdk_members}}, 'standalone', platform, implementation)
             if platform.startswith('darwin'):
                 self.add(platform + '-receipt.json', b'{}')
                 self.add(platform + '-notarization.zip', b'not a real signature')
@@ -35,6 +38,8 @@ class PublicationTests(unittest.TestCase):
                 platform = name.removeprefix('@openprose/prose-cli-')
                 meta.update(openproseSourceRevision='a'*40, openproseImage=self.image)
                 members['package/bin/prose'] = ('bun'+platform).encode()
+                _, sdk_members = sdk_fixture(platform)
+                members.update({'package/bin/' + n: d for n, d, m in sdk_members})
             members['package/package.json'] = json.dumps(meta).encode()
             self.tar(name.split('/')[1] + '.tgz', members, 'npm', platform, 'bun')
         self.path = self.root / 'plan.json'
@@ -60,9 +65,18 @@ class PublicationTests(unittest.TestCase):
         plan = p.load_plan(self.path)
         packages, hashes = p.verify_local(plan, self.root)
         self.assertEqual(set(packages), set(p.PACKAGES))
-        self.assertEqual(len(hashes), 12)
+        self.assertEqual(len(hashes), 16)
         with self.assertRaisesRegex(ValueError, 'Wrong signing identity'):
             p.verify_macos(plan, self.root, Path('unused'), 'unused', 'unused')
+
+    def test_production_cannot_publish_unbound_sdk_siblings(self):
+        manifest_path = self.root / 'darwin-arm64-release-manifest.json'
+        manifest = json.loads(manifest_path.read_text()); manifest.pop('agentsSdk')
+        manifest_path.write_text(json.dumps(manifest))
+        item = next(a for a in self.plan['artifacts'] if a['name'] == manifest_path.name)
+        item.update(sha256=p.digest(manifest_path), size=manifest_path.stat().st_size)
+        with self.assertRaisesRegex(ValueError, 'SDK identity'):
+            p.verify_local(self.plan, self.root)
 
     def test_development_plan_rejected(self):
         self.plan['qualification']['status'] = 'development'

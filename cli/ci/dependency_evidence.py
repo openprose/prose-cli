@@ -857,9 +857,38 @@ def build_report(root: Path) -> dict[str, Any]:
     cargo, cargo_sources = cargo_inventory(root)
     windows_host, windows_host_sources = windows_host_cargo_inventory(root)
     bun, bun_sources = bun_inventory(root)
+    python_lock = root / "harnesses/agents-sdk/requirements-build.txt"
+    python_sources = []
+    python_inventory = None
+    if python_lock.exists():
+        lock_bytes = safe_read_under(root, python_lock, MAX_LOCK_BYTES)
+        text = decode_utf8(lock_bytes, "SDK Python lock").replace("\\\n", "")
+        packages = []
+        names = set()
+        for row in text.splitlines():
+            row = row.strip()
+            if not row or row.startswith("#"):
+                continue
+            match = re.fullmatch(r"([A-Za-z0-9_.-]+)==([A-Za-z0-9_.+-]+)((?:\s+--hash=sha256:[0-9a-f]{64})+)", row)
+            if match is None:
+                fail("SOURCE_MALFORMED", "SDK Python requirements must be exact and hash locked")
+            name, version, hashes = match.groups()
+            name = name.lower().replace("_", "-")
+            if name in names:
+                fail("SOURCE_DUPLICATE", "duplicate SDK Python requirement")
+            names.add(name)
+            for digest in sorted(set(re.findall(r"sha256:([0-9a-f]{64})", hashes))):
+                packages.append({"name": name, "version": version,
+                                 "source": "pypi:wheel-sha256:" + digest,
+                                 "scopes": ["frozen-sdk-build"],
+                                 "integrity": {"status": "declared", "algorithm": "sha256", "digest": digest}})
+        if not packages:
+            fail("SOURCE_MALFORMED", "SDK Python requirements are empty")
+        python_inventory = {"scopeBasis": "hash-locked-four-platform-wheel-candidates", "packages": packages}
+        python_sources = [(python_lock, lock_bytes)]
     source_values = [
         source_record(root, path, data)
-        for path, data in cargo_sources + windows_host_sources + bun_sources
+        for path, data in cargo_sources + windows_host_sources + bun_sources + python_sources
     ]
     source_values.sort(key=lambda source: source["path"])
     blockers = [
@@ -881,6 +910,7 @@ def build_report(root: Path) -> dict[str, Any]:
             "cargo": cargo,
             "bun": bun,
             "windowsProcessHostCargo": windows_host,
+            **({"agentsSdkPython": python_inventory} if python_inventory is not None else {}),
         },
         "authority": {
             "licenses": {

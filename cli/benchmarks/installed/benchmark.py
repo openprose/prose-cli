@@ -378,7 +378,7 @@ def validate_release_manifest(
             "promotion",
             "artifacts",
             "dependencyEvidence",
-        },
+        } | ({"agentsSdk"} if "agentsSdk" in release else set()),
         "release manifest",
     )
     if release.get("schema") != RELEASE_SCHEMA:
@@ -738,7 +738,7 @@ def validate_dependency_evidence(value: Any) -> dict[str, Any]:
         ):
             fail("EVIDENCE_MALFORMED", f"invalid dependency source length: {path}")
         require_sha(source.get("sha256"), f"dependency source sha256 {path}")
-    if tuple(source_paths) != EXPECTED_DEPENDENCY_SOURCES:
+    if tuple(source_paths) not in (EXPECTED_DEPENDENCY_SOURCES, EXPECTED_DEPENDENCY_SOURCES + ("harnesses/agents-sdk/requirements-build.txt",)):
         fail(
             "EVIDENCE_MALFORMED",
             "dependency sources differ from the closed stable source set",
@@ -749,7 +749,7 @@ def validate_dependency_evidence(value: Any) -> dict[str, Any]:
     )
     require_exact_keys(
         inventories,
-        {"bun", "cargo", "windowsProcessHostCargo"},
+        {"bun", "cargo", "windowsProcessHostCargo"} | ({"agentsSdkPython"} if "agentsSdkPython" in inventories else set()),
         "dependency inventories",
     )
     inventory_shapes = {
@@ -775,7 +775,10 @@ def validate_dependency_evidence(value: Any) -> dict[str, Any]:
             "package-manifest-direct-kind-plus-lockfile-reachability",
         ),
     }
-    allowed_scopes = {"runtime", "development", "build", "workspace", "component"}
+    if "agentsSdkPython" in inventories:
+        inventory_shapes["agentsSdkPython"] = ({"lockfileVersion", "scopeBasis", "packages"}, None, None, 1,
+                                             "hash-locked-four-platform-wheel-candidates")
+    allowed_scopes = {"runtime", "development", "build", "workspace", "component", "frozen-sdk-build"}
     for inventory_name, (
         keys,
         expected_component,
@@ -958,6 +961,8 @@ def validate_sbom(
         "cargo": "rust-cli",
         "windowsProcessHostCargo": "windows-process-host",
     }
+    if "agentsSdkPython" in dependency.get("inventories", {}):
+        inventory_groups["agentsSdkPython"] = "agents-sdk-python"
     expected_packages: set[
         tuple[str, str, str, str, str, str, str | None, str | None]
     ] = set()
@@ -1256,6 +1261,36 @@ def verify_package_output(
         artifacts,
         dependency_digest,
     )
+    if release['mode'] == 'release':
+        import sys
+        ci_path = str(Path(__file__).resolve().parents[2] / 'ci')
+        if ci_path not in sys.path:
+            sys.path.insert(0, ci_path)
+        import kernel_rc_evidence as custody
+        try:
+            sdk = custody.validate_sdk_archives(release, lambda name: {
+                path: data for path, (data, mode) in decode_archive_members(encoded[name], name).items()})
+        except (ValueError, KeyError, TypeError) as error:
+            fail('IDENTITY_DIVERGENCE', str(error))
+        if 'agentsSdkPython' not in dependency['inventories']:
+            fail('IDENTITY_DIVERGENCE', 'Release lacks SDK Python dependency inventory')
+        source = next((p for p in dependency['sources'] if p['path'] == 'harnesses/agents-sdk/requirements-build.txt'), {})
+        if source.get('sha256') != sdk['dependencyLockSha256']:
+            fail('IDENTITY_DIVERGENCE', 'Release SDK lock differs from dependency source')
+        provenance = json_no_duplicates(encoded['provenance.json'], 'provenance.json')
+        definition = provenance['predicate']['buildDefinition']
+        if definition.get('externalParameters', {}).get('agentsSdk') != sdk:
+            fail('IDENTITY_DIVERGENCE', 'Provenance SDK identity differs')
+        for uri, digest in (('openprose:agents-sdk-helper', sdk['sha256']),
+                            ('openprose:agents-sdk-build-receipt', sdk['receiptSha256']),
+                            ('openprose:agents-sdk-python-lock', sdk['dependencyLockSha256'])):
+            matches = [p for p in definition['resolvedDependencies'] if p.get('uri') == uri]
+            if matches != [{'uri': uri, 'digest': {'sha256': digest}}]:
+                fail('IDENTITY_DIVERGENCE', 'Provenance SDK dependency differs: ' + uri)
+        sbom = json_no_duplicates(encoded['sbom.cdx.json'], 'sbom.cdx.json')
+        matches = [p for p in sbom['components'] if p.get('name') == 'prose-agents-sdk']
+        if len(matches) != 1 or matches[0].get('hashes') != [{'alg': 'SHA-256', 'content': sdk['sha256']}]:
+            fail('IDENTITY_DIVERGENCE', 'SBOM lacks exact frozen SDK helper binding')
     return {
         "root": package_output,
         "purpose": purpose,
@@ -1553,6 +1588,8 @@ def validate_npm_packages(
     }
     if platform_value.startswith("win32-"):
         expected_platform_members.add("package/bin/openprose-windows-process-host.exe")
+    if isinstance(release.get('agentsSdk'), dict):
+        expected_platform_members.update('package/bin/' + name for name in ('prose-agents-sdk', 'agents-sdk-build.json', 'AGENTS-SDK-NOTICES.txt'))
     if set(platform_members) != expected_platform_members:
         fail(
             "MEMBERSHIP_MALFORMED",
@@ -2779,6 +2816,10 @@ def validate_package_payloads(context: Mapping[str, Any]) -> dict[str, Any]:
             context["encoded"][artifact_name], artifact_name
         )
         root_name, expected = expected_standalone_members(artifact_name, platform_value)
+        if isinstance(context['release'].get('agentsSdk'), dict):
+            expected.update(root_name + '/' + name for name in ('prose-agents-sdk', 'agents-sdk-build.json', 'AGENTS-SDK-NOTICES.txt'))
+            if members.get(root_name + '/prose-agents-sdk', (b'', 0))[1] & 0o111 == 0:
+                fail('ARCHIVE_UNSAFE', 'SDK helper is not executable')
         if set(members) != expected:
             fail(
                 "MEMBERSHIP_MALFORMED",
@@ -3115,6 +3156,10 @@ def run_benchmark(
             context["encoded"][artifact_name], artifact_name
         )
         root_name, expected = expected_standalone_members(artifact_name, platform_value)
+        if isinstance(context['release'].get('agentsSdk'), dict):
+            expected.update(root_name + '/' + name for name in ('prose-agents-sdk', 'agents-sdk-build.json', 'AGENTS-SDK-NOTICES.txt'))
+            if members.get(root_name + '/prose-agents-sdk', (b'', 0))[1] & 0o111 == 0:
+                fail('ARCHIVE_UNSAFE', 'SDK helper is not executable')
         if set(members) != expected:
             fail(
                 "MEMBERSHIP_MALFORMED",

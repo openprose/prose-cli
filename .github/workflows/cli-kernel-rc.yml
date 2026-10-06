@@ -67,6 +67,12 @@ jobs:
           python3 -m pip install --require-hashes --only-binary=:all: -r cli/ci/requirements-test.txt
           cd cli/bun
           bun install --frozen-lockfile --ignore-scripts
+      - name: Prepare the separately locked Agents SDK build interpreter
+        run: |
+          uv venv --python 3.10.20 --seed "$RUNNER_TEMP/agents-sdk-python"
+          "$RUNNER_TEMP/agents-sdk-python/bin/python3" -m pip install --require-hashes --only-binary=:all: -r harnesses/agents-sdk/requirements-build.txt
+      - name: Test the actual pinned Agents SDK runtime without provider credentials
+        run: '"$RUNNER_TEMP/agents-sdk-python/bin/python3" -m unittest discover -s harnesses/agents-sdk -p test_run.py'
       - name: Test kernel RC build guards
         run: |
           python3 -m unittest discover -s cli/ci -p test_build_kernel_rc.py
@@ -74,7 +80,7 @@ jobs:
       - name: Build and verify fresh standalone and npm installations
         env:
           RC_VERSION: ${{ inputs.version || '0.15.0-rc.1' }}
-        run: python3 cli/ci/build_kernel_rc.py --version "$RC_VERSION" --out "$RUNNER_TEMP/kernel-rc"
+        run: python3 cli/ci/build_kernel_rc.py --version "$RC_VERSION" --out "$RUNNER_TEMP/kernel-rc" --agents-sdk-python "$RUNNER_TEMP/agents-sdk-python/bin/python3"
       - uses: Homebrew/actions/setup-homebrew@dc7099b3e807f1e2ecc61f3ecabc840eedd5586a
       - name: Rehearse Homebrew against these exact release archives
         env:

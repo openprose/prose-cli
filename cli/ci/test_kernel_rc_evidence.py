@@ -43,6 +43,27 @@ class EvidenceTests(unittest.TestCase):
             for check in custody.CHECKS:
                 self.assertIn(platform + '-logs-' + check + '.json', names)
 
+    def test_production_manifest_cannot_omit_or_rehash_sdk_identity(self):
+        for mutation in ('omit', 'digest'):
+            with self.subTest(mutation=mutation):
+                plan, output, hashes = self.assembled()
+                manifest = pub.read_json(output / 'darwin-arm64-release-manifest.json')
+                if mutation == 'omit':
+                    manifest.pop('agentsSdk')
+                else:
+                    manifest['agentsSdk']['sha256'] = '0'*64
+                self.update_bound(plan, output, 'package/release-manifest.json', manifest)
+                with self.assertRaisesRegex(ValueError, 'SDK'):
+                    self.verify(plan, output, hashes)
+                import shutil
+                shutil.rmtree(output)
+
+    def test_rehashed_installed_sdk_probe_cannot_claim_skipped_tools(self):
+        plan, output, hashes = self.assembled()
+        self.update_bound(plan, output, 'logs/installed-sdk-tools-bun.json', {})
+        with self.assertRaisesRegex(ValueError, 'SDK probe'):
+            self.verify(plan, output, hashes)
+
     def test_rehashed_passing_log_cannot_describe_other_binary(self):
         plan, output, hashes = self.assembled()
         check = pub.read_json(output / 'darwin-arm64-logs-installed-bun.json')

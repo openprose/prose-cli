@@ -43,6 +43,12 @@ class SigningTests(unittest.TestCase):
             return f"Authority={IDENTITY}\nTeamIdentifier={self.detail_team}\nTimestamp=2026-09-17\nCodeDirectory v=20500 flags=0x10000(runtime)\n"
         if "--entitlements" in args and "--display" in args:
             return plistlib.dumps(self.entitlements).decode() if args[-1].endswith("prose-bun") else "Executable=prose-rust\n"
+        if '--packaged-self-test' in args:
+            import kernel_rc_evidence as custody
+            return json.dumps(custody.SDK_IMPORT_TEST)
+        if '--packaged-tool-self-test' in args:
+            import kernel_rc_evidence as custody
+            return json.dumps(custody.SDK_TOOL_TEST)
         if "submit" in args:
             return json.dumps({"id": SUBMISSION, "status": "Accepted"})
         if "log" in args:
@@ -72,6 +78,30 @@ class SigningTests(unittest.TestCase):
                 self.assertIn("--timestamp", call)
                 self.assertIn("runtime", call)
                 self.assertEqual("--entitlements" in call, call[-1].endswith("prose-bun"))
+
+    def test_sdk_missing_inner_signing_receipt_fails_before_native_commands(self):
+        helper = self.root / 'sdk'; helper.write_bytes(b'sdk')
+        with self.assertRaises(signing.SigningError):
+            self.sign(agents_sdk=helper)
+        self.assertEqual(self.calls, [])
+        self.assertFalse(self.output.exists())
+
+    def test_sdk_helper_signed_and_notarized_with_both_runners(self):
+        helper = self.root / 'sdk'; helper.write_bytes(b'sdk')
+        notices = self.root / 'AGENTS-SDK-NOTICES.txt'; notices.write_bytes(b'notices')
+        build = {'helper': {'path': 'prose-agents-sdk', 'byteLength': 3, 'sha256': signing.sha256(helper)},
+                 'notices': {'path': notices.name, 'byteLength': 7, 'sha256': signing.sha256(notices)},
+                 'embeddedSigning': {'identity': IDENTITY, 'verification': 'pyinstaller-inner-binaries-and-frozen-self-tests'}}
+        (self.root / 'agents-sdk-build.json').write_text(json.dumps(build))
+        receipt = self.sign(agents_sdk=helper)
+        bound = json.loads((self.output / 'agents-sdk-build.json').read_text())
+        self.assertEqual(bound['helper']['sha256'], receipt['binaries']['agents-sdk']['signedSha256'])
+        self.assertEqual(bound['signingReceiptSha256'], signing.sha256(self.output / 'receipt.json'))
+        self.assertEqual(set(receipt['binaries']), {'bun', 'rust', 'agents-sdk'})
+        self.assertEqual(receipt['binaries']['agents-sdk']['signedSha256'], hashlib.sha256(b'sdk-signed').hexdigest())
+        self.assertEqual(signing.verify_existing(self.output, **self.kwargs()), receipt)
+        with zipfile.ZipFile(self.output / 'notarization.zip') as archive:
+            self.assertEqual(set(archive.namelist()), {'prose-bun', 'prose-rust', 'prose-agents-sdk'})
 
     def test_non_macos_makes_no_native_calls(self):
         with patch.object(signing.platform, "system", return_value="Linux"):

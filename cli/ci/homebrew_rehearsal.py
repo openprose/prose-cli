@@ -63,6 +63,15 @@ def select_archives(package: Path) -> tuple[dict[str, Any], dict[str, dict[str, 
             executables = [m for m in members if Path(m.name).name == 'prose' and m.isfile()]
             if len(executables) != 1 or len(Path(executables[0].name).parts) != 2:
                 raise ValueError('Archive requires one prose executable under one package root')
+            sdk_record = manifest.get('agentsSdk')
+            if isinstance(sdk_record, dict):
+                for filename, digest_key in (('prose-agents-sdk', 'sha256'), ('agents-sdk-build.json', 'receiptSha256'), ('AGENTS-SDK-NOTICES.txt', 'noticesSha256')):
+                    selected_members = [m for m in members if Path(m.name).name == filename and m.isfile()]
+                    if len(selected_members) != 1 or Path(selected_members[0].name).parent != Path(executables[0].name).parent:
+                        raise ValueError('Archive requires unique SDK helper/receipt/notices siblings')
+                    member = selected_members[0]
+                    if not 0 < member.size <= 256 * 1024 * 1024 or hashlib.sha256(contents.extractfile(member).read()).hexdigest() != sdk_record.get(digest_key):
+                        raise ValueError('Archive SDK member differs from package identity')
         selected[implementation] = item
     if set(selected) != {'bun', 'rust'}:
         raise ValueError('Both native implementations are required')
@@ -75,7 +84,10 @@ def formula(version: str, implementation: str, archive: Path, sha256: str) -> st
         '  desc "Development-only Prose packaging rehearsal"',
         '  homepage "https://prose.md"', f'  version "{version}"', '  license "MIT"',
         f'  url "{archive.as_uri()}"', f'  sha256 "{sha256}"', '',
-        '  def install', '    bin.install "prose"', '  end', '',
+        '  def install', '    bin.install "prose"',
+        '    bin.install "prose-agents-sdk" if File.exist?("prose-agents-sdk")',
+        '    pkgshare.install "agents-sdk-build.json", "AGENTS-SDK-NOTICES.txt" if File.exist?("agents-sdk-build.json")',
+        '  end', '',
         '  test do', f'    assert_equal "prose {version} ({implementation})", shell_output("#{{bin}}/prose --version").strip',
         '  end', 'end', '',
     ])
@@ -223,6 +235,13 @@ def exercise(package: Path, manifest: dict[str, Any], archives: dict[str, Any], 
             digest = hashlib.sha256(active.read_bytes()).hexdigest()
             if digest != verified['packageIdentity'][f'{implementation}BinarySha256']:
                 raise ValueError('Homebrew executable differs from the verified candidate')
+            sdk_record = manifest.get('agentsSdk')
+            if isinstance(sdk_record, dict):
+                helper = active.resolve().parent / 'prose-agents-sdk'
+                if not helper.is_file() or hashlib.sha256(helper.read_bytes()).hexdigest() != sdk_record.get('sha256'):
+                    raise ValueError('Homebrew SDK helper differs from the verified package')
+                command(f'sdk-self-test-{implementation}', [str(helper), '--packaged-self-test'])
+                command(f'sdk-tools-self-test-{implementation}', [str(helper), '--packaged-tool-self-test'])
             command(f'unlink-{implementation}', [brew, 'unlink', name])
         command('link-bun', [brew, 'link', f'{TAP}/prose-bun'])
         original = hashlib.sha256(active.read_bytes()).hexdigest()

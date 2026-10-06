@@ -49,6 +49,9 @@ OMP_ADAPTER_RECIPE_AUTHORITY = (
 RUST_LOCK = CLI / "rust" / "Cargo.lock"
 BUN_LOCK = CLI / "bun" / "bun.lock"
 WINDOWS_HOST_NAME = "openprose-windows-process-host.exe"
+SDK_NAME = "prose-agents-sdk"
+SDK_RECEIPT = "agents-sdk-build.json"
+SDK_NOTICES = "AGENTS-SDK-NOTICES.txt"
 LINUX_MINIMUM_GLIBC = "2.34"
 LINUX_EXECUTION_EVIDENCE = "ubuntu-22.04-only"
 NODE_MINIMUM = "22.22.3"
@@ -73,6 +76,7 @@ MAX_COMMAND_OUTPUT_BYTES = 4 * 1024 * 1024
 COMMAND_CLEANUP_SECONDS = 3.0
 NOT_APPLICABLE_INTEGRITY_REASONS = {"local-source-package", "workspace-package"}
 DEPENDENCY_SOURCE_PATHS = {
+    "harnesses/agents-sdk/requirements-build.txt",
     "cli/bun/bun.lock",
     "cli/bun/package.json",
     "cli/platform/windows-process-host/Cargo.lock",
@@ -1407,6 +1411,28 @@ def standalone_readme(
             "Inspect the sibling local package evidence: release-manifest.json, "
             "provenance.json, sbom.cdx.json, and dependency-evidence.json.\n"
         )
+    if mode in {"kernel-rc", "release"}:
+        first_use = (
+            "First run with the packaged Agents SDK default:\n"
+            "  Keep prose and its sibling prose-agents-sdk together. No Python installation is required.\n"
+            "  Supply OPENAI_API_KEY in your environment; requests use your OpenAI API account.\n"
+            "  The fresh-install model default is gpt-6.1-sol. Saved explicit harness choices remain effective.\n"
+            f"  {prose_command} cli doctor\n"
+            f'  {prose_command} run "$PWD/{example_path}"\n\n'
+            "  Running contacts the selected provider and may incur charges.\n"
+        )
+    else:
+        first_use = (
+            "First run with Codex 0.149.0-alpha.4.1 (install that exact version and "
+            "complete Codex sign-in before you continue):\n"
+            f"{PROVIDER_CHARGE_BOUNDARY}\n"
+            "  npm install --global @openai/codex@0.149.0-alpha.4.1\n"
+            "  codex login\n"
+            f"  {prose_command} cli harness list\n"
+            f"  {prose_command} cli harness use codex\n"
+            f"  {prose_command} cli doctor\n"
+            f'  {prose_command} run "$PWD/{example_path}"\n\n'
+        )
     return (
         f"OpenProse CLI {version} ({implementation}, {platform_identifier})\n"
         f"Release channel: {channel}\n\n"
@@ -1420,15 +1446,7 @@ def standalone_readme(
         "  macOS:  awk -v name=\"$ASSET\" '$2 == name' SHA256SUMS | shasum -a 256 -c -\n\n"
         "Install:\n"
         f"{installation}\n"
-        "First run with Codex 0.149.0-alpha.4.1 (install that exact version and "
-        "complete Codex sign-in before you continue):\n"
-        f"{PROVIDER_CHARGE_BOUNDARY}\n"
-        "  npm install --global @openai/codex@0.149.0-alpha.4.1\n"
-        "  codex login\n"
-        f"  {prose_command} cli harness list\n"
-        f"  {prose_command} cli harness use codex\n"
-        f"  {prose_command} cli doctor\n"
-        f'  {prose_command} run "$PWD/{example_path}"\n\n'
+        f"{first_use}"
         "Upgrade:\n"
         f"{upgrade_guidance}"
         "Repair this same exact version:\n"
@@ -1531,7 +1549,11 @@ def npm_readme(
             "Do not install a platform payload version as the top-level CLI. "
             "Lifecycle scripts are unnecessary. npm installs Bun; Rust has separate standalone downloads.\n\n"
             "A CLI version pins executable bytes; normal startup resolves the latest published kernel per run. "
-            "Harness installation and authentication are separate. No mock execution is admitted in release binaries.\n\n"
+            "The Agents SDK helper is included and selected by default; no Python installation is required. "
+            "Supply OPENAI_API_KEY in your environment to use your OpenAI API account with the fresh-install gpt-6.1-sol default. "
+            "Saved explicit harness choices remain effective. No mock execution is admitted in release binaries.\n\n"
+            f'First run: `"$HOME/.local/openprose-cli-{version}/bin/prose" run "$HOME/.local/openprose-cli-{version}/lib/node_modules/@openprose/prose-cli/{HELLO_EXAMPLE_MEMBER}"`. '
+            "Running contacts the selected provider and may incur charges.\n\n"
             f'Uninstall: `npm uninstall --global --prefix "$HOME/.local/openprose-cli-{version}" @openprose/prose-cli`.\n'
             "For offline installation, populate an isolated npm cache with the exact root and matching payload "
             "versions from a trusted registry first; then install the root with --offline. "
@@ -1621,6 +1643,26 @@ def npm_readme(
         if gatekeeper_guidance
         else ""
     )
+    first_run = (
+        "## First run with Codex 0.149.0-alpha.4.1\n\n"
+        "Install that exact version and complete Codex sign-in before you continue.\n\n"
+        f"{PROVIDER_CHARGE_BOUNDARY}\n\n"
+        "    npm install --global @openai/codex@0.149.0-alpha.4.1\n"
+        "    codex login\n"
+        f'    "$HOME/.local/openprose-cli-{version}/bin/prose" cli harness list\n'
+        f'    "$HOME/.local/openprose-cli-{version}/bin/prose" cli harness use codex\n'
+        f'    "$HOME/.local/openprose-cli-{version}/bin/prose" cli doctor\n'
+        f'    "$HOME/.local/openprose-cli-{version}/bin/prose" run "$HOME/.local/openprose-cli-{version}/lib/node_modules/@openprose/prose-cli/examples/hello.prose.md"\n\n'
+    )
+    if mode == "release":
+        first_run = (
+            "## First run with the packaged Agents SDK default\n\n"
+            "The platform package includes the SDK helper and Python runtime. "
+            "Supply OPENAI_API_KEY in your environment to use your OpenAI API account with gpt-6.1-sol. "
+            "Saved explicit harness choices remain effective. Running contacts the selected provider and may incur charges.\n\n"
+            f'    "$HOME/.local/openprose-cli-{version}/bin/prose" cli doctor\n'
+            f'    "$HOME/.local/openprose-cli-{version}/bin/prose" run "$HOME/.local/openprose-cli-{version}/lib/node_modules/@openprose/prose-cli/examples/hello.prose.md"\n\n'
+        )
     return (
         f"# OpenProse CLI {version}\n\n"
         f"Release channel: {channel}.\n\n"
@@ -1663,15 +1705,7 @@ def npm_readme(
         "The x64 packages use Bun's baseline CPU runtime variants "
         "(`bun-darwin-x64-baseline` and `bun-linux-x64-baseline`); ARM64 packages "
         "use the native `bun-darwin-arm64` and `bun-linux-arm64` targets.\n\n"
-        "## First run with Codex 0.149.0-alpha.4.1\n\n"
-        "Install that exact version and complete Codex sign-in before you continue.\n\n"
-        f"{PROVIDER_CHARGE_BOUNDARY}\n\n"
-        "    npm install --global @openai/codex@0.149.0-alpha.4.1\n"
-        "    codex login\n"
-        f'    "$HOME/.local/openprose-cli-{version}/bin/prose" cli harness list\n'
-        f'    "$HOME/.local/openprose-cli-{version}/bin/prose" cli harness use codex\n'
-        f'    "$HOME/.local/openprose-cli-{version}/bin/prose" cli doctor\n'
-        f'    "$HOME/.local/openprose-cli-{version}/bin/prose" run "$HOME/.local/openprose-cli-{version}/lib/node_modules/@openprose/prose-cli/examples/hello.prose.md"\n\n'
+        f"{first_run}"
         "The meta package contains the exact source contract at "
         "`examples/hello.prose.md`. "
         f"{runtime_guidance}"
@@ -1715,6 +1749,7 @@ def standalone_archive(
     mode: str,
     hello_example: bytes,
     windows_host: bytes | None = None,
+    sdk_members: list[tuple[str, bytes, int]] | None = None,
 ) -> Path:
     root = f"openprose-prose-cli-{implementation}-{version}-{platform_identifier}"
     executable_name = (
@@ -1744,6 +1779,7 @@ def standalone_archive(
     ]
     if windows_host is not None:
         members.append((f"{root}/{WINDOWS_HOST_NAME}", windows_host, 0o755))
+    members.extend((f"{root}/{name}", data, mode) for name, data, mode in (sdk_members or []))
     tar_gz(destination, members, epoch)
     return destination
 
@@ -1882,6 +1918,7 @@ def npm_packages(
     *,
     package_name: str = "@openprose/prose-cli",
     publication_platforms: str | None = None,
+    sdk_members: list[tuple[str, bytes, int]] | None = None,
 ) -> tuple[Path, Path]:
     if package_name not in {"@openprose/prose-cli", "@openprose/prose"}:
         raise PackageError("npm identity must be explicitly supported")
@@ -1963,6 +2000,7 @@ def npm_packages(
                 0o644,
             ),
             (f"package/bin/{executable_name}", bun_binary, 0o755),
+            *((f"package/bin/{name}", data, mode) for name, data, mode in (sdk_members or [])),
             *(
                 [(f"package/bin/{WINDOWS_HOST_NAME}", windows_host, 0o755)]
                 if windows_host is not None
@@ -2285,6 +2323,7 @@ def dependency_evidence() -> tuple[bytes, dict[str, Any]]:
         "bun",
         "cargo",
         "windowsProcessHostCargo",
+        "agentsSdkPython",
     }:
         raise PackageError("dependency evidence component inventory is not closed")
     expected_components = {
@@ -2322,8 +2361,11 @@ def dependency_sbom_components(report: dict[str, Any]) -> list[dict[str, Any]]:
         "cargo": "rust-cli",
         "windowsProcessHostCargo": "windows-process-host",
         "bun": "bun-cli",
+        "agentsSdkPython": "agents-sdk-python",
     }
-    for inventory_name in ("cargo", "windowsProcessHostCargo", "bun"):
+    for inventory_name in ("cargo", "windowsProcessHostCargo", "bun", "agentsSdkPython"):
+        if inventory_name not in report["inventories"]:
+            continue
         component_name = component_names[inventory_name]
         for package in report["inventories"][inventory_name]["packages"]:
             if not isinstance(package, dict) or set(package) != {
@@ -2410,6 +2452,72 @@ def dependency_sbom_components(report: dict[str, Any]) -> list[dict[str, Any]]:
     return components
 
 
+def snapshot_sdk(directory: Path, snapshots: Path, platform_identifier: str,
+                 mode: str, readelf: Path | None) -> tuple[list[tuple[str, bytes, int]], dict[str, Any]]:
+    """Bind the package-owned helper to its native build receipt and exact source."""
+    if directory.is_symlink() or not directory.is_dir():
+        raise PackageError("SDK build directory must be a real directory")
+    receipt_bytes = read_static_asset(directory / SDK_RECEIPT, "SDK receipt", 4 * 1024 * 1024)
+    receipt = strict_json_object(receipt_bytes, "SDK receipt")
+    if receipt.get("schema") != "openprose.agents-sdk-build/1" or receipt.get("modelCalls") != 0:
+        raise PackageError("Unsupported SDK build receipt")
+    expected_os = "darwin" if platform_identifier.startswith("darwin-") else "linux"
+    expected_arch = {"darwin-arm64": "arm64", "darwin-x64": "x86_64", "linux-arm64-gnu": "aarch64", "linux-x64-gnu": "x86_64"}.get(platform_identifier)
+    if receipt.get("platform") != expected_os or receipt.get("architecture") != expected_arch:
+        raise PackageError("SDK helper native target differs from package")
+    if receipt.get("python") != "3.10.20" or receipt.get("pyinstaller") != "6.22.3":
+        raise PackageError("SDK builder identity differs from pinned toolchain")
+    expected_sources = {path: sha256_file(ROOT / path) for path in
+                        ("harnesses/agents-sdk/run.py", "harnesses/agents-sdk/requirements-build.txt")}
+    if receipt.get("sources") != expected_sources:
+        raise PackageError("SDK build sources differ from current package source")
+    helper, length, digest = snapshot_binary(directory / SDK_NAME, snapshots / SDK_NAME, "Agents SDK")
+    if receipt.get("helper") != {"path": SDK_NAME, "sha256": digest, "byteLength": length}:
+        raise PackageError("SDK helper differs from build receipt")
+    notices = read_static_asset(directory / SDK_NOTICES, "SDK notices", 16 * 1024 * 1024)
+    if receipt.get("notices") != {"path": SDK_NOTICES, "sha256": sha256_bytes(notices), "byteLength": len(notices)}:
+        raise PackageError("SDK notices differ from build receipt")
+    if expected_os == "darwin" and mode in {"kernel-rc", "release", "alpha"}:
+        verify_darwin_code_signature(helper, "Agents SDK")
+    if readelf is not None:
+        inspect_linux_glibc(helper, "Agents SDK", readelf)
+    environment = {"PATH": "/usr/bin:/bin", "PYTHONDONTWRITEBYTECODE": "1"}
+    completed = run_bounded([str(helper), "--packaged-self-test"], cwd=snapshots,
+                            environment=environment, timeout_seconds=30, label="packaged SDK imports")
+    if completed.returncode != 0 or completed.stderr:
+        raise PackageError("Packaged SDK import self-test did not settle cleanly")
+    self_test = strict_json_object(completed.stdout, "SDK self-test")
+    expected_test = {"schema": "openprose.sdk-packaged-self-test/1", "openaiAgents": "0.22.2", "openai": "3.13.0", "certificates": True, "modelCalls": 0}
+    if self_test != expected_test or receipt.get("selfTest") != expected_test:
+        raise PackageError("Packaged SDK import self-test differs")
+    expected_tools = {'schema': 'openprose.sdk-packaged-tools-self-test/1', 'shellEffects': True,
+                      'boundedOutput': True, 'shellCancellation': True, 'mockedPublicRetrieval': True,
+                      'incompleteHttpRejected': True, 'modelCalls': 0, 'networkUsed': False}
+    tool_test = run_bounded([str(helper), "--packaged-tool-self-test"], cwd=snapshots,
+                            environment=environment, timeout_seconds=30, label="packaged SDK tools")
+    if tool_test.returncode != 0 or tool_test.stderr or strict_json_object(tool_test.stdout, "SDK tool self-test") != expected_tools or receipt.get('toolSelfTest') != expected_tools:
+        raise PackageError("Packaged SDK tool self-test differs")
+    if expected_os == "linux":
+        inspected = run_bounded([str(helper), "--packaged-library-test"], cwd=snapshots,
+                                 environment=environment, timeout_seconds=30, label="packaged SDK libraries")
+        if inspected.returncode != 0 or inspected.stderr:
+            raise PackageError("Packaged SDK Linux library inspection failed")
+        libraries = strict_json_object(inspected.stdout, "SDK Linux libraries")
+        maximum = libraries.get("requiredGlibcMaximum")
+        if libraries != receipt.get("linuxLibraries") or not isinstance(maximum, str) or re.fullmatch(r"[0-9]+\.[0-9]+(?:\.[0-9]+)?", maximum) is None:
+            raise PackageError("Packaged SDK Linux library receipt differs")
+        if version_tuple(maximum) > version_tuple(LINUX_MINIMUM_GLIBC):
+            raise PackageError("Packaged SDK libraries require newer than the admitted glibc floor")
+    helper_bytes = verified_snapshot_bytes(helper, length, digest, "Agents SDK")
+    return [(SDK_NAME, helper_bytes, 0o755), (SDK_RECEIPT, receipt_bytes, 0o644), (SDK_NOTICES, notices, 0o644)], {
+        "path": SDK_NAME, "byteLength": length, "sha256": digest,
+        "receiptSha256": sha256_bytes(receipt_bytes), "noticesSha256": sha256_bytes(notices),
+        "python": "3.10.20", "pyinstaller": "6.22.3", "version": "0.1.0",
+        "discovery": "canonical-cli-sibling", "selfTest": self_test,
+        "toolSelfTest": expected_tools,
+        "dependencyLockSha256": expected_sources["harnesses/agents-sdk/requirements-build.txt"]}
+
+
 def build(
     args: argparse.Namespace, *, internal_package_purpose: str = "ordinary-development"
 ) -> None:
@@ -2428,6 +2536,9 @@ def build(
         )
     if args.source_date_epoch < 0:
         raise PackageError("--source-date-epoch must be non-negative")
+    sdk_directory = getattr(args, "agents_sdk_build", None)
+    if args.mode in {"kernel-rc", "release"} and sdk_directory is None:
+        raise PackageError("production packaging requires --agents-sdk-build DIRECTORY")
     image, image_manifest_sha256 = read_image_manifest(args.image_manifest)
     image_record = image_identity(image, image_manifest_sha256)
     publication_platforms = getattr(args, "publication_platforms", None)
@@ -2620,6 +2731,10 @@ def build(
             else "not-applicable"
         )
 
+        sdk_members, sdk_record = (snapshot_sdk(sdk_directory, snapshots, platform_identifier,
+                                               args.mode, readelf_record[0] if readelf_record else None)
+                                  if sdk_directory is not None else ([], "not-packaged-development-fixture"))
+
         staging = temporary_root / "result"
         staging.mkdir()
         rust_archive = standalone_archive(
@@ -2633,6 +2748,7 @@ def build(
             args.mode,
             hello_example,
             windows_host_bytes,
+            sdk_members,
         )
         bun_archive = standalone_archive(
             staging,
@@ -2645,6 +2761,7 @@ def build(
             args.mode,
             hello_example,
             windows_host_bytes,
+            sdk_members,
         )
         meta_package, platform_package = npm_packages(
             staging,
@@ -2660,6 +2777,7 @@ def build(
             windows_host_bytes,
             package_name=getattr(args, "npm_package_name", "@openprose/prose-cli"),
             publication_platforms=publication_platforms,
+            sdk_members=sdk_members,
         )
         artifacts = [
             artifact_record(
@@ -2711,6 +2829,7 @@ def build(
                 "kernelPolicy": dict(PUBLISHED_KERNEL_POLICY),
             } if args.mode == "kernel-rc" else {"image": image_record}),
             "windowsProcessHost": windows_host_record,
+            "agentsSdk": sdk_record,
             "windowsJobObjectReleaseAdmission": False,
             "toolchains": toolchains,
             "lockfiles": {
@@ -2783,6 +2902,10 @@ def build(
                 if windows_host_bytes is not None
                 else []
             )
+            + ([{"type": "file", "name": SDK_NAME, "version": "0.1.0",
+                 "hashes": [{"alg": "SHA-256", "content": sdk_record["sha256"]}],
+                 "properties": [{"name": "openprose:kind", "value": "packaged-agents-sdk-helper"}]}]
+               if isinstance(sdk_record, dict) else [])
             + dependency_sbom_components(dependency_report),
             "properties": [
                 {
@@ -2823,6 +2946,7 @@ def build(
                         "bunRuntime": release_manifest["bunRuntime"],
                         "linuxRuntime": linux_runtime,
                         "windowsProcessHost": windows_host_record,
+                        "agentsSdk": sdk_record,
                         "windowsJobObjectReleaseAdmission": False,
                     },
                     "resolvedDependencies": [
@@ -2843,6 +2967,10 @@ def build(
                             "digest": {"sha256": dependency_record["sha256"]},
                         },
                     ]
+                    + ([{"uri": "openprose:agents-sdk-helper", "digest": {"sha256": sdk_record["sha256"]}},
+                        {"uri": "openprose:agents-sdk-build-receipt", "digest": {"sha256": sdk_record["receiptSha256"]}},
+                        {"uri": "openprose:agents-sdk-python-lock", "digest": {"sha256": sdk_record["dependencyLockSha256"]}}]
+                       if isinstance(sdk_record, dict) else [])
                     + (
                         [
                             {
@@ -2894,6 +3022,7 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--rust-binary", type=Path, required=True)
     result.add_argument("--bun-binary", type=Path, required=True)
     result.add_argument("--windows-process-host", type=Path)
+    result.add_argument("--agents-sdk-build", type=Path, help="Verified native frozen SDK build directory; required for production packaging")
     result.add_argument("--readelf", type=Path)
     result.add_argument("--image-manifest", type=Path, required=True)
     result.add_argument("--canonical-profile", type=Path)

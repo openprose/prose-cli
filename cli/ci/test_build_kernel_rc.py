@@ -112,3 +112,22 @@ class KernelRCBuildTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+class KernelRCSdkExtractionTests(unittest.TestCase):
+    archive = KernelRCBuildTests.archive
+    def test_production_extraction_requires_sdk_siblings_before_writing(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d); archive = root / 'source.tgz'
+            self.archive(archive, [('release/prose', 'file')])
+            with self.assertRaisesRegex(ValueError, 'SDK'):
+                rc.extract_binary(archive, root / 'install/prose', require_sdk=True)
+            self.assertFalse((root / 'install').exists())
+
+    def test_production_extracts_closed_sdk_payload(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d); archive = root / 'source.tgz'
+            names = ('prose', 'prose-agents-sdk', 'agents-sdk-build.json', 'AGENTS-SDK-NOTICES.txt')
+            self.archive(archive, [('release/' + name, 'file') for name in names])
+            executable = rc.extract_binary(archive, root / 'install/prose', require_sdk=True)
+            self.assertEqual({p.name for p in executable.parent.iterdir()}, set(names))
+            self.assertTrue(os.access(executable.parent / 'prose-agents-sdk', os.X_OK))

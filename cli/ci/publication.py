@@ -145,6 +145,23 @@ def verify_local(plan, root):
         if item['kind'] not in ('npm', 'standalone'):
             continue
         members = archive_members(root / item['name'])
+        if item['kind'] in ('standalone', 'npm') and item['platform'] != 'all':
+            platform = item['platform']
+            manifest_name = platform + '-release-manifest.json'
+            require(any(a['name'] == manifest_name and a['kind'] == 'evidence' for a in plan['artifacts']), 'Production SDK manifest is not retained')
+            manifest = read_json(root / manifest_name)
+            require(manifest.get('mode') in ('release', 'kernel-rc') and manifest.get('platform') == platform
+                    and manifest.get('version') == plan['version']
+                    and manifest.get('source') == {'revision': plan['source'], 'verification': 'matched-product-doctor'},
+                    'Production SDK source identity differs')
+            cli_names = [name for name in members if name.endswith('/prose')]
+            require(len(cli_names) == 1, 'Expected one CLI for SDK binding')
+            prefix = cli_names[0].rsplit('/', 1)[0] + '/'
+            from kernel_rc_evidence import validate_sdk_members
+            sdk = validate_sdk_members(manifest, members, prefix, platform)
+            old = binary_hashes.get(('agents-sdk', platform))
+            require(old is None or old == sdk['sha256'], 'SDK helper differs between installation routes')
+            binary_hashes[('agents-sdk', platform)] = sdk['sha256']
         if item['kind'] == 'standalone':
             binaries = [b for n, b in members.items() if n.endswith('/prose')]
             require(len(binaries) == 1, 'Expected one standalone binary')
@@ -236,15 +253,28 @@ def verify_macos(plan, root, key, key_id, issuer):
         receipt = read_json(root / ref['receipt'])
         require(receipt.get('schema') == 'openprose.macos-signing/1' and receipt.get('teamId') == ref['teamId'], 'Wrong signing identity')
         require(receipt.get('notarization', {}).get('sha256') == digest(root / ref['zip']), 'Wrong notarization ZIP')
-        for implementation in ('bun', 'rust'):
+        require(set(receipt.get('binaries', {})) == {'bun', 'rust', 'agents-sdk'}, 'Signing receipt lacks production SDK helper')
+        for implementation in ('bun', 'rust', 'agents-sdk'):
             require(receipt.get('binaries', {}).get(implementation, {}).get('signedSha256') == binaries[(implementation, platform)], 'Signed binary differs from packaged binary')
+        manifest = read_json(root / (platform + '-release-manifest.json'))
+        sdk_archive = next(a for a in plan['artifacts'] if a['platform'] == platform and a['kind'] == 'standalone')
+        members = archive_members(root / sdk_archive['name'])
+        sdk_receipts = [data for name, data in members.items() if name.endswith('/agents-sdk-build.json')]
+        require(len(sdk_receipts) == 1, 'Missing signed SDK build receipt')
+        sdk_build = json.loads(sdk_receipts[0], object_pairs_hook=object_pairs)
+        require(sdk_build.get('signing') == 'developer-id-notarized'
+                and sdk_build.get('signingReceiptSha256') == digest(root / ref['receipt'])
+                and sdk_build.get('embeddedSigning') == {'identity': receipt['identity'], 'verification': 'pyinstaller-inner-binaries-and-frozen-self-tests'}
+                and sdk_build.get('unsignedHelper', {}).get('sha256') == receipt['binaries']['agents-sdk']['inputSha256']
+                and sdk_build.get('helper', {}).get('sha256') == binaries[('agents-sdk', platform)],
+                'SDK signing stages do not bind notarized helper')
         with tempfile.TemporaryDirectory(prefix='prose-signature-check-') as temporary:
             directory = Path(temporary)
             (directory / 'receipt.json').write_bytes((root / ref['receipt']).read_bytes())
             (directory / 'notarization.zip').write_bytes((root / ref['zip']).read_bytes())
             with zipfile.ZipFile(directory / 'notarization.zip') as archive:
-                require(set(archive.namelist()) == {'prose-bun', 'prose-rust'} and len(archive.infolist()) == 2, 'Unexpected notarization archive')
-                for name in ('prose-bun', 'prose-rust'):
+                require(set(archive.namelist()) == {'prose-bun', 'prose-rust', 'prose-agents-sdk'} and len(archive.infolist()) == 3, 'Unexpected notarization archive')
+                for name in ('prose-bun', 'prose-rust', 'prose-agents-sdk'):
                     require(0 < archive.getinfo(name).file_size <= MAX_BYTES, 'Oversized signed executable')
                     (directory / name).write_bytes(archive.read(name))
                     (directory / name).chmod(0o755)

@@ -9,11 +9,35 @@ import sys
 from tempfile import TemporaryDirectory
 import time
 import unittest
+from unittest import mock
 
 import build_local
 
 
 class LocalBuildDriverTest(unittest.TestCase):
+    def test_sdk_install_uses_verified_snapshot_and_passes_build_to_packager(self):
+        root, _rust, _bun = self.fixture()
+        sdk = root / 'sdk'; sdk.mkdir()
+        original = sdk / 'prose-agents-sdk'; original.write_bytes(b'verified-helper')
+        package = root / 'package-sdk'; install = root / 'installed-sdk'
+        members = [('prose-agents-sdk', b'verified-helper', 0o755),
+                   ('agents-sdk-build.json', b'{}', 0o644), ('AGENTS-SDK-NOTICES.txt', b'notices', 0o644)]
+        calls = []
+        def execute(argv, _cwd, _environment):
+            calls.append(list(argv))
+            original.write_bytes(b'changed-after-verification')
+            if 'package_local.py' in ' '.join(argv):
+                self.write_package_evidence(package)
+            return subprocess.CompletedProcess(argv, 0, b'', b'')
+        with mock.patch.object(build_local.package_local, 'snapshot_sdk', return_value=(members, {})) as snapshot:
+            build_local.build(selection='both', smoke=False, package=package, install_dir=install,
+                              ambient={}, executor=execute, agents_sdk_build=sdk)
+        self.assertEqual(snapshot.call_args.args[0], sdk)
+        packaging = next(argv for argv in calls if 'package_local.py' in ' '.join(argv))
+        self.assertEqual(packaging[packaging.index('--agents-sdk-build') + 1], str(sdk))
+        self.assertEqual((install / 'prose-agents-sdk').read_bytes(), b'verified-helper')
+        self.assertEqual((install / 'prose-agents-sdk').stat().st_mode & 0o777, 0o755)
+
     def test_clean_environment_removes_case_variant_credentials_and_overrides(
         self,
     ) -> None:

@@ -40,8 +40,27 @@ class ArchiveAdmissionTests(unittest.TestCase):
         self.assertEqual(manifest['version'], '0.15.0-dev.0')
         rendered = rehearsal.formula(manifest['version'], 'bun', self.package / 'bun.tar.gz', selected['bun']['sha256'])
         self.assertIn('bin.install "prose"', rendered)
+        self.assertIn('bin.install "prose-agents-sdk"', rendered)
         self.assertIn((self.package / 'bun.tar.gz').as_uri(), rendered)
         self.assertNotIn('pkg.prose.md', rendered)
+
+    def test_sdk_archive_identity_is_required_before_homebrew_mutation(self):
+        sdk = [('prose-agents-sdk', b'helper', 'sha256'), ('agents-sdk-build.json', b'{}', 'receiptSha256'),
+               ('AGENTS-SDK-NOTICES.txt', b'notices', 'noticesSha256')]
+        self.manifest['agentsSdk'] = {key: hashlib.sha256(data).hexdigest() for _, data, key in sdk}
+        with self.assertRaisesRegex(ValueError, 'SDK'):
+            self.select()
+        for item in self.manifest['artifacts']:
+            path = self.package / item['path']
+            with tarfile.open(path, 'w:gz') as archive:
+                for name, data in [('prose', item['implementation'].encode()), *[(n, d) for n, d, _ in sdk]]:
+                    member = tarfile.TarInfo('package/' + name); member.size = len(data)
+                    archive.addfile(member, io.BytesIO(data))
+            item.update(byteLength=path.stat().st_size, sha256=hashlib.sha256(path.read_bytes()).hexdigest())
+        self.select()
+        self.manifest['agentsSdk']['sha256'] = '0' * 64
+        with self.assertRaisesRegex(ValueError, 'SDK member differs'):
+            self.select()
 
     def test_changed_bytes_and_size_are_rejected(self):
         with (self.package / 'bun.tar.gz').open('ab') as stream:
