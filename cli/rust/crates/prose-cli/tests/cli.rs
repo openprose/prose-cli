@@ -4805,7 +4805,7 @@ fn runner_diagnostics_and_identity_stay_local() {
     assert_eq!(doctor_report["ready"], false);
     assert_eq!(doctor_report["selectedAdapterId"], "agents-sdk/jsonl");
     assert_eq!(doctor_report["billingOwner"], "user-provider");
-    assert_eq!(doctor_report["problems"][0]["code"], "HARNESS_UNAVAILABLE");
+    assert_eq!(doctor_report["problems"][0]["code"], "HARNESS_NEEDS_AUTH");
     assert_eq!(
         doctor_report["problems"][0]["details"]["fallbackAttempted"],
         false
