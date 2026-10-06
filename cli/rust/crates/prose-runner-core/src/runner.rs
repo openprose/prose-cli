@@ -4976,10 +4976,9 @@ mod tests {
             );
             assert_eq!(
                 problem.details.unwrap().get("reason"),
-                Some(&Value::String(format!(
-                    "Unknown auth_profile for {}: unsupported-profile.",
-                    adapter.id()
-                ))),
+                Some(&Value::String(
+                    "Authentication profile is incompatible with the selected harness.".to_owned()
+                )),
                 "{}",
                 adapter.id()
             );

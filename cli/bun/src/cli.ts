@@ -157,8 +157,15 @@ export async function runCli(args: readonly string[], dependencies: CliDependenc
       try {mutation=await mutateUserConfiguration(preflight,parsed.operation === "config-migrate" ? "migrate" : "unset",parsed.configKeys ?? []);}
       catch(caught) {
         if(caught instanceof RunnerFailure && caught.code === "CONFIG_INVALID") {
-          preflight.diagnostics?.push({code:"CONFIG_INVALID",severity:"error",source:String(caught.details?.source ?? preflight.userConfigPath),reason:String(caught.details?.reason ?? "Runner configuration is invalid.")});
-          throw failure("CONFIG_INVALID",{...(caught.details ?? {}),configurationExplanation:configurationExplanation(preflight)});
+          let explanation=configurationExplanation(preflight);
+          try {explanation=configurationExplanation(await resolveConfiguration(parsed.global,dependencies));}
+          catch(contextError) {
+            if(contextError instanceof RunnerFailure && contextError.details?.configurationExplanation!==undefined)explanation=contextError.details.configurationExplanation as Record<string,unknown>;
+          }
+          const diagnostics=Array.isArray(explanation.diagnostics)?explanation.diagnostics:[];
+          explanation.diagnostics=[...diagnostics,{code:"CONFIG_INVALID",severity:"error",source:String(caught.details?.source ?? preflight.userConfigPath),reason:String(caught.details?.reason ?? "Runner configuration is invalid.")}];
+          explanation.runtime={transport:null,permissionMode:null,authProfile:null,billingOwner:null,nativeLimits:null,nativeOutputLimits:null};
+          throw failure("CONFIG_INVALID",{...(caught.details ?? {}),configurationExplanation:explanation});
         }
         throw caught;
       }

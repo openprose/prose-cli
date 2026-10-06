@@ -68,23 +68,43 @@
         "timeout": [
           {
             "value": "10m",
-            "selected": false
+            "selected": false,
+            "source": {
+              "kind": "default",
+              "location": "built-in"
+            }
           },
           {
             "value": "1m",
-            "selected": false
+            "selected": false,
+            "source": {
+              "kind": "user-config",
+              "location": "{{WORKSPACE}}/home/.prose/cli.toml:1"
+            }
           },
           {
             "value": "2m",
-            "selected": false
+            "selected": false,
+            "source": {
+              "kind": "project-config",
+              "location": "{{WORKSPACE}}/.prose/cli.toml:1"
+            }
           },
           {
             "value": "3m",
-            "selected": false
+            "selected": false,
+            "source": {
+              "kind": "environment",
+              "location": "PROSE_TIMEOUT"
+            }
           },
           {
             "value": "4m",
-            "selected": true
+            "selected": true,
+            "source": {
+              "kind": "flag",
+              "location": "--timeout"
+            }
           }
         ]
       }

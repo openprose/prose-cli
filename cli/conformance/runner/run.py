@@ -1609,6 +1609,18 @@ def validate_configuration_effects(observation: Observation) -> list[str]:
     return failures
 
 
+def isolate_workspace(workspace: Path) -> None:
+    """Make project discovery stop at the product-owned root, retaining nested ancestry."""
+    workspace.mkdir(parents=True, exist_ok=True)
+    boundary = workspace / ".git"
+    if boundary.is_symlink():
+        raise ValueError("mechanical workspace Git boundary cannot be a symlink")
+    if not boundary.exists():
+        boundary.mkdir()
+    elif not boundary.is_dir() and not boundary.is_file():
+        raise ValueError("mechanical workspace Git boundary must be a directory or file")
+
+
 def execute(
     product: Product,
     case: dict[str, Any],
@@ -1626,6 +1638,7 @@ def execute(
             cwd.resolve().relative_to(canonical_workspace)
         except ValueError as error:
             raise ValueError("configuration fixture cwd leaves product workspace") from error
+    isolate_workspace(canonical_workspace)
     cwd.mkdir(parents=True, exist_ok=True)
     additions = {
         key: value.replace("{{WORKSPACE}}", str(canonical_workspace))

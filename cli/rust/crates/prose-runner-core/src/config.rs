@@ -373,7 +373,7 @@ pub fn write_user_harness(
     if !retained.is_empty() && !retained.ends_with('\n') {
         retained.push('\n');
     }
-    for key in ["harness", "model", "auth_profile"] {
+    for key in ["auth_profile", "harness", "model"] {
         if let Some(value) = table.get(key) {
             retained.push_str(&format!("{key} = {value}\n"));
         }
@@ -1290,10 +1290,44 @@ pub fn configuration_explanation(config: &EffectiveConfig) -> Value {
     report
 }
 
+/// Attaches pure diagnostic context to an explicit mutation failure without writing or probing.
+#[must_use]
+pub fn mutation_error_context(
+    error: RunnerError,
+    flags: &GlobalFlags,
+    system: &SystemContext,
+) -> RunnerError {
+    if error.code != crate::ErrorCode::ConfigInvalid {
+        return error;
+    }
+    match resolve_config(flags, system) {
+        Ok(config) => explanation_error(error, &config),
+        Err(context) => match context
+            .details
+            .as_deref()
+            .and_then(|details| details.get("configurationExplanation"))
+        {
+            Some(report) => {
+                let mut report = report.clone();
+                let details = error.details.as_deref();
+                let diagnostic = json!({"code":"CONFIG_INVALID","severity":"error","source":details.and_then(|details| details.get("source")).cloned().unwrap_or_else(|| json!("configuration")),"reason":details.and_then(|details| details.get("reason")).cloned().unwrap_or_else(|| json!("Runner configuration is invalid."))});
+                if let Some(diagnostics) = report["diagnostics"].as_array_mut() {
+                    if diagnostics.last() != Some(&diagnostic) {
+                        diagnostics.push(diagnostic);
+                    }
+                }
+                error.with_detail("configurationExplanation", report)
+            }
+            None => error,
+        },
+    }
+}
+
 fn explanation_error(error: RunnerError, config: &EffectiveConfig) -> RunnerError {
     let mut snapshot = config.clone();
     finalize_candidates(&mut snapshot);
     let mut report = configuration_explanation(&snapshot);
+    report["runtime"] = json!({"transport":null,"permissionMode":null,"authProfile":null,"billingOwner":null,"nativeLimits":null,"nativeOutputLimits":null});
     let detail = error.details.as_deref();
     if let Some(source) = detail.and_then(|details| details.get("source")) {
         let keys: Vec<String> = report["values"]
@@ -1318,9 +1352,6 @@ fn explanation_error(error: RunnerError, config: &EffectiveConfig) -> RunnerErro
                 let restored = json!({"value":candidate["value"],"source":candidate["source"]});
                 report["values"][&key] = restored;
             }
-        }
-        for key in ["authProfile", "permissionMode"] {
-            report["runtime"][key] = report["values"][key]["value"].clone();
         }
     }
     report["diagnostics"].as_array_mut().expect("diagnostic list").push(json!({

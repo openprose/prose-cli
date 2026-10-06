@@ -118,6 +118,27 @@ export async function resolveConfiguration(
   flags: GlobalFlags,
   dependencies: ConfigDependencies,
 ): Promise<EffectiveConfiguration> {
+  try {return await resolveConfigured(flags,dependencies);}
+  catch(caught) {throw earlyConfigurationFailure(caught,dependencies);}
+}
+
+function earlyConfigurationFailure(caught:unknown,dependencies:ConfigDependencies):unknown {
+    if(!(caught instanceof RunnerFailure) || caught.code!=="CONFIG_INVALID" || caught.details?.configurationExplanation!==undefined)throw caught;
+    const source=String(caught.details?.source ?? "configuration");
+    const reason=String(caught.details?.reason ?? "Runner configuration is invalid.");
+    const values=Object.fromEntries(SETTINGS.map(([key])=>[key,{value:defaults[key] ?? (key==="nativeProfile"?"default":["nativeAddDirs","nativeAllowTools"].includes(key)?[]:null),source:{kind:"default",location:"built-in"}}]));
+    const candidates=Object.fromEntries(Object.entries(values).map(([key,entry])=>[key,[{...entry,selected:true}]]));
+    return failure("CONFIG_INVALID",{...caught.details,configurationExplanation:{
+      schema:"openprose.configuration-explanation/1",
+      cwd:{value:dependencies.processCwd,source:{kind:"default",location:"process cwd"}},
+      projectConfigPath:null,userConfigPath:null,values,
+      target:dependencies.targetArgv===undefined?null:{argv:dependencies.targetArgv},
+      locations:[],candidates,diagnostics:[{code:"CONFIG_INVALID",severity:"error",source,reason}],
+      runtime:{transport:null,permissionMode:null,authProfile:null,billingOwner:null,nativeLimits:null,nativeOutputLimits:null},
+    }});
+}
+
+async function resolveConfigured(flags: GlobalFlags,dependencies: ConfigDependencies):Promise<EffectiveConfiguration> {
   if((dependencies.platform ?? process.platform) === "win32") dependencies={...dependencies,env:Object.fromEntries(Object.entries(dependencies.env).map(([key,value])=>[key.toUpperCase(),value]))};
   const requestedCwd = flags.cwd === undefined ? dependencies.processCwd : resolve(dependencies.processCwd, flags.cwd);
   const cwdLocation = flags.cwd === undefined ? "process cwd" : "--cwd";
@@ -871,6 +892,15 @@ async function replaceUserBytes(path: string, bytes: Uint8Array, original: Uint8
 
 /** Mutation preflight examines only the user locations, never project or execution overrides. */
 export async function prepareUserConfigurationMutation(dependencies: ConfigDependencies): Promise<EffectiveConfiguration> {
+  try {return await prepareUserMutation(dependencies);}
+  catch(caught) {throw earlyConfigurationFailure(caught,dependencies);}
+}
+async function prepareUserMutation(dependencies:ConfigDependencies):Promise<EffectiveConfiguration> {
+  let cwd:string;
+  try {
+    if(!(await stat(dependencies.processCwd)).isDirectory())fail(`Working directory is not a directory: ${dependencies.processCwd}.`,"process cwd");
+    cwd=await realpath(dependencies.processCwd);
+  }catch(caught){if(caught instanceof RunnerFailure)throw caught;fail(`Working directory does not exist or cannot be read: ${dependencies.processCwd}.`,"process cwd");}
   if((dependencies.platform ?? process.platform) === "win32")dependencies={...dependencies,env:Object.fromEntries(Object.entries(dependencies.env).map(([key,value])=>[key.toUpperCase(),value]))};
   const userConfigPath=dependencies.userConfigPath ?? defaultUserConfigPath(dependencies);
   const pathApi=(dependencies.platform ?? process.platform) === "win32" ? win32:posix;
@@ -880,7 +910,7 @@ export async function prepareUserConfigurationMutation(dependencies: ConfigDepen
   const legacy=legacyConfigPath===null ? null:await regularFile(legacyConfigPath);
   const values={...defaults};
   const sources=Object.fromEntries(SETTINGS.map(([key])=>[key,{kind:"default",location:"built-in"}])) as EffectiveConfiguration["sources"];
-  return {cwd:await realpath(dependencies.processCwd),cwdSource:{kind:"default",location:"process cwd"},values,sources,userConfigPath,legacyConfigPath,activeUserConfigPath:user!==null ? userConfigPath:legacy!==null ? legacyConfigPath:null,projectConfigPath:null,target:null,diagnostics:[],locations:[{role:"user",path:userConfigPath,present:user!==null,selected:user!==null},...(legacyConfigPath===null ? []:[{role:"legacy-user" as const,path:legacyConfigPath,present:legacy!==null,selected:user===null&&legacy!==null}])],candidates:{}};
+  return {cwd,cwdSource:{kind:"default",location:"process cwd"},values,sources,userConfigPath,legacyConfigPath,activeUserConfigPath:user!==null ? userConfigPath:legacy!==null ? legacyConfigPath:null,projectConfigPath:null,target:null,diagnostics:[],locations:[{role:"user",path:userConfigPath,present:user!==null,selected:user!==null},...(legacyConfigPath===null ? []:[{role:"legacy-user" as const,path:legacyConfigPath,present:legacy!==null,selected:user===null&&legacy!==null}])],candidates:{}};
 }
 function validateUserSettingsBundle(bytes: Uint8Array, path: string): void {
   const parsed=parseFlatToml(decodeConfiguration(bytes,path),path,true);

@@ -56,7 +56,9 @@
           "diagnostics": [
             {
               "code": "CONFIG_INVALID",
-              "severity": "error"
+              "severity": "error",
+              "source": "{{WORKSPACE}}/home/.prose/cli.toml:3",
+              "reason": "Inherited model belongs to a different harness; replace it at the harness-selecting layer."
             }
           ]
         }

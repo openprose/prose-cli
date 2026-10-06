@@ -46,7 +46,9 @@
           "diagnostics": [
             {
               "code": "CONFIG_INVALID",
-              "severity": "error"
+              "severity": "error",
+              "source": "{{WORKSPACE}}/home/.prose/cli.toml:2",
+              "reason": "Configuration contains an unknown key."
             }
           ]
         }

@@ -54,7 +54,9 @@
       "diagnostics": [
         {
           "code": "LEGACY_CONFIG_ACTIVE",
-          "severity": "warning"
+          "severity": "warning",
+          "source": "{{WORKSPACE}}/config/openprose/cli.toml",
+          "reason": "Legacy user configuration is active; run prose cli config migrate to copy explicit settings."
         }
       ]
     }
