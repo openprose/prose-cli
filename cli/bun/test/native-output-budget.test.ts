@@ -1,4 +1,6 @@
 import {test,expect} from "bun:test";
+import Ajv2020 from "ajv/dist/2020";
+import nativeOutputLimitsSchema from "../../shared/schemas/native-output-limits.schema.json";
 import {mkdtemp,writeFile,rm,mkdir,readFile} from "node:fs/promises";
 import {tmpdir} from "node:os";
 import {join} from "node:path";
@@ -7,6 +9,18 @@ import {nativeOutputBytes,nativeOutputLimits,validateNativeOutputBytes} from "..
 import {parseEntrypoint} from "../src/core/args";
 import {resolveConfiguration} from "../src/core/config";
 import {NativeCapture} from "../src/adapters/native-capture";
+test("native output schema requires the fixed record cap for every reported budget",()=>{
+ const validate=new Ajv2020({strict:true}).compile(nativeOutputLimitsSchema);
+ for(const selection of [{outputContract:"native"},{outputContract:"native",nativeOutputBytes:"134217728",nativeLog:"/fixture/capture"}]){
+  const limits=nativeOutputLimits(selection)!;
+  expect(validate(limits)).toBe(true);
+  const missingCap:Record<string,unknown>={...limits};delete missingCap.maxRecordBytes;
+  expect(validate(missingCap)).toBe(false);
+  expect(validate.errors?.some(error=>error.keyword==="required"&&error.params.missingProperty==="maxRecordBytes")).toBe(true);
+  expect(validate({...limits,maxRecordBytes:1048577})).toBe(false);
+ }
+ expect(nativeOutputLimits({outputContract:"image-envelope"})).toBeUndefined();
+});
 test("native output shared bounds and mode",()=>{
  expect(nativeOutputBytes({})).toBe(fixture.default);
  for(const v of fixture.valid)expect(validateNativeOutputBytes(v)).toBe(Number(v));

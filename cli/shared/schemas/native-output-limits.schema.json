@@ -4,6 +4,7 @@
   "type": "object",
   "additionalProperties": false,
   "required": [
+    "maxRecordBytes",
     "maxAggregateStdoutBytes",
     "maxNativeCaptureBytes",
     "captureEnabled"
