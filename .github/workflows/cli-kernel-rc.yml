@@ -75,6 +75,16 @@ jobs:
         env:
           RC_VERSION: ${{ inputs.version || '0.15.0-rc.1' }}
         run: python3 cli/ci/build_kernel_rc.py --version "$RC_VERSION" --out "$RUNNER_TEMP/kernel-rc"
+      - uses: Homebrew/actions/setup-homebrew@dc7099b3e807f1e2ecc61f3ecabc840eedd5586a
+      - name: Rehearse Homebrew against these exact release archives
+        env:
+          RC_VERSION: ${{ inputs.version || '0.15.0-rc.1' }}
+          EXPECTED_SOURCE: ${{ github.sha }}
+        run: |
+          "$RUNNER_TEMP/distribution-python/bin/python3" cli/ci/homebrew_rehearsal.py \
+            --kernel-rc "$RUNNER_TEMP/kernel-rc" \
+            --expected-source "$EXPECTED_SOURCE" --expected-version "$RC_VERSION" \
+            --output "$RUNNER_TEMP/kernel-rc/homebrew"
       - name: Retain packages and offline evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -84,5 +94,6 @@ jobs:
             ${{ runner.temp }}/kernel-rc/package
             ${{ runner.temp }}/kernel-rc/logs
             ${{ runner.temp }}/kernel-rc/build-report.json
+            ${{ runner.temp }}/kernel-rc/homebrew
           retention-days: 14
           if-no-files-found: warn

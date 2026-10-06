@@ -810,3 +810,12 @@ fixture timing budgets and explanatory comments. Preserve all assertions and
 production constants; no runtime implementation is leased. This follows two
 retained macOS admission failures and a matching existing-main fixture failure.
 Root retains Git; subagent review is read-only.
+
+IMP-014 exact release-archive Homebrew extension: root owns
+`.github/workflows/cli-kernel-rc.yml` and retains the helper/test/registry
+leases above. The Homebrew subagent edits only `cli/ci/homebrew_rehearsal.py`
+and `cli/ci/test_homebrew_rehearsal.py`; root owns workflow edits and all Git.
+Scope: verify expected native RC source/version and report-bound archive/binary
+identities, then exercise the same install/link/switch/uninstall checks against
+those already-built release bytes. No rebuild, relabel, live qualification,
+publication authority or production runtime change.

@@ -305,6 +305,32 @@ def audit_workflow(name: str, text: str) -> list[str]:
                 by_name[required_step]["run"] == command,
                 "required qualification command drift",
             )
+        if name in ("cli-distribution-check.yml", "cli-kernel-rc.yml"):
+            kernel_rc = name == "cli-kernel-rc.yml"
+            label = ("Rehearse Homebrew against these exact release archives" if kernel_rc
+                     else "Rehearse Homebrew against this build's verified native archives")
+            homebrew = by_name[label]
+            setup = next(step for step in steps if step.get("uses", "").startswith("Homebrew/actions/setup-homebrew@"))
+            retention = next(step for step in steps if step.get("uses", "").startswith("actions/upload-artifact@"))
+            require(homebrew.get("if") is None and setup.get("if") is None,
+                    "Homebrew admission must not be conditional")
+            require(steps.index(by_name[required_step]) < steps.index(setup) < steps.index(homebrew) < steps.index(retention),
+                    "test already-built Homebrew archives before retaining results")
+            fragments = ['"$RUNNER_TEMP/distribution-python/bin/python3" cli/ci/homebrew_rehearsal.py']
+            if kernel_rc:
+                fragments += ['--kernel-rc "$RUNNER_TEMP/kernel-rc"', '--expected-source "$EXPECTED_SOURCE"',
+                              '--expected-version "$RC_VERSION"', '--output "$RUNNER_TEMP/kernel-rc/homebrew"']
+                require(homebrew.get("env") == {"RC_VERSION": "${{ inputs.version || '0.15.0-rc.1' }}",
+                                               "EXPECTED_SOURCE": "${{ github.sha }}"},
+                        "exact release Homebrew admission must bind workflow source/version")
+                evidence_path = "${{ runner.temp }}/kernel-rc/homebrew"
+            else:
+                fragments += ['--rehearsal "$RUNNER_TEMP/cli-rehearsal"', '--output "$RUNNER_TEMP/cli-homebrew-rehearsal"']
+                evidence_path = "${{ runner.temp }}/cli-homebrew-rehearsal"
+            require(all(fragment in homebrew.get("run", "") for fragment in fragments),
+                    "Homebrew admission must use pinned Python and verified archive custody")
+            require(evidence_path in retention.get("with", {}).get("path", "").splitlines(),
+                    "retain Homebrew custody and cleanup results")
         require(
             any(
                 step.get("uses", "").startswith("actions/upload-artifact@")

@@ -53,7 +53,10 @@ GitHub organization. Future formula updates select a newly qualified public
 release and pass installation/switching tests before merge. CLI distribution CI
 first tests Homebrew against this checkout's verified development-rehearsal
 archives on all four native runners. These local-only bytes never become tap
-releases. The tap update workflow follows the guarded public RC pointer,
+releases. The unsigned candidate build also runs the same checks against its
+already-built kernel-RC archives, binding the expected source/version, native
+custody reports and executable hashes. A failed platform withholds the candidate
+cohort; neither packaging check grants live qualification. The tap update workflow follows the guarded public RC pointer,
 verifies the immutable manifest digest and prepares a formula update branch.
 Its own-repository CI is explicitly dispatched for bot-created branches. The
 release owner opens the checked PR using existing GitHub authentication,
