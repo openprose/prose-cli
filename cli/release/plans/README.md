@@ -17,3 +17,12 @@ See [publication setup](../../../docs/cli-publication.md) and
 plan requires review of the exact source, final bytes and immutable evidence,
 followed by approval of that concrete release. The retired functional-alpha
 publication flow remains historical.
+
+[0.15.0-rc.3.json](0.15.0-rc.3.json) binds source
+`1941a34c3503f9a1417aebea1bc19ecada91e58c`, all eight standalone/five npm
+archives and retained qualification evidence. All four platforms pass exact
+Homebrew installation rehearsal; both MacARM binaries pass one Codex/OpenAI
+Hello World each. The original macOS source-admission failure remains retained
+alongside its single successful rerun. This is an unsigned prerelease smoke
+qualification; Apple signing and the separate historical Bun cleanup diagnosis
+remain open. No stable/latest or kernel promotion is authorized.
