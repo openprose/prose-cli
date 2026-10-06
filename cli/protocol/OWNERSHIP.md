@@ -841,3 +841,8 @@ solely to reconcile the authoritative oversized-record error category with the
 shared controls and both products. Numeric bounds and other failures stay fixed.
 IMP-089 record-limit documentation lease: `docs/native-output-budgets.md` for
 accurate fixed record-budget reporting and resource-failure recovery only.
+IMP-089 mandatory Rust black-box lease: `cli/rust/crates/prose-cli/tests/native_record_limits.rs`
+for provider-free compiled test-seam admission against the same frozen native
+record controls. Fake Codex uses the required Bun toolchain; no Python, shell,
+provider credentials or network. This supplements rather than replaces existing
+framing, mapping and shared differential checks.
