@@ -89,9 +89,9 @@ class RunnerUnitTest(unittest.TestCase):
             case = json.loads((runner.CASES / f"adapters/{name}.json").read_text())
             for os_name, arch, incompatible in [
                 ("darwin", "arm64", set()),
-                ("darwin", "x86_64", {"prime", "omp", "claude"}),
-                ("linux", "aarch64", {"prime", "omp", "claude"}),
-                ("linux", "x86_64", {"prime", "claude"}),
+                ("darwin", "x86_64", {"prime", "omp", "claude", "agents-sdk"}),
+                ("linux", "aarch64", {"prime", "omp", "claude", "agents-sdk"}),
+                ("linux", "x86_64", {"prime", "claude", "agents-sdk"}),
             ]:
                 wanted = json.loads(json.dumps(case["expected"]))
                 for harness in wanted["resultMatches"]["harnesses"]:

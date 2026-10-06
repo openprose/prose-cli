@@ -16,6 +16,9 @@
     "omp/rpc": [
       "darwin-arm64",
       "linux-x64"
+    ],
+    "agents-sdk/jsonl": [
+      "darwin-arm64"
     ]
   },
   "cases": {
@@ -48,6 +51,9 @@
     "omp/rpc": [
       "darwin-arm64",
       "linux-x64"
+    ],
+    "agents-sdk/jsonl": [
+      "darwin-arm64"
     ]
   },
   "inventoryCases": [

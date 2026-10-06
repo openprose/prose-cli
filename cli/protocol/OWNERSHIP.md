@@ -775,3 +775,5 @@ IMP-086 lease extension: `cli/ci/rehearse_release.py` solely to require all 64 c
 IMP-086 lease extension: `cli/ci/test_rehearse_release.py` for exact current 64-case rehearsal count assertions, preserving historical-report coverage.
 
 IMP-086 lease extension: `cli/conformance/fixtures/adapter-host-expectations.json` and the existing leased host runner/tests for independently frozen inventory expectations across admitted POSIX hosts; keep all Codex blocked-state and full-inventory assertions.
+
+IMP-086 lease extension: `cli/ci/test_run_local.py` solely to make the interrupt-tree fixture reap its controlled descendant and publish readiness after signal-safe setup; supervisor behavior, 130/143 exits and PID-absence assertions remain unchanged.

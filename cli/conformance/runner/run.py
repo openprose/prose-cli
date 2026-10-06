@@ -1648,9 +1648,11 @@ def expected_for_host(case: dict[str, Any], host_os: str | None = None,
     arch = {"aarch64": "arm64", "x86_64": "x64", "AMD64": "x64"}.get(arch, arch)
     if case.get("id") in oracle["inventoryCases"]:
         for harness in expected["resultMatches"]["harnesses"]:
+            if harness["runtime"] != "installed-process":
+                continue
             inventory_adapter = f"{harness['id']}/{harness['transports'][0]}"
-            admitted = oracle["admittedHosts"].get(inventory_adapter)
-            if admitted is not None and f"{os_name}-{arch}" not in admitted:
+            admitted = oracle["admittedHosts"][inventory_adapter]
+            if f"{os_name}-{arch}" not in admitted:
                 harness["availability"] = "incompatible"
         return expected
     if adapter is None:
