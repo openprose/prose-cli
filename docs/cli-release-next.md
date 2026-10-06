@@ -166,11 +166,12 @@ Use the existing unsigned-RC policy only with explicit disclosure and concrete
 candidate approval. Sigstore supplies workflow/byte provenance, not Developer ID
 or notarization. A signed release must use a new immutable version.
 
-Homebrew tap/formula work remains deferred; no separate Homebrew account is
-required. No accessible `openprose/homebrew-tap` was found, formula
-names and default implementation remain proposals, and current formula tooling
-requires stable artifacts. Adding an RC tap now would add an unqualified channel
-without resolving Apple prerequisites.
+Homebrew preparation is now user-assigned. The selected formula names are
+`prose-bun` and `prose-rust`, both providing `prose`; no implementation default
+or plain `prose` alias is chosen. Prerelease status stays in the version and
+caveats. [Installation and switching](cli-distribution.md#homebrew-installation-and-implementation-selection)
+uses native Homebrew unlink/link and preserves immutable RC2 bytes. Apple
+signing remains separate; Homebrew does not remove unsigned-RC limitations.
 
 ## October 5 runtime parity audit
 

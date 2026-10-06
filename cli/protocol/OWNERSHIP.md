@@ -702,3 +702,10 @@ explicit RC versions and actual installation evidence. No implementation
 default, runtime, release artifact, Apple identity or model spending is claimed.
 The Homebrew subagent owns only the new tap formula/readme/CI/record paths
 under root Git/integration ownership; other owners' leases remain unchanged.
+
+IMP-014 Homebrew automation lease extension: root owns exact paths
+`.github/workflows/cli-distribution-check.yml`, `cli/ci/homebrew_rehearsal.py`,
+`cli/ci/test_homebrew_rehearsal.py`. Scope: provider-free Homebrew install/link
+regression checks against the existing verified local rehearsal's actual
+archives on its four native runner platforms, before release. Development
+rehearsal bytes remain private/non-publishing and cannot qualify a release.

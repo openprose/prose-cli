@@ -16,7 +16,7 @@ jobs:
       matrix:
         os: [ubuntu-22.04, ubuntu-22.04-arm, macos-15, macos-15-intel]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 35
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
@@ -103,11 +103,21 @@ jobs:
           python3 -m unittest discover -s cli/ci -p test_rehearse_npm_identity.py
       - name: Build, package and exercise fresh standalone and npm installations
         run: python3 cli/ci/rehearse_release.py --output "$RUNNER_TEMP/cli-rehearsal" --trials 1
+      - name: Test Homebrew candidate archive admission
+        run: python3 -m unittest discover -s cli/ci -p test_homebrew_rehearsal.py
+      - uses: Homebrew/actions/setup-homebrew@dc7099b3e807f1e2ecc61f3ecabc840eedd5586a
+      - name: Rehearse Homebrew against this build's verified native archives
+        run: >-
+          python3 cli/ci/homebrew_rehearsal.py
+          --rehearsal "$RUNNER_TEMP/cli-rehearsal"
+          --output "$RUNNER_TEMP/cli-homebrew-rehearsal"
       - name: Retain rehearsal evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: cli-rehearsal-${{ matrix.os }}
-          path: ${{ runner.temp }}/cli-rehearsal
+          path: |
+            ${{ runner.temp }}/cli-rehearsal
+            ${{ runner.temp }}/cli-homebrew-rehearsal
           retention-days: 14
           if-no-files-found: warn
