@@ -405,9 +405,9 @@ export function reportedConfigurationKeys(config: EffectiveConfiguration): Array
 
 export function configurationExplanation(config: EffectiveConfiguration): Record<string, unknown> {
   const values = Object.fromEntries(
-    reportedConfigurationKeys(config).map((key) => [key, {
-      value: config.values[key],
-      source: config.sources[key],
+    (Object.keys(config.sources) as Array<keyof typeof config.values>).map((key) => [key, {
+      value: config.values[key] ?? (key === "nativeProfile" ? "default" : ["nativeAddDirs","nativeAllowTools"].includes(key) ? [] : null),
+      source: config.sources[key] ?? {kind:"default",location:"built-in"},
     }]),
   );
   return {
@@ -416,17 +416,25 @@ export function configurationExplanation(config: EffectiveConfiguration): Record
     projectConfigPath: config.projectConfigPath,
     userConfigPath: config.userConfigPath,
     values,
+    target: config.target ?? null,
+    locations: config.locations ?? [],
+    candidates: config.candidates ?? {},
+    diagnostics: config.diagnostics ?? [],
+    runtime: config.runtime ?? {transport:null,permissionMode:null,authProfile:null,billingOwner:null,nativeLimits:null,nativeOutputLimits:null},
+    ...(config.mutation === undefined ? {} : {mutation:config.mutation}),
   };
 }
 
 export function humanConfiguration(config: EffectiveConfiguration): string {
   const lines = [`cwd = ${humanSafeScalar(config.cwd)} (${humanSafeScalar(config.cwdSource.kind)}: ${humanSafeScalar(config.cwdSource.location)})`];
-  for (const key of reportedConfigurationKeys(config)) {
-    const raw = config.values[key];
-    const value = raw === null ? "unset" : humanSafeScalar(String(raw));
+  for (const key of Object.keys(config.sources) as Array<keyof typeof config.values>) {
+    const raw = key === "nativeProfile" ? config.values[key] ?? "default" : config.values[key];
+    const value = raw === null || raw === undefined ? "unset" : humanSafeScalar(Array.isArray(raw) ? JSON.stringify(raw) : String(raw));
     const source = config.sources[key] ?? {kind:"default",location:"built-in"};
     lines.push(`${key} = ${value} (${humanSafeScalar(source.kind)}: ${humanSafeScalar(source.location)})`);
   }
+  for (const diagnostic of config.diagnostics ?? []) lines.push(`${humanSafeScalar(diagnostic.severity)}: ${humanSafeScalar(diagnostic.reason)} (${humanSafeScalar(diagnostic.source)})`);
+  if(config.mutation) lines.push(`${config.mutation.operation}: ${config.mutation.changed ? "changed" : "unchanged"} ${humanSafeScalar(config.mutation.path)}`);
   return `${lines.join("\n")}\n`;
 }
 

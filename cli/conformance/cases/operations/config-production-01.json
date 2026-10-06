@@ -1,0 +1,67 @@
+{
+  "schema": "openprose.runner-case/1",
+  "id": "operations.config-production-01",
+  "summary": "Missing settings expose inherited defaults without creating a file.",
+  "phase": 6,
+  "tags": [
+    "cli",
+    "configuration",
+    "production",
+    "differential"
+  ],
+  "controls": {
+    "fixedInvocationId": "fixture-invocation-0001",
+    "fixedTimestamp": "2025-01-01T00:00:00Z",
+    "fixedMonotonicMs": 0,
+    "network": "denied",
+    "configurationFixture": "operations.config-production-01"
+  },
+  "invocation": {
+    "argv": [
+      "cli",
+      "config",
+      "explain",
+      "--json"
+    ],
+    "cwd": "{{WORKSPACE}}",
+    "environment": {
+      "HOME": "{{WORKSPACE}}/home",
+      "XDG_CONFIG_HOME": "{{WORKSPACE}}/config"
+    }
+  },
+  "expected": {
+    "exitCode": 0,
+    "stdout": {
+      "kind": "json",
+      "schema": "openprose.configuration-explanation/1"
+    },
+    "stderr": {
+      "kind": "empty"
+    },
+    "startedHarness": false,
+    "resultMatches": {
+      "target": null,
+      "diagnostics": [],
+      "values": {
+        "harness": {
+          "value": "openprose"
+        },
+        "model": {
+          "value": null
+        },
+        "authProfile": {
+          "value": null
+        },
+        "nativeMaxTurns": {
+          "value": null
+        },
+        "nativeLog": {
+          "value": null
+        }
+      },
+      "runtime": {
+        "nativeLimits": null
+      }
+    }
+  }
+}

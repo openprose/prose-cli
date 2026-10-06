@@ -32,5 +32,11 @@
       "outputContract": "native",
       "permissionMode": "acceptEdits"
     }
+  },
+  "explanationDefaults": {
+    "outputContract": "image-envelope",
+    "permissionMode": null,
+    "nativeProfile": "default",
+    "codexCompatibility": "qualified"
   }
 }

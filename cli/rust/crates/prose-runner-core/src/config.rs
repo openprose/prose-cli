@@ -1,6 +1,7 @@
 use crate::error::RunnerError;
 use crate::invocation::{GlobalFlags, OutputMode};
 use serde::Serialize;
+use serde_json::{Value, json};
 use std::collections::BTreeMap;
 use std::env;
 use std::fs;
@@ -91,6 +92,33 @@ impl SystemContext {
     /// Returns `CONFIG_INVALID` rather than allowing an absent, empty, or
     /// relative ambient root to resolve inside the candidate workspace.
     pub fn user_config_path(&self) -> Result<PathBuf, RunnerError> {
+        if let Some(root) = self.environment.get("PROSE_CONFIG_DIR") {
+            return checked_config_root(Path::new(root), "PROSE_CONFIG_DIR")
+                .map(|root| root.join("cli.toml"));
+        }
+        let (root, name) = if self.platform == Platform::Windows {
+            (
+                self.environment.get("USERPROFILE").map(PathBuf::from),
+                "USERPROFILE",
+            )
+        } else {
+            (self.home_dir.clone(), "HOME")
+        };
+        let root = root.ok_or_else(|| {
+            RunnerError::config(format!(
+                "{name} must be a non-empty absolute path to locate OpenProse user configuration."
+            ))
+        }).map_err(|error| error.with_detail("source", name))?;
+        checked_config_root(&root, name).map(|root| root.join(".prose").join("cli.toml"))
+    }
+
+    /// Historical discovery is retained only as a visible migration candidate.
+    pub fn legacy_user_config_path(&self) -> Result<PathBuf, RunnerError> {
+        if self.environment.contains_key("PROSE_CONFIG_DIR") {
+            return Err(RunnerError::config(
+                "Explicit configuration root has no legacy migration source.",
+            ));
+        }
         if let Some(root) = &self.xdg_config_home {
             return checked_config_root(root, "XDG_CONFIG_HOME")
                 .map(|root| root.join("openprose").join("cli.toml"));
@@ -121,7 +149,8 @@ fn checked_config_root<'a>(root: &'a Path, name: &str) -> Result<&'a Path, Runne
     if root.as_os_str().is_empty() || !root.is_absolute() {
         return Err(RunnerError::config(format!(
             "{name} must be a non-empty absolute path to locate OpenProse user configuration."
-        )));
+        ))
+        .with_detail("source", name));
     }
     Ok(root)
 }
@@ -185,6 +214,18 @@ impl<T> Sourced<T> {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EffectiveConfig {
+    #[serde(skip)]
+    pub locations: Vec<Value>,
+    #[serde(skip)]
+    pub candidates: BTreeMap<String, Vec<Value>>,
+    #[serde(skip)]
+    pub diagnostics: Vec<Value>,
+    #[serde(skip)]
+    pub legacy_user_config: Option<PathBuf>,
+    #[serde(skip)]
+    pub explanation_target: Option<Vec<String>>,
+    #[serde(skip)]
+    pub mutation: Option<Value>,
     pub cwd: PathBuf,
     pub cwd_source: ConfigSource,
     pub project_config: Option<PathBuf>,
@@ -248,7 +289,17 @@ pub fn write_user_harness(
         .ok_or_else(|| RunnerError::config("user configuration has no parent directory"))?;
     prepare_private_config_parent(parent)?;
     refuse_symlinked_config_destination(&path)?;
-    let existing_bytes = match fs::read(&path) {
+    let source_path = if !path.exists() {
+        config
+            .legacy_user_config
+            .as_ref()
+            .filter(|legacy| legacy.is_file())
+            .unwrap_or(&path)
+    } else {
+        &path
+    };
+    refuse_symlinked_config_destination(source_path)?;
+    let existing_bytes = match fs::read(source_path) {
         Ok(bytes) => bytes,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Vec::new(),
         Err(_) => {
@@ -258,16 +309,16 @@ pub fn write_user_harness(
             ));
         }
     };
-    let existing = decode_configuration(&existing_bytes, &path)?.to_owned();
+    let existing = decode_configuration(&existing_bytes, source_path)?.to_owned();
     let mut table = if existing.trim().is_empty() {
         toml::map::Map::new()
     } else {
-        let loaded = parse_file(&existing, &path)?;
-        let mut validated = config.clone();
+        let loaded = parse_file(&existing, source_path)?;
+        let mut validated = EffectiveConfig::defaults(config.cwd.clone(), None, Some(path.clone()));
         apply_file(
             &mut validated,
             loaded,
-            &ConfigSource::file(ConfigSourceKind::UserFile, &path),
+            &ConfigSource::file(ConfigSourceKind::UserFile, source_path),
         )?;
         toml::from_str::<toml::Table>(&existing).map_err(|_| {
             config_line_error(
@@ -280,7 +331,7 @@ pub fn write_user_harness(
     let already_selected = table.get("harness").and_then(toml::Value::as_str) == Some(harness)
         && table.get("model").and_then(toml::Value::as_str) == model
         && table.get("auth_profile").and_then(toml::Value::as_str) == auth_profile;
-    if already_selected {
+    if already_selected && source_path == &path {
         return Ok(UserHarnessSelection {
             path,
             changed: false,
@@ -309,22 +360,42 @@ pub fn write_user_harness(
             table.remove("auth_profile");
         }
     }
-    let bytes = toml::to_string(&table)
-        .map_err(|_| {
-            setting_error(
-                "OpenProse user configuration could not be written atomically.",
-                &path.display().to_string(),
-            )
-        })?
-        .into_bytes();
-    atomic_user_config_write(&path, &bytes)?;
+    // Keep every unrelated line, including comments and original line endings.
+    let mut retained = existing
+        .split_inclusive('\n')
+        .filter(|line| {
+            !line
+                .trim_start()
+                .split_once('=')
+                .is_some_and(|(key, _)| matches!(key.trim(), "harness" | "model" | "auth_profile"))
+        })
+        .collect::<String>();
+    if !retained.is_empty() && !retained.ends_with('\n') {
+        retained.push('\n');
+    }
+    for key in ["harness", "model", "auth_profile"] {
+        if let Some(value) = table.get(key) {
+            retained.push_str(&format!("{key} = {value}\n"));
+        }
+    }
+    let loaded = parse_file(&retained, &path)?;
+    let mut validated = EffectiveConfig::defaults(config.cwd.clone(), None, Some(path.clone()));
+    validated.candidates.clear();
+    apply_file(
+        &mut validated,
+        loaded,
+        &ConfigSource::file(ConfigSourceKind::UserFile, &path),
+    )?;
+    contextual_defaults(&mut validated)?;
+    native_checks(&mut validated)?;
+    atomic_user_config_install(&path, retained.as_bytes(), source_path == &path)?;
     Ok(UserHarnessSelection {
         path,
         changed: true,
     })
 }
 
-fn atomic_user_config_write(path: &Path, bytes: &[u8]) -> Result<(), RunnerError> {
+fn atomic_user_config_install(path: &Path, bytes: &[u8], replace: bool) -> Result<(), RunnerError> {
     let parent = path
         .parent()
         .ok_or_else(|| RunnerError::config("user configuration has no parent directory"))?;
@@ -346,7 +417,14 @@ fn atomic_user_config_write(path: &Path, bytes: &[u8]) -> Result<(), RunnerError
         // or destination symlink while the new bytes are being prepared.
         harden_config_parent_io(parent)?;
         refuse_symlinked_config_destination_io(path)?;
-        fs::rename(&temporary, path)?;
+        if replace {
+            fs::rename(&temporary, path)?;
+        } else {
+            // An exclusive link publishes the fully flushed bytes atomically and
+            // fails if a concurrent writer created the destination.
+            fs::hard_link(&temporary, path)?;
+            fs::remove_file(&temporary)?;
+        }
         Ok(())
     })();
     if write_result.is_err() {
@@ -357,6 +435,122 @@ fn atomic_user_config_write(path: &Path, bytes: &[u8]) -> Result<(), RunnerError
         ));
     }
     Ok(())
+}
+
+fn validate_user_configuration(
+    loaded: LoadedFileConfig,
+    path: &Path,
+    system: &SystemContext,
+) -> Result<(), RunnerError> {
+    let mut config =
+        EffectiveConfig::defaults(system.current_dir.clone(), None, Some(path.to_owned()));
+    record_candidates(&mut config);
+    apply_file(
+        &mut config,
+        loaded,
+        &ConfigSource::file(ConfigSourceKind::UserFile, path),
+    )?;
+    record_candidates(&mut config);
+    contextual_defaults(&mut config)?;
+    native_checks(&mut config)
+}
+
+/// Explicitly copies validated legacy settings without overwriting or deleting either file.
+///
+/// # Errors
+/// Returns `CONFIG_INVALID` for an existing destination, missing legacy file,
+/// unsafe path, invalid settings or a filesystem failure.
+pub fn migrate_user_configuration(system: &SystemContext) -> Result<Value, RunnerError> {
+    let path = system.user_config_path()?;
+    if fs::symlink_metadata(&path).is_ok() {
+        return Err(setting_error(
+            "Canonical user configuration already exists; migration never overwrites it.",
+            &path.display().to_string(),
+        ));
+    }
+    let source = system.legacy_user_config_path()?;
+    refuse_symlinked_config_destination(&source)?;
+    let bytes = fs::read(&source).map_err(|_| {
+        setting_error(
+            "Legacy user configuration is unavailable for migration.",
+            &source.display().to_string(),
+        )
+    })?;
+    validate_user_configuration(load_file(&source)?, &source, system)?;
+    prepare_private_config_parent(
+        path.parent()
+            .ok_or_else(|| RunnerError::config("User configuration has no parent directory."))?,
+    )?;
+    atomic_user_config_install(&path, &bytes, false)?;
+    Ok(json!({"operation":"migrate","changed":true,"path":path,"sourcePath":source,"keys":[]}))
+}
+
+/// Removes only named explicit settings and preserves unrelated bytes/comments.
+///
+/// # Errors
+/// Returns `INVOCATION_INVALID` for an unknown key; `CONFIG_INVALID` for
+/// malformed or unsafe settings and filesystem failures. An absent file is not created.
+pub fn unset_user_configuration(
+    system: &SystemContext,
+    keys: &[String],
+) -> Result<Value, RunnerError> {
+    for key in keys {
+        if !FILE_CONFIG_KEYS.contains(&key.as_str()) || key == "service_environment" {
+            return Err(RunnerError::invocation(
+                "Config unset requires known configuration file keys.",
+            ));
+        }
+    }
+    let path = system.user_config_path()?;
+    let source = if path
+        .try_exists()
+        .map_err(|_| RunnerError::config("User configuration cannot be inspected."))?
+    {
+        path.clone()
+    } else {
+        system
+            .legacy_user_config_path()
+            .ok()
+            .filter(|legacy| legacy.is_file())
+            .unwrap_or_else(|| path.clone())
+    };
+    refuse_symlinked_config_destination(&source)?;
+    let bytes = match fs::read(&source) {
+        Ok(bytes) => bytes,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(
+                json!({"operation":"unset","changed":false,"path":path,"sourcePath":Value::Null,"keys":keys}),
+            );
+        }
+        Err(_) => {
+            return Err(setting_error(
+                "User configuration cannot be read safely.",
+                &source.display().to_string(),
+            ));
+        }
+    };
+    let text = decode_configuration(&bytes, &source)?;
+    let _ = parse_file(text, &source)?;
+    let retained = text
+        .split_inclusive('\n')
+        .filter(|line| {
+            let assignment = line.trim_start().split_once('=');
+            !assignment.is_some_and(|(key, _)| keys.iter().any(|wanted| wanted == key.trim()))
+        })
+        .collect::<String>();
+    validate_user_configuration(parse_file(&retained, &source)?, &source, system)?;
+    let changed = retained.as_bytes() != bytes;
+    if changed {
+        prepare_private_config_parent(
+            path.parent().ok_or_else(|| {
+                RunnerError::config("User configuration has no parent directory.")
+            })?,
+        )?;
+        atomic_user_config_install(&path, retained.as_bytes(), source == path)?;
+    }
+    Ok(
+        json!({"operation":"unset","changed":changed,"path":path,"sourcePath":if source == path {None} else {Some(source)},"keys":keys}),
+    )
 }
 
 /// Creates and secures the user configuration's parent, with the fixed
@@ -463,6 +657,12 @@ impl EffectiveConfig {
         user_config: Option<PathBuf>,
     ) -> Self {
         Self {
+            locations: Vec::new(),
+            candidates: BTreeMap::new(),
+            diagnostics: Vec::new(),
+            legacy_user_config: None,
+            explanation_target: None,
+            mutation: None,
             cwd,
             cwd_source: ConfigSource::new(
                 ConfigSourceKind::Default,
@@ -834,6 +1034,29 @@ pub fn resolve_config(
     flags: &GlobalFlags,
     system: &SystemContext,
 ) -> Result<EffectiveConfig, RunnerError> {
+    resolve_config_inner(flags, system).map_err(|error| {
+        if error
+            .details
+            .as_deref()
+            .is_some_and(|details| details.contains_key("configurationExplanation"))
+        {
+            error
+        } else {
+            let mut partial = EffectiveConfig::defaults(
+                system.current_dir.clone(),
+                None,
+                system.user_config_path().ok(),
+            );
+            record_candidates(&mut partial);
+            explanation_error(error, &partial)
+        }
+    })
+}
+
+fn resolve_config_inner(
+    flags: &GlobalFlags,
+    system: &SystemContext,
+) -> Result<EffectiveConfig, RunnerError> {
     let requested_cwd = flags.cwd.as_ref().map_or_else(
         || system.current_dir.clone(),
         |cwd| {
@@ -867,61 +1090,373 @@ pub fn resolve_config(
     }
     let cwd = fs::canonicalize(&requested_cwd).map_err(|_| unreadable())?;
 
-    let project_config = discover_project_config(&cwd)?;
+    let (project_config, project_locations) = discover_project_config(&cwd)?;
     let user_config_candidate = system.user_config_path()?;
-    let user_config = user_config_candidate
-        .is_file()
-        .then(|| fs::canonicalize(&user_config_candidate).unwrap_or(user_config_candidate.clone()));
+    let legacy_result = system.legacy_user_config_path();
+    let legacy = legacy_result
+        .as_ref()
+        .ok()
+        .cloned()
+        .filter(|path| path != &user_config_candidate);
+    let canonical_exists = user_config_candidate.try_exists().map_err(|_| {
+        setting_error(
+            "OpenProse user configuration cannot be read safely.",
+            &user_config_candidate.display().to_string(),
+        )
+    })?;
+    let canonical_present = canonical_exists && !user_config_candidate.is_dir();
+    let active_user = if canonical_present {
+        Some(user_config_candidate.clone())
+    } else {
+        legacy
+            .clone()
+            .filter(|path| path.exists() && !path.is_dir())
+    };
+    let user_config = active_user
+        .as_ref()
+        .filter(|path| path.is_file())
+        .map(|path| fs::canonicalize(path).unwrap_or_else(|_| path.clone()));
 
-    let mut config =
-        EffectiveConfig::defaults(cwd, project_config.clone(), Some(user_config_candidate));
+    let mut config = EffectiveConfig::defaults(
+        cwd,
+        project_config.clone(),
+        Some(user_config_candidate.clone()),
+    );
+    config.legacy_user_config = legacy.clone();
+    if legacy_result.is_err()
+        && !system.environment.contains_key("PROSE_CONFIG_DIR")
+        && system.xdg_config_home.is_some()
+    {
+        config.diagnostics.push(json!({"code":"LEGACY_CONFIG_ROOT_INVALID", "severity":"warning", "source":"XDG_CONFIG_HOME", "reason":"Legacy configuration root is not a non-empty absolute path and is ignored."}));
+    }
+    config
+        .locations
+        .push(json!({"role":"user", "path":user_config_candidate,
+        "present":canonical_present,"selected":canonical_present}));
+    if let Some(path) = &legacy {
+        let present = path.exists() && !path.is_dir();
+        config
+            .locations
+            .push(json!({"role":"legacy-user", "path":path,
+            "present":present,"selected":present && !canonical_present}));
+        let alias = canonical_present
+            && fs::canonicalize(path).ok() == fs::canonicalize(&user_config_candidate).ok();
+        if present && !alias {
+            let mut reason = if canonical_present {
+                "Canonical user configuration is authoritative; legacy values are ignored."
+                    .to_owned()
+            } else {
+                "Legacy user configuration is active; run prose cli config migrate to copy explicit settings.".to_owned()
+            };
+            if canonical_present {
+                match load_file(path)
+                    .and_then(|old| load_file(&user_config_candidate).map(|now| (old, now)))
+                {
+                    Ok((old, now)) => {
+                        let differing: Vec<&str> = SETTINGS
+                            .iter()
+                            .filter_map(|(_, key, _, _)| {
+                                old.values
+                                    .get(*key)
+                                    .filter(|value| now.values.get(*key) != Some(value))
+                                    .map(|_| *key)
+                            })
+                            .collect();
+                        if !differing.is_empty() {
+                            reason.push_str(&format!(
+                                " Differing explicit keys: {}.",
+                                differing.join(", ")
+                            ));
+                        }
+                    }
+                    Err(_) => reason.push_str(" Ignored legacy configuration is invalid."),
+                }
+            }
+            config.diagnostics.push(json!({"code":if canonical_present {"LEGACY_CONFIG_IGNORED"} else {"LEGACY_CONFIG_ACTIVE"}, "severity":"warning", "source":path, "reason":reason}));
+        }
+    }
+    config.locations.extend(project_locations);
     if flags.cwd.is_some() {
         config.cwd_source = ConfigSource::flag("--cwd");
     }
+    record_candidates(&mut config);
 
     // Same physical file is loaded once. If it appears in both roles, the
     // nearest-project role is authoritative.
     if user_config.as_ref() != project_config.as_ref() {
         if let Some(path) = &user_config {
-            let file = load_file(path)?;
+            let file = load_file(path).map_err(|error| explanation_error(error, &config))?;
             apply_file(
                 &mut config,
                 file,
                 &ConfigSource::file(ConfigSourceKind::UserFile, path),
-            )?;
+            )
+            .map_err(|error| explanation_error(error, &config))?;
+            record_candidates(&mut config);
         }
     }
     if let Some(path) = &project_config {
-        let file = load_file(path)?;
+        let file = load_file(path).map_err(|error| explanation_error(error, &config))?;
         apply_file(
             &mut config,
             file,
             &ConfigSource::file(ConfigSourceKind::ProjectFile, path),
-        )?;
+        )
+        .map_err(|error| explanation_error(error, &config))?;
+        record_candidates(&mut config);
     }
-    apply_environment(&mut config, &system.environment)?;
-    apply_flags(&mut config, flags)?;
-    native_checks(&mut config)?;
+    apply_environment(&mut config, &system.environment)
+        .map_err(|error| explanation_error(error, &config))?;
+    record_candidates(&mut config);
+    apply_flags(&mut config, flags).map_err(|error| explanation_error(error, &config))?;
+    record_candidates(&mut config);
+    contextual_defaults(&mut config).map_err(|error| explanation_error(error, &config))?;
+    native_checks(&mut config).map_err(|error| explanation_error(error, &config))?;
+    sanitize_overridden_profiles(&mut config);
+    finalize_candidates(&mut config);
     Ok(config)
 }
 
-fn discover_project_config(cwd: &Path) -> Result<Option<PathBuf>, RunnerError> {
+fn config_values(config: &EffectiveConfig) -> Value {
+    let serialized = serde_json::to_value(config).expect("configuration serialization");
+    let mut values = serde_json::Map::new();
+    for (key, _, _, _) in SETTINGS {
+        values.insert(key.to_owned(), serialized[key].clone());
+    }
+    Value::Object(values)
+}
+
+fn record_candidates(config: &mut EffectiveConfig) {
+    let values = config_values(config);
+    for (key, value) in values.as_object().expect("configuration object") {
+        let candidate = json!({"value":value["value"],"source":value["source"],"selected":false});
+        let history = config.candidates.entry(key.clone()).or_default();
+        if history.last() != Some(&candidate) {
+            history.push(candidate);
+        }
+    }
+}
+
+fn sanitize_overridden_profiles(config: &mut EffectiveConfig) {
+    let rank = |kind: &Value| match kind.as_str() {
+        Some("user-config") => 1,
+        Some("project-config") => 2,
+        Some("environment") => 3,
+        Some("flag") => 4,
+        _ => 0,
+    };
+    let harnesses = config
+        .candidates
+        .get("harness")
+        .cloned()
+        .unwrap_or_default();
+    if let Some(history) = config.candidates.get_mut("authProfile") {
+        history.retain(|candidate| {
+            let Some(profile) = candidate["value"].as_str() else { return true; };
+            let owner = harnesses.iter().rev().find(|harness| rank(&harness["source"]["kind"]) <= rank(&candidate["source"]["kind"]));
+            let valid = owner.and_then(|owner| owner["value"].as_str()).and_then(crate::installed_adapters::for_harness).is_none_or(|adapter| adapter.auth_profiles().contains(&profile));
+            if !valid { config.diagnostics.push(json!({"code":"CONFIG_CANDIDATE_INVALID", "severity":"warning", "source":candidate["source"]["location"], "reason":"Incompatible overridden authentication profile is omitted."})); }
+            valid
+        });
+    }
+}
+
+fn finalize_candidates(config: &mut EffectiveConfig) {
+    let values = config_values(config);
+    for (key, history) in &mut config.candidates {
+        if values[key]["source"]["kind"] == "default" {
+            history[0] = json!({"value":values[key]["value"],"source":values[key]["source"],"selected":false});
+        }
+        for candidate in history {
+            candidate["selected"] = json!(
+                candidate["value"] == values[key]["value"]
+                    && candidate["source"] == values[key]["source"]
+            );
+        }
+    }
+}
+
+/// Pure configuration explanation. No credential access, executable probe or image acquisition.
+#[must_use]
+pub fn configuration_explanation(config: &EffectiveConfig) -> Value {
+    let mut report = json!({"schema":"openprose.configuration-explanation/1", "cwd":{"value":config.cwd,"source":config.cwd_source},
+        "projectConfigPath":config.project_config,"userConfigPath":config.user_config,
+        "values":config_values(config),"target":config.explanation_target.as_ref().map(|argv| json!({"argv":argv})),
+        "locations":config.locations,"candidates":config.candidates,"diagnostics":config.diagnostics,
+        "runtime":resolved_runtime(config)});
+    if let Some(mutation) = &config.mutation {
+        report["mutation"] = mutation.clone();
+    }
+    report
+}
+
+fn explanation_error(error: RunnerError, config: &EffectiveConfig) -> RunnerError {
+    let mut snapshot = config.clone();
+    finalize_candidates(&mut snapshot);
+    let mut report = configuration_explanation(&snapshot);
+    let detail = error.details.as_deref();
+    if let Some(source) = detail.and_then(|details| details.get("source")) {
+        let keys: Vec<String> = report["values"]
+            .as_object()
+            .expect("settings")
+            .iter()
+            .filter(|(_, setting)| {
+                setting["source"]["location"] == *source && setting["source"]["kind"] != "default"
+            })
+            .map(|(key, _)| key.clone())
+            .collect();
+        for key in keys {
+            let history = report["candidates"][&key]
+                .as_array_mut()
+                .expect("candidate history");
+            history.retain(|candidate| candidate["source"]["location"] != *source);
+            for candidate in history.iter_mut() {
+                candidate["selected"] = json!(false);
+            }
+            if let Some(candidate) = history.last_mut() {
+                candidate["selected"] = json!(true);
+                let restored = json!({"value":candidate["value"],"source":candidate["source"]});
+                report["values"][&key] = restored;
+            }
+        }
+        for key in ["authProfile", "permissionMode"] {
+            report["runtime"][key] = report["values"][key]["value"].clone();
+        }
+    }
+    report["diagnostics"].as_array_mut().expect("diagnostic list").push(json!({
+        "code":"CONFIG_INVALID", "severity":"error", "source":detail.and_then(|d| d.get("source")).cloned().unwrap_or_else(|| json!("configuration")),
+        "reason":detail.and_then(|d| d.get("reason")).cloned().unwrap_or_else(|| json!("Invalid configuration."))
+    }));
+    error.with_detail("configurationExplanation", report)
+}
+
+fn contextual_defaults(config: &mut EffectiveConfig) -> Result<(), RunnerError> {
+    let rank = |kind: &Value| match kind.as_str() {
+        Some("user-config") => 1,
+        Some("project-config") => 2,
+        Some("environment") => 3,
+        Some("flag") => 4,
+        _ => 0,
+    };
+    let harness_rank = rank(&serde_json::to_value(&config.harness.source.kind).expect("source"));
+    for (_key, setting, file_key) in [
+        ("model", &config.model, "model"),
+        ("authProfile", &config.auth_profile, "auth_profile"),
+    ] {
+        let selection_rank = rank(&serde_json::to_value(&setting.source.kind).expect("source"));
+        if setting.value.is_some() && selection_rank > 0 && selection_rank < harness_rank {
+            let owner = config.candidates.get("harness").and_then(|history| {
+                history
+                    .iter()
+                    .rev()
+                    .find(|candidate| rank(&candidate["source"]["kind"]) <= selection_rank)
+            });
+            if owner.is_some_and(|candidate| candidate["value"] != config.harness.value) {
+                return Err(setting_error(
+                    format!(
+                        "Inherited {file_key} belongs to a different harness; replace it at the harness-selecting layer."
+                    ),
+                    setting
+                        .source
+                        .location
+                        .as_deref()
+                        .unwrap_or("configuration"),
+                ));
+            }
+        }
+    }
+    let (model, auth) = match config.harness.value.as_str() {
+        "agents-sdk" => (Some("gpt-6.1-sol"), Some("openai-api-key")),
+        "codex" => (None, Some("cached-chatgpt-login")),
+        "claude" => (None, Some("claude-subscription")),
+        _ => (None, None),
+    };
+    if config.model.source.kind == ConfigSourceKind::Default {
+        config.model.value = model.map(str::to_owned);
+        if model.is_some() {
+            config.model.source.location = Some(format!("built-in:{}", config.harness.value));
+        }
+    }
+    if config.auth_profile.source.kind == ConfigSourceKind::Default {
+        config.auth_profile.value = auth.map(str::to_owned);
+        if auth.is_some() {
+            config.auth_profile.source.location =
+                Some(format!("built-in:{}", config.harness.value));
+        }
+    }
+    if matches!(config.harness.value.as_str(), "prime" | "omp")
+        && config
+            .model
+            .value
+            .as_deref()
+            .is_some_and(|model| !crate::runner::is_fully_qualified_provider_model(model))
+    {
+        let adapter = crate::installed_adapters::for_harness(&config.harness.value)
+            .expect("installed harness");
+        return Err(setting_error("Prime and OMP models must be a fully qualified provider/model with no empty, whitespace, or control-character segments.", config.model.source.location.as_deref().unwrap_or("configuration")).with_detail("adapterId", adapter.id()));
+    }
+    if let Some(profile) = &config.auth_profile.value {
+        if let Some(adapter) = crate::installed_adapters::for_harness(&config.harness.value) {
+            if !adapter.auth_profiles().contains(&profile.as_str()) {
+                return Err(setting_error(
+                    "Authentication profile is incompatible with the selected harness.",
+                    config
+                        .auth_profile
+                        .source
+                        .location
+                        .as_deref()
+                        .unwrap_or("built-in"),
+                )
+                .with_detail("adapterId", adapter.id())
+                .with_detail("supportedAuthProfiles", adapter.auth_profiles()));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn resolved_runtime(config: &EffectiveConfig) -> Value {
+    let transport = if config.transport.value != "auto" {
+        config.transport.value.as_str()
+    } else {
+        crate::installed_adapters::for_harness(&config.harness.value).map_or_else(
+            || {
+                if config.harness.value == "openprose" {
+                    "hosted"
+                } else {
+                    "deterministic"
+                }
+            },
+            crate::installed_adapters::InstalledAdapter::transport,
+        )
+    };
+    json!({"transport":transport,"permissionMode":config.permission_mode.value,
+        "authProfile":config.auth_profile.value,"billingOwner":match config.harness.value.as_str() {"openprose" => "openprose", "mock" => "test-fixture", _ => "user-provider"},
+        "nativeLimits":native_limits(config), "nativeOutputLimits":native_output_limits(config)})
+}
+
+fn discover_project_config(cwd: &Path) -> Result<(Option<PathBuf>, Vec<Value>), RunnerError> {
+    let mut locations = Vec::new();
     let mut cursor = Some(cwd);
     while let Some(directory) = cursor {
         let candidate = directory.join(".prose").join("cli.toml");
-        if candidate.is_file() {
+        let present = candidate.is_file();
+        locations.push(
+            json!({"role":"project", "path":candidate, "present":present,"selected":present}),
+        );
+        if present {
             let shown = candidate.display().to_string();
             let canonical = fs::canonicalize(&candidate).map_err(|_| {
                 setting_error(format!("Cannot read configuration file: {shown}."), &shown)
             })?;
-            return Ok(Some(canonical));
+            return Ok((Some(canonical), locations));
         }
         if directory.join(".git").exists() {
             break;
         }
         cursor = directory.parent();
     }
-    Ok(None)
+    Ok((None, locations))
 }
 
 /// `path` with `.` and `..` components removed lexically, as the Bun build
@@ -958,6 +1493,23 @@ fn native_checks(config: &mut EffectiveConfig) -> Result<(), RunnerError> {
             &["codexCompatibility"],
             config,
         ));
+    }
+    if let Some(permission) = &config.permission_mode.value {
+        if !((config.harness.value == "claude"
+            && matches!(permission.as_str(), "default" | "acceptEdits"))
+            || (config.harness.value == "codex"
+                && matches!(permission.as_str(), "workspace-write" | "read-only")))
+        {
+            let mut error = fail(
+                "Unsupported explicit permission mode for this harness.",
+                &["permissionMode"],
+                config,
+            );
+            if let Some(adapter) = crate::installed_adapters::for_harness(&config.harness.value) {
+                error = error.with_detail("adapterId", adapter.id());
+            }
+            return Err(error);
+        }
     }
     let budgets = ["nativeMaxTurns", "nativeTimeout", "nativeToolTimeout"];
     if config.harness.value != "agents-sdk" && first_source(config, &budgets).is_some() {
@@ -1163,7 +1715,7 @@ const SETTINGS: [(&str, &str, Option<&str>, &str); 19] = [
 pub(crate) const MAX_TIMEOUT_MS: u64 = 86_400_000;
 
 /// One raw configuration value, before validation.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum RawSetting {
     Text(String),
     Boolean(bool),
@@ -1385,6 +1937,7 @@ const SUPPORTED_HARNESSES: [&str; 7] = [
 fn first_source(config: &EffectiveConfig, keys: &[&str]) -> Option<String> {
     keys.iter().find_map(|key| {
         let source = match *key {
+            "permissionMode" => &config.permission_mode.source,
             "codexCompatibility" => &config.codex_compatibility.source,
             "nativeMaxTurns" => &config.native_max_turns.source,
             "nativeTimeout" => &config.native_timeout.source,
@@ -1427,7 +1980,7 @@ fn apply_file(
                 key,
                 file_key,
                 raw.clone(),
-                source,
+                &ConfigSource::new(source.kind.clone(), Some(location(file_key))),
                 &location(file_key),
                 true,
             )?;
@@ -1759,10 +2312,10 @@ mod tests {
         fs::create_dir_all(project.join(".git")).unwrap();
         fs::create_dir_all(project.join(".prose")).unwrap();
         fs::create_dir_all(&child).unwrap();
-        fs::create_dir_all(home.join("xdg/openprose")).unwrap();
+        fs::create_dir_all(home.join(".prose")).unwrap();
         fs::write(
-            home.join("xdg/openprose/cli.toml"),
-            "harness = \"claude\"\ntransport = \"user-transport\"\nmodel = \"user-model\"\n",
+            home.join(".prose/cli.toml"),
+            "harness = \"mock\"\ntransport = \"user-transport\"\nmodel = \"user-model\"\n",
         )
         .unwrap();
         fs::write(
@@ -1848,7 +2401,7 @@ mod tests {
                 home_dir: Some(absolute_home.clone()),
                 xdg_config_home: Some(PathBuf::new()),
                 appdata: None,
-                environment: BTreeMap::new(),
+                environment: BTreeMap::from([("PROSE_CONFIG_DIR".into(), "".into())]),
                 platform: Platform::Unix,
             },
             SystemContext {
@@ -1856,7 +2409,7 @@ mod tests {
                 home_dir: Some(absolute_home),
                 xdg_config_home: Some(PathBuf::from("relative")),
                 appdata: None,
-                environment: BTreeMap::new(),
+                environment: BTreeMap::from([("PROSE_CONFIG_DIR".into(), "relative".into())]),
                 platform: Platform::Unix,
             },
             SystemContext {
@@ -1919,7 +2472,7 @@ mod tests {
         for accepted in corpus["accepted"].as_array().unwrap() {
             let temp = TempDir::new().unwrap();
             let home = temp.path().join("home");
-            let config_path = home.join("xdg/openprose/cli.toml");
+            let config_path = home.join(".prose/cli.toml");
             fs::create_dir_all(config_path.parent().unwrap()).unwrap();
             fs::write(&config_path, accepted["source"].as_str().unwrap()).unwrap();
             let config = resolve_config(&GlobalFlags::default(), &context(temp.path(), &home))
@@ -1951,7 +2504,7 @@ mod tests {
         for rejected in corpus["rejected"].as_array().unwrap() {
             let temp = TempDir::new().unwrap();
             let home = temp.path().join("home");
-            let config_path = home.join("xdg/openprose/cli.toml");
+            let config_path = home.join(".prose/cli.toml");
             fs::create_dir_all(config_path.parent().unwrap()).unwrap();
             fs::write(&config_path, rejected["source"].as_str().unwrap()).unwrap();
             let error =
@@ -2002,7 +2555,7 @@ mod tests {
         for rejected in corpus["binaryRejected"].as_array().unwrap() {
             let temp = TempDir::new().unwrap();
             let home = temp.path().join("home");
-            let config_path = home.join("xdg/openprose/cli.toml");
+            let config_path = home.join(".prose/cli.toml");
             fs::create_dir_all(config_path.parent().unwrap()).unwrap();
             let source = rejected["sourceHex"]
                 .as_str()
@@ -2044,7 +2597,7 @@ mod tests {
     fn unsupported_harness_values_fail_at_the_configuration_source() {
         let temp = TempDir::new().unwrap();
         let home = temp.path().join("home");
-        let config_path = home.join("xdg/openprose/cli.toml");
+        let config_path = home.join(".prose/cli.toml");
         fs::create_dir_all(config_path.parent().unwrap()).unwrap();
         fs::write(
             &config_path,
@@ -2095,7 +2648,7 @@ mod tests {
         let home = temp.path().join("home");
         let system = context(temp.path(), &home);
         let config = resolve_config(&GlobalFlags::default(), &system).unwrap();
-        let path = home.join("xdg/openprose/cli.toml");
+        let path = home.join(".prose/cli.toml");
 
         let first = write_user_harness(&config, "claude", None, None).unwrap();
         assert!(first.changed);
@@ -2114,7 +2667,7 @@ mod tests {
         );
         assert_eq!(
             fs::read_to_string(&path).unwrap(),
-            "harness = \"claude\"\ntimeout = \"30s\"\n"
+            "timeout = \"30s\"\nharness = \"claude\"\n"
         );
 
         assert!(
@@ -2174,7 +2727,7 @@ mod tests {
         let temp = TempDir::new().unwrap();
         let home = temp.path().join("home");
         let config = resolve_config(&GlobalFlags::default(), &context(temp.path(), &home)).unwrap();
-        let path = home.join("xdg/openprose/cli.toml");
+        let path = home.join(".prose/cli.toml");
         fs::create_dir_all(path.parent().unwrap()).unwrap();
         let target = temp.path().join("target.toml");
         fs::write(&target, "harness = \"openprose\"\n").unwrap();
@@ -2201,7 +2754,7 @@ mod tests {
         fs::create_dir_all(&xdg).unwrap();
         fs::create_dir_all(&redirected).unwrap();
         fs::set_permissions(&redirected, fs::Permissions::from_mode(0o755)).unwrap();
-        symlink(&redirected, xdg.join("openprose")).unwrap();
+        symlink(&redirected, home.join(".prose")).unwrap();
         let config = resolve_config(&GlobalFlags::default(), &context(temp.path(), &home)).unwrap();
 
         let error = write_user_harness(&config, "claude", None, None).unwrap_err();
@@ -2220,7 +2773,7 @@ mod tests {
 
         let temp = TempDir::new().unwrap();
         let home = temp.path().join("home");
-        let parent = home.join("xdg/openprose");
+        let parent = home.join(".prose");
         fs::create_dir_all(&parent).unwrap();
         fs::set_permissions(&parent, fs::Permissions::from_mode(0o777)).unwrap();
         let config = resolve_config(&GlobalFlags::default(), &context(temp.path(), &home)).unwrap();
@@ -2258,10 +2811,14 @@ mod tests {
         let temp = TempDir::new().unwrap();
         let home = temp.path().join("home");
         let xdg = home.join("xdg");
-        let parent = xdg.join("openprose");
+        let parent = home.join(".prose");
         fs::create_dir_all(&xdg).unwrap();
         fs::write(&parent, "not a directory\n").unwrap();
-        let config = resolve_config(&GlobalFlags::default(), &context(temp.path(), &home)).unwrap();
+        let config = EffectiveConfig::defaults(
+            temp.path().to_owned(),
+            None,
+            Some(home.join(".prose/cli.toml")),
+        );
 
         let error = write_user_harness(&config, "claude", None, None).unwrap_err();
 
@@ -2281,7 +2838,7 @@ mod tests {
         fs::create_dir_all(&xdg).unwrap();
         fs::create_dir_all(&redirected).unwrap();
         fs::write(redirected.join("cli.toml"), "harness = \"claude\"\n").unwrap();
-        symlink(&redirected, xdg.join("openprose")).unwrap();
+        symlink(&redirected, home.join(".prose")).unwrap();
         let config = resolve_config(&GlobalFlags::default(), &context(temp.path(), &home)).unwrap();
 
         let error = write_user_harness(&config, "claude", None, None).unwrap_err();
@@ -2303,7 +2860,7 @@ mod tests {
                 .code,
             crate::ErrorCode::ConfigInvalid
         );
-        let path = home.join("xdg/openprose/cli.toml");
+        let path = home.join(".prose/cli.toml");
         fs::create_dir_all(path.parent().unwrap()).unwrap();
         fs::write(&path, "unknown = true\n").unwrap();
         assert_eq!(

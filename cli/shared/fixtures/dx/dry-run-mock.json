@@ -9,9 +9,15 @@
     "runtimeVersion": "1.0.0",
     "model": null
   },
-  "prompt": { "placement": "developer", "strictness": "strict" },
+  "prompt": {
+    "placement": "developer",
+    "strictness": "strict"
+  },
   "isolation": "test-fixture",
-  "auth": { "category": "none-test-only", "readiness": "not-applicable" },
+  "auth": {
+    "category": "none-test-only",
+    "readiness": "not-applicable"
+  },
   "billingOwner": "test-fixture",
   "languageImage": {
     "formatVersion": "openprose.skill-runtime-image/1",
@@ -20,15 +26,60 @@
     "releaseEligible": false
   },
   "configuration": [
-    { "key": "cwd", "source": "default", "location": "process cwd", "redacted": false },
-    { "key": "harness", "source": "flag", "location": "--harness", "redacted": false },
-    { "key": "transport", "source": "default", "location": "built-in", "redacted": false },
-    { "key": "model", "source": "default", "location": "built-in", "redacted": false },
-    { "key": "timeout", "source": "default", "location": "built-in", "redacted": false },
-    { "key": "output", "source": "flag", "location": "--output", "redacted": false },
-    { "key": "color", "source": "default", "location": "built-in", "redacted": false },
-    { "key": "verbose", "source": "default", "location": "built-in", "redacted": false },
-    { "key": "authProfile", "source": "default", "location": "built-in", "redacted": true }
+    {
+      "key": "cwd",
+      "source": "default",
+      "location": "process cwd",
+      "redacted": false
+    },
+    {
+      "key": "harness",
+      "source": "flag",
+      "location": "--harness",
+      "redacted": false
+    },
+    {
+      "key": "transport",
+      "source": "default",
+      "location": "built-in",
+      "redacted": false
+    },
+    {
+      "key": "model",
+      "source": "default",
+      "location": "built-in",
+      "redacted": false
+    },
+    {
+      "key": "timeout",
+      "source": "default",
+      "location": "built-in",
+      "redacted": false
+    },
+    {
+      "key": "output",
+      "source": "flag",
+      "location": "--output",
+      "redacted": false
+    },
+    {
+      "key": "color",
+      "source": "default",
+      "location": "built-in",
+      "redacted": false
+    },
+    {
+      "key": "verbose",
+      "source": "default",
+      "location": "built-in",
+      "redacted": false
+    },
+    {
+      "key": "authProfile",
+      "source": "default",
+      "location": "built-in",
+      "redacted": false
+    }
   ],
   "readiness": "ready",
   "blockingError": null

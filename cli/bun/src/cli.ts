@@ -12,7 +12,7 @@ import runnerHelp from "../../conformance/cases/fixtures/runner-help.txt" with {
 import dryRunTemplate from "../../shared/fixtures/human/dry-run.v1.txt" with { type: "text" };
 import deterministicMockDescriptor from "../../shared/fixtures/transport/deterministic-mock-adapter.json" with { type: "json" };
 import fakeProcessDescriptor from "../../shared/fixtures/transport/mock-adapter.json" with { type: "json" };
-import { resolveConfiguration, writeUserHarnessSelection } from "./core/config";
+import { resolveConfiguration, writeUserHarnessSelection, mutateUserConfiguration, prepareUserConfigurationMutation } from "./core/config";
 import { serviceEnvironment } from "./core/service/endpoint";
 import { failure } from "./core/errors";
 import { argvErrorOutcome, runService } from "./core/service/index";
@@ -148,7 +148,26 @@ export async function runCli(args: readonly string[], dependencies: CliDependenc
       return await runPrimeCleanup(parsed.value, mode, dependencies);
     }
 
-    const config = await resolveConfiguration(parsed.global, dependencies);
+    // Set the operation rendering mode before resolution so partial errors retain JSON.
+    if(parsed.kind === "operation" && parsed.json) mode="json";
+    let config: EffectiveConfiguration;
+    if(parsed.kind === "operation" && ["config-migrate","config-unset"].includes(parsed.operation)) {
+      const preflight=await prepareUserConfigurationMutation(dependencies);
+      let mutation: NonNullable<EffectiveConfiguration["mutation"]>;
+      try {mutation=await mutateUserConfiguration(preflight,parsed.operation === "config-migrate" ? "migrate" : "unset",parsed.configKeys ?? []);}
+      catch(caught) {
+        if(caught instanceof RunnerFailure && caught.code === "CONFIG_INVALID") {
+          preflight.diagnostics?.push({code:"CONFIG_INVALID",severity:"error",source:String(caught.details?.source ?? preflight.userConfigPath),reason:String(caught.details?.reason ?? "Runner configuration is invalid.")});
+          throw failure("CONFIG_INVALID",{...(caught.details ?? {}),configurationExplanation:configurationExplanation(preflight)});
+        }
+        throw caught;
+      }
+      try {config=await resolveConfiguration(parsed.global,dependencies);}
+      catch(caught) {if(caught instanceof RunnerFailure && caught.code === "CONFIG_INVALID")throw failure("CONFIG_INVALID",{...(caught.details ?? {}),mutation});throw caught;}
+      config.mutation=mutation;
+    } else {
+      config=await resolveConfiguration(parsed.global,{...dependencies,...(parsed.kind === "operation"&&parsed.targetArgv!==undefined ? {targetArgv:parsed.targetArgv}:{})});
+    }
     // The default hosted harness runs no language command, so a language
     // command word that also names a service command is that rejection.
     if (hostedRejection !== undefined && config.values.harness === "openprose" && parsed.global.dryRun !== true) {
@@ -235,11 +254,15 @@ async function runOperation(
           ? "Route: cached-chatgpt-login (Codex default; not saved)"
           : operationValue === "claude"
             ? "Route: claude-subscription (Claude default; not saved)"
+            : operationValue === "agents-sdk"
+              ? "Route: openai-api-key (Agents SDK default; not saved)"
             : "Route: OpenProse account (external route cleared)";
       const savedModel = selection.model !== null
         ? `Model: ${humanSafeScalar(selection.model)} (saved)`
         : operationValue === "codex" || operationValue === "claude"
           ? "Model: harness default (not saved)"
+          : operationValue === "agents-sdk"
+            ? "Model: gpt-6.1-sol (Agents SDK default; not saved)"
           : "Model: OpenProse default (external model cleared)";
       dependencies.writeStdout([
         `Default harness: ${humanSafeScalar(operationValue)} (${changed ? "updated" : "already selected"})`,
@@ -252,7 +275,7 @@ async function runOperation(
     } else dependencies.writeStdout(jsonLine(report));
     return 0;
   }
-  if (operation === "config-explain") {
+  if (["config-explain","config-migrate","config-unset"].includes(operation)) {
     if (mode === "human") dependencies.writeStdout(humanConfiguration(config));
     else dependencies.writeStdout(jsonLine(configurationExplanation(config)));
     return 0;
@@ -1639,7 +1662,7 @@ function configurationProvenance(config: EffectiveConfiguration): Array<Record<s
       key,
       source: source(config.sources[key]?.kind ?? "default"),
       location: config.sources[key]?.location ?? "built-in",
-      redacted: key === "authProfile",
+      redacted: false,
     })),
   ];
 }

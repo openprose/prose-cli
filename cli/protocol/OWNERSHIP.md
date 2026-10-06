@@ -932,3 +932,32 @@ IMP-098 custody signing extension: `/root/operational_design` owns `cli/ci/sign_
 IMP-098 custody installed-validator extension: `/root/operational_design` owns `cli/benchmarks/installed/benchmark.py` and `cli/benchmarks/installed/test_benchmark.py` for closed SDK payload/dependency/source metadata validation before installed admission. New production kernel-rc/release requires SDK; retain explicitly historical alpha only.
 
 IMP-098 root workflow authority extension: `cli/ci/check_workflows.py` and `cli/ci/test_check_workflows.py` solely for separate hash-locked SDK interpreter setup, runtime provider-free gate and unsigned kernel build argument verification.
+## IMP-097 configuration contract and independent implementations — October 6, 2026
+
+Lead Codex `/root`, session `01a1133b-e47b-7b32-af8e-2655afa0259c`, branch `codex/imp-097-user-configuration`, base `e780725`. Root owns Git/index, design and integration.
+
+`/root/configuration_contract` exact paths: `docs/user-configuration.md` (new), `cli/shared/schemas/configuration-explanation.schema.json`, `cli/shared/fixtures/config/production-v2.json` (new), and twelve new case files `cli/conformance/cases/operations/config-production-01.json` through `config-production-12.json`. Scope: frozen observable design and shared black-box acceptance before product implementation. No product code/runner edits/dependency changes/Git or inference. Root must lease runner plumbing if required.
+
+Root exact paths for Rust implementation: `cli/rust/crates/prose-runner-core/src/config.rs`, `cli/rust/crates/prose-runner-core/src/invocation.rs`, `cli/rust/crates/prose-cli/src/main.rs`, `cli/rust/crates/prose-cli/tests/cli.rs`; shared runner plumbing and schemas require separate recorded extension. Bun implementation reserved for later independent agent; no agent edits both product trees.
+
+Root integration lease extension: `cli/rust/crates/prose-runner-core/src/runner.rs`, `cli/conformance/runner/run.py`, `cli/conformance/runner/test_runner.py`, `cli/conformance/cases/case-manifest.schema.json`, `cli/shared/tests/test_contracts.py`, `cli/bun/test/shared-contract.test.ts` solely for new config corpus plumbing/schema registration. Existing counts and safety must match actual corpus, no relaxed assertions.
+
+`/root/configuration_contract` Bun implementation wave exact paths: `cli/bun/src/core/config.ts`, `cli/bun/src/core/args.ts`, `cli/bun/src/core/types.ts`, `cli/bun/src/core/output.ts`, `cli/bun/src/cli.ts`, `cli/bun/test/config.test.ts`, `cli/bun/test/args.test.ts`. Implements frozen `docs/user-configuration.md` independently from Rust, using shared production-v2 corpus/schema. May request focused new testpath; no Rust/shared/runner edits/Git/index/provider calls. Root integrates and runs full admission.
+
+IMP-097 Bun lease extension: `/root/configuration_contract` exact new test path `cli/bun/test/config-production.test.ts` for real runCli execution of independent shared setup cases.
+
+`/root/conformance_plumbing` replaces root's reserved plumbing lease on exact paths `cli/conformance/runner/run.py`, `cli/conformance/runner/test_runner.py`, `cli/conformance/cases/case-manifest.schema.json`, `cli/shared/tests/test_contracts.py`. Scope: provider-free configurationFixture setup and independently asserted unchanged/absent/expected-file effects, safe isolated roots, case/schema validation and actual counts. No product/schema-explanation edits/Git/deps/model calls. Root owns remaining shared/Bun schema registration and integration.
+
+IMP-097 Bun fixture reconciliation lease: `/root/configuration_contract` exact paths `cli/bun/test/discovery.test.ts`, `cli/bun/test/reporting-parity.test.ts`, `cli/bun/test/cli.test.ts`, `cli/bun/test/dx-parity.test.ts`, `cli/bun/test/adapters-installed.test.ts` solely to reconcile intended new explanation/contextual defaults/safe validation behavior. Preserve process lifecycle/transport/budget assertions, require focused failure evidence before edits, and report shared fixture changes for root. No passing by suppressing or skipping failures.
+
+IMP-097 root reclaims frozen explanation schema for nullable default permissionMode correction only; closed explicit permission values remain unchanged.
+
+IMP-097 fixture reconciliation extension: `/root/configuration_contract` owns `cli/shared/fixtures/operations/configuration-explanation.json`, `cli/shared/fixtures/config/optional-reporting.json`, `cli/shared/fixtures/dx/dry-run-default-hosted.json`, `cli/shared/fixtures/dx/dry-run-mock.json`, `cli/shared/fixtures/dx/dry-run-prime.json` for measured complete explanation/default-profile and public auth-profile reporting. Preserve concise summary defaultsOmitted and other fields. Root retains schema and Rust.
+
+IMP-097 independent Rust black-box test wave: `/root/sdk_final_review` owns new `cli/rust/crates/prose-cli/tests/config_production.rs` only, provider-free isolated migration/unset/exact explanation/redaction evidence against frozen design. No existing source/Git/dependency edits.
+
+IMP-097 Bun measured compiled-identity fixture extension: `/root/configuration_contract` owns `cli/bun/test/build-identity.test.ts` for canonical HOME/.prose saved-path assertions only. Preserve build digest/signature/reproducibility assertions.
+
+IMP-097 root fixture consistency extension: `cli/shared/fixtures/operations/doctor-report.json` configuration subobject only, to match the same resolver explanation oracle required by existing shared contract.
+
+IMP-097 Rust measured fixture reconciliation: `/root/sdk_final_review` owns `cli/rust/crates/prose-cli/tests/cli.rs` in place of root, limited to observed existing expectation changes for canonical paths, full explanation and earlier safe semantic validation. Preserve independent safety/lifecycle checks and report actual source failures. Root retains all production Rust.

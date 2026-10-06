@@ -4,40 +4,395 @@
   "title": "OpenProse effective runner configuration v1",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema", "cwd", "projectConfigPath", "userConfigPath", "values"],
+  "required": [
+    "schema",
+    "cwd",
+    "projectConfigPath",
+    "userConfigPath",
+    "values"
+  ],
   "properties": {
-    "schema": { "const": "openprose.configuration-explanation/1" },
-    "cwd": { "$ref": "#/$defs/sourcedPath" },
-    "projectConfigPath": { "type": ["string", "null"] },
-    "userConfigPath": { "type": "string", "minLength": 1 },
+    "schema": {
+      "const": "openprose.configuration-explanation/1"
+    },
+    "cwd": {
+      "$ref": "#/$defs/sourcedPath"
+    },
+    "projectConfigPath": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "userConfigPath": {
+      "type": "string",
+      "minLength": 1
+    },
     "values": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["harness", "transport", "model", "timeout", "output", "color", "verbose", "authProfile"],
+      "required": [
+        "harness",
+        "transport",
+        "model",
+        "timeout",
+        "output",
+        "color",
+        "verbose",
+        "authProfile"
+      ],
       "properties": {
-        "harness": { "$ref": "#/$defs/sourcedString" },
-        "transport": { "$ref": "#/$defs/sourcedString" },
-        "model": { "$ref": "#/$defs/sourcedNullableString" },
-        "timeout": { "$ref": "#/$defs/sourcedString" },
+        "harness": {
+          "$ref": "#/$defs/sourcedString"
+        },
+        "transport": {
+          "$ref": "#/$defs/sourcedString"
+        },
+        "model": {
+          "$ref": "#/$defs/sourcedNullableString"
+        },
+        "timeout": {
+          "$ref": "#/$defs/sourcedString"
+        },
         "output": {
           "allOf": [
-            { "$ref": "#/$defs/sourced" },
-            { "properties": { "value": { "enum": ["human", "json", "jsonl"] } } }
+            {
+              "$ref": "#/$defs/sourced"
+            },
+            {
+              "properties": {
+                "value": {
+                  "enum": [
+                    "human",
+                    "json",
+                    "jsonl"
+                  ]
+                }
+              }
+            }
           ]
         },
-        "color": { "$ref": "#/$defs/sourcedBoolean" },
-        "verbose": { "$ref": "#/$defs/sourcedBoolean" },
-        "outputContract": { "allOf": [{ "$ref": "#/$defs/sourcedString" }, { "properties": { "value": { "enum": ["image-envelope", "native"] } } }] },
-        "codexCompatibility": { "allOf": [{ "$ref": "#/$defs/sourcedString" }, { "properties": { "value": { "enum": ["qualified", "probe"] } } }] },
-        "permissionMode": { "allOf": [{ "$ref": "#/$defs/sourcedString" }, { "properties": { "value": { "enum": ["default", "acceptEdits", "workspace-write", "read-only"] } } }] },
-        "nativeMaxTurns": { "$ref": "#/$defs/sourcedString" },
-        "nativeTimeout": { "$ref": "#/$defs/sourcedString" },
-        "nativeToolTimeout": { "$ref": "#/$defs/sourcedString" },
-        "nativeOutputBytes": { "$ref": "#/$defs/sourcedString" },
-        "nativeProfile": { "$ref": "#/$defs/sourcedString" },
-        "nativeAddDirs": { "allOf": [{ "$ref": "#/$defs/sourced" }, { "properties": { "value": { "type": "array", "items": { "type": "string" } } } }] },
-        "nativeAllowTools": { "allOf": [{ "$ref": "#/$defs/sourced" }, { "properties": { "value": { "type": "array", "items": { "type": "string" } } } }] },
-        "authProfile": { "$ref": "#/$defs/sourcedNullableString" }
+        "color": {
+          "$ref": "#/$defs/sourcedBoolean"
+        },
+        "verbose": {
+          "$ref": "#/$defs/sourcedBoolean"
+        },
+        "outputContract": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/sourcedString"
+            },
+            {
+              "properties": {
+                "value": {
+                  "enum": [
+                    "image-envelope",
+                    "native"
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        "codexCompatibility": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/sourcedString"
+            },
+            {
+              "properties": {
+                "value": {
+                  "enum": [
+                    "qualified",
+                    "probe"
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        "permissionMode": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/sourcedNullableString"
+            },
+            {
+              "properties": {
+                "value": {
+                  "enum": [
+                    "default",
+                    "acceptEdits",
+                    "workspace-write",
+                    "read-only",
+                    null
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        "nativeMaxTurns": {
+          "$ref": "#/$defs/sourcedNullableString"
+        },
+        "nativeTimeout": {
+          "$ref": "#/$defs/sourcedNullableString"
+        },
+        "nativeToolTimeout": {
+          "$ref": "#/$defs/sourcedNullableString"
+        },
+        "nativeOutputBytes": {
+          "$ref": "#/$defs/sourcedNullableString"
+        },
+        "nativeProfile": {
+          "$ref": "#/$defs/sourcedNullableString"
+        },
+        "nativeAddDirs": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/sourced"
+            },
+            {
+              "properties": {
+                "value": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "nativeAllowTools": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/sourced"
+            },
+            {
+              "properties": {
+                "value": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "authProfile": {
+          "$ref": "#/$defs/sourcedNullableString"
+        },
+        "nativeLog": {
+          "$ref": "#/$defs/sourcedNullableString"
+        }
+      }
+    },
+    "target": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "argv"
+          ],
+          "properties": {
+            "argv": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "locations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "role",
+          "path",
+          "present",
+          "selected"
+        ],
+        "properties": {
+          "role": {
+            "enum": [
+              "user",
+              "legacy-user",
+              "project"
+            ]
+          },
+          "path": {
+            "type": "string"
+          },
+          "present": {
+            "type": "boolean"
+          },
+          "selected": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "candidates": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "value",
+            "source",
+            "selected"
+          ],
+          "properties": {
+            "value": {
+              "$ref": "common.schema.json#/$defs/jsonValue"
+            },
+            "source": {
+              "$ref": "#/$defs/source"
+            },
+            "selected": {
+              "type": "boolean"
+            }
+          }
+        }
+      }
+    },
+    "diagnostics": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "code",
+          "severity",
+          "source",
+          "reason"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "severity": {
+            "enum": [
+              "warning",
+              "error"
+            ]
+          },
+          "source": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "transport",
+        "permissionMode",
+        "authProfile",
+        "billingOwner",
+        "nativeLimits",
+        "nativeOutputLimits"
+      ],
+      "properties": {
+        "transport": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "permissionMode": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "authProfile": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "billingOwner": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "nativeLimits": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {
+            "type": "number"
+          }
+        },
+        "nativeOutputLimits": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {
+            "type": [
+              "number",
+              "boolean"
+            ]
+          }
+        }
+      }
+    },
+    "mutation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operation",
+        "changed",
+        "path",
+        "sourcePath",
+        "keys"
+      ],
+      "properties": {
+        "operation": {
+          "enum": [
+            "migrate",
+            "unset"
+          ]
+        },
+        "changed": {
+          "type": "boolean"
+        },
+        "path": {
+          "type": "string"
+        },
+        "sourcePath": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "keys": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
       }
     }
   },
@@ -45,43 +400,101 @@
     "source": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["kind", "location"],
+      "required": [
+        "kind",
+        "location"
+      ],
       "properties": {
-        "kind": { "enum": ["default", "user-config", "project-config", "environment", "flag"] },
-        "location": { "type": "string", "minLength": 1 }
+        "kind": {
+          "enum": [
+            "default",
+            "user-config",
+            "project-config",
+            "environment",
+            "flag"
+          ]
+        },
+        "location": {
+          "type": "string",
+          "minLength": 1
+        }
       }
     },
     "sourced": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["value", "source"],
+      "required": [
+        "value",
+        "source"
+      ],
       "properties": {
-        "value": { "$ref": "common.schema.json#/$defs/jsonValue" },
-        "source": { "$ref": "#/$defs/source" }
+        "value": {
+          "$ref": "common.schema.json#/$defs/jsonValue"
+        },
+        "source": {
+          "$ref": "#/$defs/source"
+        }
       }
     },
     "sourcedPath": {
       "allOf": [
-        { "$ref": "#/$defs/sourced" },
-        { "properties": { "value": { "type": "string", "minLength": 1 } } }
+        {
+          "$ref": "#/$defs/sourced"
+        },
+        {
+          "properties": {
+            "value": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
       ]
     },
     "sourcedString": {
       "allOf": [
-        { "$ref": "#/$defs/sourced" },
-        { "properties": { "value": { "type": "string", "minLength": 1 } } }
+        {
+          "$ref": "#/$defs/sourced"
+        },
+        {
+          "properties": {
+            "value": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
       ]
     },
     "sourcedNullableString": {
       "allOf": [
-        { "$ref": "#/$defs/sourced" },
-        { "properties": { "value": { "type": ["string", "null"] } } }
+        {
+          "$ref": "#/$defs/sourced"
+        },
+        {
+          "properties": {
+            "value": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        }
       ]
     },
     "sourcedBoolean": {
       "allOf": [
-        { "$ref": "#/$defs/sourced" },
-        { "properties": { "value": { "type": "boolean" } } }
+        {
+          "$ref": "#/$defs/sourced"
+        },
+        {
+          "properties": {
+            "value": {
+              "type": "boolean"
+            }
+          }
+        }
       ]
     }
   }

@@ -22,6 +22,7 @@ for (const name of [
   "adapter-diagnostic",
   "transport-diagnostic",
   "native-configuration",
+  "configuration-explanation",
   "native-limits",
   "native-output-limits",
   "native-failure",
