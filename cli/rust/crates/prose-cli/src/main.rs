@@ -504,16 +504,70 @@ fn prepare(
     if let Some(outcome) = account_command_outcome(&parsed, args, &system, cancellation) {
         return outcome;
     }
-    let config = match resolve_config(&parsed.globals, &system) {
+    let mutation = if let Action::Runner { command, json } = &parsed.action {
+        let result = match command {
+            RunnerCommand::ConfigMigrate => Some(
+                prose_runner_core::config::migrate_user_configuration(&system),
+            ),
+            RunnerCommand::ConfigUnset(keys) => Some(
+                prose_runner_core::config::unset_user_configuration(&system, keys),
+            ),
+            _ => None,
+        };
+        match result {
+            Some(Ok(receipt)) => Some(receipt),
+            Some(Err(error)) => {
+                return error_outcome(
+                    error,
+                    if *json {
+                        OutputMode::Json
+                    } else {
+                        parsed.globals.output.unwrap_or_default()
+                    },
+                    &clock,
+                    &ids,
+                );
+            }
+            None => None,
+        }
+    } else {
+        None
+    };
+    let mut resolution_flags = parsed.globals.clone();
+    if matches!(
+        &parsed.action,
+        Action::Runner {
+            command: RunnerCommand::HarnessUse(_),
+            ..
+        }
+    ) {
+        // Selection arguments describe the new persisted bundle, not the old active harness.
+        resolution_flags.model = None;
+        resolution_flags.auth_profile = None;
+    }
+    let mut config = match resolve_config(&resolution_flags, &system) {
         Ok(config) => config,
         Err(error) => {
             let mode = match parsed.action {
                 Action::Runner { json: true, .. } => OutputMode::Json,
                 _ => parsed.globals.output.unwrap_or_default(),
             };
+            let error = if let Some(receipt) = &mutation {
+                error.with_detail("mutation", receipt.clone())
+            } else {
+                error
+            };
             return error_outcome(error, mode, &clock, &ids);
         }
     };
+    config.mutation = mutation;
+    if let Action::Runner {
+        command: RunnerCommand::ConfigExplainTarget(argv),
+        ..
+    } = &parsed.action
+    {
+        config.explanation_target = Some(argv.clone());
+    }
     // The default hosted harness runs no language command, so a language
     // command word that also names a service command is that rejection.
     if let Action::Forward {
@@ -534,6 +588,18 @@ fn prepare(
         }
     }
     let mode = prose_runner_core::runner::action_output_mode(&parsed, &config);
+    if matches!(
+        &parsed.action,
+        Action::Runner {
+            command: RunnerCommand::ConfigExplain
+                | RunnerCommand::ConfigExplainTarget(_)
+                | RunnerCommand::ConfigMigrate
+                | RunnerCommand::ConfigUnset(_),
+            ..
+        }
+    ) {
+        return prose_runner_core::runner::configuration_outcome(&config, mode);
+    }
     let image = match execution_image(&parsed, &config, cancellation) {
         Ok(image) => image,
         Err(error) => return error_outcome(error, mode, &clock, &ids),

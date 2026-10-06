@@ -58,7 +58,7 @@ describe("runner-global parsing", () => {
     for (const [args, reason] of [
       [["--output=machine", "cli", "doctor"], 'invalid output mode "machine"; expected human, json, or jsonl'],
       [["--model", "one", "--model", "two", "cli", "doctor"], "runner option --model was specified more than once"],
-      [["cli", "harness", "use", "nope"], "Harness selection must be one of openprose, prime, omp, codex, or claude."],
+      [["cli", "harness", "use", "nope"], "Harness selection must be one of openprose, agents-sdk, prime, omp, codex, or claude."],
     ] as const) {
       expectInvocationFailure(args, reason);
     }
@@ -404,4 +404,16 @@ test("native output is an explicit transport option",()=>{
 test("Codex compatibility is explicit and cannot be duplicated", () => {
   expect(parseEntrypoint(["--harness","codex","--codex-compatibility=probe","run"]).global).toMatchObject({harness:"codex",codexCompatibility:"probe"});
   expect(() => parseEntrypoint(["--codex-compatibility","probe","--codex-compatibility","qualified","run"])).toThrow();
+});
+
+test("configuration target explanation reuses global parsing and preserves opaque argv",()=>{
+  expect(parseEntrypoint(["cli","config","explain","--json","--","--cwd","work space","--harness","agents-sdk","run","--model","opaque"])).toEqual({kind:"operation",operation:"config-explain",json:true,global:{cwd:"work space",harness:"agents-sdk"},targetArgv:["prose","run","--model","opaque"]});
+  expect(inferOutputMode(["cli","config","explain","--json","--","--harness","agents-sdk","run","x"])).toBe("json");
+});
+test("configuration target explanation rejects absent targets and nested operations",()=>{
+  for(const argv of [["cli","config","explain","--json","--"],["cli","config","explain","--","cli","doctor"],["cli","config","explain","--","--version"],["--cwd","x","cli","config","explain","--","run","x"]]) expect(()=>parseEntrypoint(argv)).toThrow();
+});
+test("configuration mutation accepts only known key operands",()=>{
+  expect(parseEntrypoint(["cli","config","unset","model","auth_profile","--json"])).toMatchObject({operation:"config-unset",json:true,configKeys:["model","auth_profile"]});
+  for(const argv of [["cli","config","unset"],["cli","config","unset","api_key"],["cli","config","migrate","extra"]])expect(()=>parseEntrypoint(argv)).toThrow();
 });

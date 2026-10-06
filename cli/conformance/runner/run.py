@@ -154,6 +154,7 @@ class Observation:
     process_settled: bool = True
     stdout_truncated: bool = False
     stderr_truncated: bool = False
+    configuration_before: dict[str, tuple[str, str]] | None = None
 
 
 @dataclass(frozen=True)
@@ -1469,6 +1470,145 @@ def hermetic_environment(root: Path, additions: dict[str, str]) -> dict[str, str
     return environment
 
 
+CONFIGURATION_FIXTURE = CLI / "shared/fixtures/config/production-v2.json"
+CONFIGURATION_CASE_IDS = [f"operations.config-production-{n:02}" for n in range(1, 13)]
+
+
+def configuration_path(workspace: Path, relative: str) -> Path:
+    """Refuse traversal and symlinks, even if a link currently stays in the root."""
+    if not isinstance(relative, str) or not relative or "\\" in relative:
+        raise ValueError("configuration fixture path must be a safe relative path")
+    parts = relative.split("/")
+    if any(part in {"", ".", ".."} or ":" in part for part in parts):
+        raise ValueError("configuration fixture path leaves product workspace")
+    root = workspace.resolve()
+    path = root
+    for part in parts:
+        path = path / part
+        if path.is_symlink():
+            raise ValueError("configuration fixture path contains a symlink")
+    return path
+
+
+def load_configuration_setup(case: dict[str, Any]) -> dict[str, Any] | None:
+    reference = case.get("controls", {}).get("configurationFixture")
+    if reference is None:
+        return None
+    if reference != case.get("id") or reference not in CONFIGURATION_CASE_IDS:
+        raise ValueError("configurationFixture must reference its matching closed case")
+    if any(key in case["controls"] for key in ("fakeHarness", "installedAdapter")):
+        raise ValueError("configurationFixture cannot start a fake or installed harness")
+    corpus = json.loads(CONFIGURATION_FIXTURE.read_text("utf-8"))
+    if set(corpus) != {"schema", "summary", "cases"} or corpus["schema"] != "openprose.configuration-production-corpus/2":
+        raise ValueError("invalid closed configuration fixture corpus")
+    if [record.get("id") for record in corpus["cases"]] != CONFIGURATION_CASE_IDS:
+        raise ValueError("configuration fixture corpus must contain exactly twelve ordered cases")
+    for record in corpus["cases"]:
+        if set(record) != {"id", "setup"}:
+            raise ValueError("invalid configuration fixture record")
+        setup = record["setup"]
+        if set(setup) != {"files", "directories", "checks"}:
+            raise ValueError("invalid configuration fixture setup")
+        checks = setup["checks"]
+        if not isinstance(checks, dict) or set(checks) - {"unchangedFiles", "files", "absent", "outputAbsent"}:
+            raise ValueError("invalid configuration fixture checks")
+        for files in (setup["files"], checks.get("files", {})):
+            if not isinstance(files, dict) or any(not isinstance(value, str) for value in files.values()):
+                raise ValueError("configuration fixture files must contain UTF-8 strings")
+        unchanged = checks.get("unchangedFiles", False)
+        if type(unchanged) is not bool and not isinstance(unchanged, list):
+            raise ValueError("unchangedFiles must be a boolean or selected path list")
+        for paths in (setup["directories"], checks.get("absent", []), checks.get("outputAbsent", []), unchanged if isinstance(unchanged, list) else []):
+            if not isinstance(paths, list) or any(not isinstance(value, str) or not value for value in paths) or len(paths) != len(set(paths)):
+                raise ValueError("configuration fixture lists must contain unique nonempty strings")
+        if isinstance(unchanged, list) and any(path not in setup["files"] for path in unchanged):
+            raise ValueError("unchangedFiles must select existing setup files")
+    return next(record["setup"] for record in corpus["cases"] if record["id"] == reference)
+
+
+def configuration_snapshot(workspace: Path) -> dict[str, tuple[str, str]]:
+    """Bounded byte/type oracle; no symlink traversal or provider involvement."""
+    snapshot: dict[str, tuple[str, str]] = {}
+    total_bytes = 0
+    pending = [workspace.resolve()]
+    while pending:
+        directory = pending.pop()
+        for path in directory.iterdir():
+            relative = path.relative_to(workspace.resolve()).as_posix()
+            mode = path.lstat().st_mode
+            if stat.S_ISLNK(mode):
+                snapshot[relative] = ("symlink", os.readlink(path))
+            elif stat.S_ISDIR(mode):
+                snapshot[relative] = ("directory", "")
+                pending.append(path)
+            elif stat.S_ISREG(mode):
+                size = path.stat().st_size
+                total_bytes += size
+                if total_bytes > MAX_CAPTURE_BYTES:
+                    raise ValueError("configuration effects exceed bounded snapshot bytes")
+                with path.open("rb") as source:
+                    content = source.read(size + 1)
+                if len(content) != size:
+                    raise ValueError("configuration file changed during bounded snapshot")
+                snapshot[relative] = ("file", sha256(content))
+            else:
+                snapshot[relative] = ("nonregular", "")
+            if len(snapshot) > 1024:
+                raise ValueError("configuration effects exceed bounded snapshot entries")
+    return snapshot
+
+
+def prepare_configuration(workspace: Path, setup: dict[str, Any]) -> dict[str, tuple[str, str]]:
+    # Validate every path before creating anything.
+    checks = setup["checks"]
+    unchanged = checks.get("unchangedFiles", False)
+    paths = [*setup["directories"], *setup["files"], *checks.get("files", {}), *checks.get("absent", []), *(unchanged if isinstance(unchanged, list) else [])]
+    for relative in paths:
+        configuration_path(workspace, relative)
+    for relative in setup["directories"]:
+        configuration_path(workspace, relative).mkdir(parents=True, exist_ok=True)
+    for relative, value in setup["files"].items():
+        path = configuration_path(workspace, relative)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("xb") as output:
+            output.write(value.encode("utf-8"))
+    return configuration_snapshot(workspace)
+
+
+def validate_configuration_effects(observation: Observation) -> list[str]:
+    setup = load_configuration_setup(observation.case)
+    if setup is None:
+        return []
+    if observation.workspace is None or observation.configuration_before is None:
+        return ["configuration effects lack an isolated pre-execution snapshot"]
+    workspace = observation.workspace
+    checks = setup["checks"]
+    failures: list[str] = []
+    try:
+        after = configuration_snapshot(workspace)
+        unchanged = checks.get("unchangedFiles", False)
+        if unchanged is True and after != observation.configuration_before:
+            failures.append("configuration effects changed the protected workspace tree")
+        elif isinstance(unchanged, list):
+            for relative in unchanged:
+                if after.get(relative) != observation.configuration_before.get(relative):
+                    failures.append(f"configuration effects changed protected file: {relative}")
+        for relative, value in checks.get("files", {}).items():
+            path = configuration_path(workspace, relative)
+            if not path.is_file() or path.read_bytes() != value.encode("utf-8"):
+                failures.append(f"configuration effects expected exact file bytes: {relative}")
+        for relative in checks.get("absent", []):
+            path = configuration_path(workspace, relative)
+            if path.exists():
+                failures.append(f"configuration effects expected absent path: {relative}")
+    except (OSError, ValueError) as error:
+        failures.append(f"configuration effects cannot be checked safely: {error}")
+    for sentinel in checks.get("outputAbsent", []):
+        if any(sentinel.encode("utf-8") in stream for stream in (observation.stdout, observation.stderr)):
+            failures.append("configuration output exposed a forbidden fixture sentinel")
+    return failures
+
+
 def execute(
     product: Product,
     case: dict[str, Any],
@@ -1476,10 +1616,16 @@ def execute(
     workspace: Path,
 ) -> Observation:
     canonical_workspace = workspace.resolve()
+    configuration_setup = load_configuration_setup(case)
     cwd_text = case["invocation"]["cwd"].replace(
         "{{WORKSPACE}}", str(canonical_workspace)
     )
     cwd = Path(cwd_text)
+    if configuration_setup is not None:
+        try:
+            cwd.resolve().relative_to(canonical_workspace)
+        except ValueError as error:
+            raise ValueError("configuration fixture cwd leaves product workspace") from error
     cwd.mkdir(parents=True, exist_ok=True)
     additions = {
         key: value.replace("{{WORKSPACE}}", str(canonical_workspace))
@@ -1532,6 +1678,8 @@ def execute(
         if adapter_id in {"prime/rpc", "omp/rpc"}:
             additions["OPENROUTER_API_KEY"] = "fixture-provider-free-openrouter-key"
     environment = hermetic_environment(environment_root, additions)
+    configuration_before = (prepare_configuration(canonical_workspace, configuration_setup)
+                            if configuration_setup is not None else None)
     for name in case["controls"].get("omitEnvironment", []):
         environment.pop(name, None)
     completed = run_owned_process(
@@ -1551,6 +1699,7 @@ def execute(
         process_settled=completed.settled,
         stdout_truncated=completed.stdout_truncated,
         stderr_truncated=completed.stderr_truncated,
+        configuration_before=configuration_before,
     )
 
 
@@ -1914,6 +2063,7 @@ def validate_output(observation: Observation, contracts: ContractRegistry) -> li
                 f"wanted {sha256(effect['utf8'].encode('utf-8'))}, "
                 f"got {sha256(actual.encode('utf-8'))}"
             )
+    failures.extend(validate_configuration_effects(observation))
     return failures
 
 

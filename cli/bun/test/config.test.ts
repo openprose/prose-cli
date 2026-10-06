@@ -116,7 +116,7 @@ describe("configuration", () => {
       { cwd: nested, harness: "mock", authProfile: "openrouter" },
       {
         processCwd: workspace,
-        env: { PROSE_MODEL: "environment-model", PROSE_AUTH_PROFILE: "openai" },
+        env: { PROSE_HARNESS: "mock", PROSE_MODEL: "environment-model", PROSE_AUTH_PROFILE: "openai" },
         userConfigPath: userConfig,
       },
     );
@@ -210,8 +210,8 @@ describe("configuration", () => {
       { processCwd: workspace, env: {}, platform: "linux" as const },
       { processCwd: workspace, env: { HOME: "" }, platform: "linux" as const },
       { processCwd: workspace, env: { HOME: "relative" }, platform: "linux" as const },
-      { processCwd: workspace, env: { HOME: absoluteHome, XDG_CONFIG_HOME: "" }, platform: "linux" as const },
-      { processCwd: workspace, env: { HOME: absoluteHome, XDG_CONFIG_HOME: "relative" }, platform: "linux" as const },
+      { processCwd: workspace, env: { HOME: absoluteHome, PROSE_CONFIG_DIR: "" }, platform: "linux" as const },
+      { processCwd: workspace, env: { HOME: absoluteHome, PROSE_CONFIG_DIR: "relative" }, platform: "linux" as const },
       { processCwd: workspace, env: {}, platform: "darwin" as const },
       { processCwd: workspace, env: {}, platform: "win32" as const },
       { processCwd: workspace, env: { APPDATA: "relative" }, platform: "win32" as const },

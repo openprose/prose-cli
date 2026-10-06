@@ -9,9 +9,15 @@
     "runtimeVersion": "prime-agent 0.7.0",
     "model": "fixture/model:alpha"
   },
-  "prompt": { "placement": "system-append", "strictness": "strict" },
+  "prompt": {
+    "placement": "system-append",
+    "strictness": "strict"
+  },
   "isolation": "partial",
-  "auth": { "category": "harness-managed", "readiness": "unknown" },
+  "auth": {
+    "category": "harness-managed",
+    "readiness": "unknown"
+  },
   "billingOwner": "user-provider",
   "languageImage": {
     "formatVersion": "openprose.skill-runtime-image/1",
@@ -20,15 +26,60 @@
     "releaseEligible": false
   },
   "configuration": [
-    { "key": "cwd", "source": "default", "location": "process cwd", "redacted": false },
-    { "key": "harness", "source": "flag", "location": "--harness", "redacted": false },
-    { "key": "transport", "source": "flag", "location": "--transport", "redacted": false },
-    { "key": "model", "source": "flag", "location": "--model", "redacted": false },
-    { "key": "timeout", "source": "default", "location": "built-in", "redacted": false },
-    { "key": "output", "source": "flag", "location": "--output", "redacted": false },
-    { "key": "color", "source": "default", "location": "built-in", "redacted": false },
-    { "key": "verbose", "source": "default", "location": "built-in", "redacted": false },
-    { "key": "authProfile", "source": "flag", "location": "--auth-profile", "redacted": true }
+    {
+      "key": "cwd",
+      "source": "default",
+      "location": "process cwd",
+      "redacted": false
+    },
+    {
+      "key": "harness",
+      "source": "flag",
+      "location": "--harness",
+      "redacted": false
+    },
+    {
+      "key": "transport",
+      "source": "flag",
+      "location": "--transport",
+      "redacted": false
+    },
+    {
+      "key": "model",
+      "source": "flag",
+      "location": "--model",
+      "redacted": false
+    },
+    {
+      "key": "timeout",
+      "source": "default",
+      "location": "built-in",
+      "redacted": false
+    },
+    {
+      "key": "output",
+      "source": "flag",
+      "location": "--output",
+      "redacted": false
+    },
+    {
+      "key": "color",
+      "source": "default",
+      "location": "built-in",
+      "redacted": false
+    },
+    {
+      "key": "verbose",
+      "source": "default",
+      "location": "built-in",
+      "redacted": false
+    },
+    {
+      "key": "authProfile",
+      "source": "flag",
+      "location": "--auth-profile",
+      "redacted": false
+    }
   ],
   "readiness": "ready",
   "blockingError": null

@@ -903,6 +903,50 @@ class ContractsTest(unittest.TestCase):
         self.assertEqual(len(ids), len(set(ids)))
         self.assertTrue({"core.initial-help", "core.opaque-argv", "core.mock-success", "core.openprose-hosted-unavailable"}.issubset(ids))
 
+    def test_configuration_production_corpus_is_closed_and_cases_reference_exact_setup(self):
+        corpus = load_json(FIXTURES / "config/production-v2.json")
+        self.assertEqual({"schema", "summary", "cases"}, set(corpus))
+        self.assertEqual("openprose.configuration-production-corpus/2", corpus["schema"])
+        identifiers = [f"operations.config-production-{number:02}" for number in range(1, 13)]
+        self.assertEqual(identifiers, [record["id"] for record in corpus["cases"]])
+        case_schema = load_json(CASES / "case-manifest.schema.json")
+        self.assertEqual(identifiers, case_schema["properties"]["controls"]["properties"]["configurationFixture"]["enum"])
+        for record in corpus["cases"]:
+            self.assertEqual({"id", "setup"}, set(record))
+            setup = record["setup"]
+            self.assertEqual({"files", "directories", "checks"}, set(setup))
+            checks = setup["checks"]
+            self.assertFalse(set(checks) - {"unchangedFiles", "files", "absent", "outputAbsent"})
+            self.assertIn("absent", checks)
+            self.assertTrue("unchangedFiles" in checks or "files" in checks)
+            unchanged = checks.get("unchangedFiles", False)
+            self.assertTrue(type(unchanged) is bool or isinstance(unchanged, list))
+            if isinstance(unchanged, list):
+                self.assertTrue(set(unchanged).issubset(setup["files"]))
+            for files in (setup["files"], checks.get("files", {})):
+                self.assertIsInstance(files, dict)
+                self.assertTrue(all(isinstance(value, str) for value in files.values()))
+            for paths in (setup["directories"], checks["absent"], checks.get("outputAbsent", [])):
+                self.assertIsInstance(paths, list)
+                self.assertEqual(len(paths), len(set(paths)))
+                self.assertTrue(all(isinstance(value, str) and value for value in paths))
+            paths = [*setup["files"], *setup["directories"], *checks.get("files", {}), *checks["absent"]]
+            for relative in paths:
+                self.assertFalse(PurePosixPath(relative).is_absolute())
+                self.assertTrue(relative)
+                self.assertNotIn("\\", relative)
+                self.assertTrue(all(part not in {"", ".", ".."} and ":" not in part for part in relative.split("/")))
+            case = load_json(CASES / "operations" / f"{record['id'].split('.')[-1]}.json")
+            self.assertEqual(record["id"], case["id"])
+            self.assertEqual(record["id"], case["controls"]["configurationFixture"])
+            self.assertFalse(case["expected"]["startedHarness"])
+            self.assertNotIn("fakeHarness", case["controls"])
+            self.assertNotIn("installedAdapter", case["controls"])
+            self.assertEqual("denied", case["controls"]["network"])
+        manifests = [load_json(path) for path in CASES.rglob("*.json")]
+        references = [case["controls"]["configurationFixture"] for case in manifests if "configurationFixture" in case.get("controls", {})]
+        self.assertEqual(sorted(identifiers), sorted(references))
+
     def test_adversarial_scenario_catalog_covers_fake_harness_contract(self) -> None:
         catalog = load_json(CLI / "conformance" / "adversarial" / "transport" / "fake-scenario-expectations.json")
         expected = {

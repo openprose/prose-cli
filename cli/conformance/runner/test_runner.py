@@ -109,7 +109,163 @@ class RunnerUnitTest(unittest.TestCase):
         wanted = runner.expected_for_host(case, "linux", "aarch64")
         self.assertEqual("arm64", wanted["resultMatches"]["error"]["details"]["hostArchitecture"])
         self.assertTrue(runner.deep_subset({"terminal": {"classification": "success"}}, wanted["resultMatches"]))
-        self.assertEqual(64, len(list(runner.case_paths(7, set()))))
+        self.assertEqual(76, len(list(runner.case_paths(7, set()))))
+
+    def test_configuration_corpus_prepares_each_product_independently_and_checks_effects(self):
+        for identifier in runner.CONFIGURATION_CASE_IDS:
+            case = json.loads((runner.CASES / "operations" / f"{identifier.split('.')[-1]}.json").read_text())
+            setup = runner.load_configuration_setup(case)
+            with self.subTest(case=identifier), tempfile.TemporaryDirectory() as temporary:
+                case_root = Path(temporary)
+                workspaces = []
+                for name in ("rust", "bun"):
+                    environment_root, workspace = runner.product_roots(case_root, name)
+                    def product_call(argv, *, cwd, environment, timeout_seconds):
+                        self.assertEqual(15, timeout_seconds)
+                        self.assertEqual(str(workspace.resolve() / "home"), environment["HOME"])
+                        for relative, value in setup["files"].items():
+                            self.assertEqual(value.encode(), (workspace / relative).read_bytes())
+                        for relative, value in setup["checks"].get("files", {}).items():
+                            destination = workspace / relative
+                            destination.parent.mkdir(parents=True, exist_ok=True)
+                            destination.write_bytes(value.encode())
+                        return runner.OwnedProcessResult(0, b"{}", b"", False, True, False, False)
+                    with patch.object(runner, "run_owned_process", side_effect=product_call):
+                        observation = runner.execute(runner.Product(name, Path(sys.executable)), case, environment_root, workspace)
+                    self.assertEqual([], runner.validate_configuration_effects(observation))
+                    workspaces.append(workspace)
+                self.assertNotEqual(workspaces[0], workspaces[1])
+                (workspaces[0] / "unexpected-state").write_bytes(b"product-specific")
+                self.assertFalse((workspaces[1] / "unexpected-state").exists())
+
+    def configuration_observation(self, number, workspace):
+        case = json.loads((runner.CASES / "operations" / f"config-production-{number:02}.json").read_text())
+        setup = runner.load_configuration_setup(case)
+        before = runner.prepare_configuration(workspace, setup)
+        return runner.Observation(runner.Product("fixture", Path(sys.executable)), case, 0, b"", b"", workspace=workspace, configuration_before=before)
+
+    def test_configuration_tree_oracle_detects_additions_deletion_types_and_bytes(self):
+        for alteration in ("addition", "directory", "deletion", "bytes", "symlink"):
+            with self.subTest(alteration=alteration), tempfile.TemporaryDirectory() as temporary:
+                workspace = Path(temporary)
+                observation = self.configuration_observation(3, workspace)
+                protected = workspace / "home/.prose/cli.toml"
+                if alteration == "addition":
+                    (workspace / "unexpected").write_bytes(b"unexpected")
+                elif alteration == "directory":
+                    (workspace / "unexpected").mkdir()
+                elif alteration == "deletion":
+                    protected.unlink()
+                elif alteration == "bytes":
+                    protected.write_bytes(b"changed")
+                else:
+                    protected.unlink()
+                    protected.symlink_to(workspace / ".prose/cli.toml")
+                self.assertTrue(runner.validate_configuration_effects(observation))
+
+    def test_configuration_selected_source_and_exact_destination_are_separate_oracles(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Path(temporary)
+            observation = self.configuration_observation(6, workspace)
+            self.assertTrue(runner.validate_configuration_effects(observation))
+            source = workspace / "config/openprose/cli.toml"
+            destination = workspace / "home/.prose/cli.toml"
+            destination.parent.mkdir(parents=True)
+            destination.write_bytes(source.read_bytes())
+            self.assertEqual([], runner.validate_configuration_effects(observation))
+            destination.write_bytes(source.read_bytes().replace(b"\n", b"\r\n"))
+            self.assertTrue(runner.validate_configuration_effects(observation))
+            destination.write_bytes(source.read_bytes())
+            source.write_bytes(b"changed source")
+            self.assertTrue(any("protected file" in failure for failure in runner.validate_configuration_effects(observation)))
+
+    def test_configuration_absence_and_redaction_check_both_streams(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Path(temporary)
+            observation = self.configuration_observation(1, workspace)
+            destination = workspace / "home/.prose/cli.toml"
+            destination.parent.mkdir(parents=True)
+            destination.write_bytes(b"")
+            self.assertTrue(any("absent path" in failure for failure in runner.validate_configuration_effects(observation)))
+        for stream in ("stdout", "stderr"):
+            with self.subTest(stream=stream), tempfile.TemporaryDirectory() as temporary:
+                observation = self.configuration_observation(9, Path(temporary))
+                setattr(observation, stream, b"fixture-secret-do-not-print")
+                failures = runner.validate_configuration_effects(observation)
+                self.assertEqual(["configuration output exposed a forbidden fixture sentinel"], failures)
+                self.assertNotIn("fixture-secret-do-not-print", str(failures))
+
+    def test_configuration_setup_refuses_escape_links_and_existing_files_before_writing(self):
+        for relative in ("../escape", "/escape", "home/../escape", "C:/escape", "home\\escape", "home//escape", "home/./escape"):
+            with self.subTest(path=relative), tempfile.TemporaryDirectory() as temporary:
+                workspace = Path(temporary)
+                setup = {"files": {"would-write": "safe", relative: "bad"}, "directories": [], "checks": {}}
+                with self.assertRaises(ValueError):
+                    runner.prepare_configuration(workspace, setup)
+                self.assertFalse((workspace / "would-write").exists())
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Path(temporary)
+            (workspace / "linked").symlink_to(workspace, target_is_directory=True)
+            with self.assertRaisesRegex(ValueError, "symlink"):
+                runner.prepare_configuration(workspace, {"files": {"linked/file": "bad"}, "directories": [], "checks": {}})
+            (workspace / "existing").write_bytes(b"original")
+            with self.assertRaises(FileExistsError):
+                runner.prepare_configuration(workspace, {"files": {"existing": "bad"}, "directories": [], "checks": {}})
+            self.assertEqual(b"original", (workspace / "existing").read_bytes())
+
+    def test_configuration_effects_participate_in_full_output_validation(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            observation = self.configuration_observation(1, Path(temporary))
+            observation.case["expected"] = {"exitCode": 0, "stdout": {"kind": "empty"}, "stderr": {"kind": "empty"}, "startedHarness": False}
+            self.assertEqual([], runner.validate_output(observation, runner.ContractRegistry()))
+            (observation.workspace / "unexpected").write_bytes(b"unexpected")
+            self.assertIn("configuration effects changed the protected workspace tree", runner.validate_output(observation, runner.ContractRegistry()))
+
+    def test_configuration_snapshot_bounds_entries_and_bytes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Path(temporary)
+            large = workspace / "large"
+            with large.open("wb") as output:
+                output.truncate(runner.MAX_CAPTURE_BYTES + 1)
+            with self.assertRaisesRegex(ValueError, "bounded snapshot bytes"):
+                runner.configuration_snapshot(workspace)
+            large.unlink()
+            for number in range(1025):
+                (workspace / str(number)).touch()
+            with self.assertRaisesRegex(ValueError, "bounded snapshot entries"):
+                runner.configuration_snapshot(workspace)
+
+    def test_configuration_cwd_cannot_escape_product_workspace(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            case_root = Path(temporary)
+            case = json.loads((runner.CASES / "operations/config-production-01.json").read_text())
+            case["invocation"]["cwd"] = str(case_root / "escape")
+            with patch.object(runner, "run_owned_process") as start:
+                with self.assertRaisesRegex(ValueError, "cwd leaves product workspace"):
+                    runner.execute(runner.Product("fixture", Path(sys.executable)), case, case_root / "environment", case_root / "workspace")
+                start.assert_not_called()
+            self.assertFalse((case_root / "escape").exists())
+
+    def test_configuration_references_and_corpus_fail_closed(self):
+        case = json.loads((runner.CASES / "operations/config-production-01.json").read_text())
+        for reference in ("unknown", "operations.config-production-02"):
+            with self.subTest(reference=reference):
+                case["controls"]["configurationFixture"] = reference
+                with self.assertRaisesRegex(ValueError, "matching closed case"):
+                    runner.load_configuration_setup(case)
+        case["controls"]["configurationFixture"] = case["id"]
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = Path(temporary) / "corpus.json"
+            corpus = json.loads(runner.CONFIGURATION_FIXTURE.read_text())
+            for mutation in (lambda value: value.update(extra=True), lambda value: value["cases"].pop(), lambda value: value["cases"][0]["setup"]["checks"].update(extra=True)):
+                value = json.loads(json.dumps(corpus))
+                mutation(value)
+                fixture.write_text(json.dumps(value))
+                with patch.object(runner, "CONFIGURATION_FIXTURE", fixture), self.assertRaises(ValueError):
+                    runner.load_configuration_setup(case)
+        case["controls"]["fakeHarness"] = {"scenario": "success"}
+        with self.assertRaisesRegex(ValueError, "cannot start"):
+            runner.load_configuration_setup(case)
 
     def test_hosted_transport_and_missing_selection_cases_freeze_dx_precedence(
         self,
@@ -472,7 +628,7 @@ class RunnerUnitTest(unittest.TestCase):
             self.assertEqual(
                 [], runner.validate_output(observation, runner.ContractRegistry())
             )
-            actual["configuration"][-1]["redacted"] = False
+            actual["configuration"][-1]["redacted"] = True
             observation.stdout = json.dumps(actual).encode()
             failures = runner.validate_output(observation, runner.ContractRegistry())
             self.assertTrue(

@@ -79,13 +79,58 @@
           "$ref": "#/$defs/sourcedBoolean"
         },
         "outputContract": {
-          "$ref": "#/$defs/sourcedNullableString"
+          "allOf": [
+            {
+              "$ref": "#/$defs/sourcedString"
+            },
+            {
+              "properties": {
+                "value": {
+                  "enum": [
+                    "image-envelope",
+                    "native"
+                  ]
+                }
+              }
+            }
+          ]
         },
         "codexCompatibility": {
-          "$ref": "#/$defs/sourcedNullableString"
+          "allOf": [
+            {
+              "$ref": "#/$defs/sourcedString"
+            },
+            {
+              "properties": {
+                "value": {
+                  "enum": [
+                    "qualified",
+                    "probe"
+                  ]
+                }
+              }
+            }
+          ]
         },
         "permissionMode": {
-          "$ref": "#/$defs/sourcedNullableString"
+          "allOf": [
+            {
+              "$ref": "#/$defs/sourcedNullableString"
+            },
+            {
+              "properties": {
+                "value": {
+                  "enum": [
+                    "default",
+                    "acceptEdits",
+                    "workspace-write",
+                    "read-only",
+                    null
+                  ]
+                }
+              }
+            }
+          ]
         },
         "nativeMaxTurns": {
           "$ref": "#/$defs/sourcedNullableString"

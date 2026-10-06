@@ -41,7 +41,9 @@ Without that override, consider one legacy location using the former resolver:
 A missing optional legacy root is not an error when canonical discovery works.
 An invalid legacy root is reported safely in diagnostics; it must not defeat an
 existing canonical file. A canonical/legacy alias of one physical file is loaded
-once. Active unreadable, nonregular or malformed settings fail closed.
+once. Unreadable or malformed active settings fail closed. Preserve existing discovery:
+a directory named `cli.toml` is absent configuration, not an active file. Explicit
+mutations reject nonregular destinations and symlinks.
 
 If only legacy settings exist, load them read-only and emit
 `LEGACY_CONFIG_ACTIVE`. Do not copy them during explanation or execution. If both
@@ -64,8 +66,14 @@ those assignments, preserving other lines and comments. Unknown keys and an
 empty key list are invocation errors. With no user file, succeed unchanged and
 create nothing. When a legacy file is active, copy its valid explicit settings
 into the canonical destination with the requested keys removed, leaving the old
-file intact. Reject malformed active files before changing any bytes. Reuse the
-existing owner-only, atomic, nonsymlink writer. Removing an override restores
+file intact. Parse active files for supported syntax before changing any bytes. Unset may
+repair a semantically invalid value by removing it; validate all retained values
+and the retained explicit harness bundle before atomic publication. Migrate
+validates all original values and the explicit bundle. Mutation preflight ignores
+project settings and execution environment overrides, but retains home and root
+selection. Resolve the full effective configuration after publication. If that
+resolution fails, the configuration error includes `details.mutation` so the
+user can see the completed change. Reuse the existing owner-only, atomic, nonsymlink writer. Removing an override restores
 inheritance from the remaining precedence layers and current built-ins.
 
 `prose cli harness use` remains the atomic persistence route for a selected
@@ -136,7 +144,8 @@ fixture compatibility, but every new production report emits all of them.
 
 - `cwd`, `userConfigPath`, `projectConfigPath`, `values`: retain the current
   structure. Emit all nineteen current setting keys. Missing/inapplicable scalar
-  values are null; additional-directory/tool lists are empty arrays. Each value
+  values are null; additional-directory/tool lists are empty arrays. The implicit
+  native profile is `default`, reflecting the execution helper. Each value
   has its winning `source`. Do not inject these report-only nulls or native
   defaults into validation inputs for other harnesses.
 - `target`: null for untargeted operations, otherwise `{argv:["prose",...]}`.
