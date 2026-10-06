@@ -428,6 +428,14 @@ fn assert_release_mock_rpc_is_rejected(binary: &Path, root: &Path) {
     }
 }
 
+#[cfg(feature = "test-seams")]
+fn fake_harness() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../conformance/fake-harness/fake_harness.py")
+        .canonicalize()
+        .unwrap()
+}
+
 fn adapter_probe() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../../shared/fixtures/adapters/bin/adapter_probe.py")
