@@ -908,3 +908,11 @@ PR47 Linux admission failure. Publish the fixture's observed descendantPID
 before unrelated logging and validate a nonzero numericPID before procfs.
 Preserve300ms/3s bounds and killed-or-zombie assertion. Production logic,
 cleanup deadlines and frozen qualified RC3 binaries remain unchanged.
+
+## IMP-097 configuration contract and independent implementations — October 6, 2026
+
+Lead Codex `/root`, session `01a1133b-e47b-7b32-af8e-2655afa0259c`, branch `codex/imp-097-user-configuration`, base `e780725`. Root owns Git/index, design and integration.
+
+`/root/configuration_contract` exact paths: `docs/user-configuration.md` (new), `cli/shared/schemas/configuration-explanation.schema.json`, `cli/shared/fixtures/config/production-v2.json` (new), and twelve new case files `cli/conformance/cases/operations/config-production-01.json` through `config-production-12.json`. Scope: frozen observable design and shared black-box acceptance before product implementation. No product code/runner edits/dependency changes/Git or inference. Root must lease runner plumbing if required.
+
+Root exact paths for Rust implementation: `cli/rust/crates/prose-runner-core/src/config.rs`, `cli/rust/crates/prose-runner-core/src/invocation.rs`, `cli/rust/crates/prose-cli/src/main.rs`, `cli/rust/crates/prose-cli/tests/cli.rs`; shared runner plumbing and schemas require separate recorded extension. Bun implementation reserved for later independent agent; no agent edits both product trees.
