@@ -785,3 +785,12 @@ to edit only `cli/bun/test/supervision-process.test.ts` for bounded natural-exit
 and forced-cleanup controls, plus this lease record. Production settlement
 deadlines and classifications remain unchanged. The separate historical
 macOS timing failure remains unexplained until evidence establishes its cause.
+
+## IMP-055 build documentation lane — October 5, 2026
+
+Root authorized `/root/build_docs` on `codex/imp-055-build-docs` to edit exactly
+`cli/bun/README.md`, `cli/rust/README.md`, `docs/kernel-startup.md`, and
+`cli/shared/image/bundle/README.md`. Scope: published startup, fixed images,
+diagnostic/test builds and explicit tool configuration; provider-free copied
+example verification. No source, release documentation, model calls or new
+Python. Root retains integration and publication ownership.

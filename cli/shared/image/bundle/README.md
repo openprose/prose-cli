@@ -39,6 +39,30 @@ bun ../../../bun/scripts/image-bundle.ts build \
 
 Neither path requires an adapter or runner source edit. The build first checks
 the source directory, exact staged bytes, and checksum; any drift fails closed.
+Supply all three paths. This explicit selection disables published-kernel
+acquisition and defaults to the image's terminal-envelope mode; select
+`--output-contract native` explicitly when appropriate for the chosen image.
+It pins the embedded instruction bytes, not the harness, model, toolchain,
+dependencies or every other campaign input.
+
+To inspect the existing committed diagnostic bundle and build an offline,
+fixed-image Bun executable from the repository root:
+
+```sh
+bun cli/bun/scripts/image-bundle.ts check \
+  --image-dir cli/shared/image/echo-v0 \
+  --bundle cli/shared/image/embedded/current.bundle.bin \
+  --checksum cli/shared/image/embedded/current.bundle.sha256
+bun cli/bun/scripts/image-bundle.ts build \
+  --image-dir cli/shared/image/echo-v0 \
+  --bundle cli/shared/image/embedded/current.bundle.bin \
+  --checksum cli/shared/image/embedded/current.bundle.sha256 \
+  --outfile cli/bun/dist/prose-echo
+```
+
+This selects the nonsemantic echo fixture, not OpenProse language execution.
+The existing image staging/validation implementation still uses Python
+internally; these commands do not introduce another implementation or dependency.
 
 The Rust runner's explicit provider-free test build is separate from the
 data-only replacement path:
@@ -49,6 +73,8 @@ cargo build --manifest-path ../../../rust/Cargo.toml -p prose-cli \
 ```
 
 That development-only feature embeds `sentinel-v1` and enables the mock and
-conformance seams. Ordinary development and release builds keep the committed
-`echo-v0` image and report test seams as disabled. Combining `--release` with
+conformance seams. Ordinary development and release builds without image
+overrides acquire the verified published kernel for installed-harness runs;
+they retain `echo-v0` only as a diagnostic fixture and keep test seams disabled.
+See [published startup](../../../../docs/kernel-startup.md). Combining `--release` with
 the test-seams feature fails closed.
