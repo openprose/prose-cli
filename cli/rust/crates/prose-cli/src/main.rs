@@ -419,6 +419,46 @@ fn execution_image(
     }
 }
 
+fn account_command_outcome(
+    parsed: &ParsedInvocation,
+    args: &[String],
+    system: &SystemContext,
+    cancellation: &CancellationToken,
+) -> Option<CommandOutcome> {
+    let Action::Runner { ref command, json } = parsed.action else {
+        return None;
+    };
+    if !prose_runner_core::service_account::is_service_command(command) {
+        return None;
+    }
+    let mode = if json {
+        OutputMode::Json
+    } else {
+        parsed.globals.output.unwrap_or_default()
+    };
+    // Reject execution controls before account operations access credentials.
+    let rendering_flags = GlobalFlags {
+        output: parsed.globals.output,
+        no_color: parsed.globals.no_color,
+        verbose: parsed.globals.verbose,
+        ..GlobalFlags::default()
+    };
+    let result = if parsed.globals == rendering_flags {
+        prose_runner_core::service_account::execute_user_command(
+            command,
+            system,
+            mode,
+            cancellation,
+        )
+    } else {
+        Err(RunnerError::catalog(ErrorCode::InvocationInvalid))
+    };
+    Some(result.unwrap_or_else(|error| {
+        prose_runner_core::service::argv_error_outcome(args, &error, mode, Some(system))
+            .unwrap_or_else(|| error_outcome(error, mode, &SystemClock, &SystemIdSource))
+    }))
+}
+
 fn prepare(
     args: &[String],
     cancellation: &CancellationToken,
@@ -461,42 +501,8 @@ fn prepare(
             &mut stderr,
         );
     }
-    if let Action::Runner { ref command, json } = parsed.action {
-        if prose_runner_core::service_account::is_service_command(command) {
-            let mode = if json {
-                OutputMode::Json
-            } else {
-                parsed.globals.output.unwrap_or_default()
-            };
-            // Account/package operations accept rendering flags only. Never
-            // silently ignore execution controls before accessing credentials.
-            let rendering_flags = GlobalFlags {
-                output: parsed.globals.output,
-                no_color: parsed.globals.no_color,
-                verbose: parsed.globals.verbose,
-                ..GlobalFlags::default()
-            };
-            if parsed.globals != rendering_flags {
-                let error = RunnerError::catalog(ErrorCode::InvocationInvalid);
-                return prose_runner_core::service::argv_error_outcome(
-                    args,
-                    &error,
-                    mode,
-                    Some(&system),
-                )
-                .unwrap_or_else(|| error_outcome(error, mode, &clock, &ids));
-            }
-            return prose_runner_core::service_account::execute_user_command(
-                command,
-                &system,
-                mode,
-                cancellation,
-            )
-            .unwrap_or_else(|error| {
-                prose_runner_core::service::argv_error_outcome(args, &error, mode, Some(&system))
-                    .unwrap_or_else(|| error_outcome(error, mode, &clock, &ids))
-            });
-        }
+    if let Some(outcome) = account_command_outcome(&parsed, args, &system, cancellation) {
+        return outcome;
     }
     let config = match resolve_config(&parsed.globals, &system) {
         Ok(config) => config,
