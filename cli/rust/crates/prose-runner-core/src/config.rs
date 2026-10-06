@@ -200,6 +200,7 @@ pub struct EffectiveConfig {
     pub native_log: Sourced<Option<String>>,
     pub output_contract: Sourced<String>,
     pub permission_mode: Sourced<Option<String>>,
+    pub codex_compatibility: Sourced<String>,
     pub native_max_turns: Sourced<Option<String>>,
     pub native_timeout: Sourced<Option<String>>,
     pub native_tool_timeout: Sourced<Option<String>>,
@@ -538,6 +539,10 @@ impl EffectiveConfig {
                 value: vec![],
                 source: ConfigSource::default(),
             },
+            codex_compatibility: Sourced {
+                value: "qualified".into(),
+                source: ConfigSource::default(),
+            },
             permission_mode: Sourced {
                 value: None,
                 source: ConfigSource::default(),
@@ -568,6 +573,7 @@ const FILE_CONFIG_KEYS: &[&str] = &[
     "native_log",
     "output_contract",
     "permission_mode",
+    "codex_compatibility",
     "native_max_turns",
     "native_timeout",
     "native_tool_timeout",
@@ -946,6 +952,13 @@ fn native_checks(config: &mut EffectiveConfig) -> Result<(), RunnerError> {
             None => error,
         }
     };
+    if config.codex_compatibility.value != "qualified" && config.harness.value != "codex" {
+        return Err(fail(
+            "Codex compatibility probe requires the codex harness.",
+            &["codexCompatibility"],
+            config,
+        ));
+    }
     let budgets = ["nativeMaxTurns", "nativeTimeout", "nativeToolTimeout"];
     if config.harness.value != "agents-sdk" && first_source(config, &budgets).is_some() {
         return Err(fail(
@@ -1063,7 +1076,7 @@ fn parse_file(source: &str, path: &Path) -> Result<LoadedFileConfig, RunnerError
 /// The configuration keys in their one validation order (the order of
 /// `values` in `shared/schemas/configuration-explanation.schema.json`, with
 /// `nativeLog` before `authProfile`): `(key, file key, variable, flag)`.
-const SETTINGS: [(&str, &str, Option<&str>, &str); 18] = [
+const SETTINGS: [(&str, &str, Option<&str>, &str); 19] = [
     ("harness", "harness", Some("PROSE_HARNESS"), "--harness"),
     (
         "transport",
@@ -1081,6 +1094,12 @@ const SETTINGS: [(&str, &str, Option<&str>, &str); 18] = [
         "output_contract",
         Some("PROSE_OUTPUT_CONTRACT"),
         "--output-contract",
+    ),
+    (
+        "codexCompatibility",
+        "codex_compatibility",
+        Some("PROSE_CODEX_COMPATIBILITY"),
+        "--codex-compatibility",
     ),
     (
         "permissionMode",
@@ -1300,6 +1319,12 @@ fn assign_setting(
             }
             target.output_contract.replace(text, source);
         }
+        "codexCompatibility" => {
+            if !matches!(text.as_str(), "qualified" | "probe") {
+                return fail("Codex compatibility must be qualified or probe.".to_owned());
+            }
+            target.codex_compatibility.replace(text, source);
+        }
         "permissionMode" => {
             if !matches!(
                 text.as_str(),
@@ -1360,6 +1385,7 @@ const SUPPORTED_HARNESSES: [&str; 7] = [
 fn first_source(config: &EffectiveConfig, keys: &[&str]) -> Option<String> {
     keys.iter().find_map(|key| {
         let source = match *key {
+            "codexCompatibility" => &config.codex_compatibility.source,
             "nativeMaxTurns" => &config.native_max_turns.source,
             "nativeTimeout" => &config.native_timeout.source,
             "nativeToolTimeout" => &config.native_tool_timeout.source,
@@ -1448,6 +1474,7 @@ fn apply_flags(target: &mut EffectiveConfig, flags: &GlobalFlags) -> Result<(), 
             "verbose" => flags.verbose.then_some(RawSetting::Boolean(true)),
             "outputContract" => flags.output_contract.clone().map(RawSetting::Text),
             "permissionMode" => flags.permission_mode.clone().map(RawSetting::Text),
+            "codexCompatibility" => flags.codex_compatibility.clone().map(RawSetting::Text),
             "nativeMaxTurns" => flags.native_max_turns.clone().map(RawSetting::Text),
             "nativeTimeout" => flags.native_timeout.clone().map(RawSetting::Text),
             "nativeToolTimeout" => flags.native_tool_timeout.clone().map(RawSetting::Text),

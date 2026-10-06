@@ -20,6 +20,7 @@ const valueOptions: Record<string, keyof GlobalFlags> = {
   "--native-log": "nativeLog",
   "--output-contract": "outputContract",
   "--permission-mode": "permissionMode",
+  "--codex-compatibility": "codexCompatibility",
   "--timeout": "timeout",
   "--output": "output",
 };
@@ -56,6 +57,7 @@ function setValue(global: GlobalFlags, key: keyof GlobalFlags, value: string, op
     global.outputContract = value;
   }
   else if (key === "permissionMode") global.permissionMode = value;
+  else if (key === "codexCompatibility") global.codexCompatibility = value;
   else if (key === "timeout") global.timeout = value;
 }
 
@@ -100,7 +102,7 @@ export function parseEntrypoint(args: readonly string[]): ParsedEntrypoint {
     if (key !== undefined) {
       const value = equals >= 0 ? token.slice(equals + 1) : args[index + 1];
       if (value === undefined) invalid(`${option} requires a value.`);
-      if ((key === "model" || key === "authProfile" || key === "nativeProfile" || key === "nativeMaxTurns" || key === "nativeTimeout" || key === "nativeToolTimeout" || key === "nativeOutputBytes") && global[key] !== undefined) {
+      if ((key === "codexCompatibility" || key === "model" || key === "authProfile" || key === "nativeProfile" || key === "nativeMaxTurns" || key === "nativeTimeout" || key === "nativeToolTimeout" || key === "nativeOutputBytes") && global[key] !== undefined) {
         invalid(`runner option ${option} was specified more than once`);
       }
       setValue(global, key, value, option);

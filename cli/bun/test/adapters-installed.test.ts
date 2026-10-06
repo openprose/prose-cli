@@ -16,6 +16,8 @@ import {
   inspectInstalledAdapterRuntimePrerequisites,
   probeInstalledAdapterAuth,
   probeInstalledAdapterVersion,
+  missingCodexOptions,
+  codexQualification,
   resolveInstalledExecutable,
 } from "../src/adapters/executable";
 import { buildInstalledLaunchPlan } from "../src/adapters/plan";
@@ -633,7 +635,8 @@ describe("installed adapter launch construction", () => {
   test("shows detected, admitted, and copyable repair details in human doctor and run failures", async () => {
     const input = await fixture();
     const executable = join(input.root, "codex");
-    await writeFile(executable, `#!${process.execPath}\nconsole.log("codex-cli 0.149.0-alpha.4.2");\n`, { mode: 0o700 });
+    const help = "--skip-git-repo-check\n--json\n--ephemeral\n--ignore-user-config\n--ignore-rules\n--cd\n--model\n--sandbox\n--config";
+    await writeFile(executable, `#!${process.execPath}\nconsole.log(process.argv.includes("--help") ? ${JSON.stringify(help)} : "codex-cli 0.149.0-alpha.4.2");\n`, { mode: 0o700 });
     await chmod(executable, 0o700);
     const execute = async (argv: string[]) => {
       let stdout = "";
@@ -654,7 +657,7 @@ describe("installed adapter launch construction", () => {
     const expected = [
       "Detected version: codex-cli 0.149.0-alpha.4.2",
       "Admitted versions: 0.149.0-alpha.4.1",
-      "Repair: npm install --global @openai/codex@0.149.0-alpha.4.1",
+      "Repair: prose --harness codex --codex-compatibility probe cli doctor --json",
     ];
     const doctor = await execute(["--harness", "codex", "--output", "human", "cli", "doctor"]);
     expect(doctor.exit).toBe(10);
@@ -1910,7 +1913,8 @@ describe("installed executable discovery and version probes", () => {
     const input = await fixture();
     const executable = join(input.root, executableName);
     const emit = adapterId === "prime/rpc" ? "console.error" : "console.log";
-    await writeFile(executable, `#!${process.execPath}\n${emit}(${JSON.stringify(version)});\n`, { mode: 0o700 });
+    const nativeHelp = "--skip-git-repo-check\n--json\n--ephemeral\n--ignore-user-config\n--ignore-rules\n--cd\n--model\n--sandbox\n--config";
+    await writeFile(executable, `#!${process.execPath}\n${emit}(process.argv.includes("--help") ? ${JSON.stringify(nativeHelp)} : ${JSON.stringify(version)});\n`, { mode: 0o700 });
     await chmod(executable, 0o700);
     await expect(probeInstalledAdapterVersion({
       platform: "darwin", arch: "arm64",
@@ -1924,7 +1928,8 @@ describe("installed executable discovery and version probes", () => {
         adapterId,
         detectedVersion: version,
         admittedVersions,
-        repairCommand,
+        repairCommand: adapterId === "codex/exec-json" ? "prose --harness codex --codex-compatibility probe cli doctor --json" : repairCommand,
+        ...(adapterId === "codex/exec-json" ? {compatibilityStatus:"unqualified"} : {}),
         fallbackAttempted: false,
       },
     });
@@ -3250,4 +3255,16 @@ test("capture credential matching follows host case sensitivity and ignores empt
   const environment = {openrouter_api_key: "fixture-selected-key", OPENROUTER_API_KEY: "", LANG: "C"};
   expect(installedAdapterCaptureSecrets({definition, credentialGroup: "openrouter", environment, platform: "win32"})).toEqual(["fixture-selected-key"]);
   expect(installedAdapterCaptureSecrets({definition, credentialGroup: "openrouter", environment, platform: "linux"})).toEqual([]);
+});
+
+describe("Codex capability declarations", () => {
+  test("never treats descriptive text or longer option names as a required flag", () => {
+    expect(missingCodexOptions("Descriptions mention --json\n    --json-future\n -s, --sandbox read-only")).toContain("--json");
+    expect(missingCodexOptions("Descriptions mention --json\n    --json-future\n -s, --sandbox read-only")).not.toContain("--sandbox");
+  });
+  test("qualification is separate from numerical ordering", () => {
+    expect(codexQualification("codex-cli 0.149.0-alpha.4.1")).toBe("qualified");
+    expect(codexQualification("codex-cli 0.999.0-alpha.1")).toBe("unqualified");
+    expect(codexQualification(null)).toBe("unknown");
+  });
 });

@@ -40,6 +40,7 @@ pub struct GlobalFlags {
     pub native_log: Option<String>,
     pub output_contract: Option<String>,
     pub permission_mode: Option<String>,
+    pub codex_compatibility: Option<String>,
     pub native_profile: Option<String>,
     pub native_max_turns: Option<String>,
     pub native_timeout: Option<String>,
@@ -360,6 +361,7 @@ pub(crate) fn is_value_option(value: &str) -> bool {
             | "--native-log"
             | "--output-contract"
             | "--permission-mode"
+            | "--codex-compatibility"
             | "--timeout"
             | "--output"
     )
@@ -397,6 +399,7 @@ fn set_value_option(globals: &mut GlobalFlags, name: &str, value: &str) -> Resul
         "--native-add-dir" => globals.native_add_dirs.push(value.to_owned()),
         "--native-allow-tool" => globals.native_allow_tools.push(value.to_owned()),
         "--permission-mode" => set_once(&mut globals.permission_mode, name, value)?,
+        "--codex-compatibility" => set_once(&mut globals.codex_compatibility, name, value)?,
         "--timeout" => globals.timeout = Some(value.to_owned()),
         "--output" => {
             globals.output = Some(OutputMode::parse(value).map_err(|_| {

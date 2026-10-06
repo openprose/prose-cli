@@ -563,3 +563,6 @@ signing authority remain explicitly unresolved.
 release contract. [Contributing to the CLI](CONTRIBUTING.md) explains the
 human and agent development workflow and the request process for a new harness,
 model route, or benchmark cell.
+
+See [Codex compatibility and upgrades](../docs/codex-compatibility.md) for qualified admission,
+explicit unqualified probing, actionable diagnostics and native validation limits.

@@ -18,6 +18,7 @@ addFormats(ajv);
 ajv.addKeyword({ keyword: "x-openprose-volatile", schemaType: "boolean", valid: true });
 for (const name of [
   "common",
+  "codex-compatibility",
   "adapter-diagnostic",
   "transport-diagnostic",
   "native-configuration",

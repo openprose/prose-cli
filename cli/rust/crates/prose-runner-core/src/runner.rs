@@ -103,6 +103,8 @@ struct ConfigValuesReport<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     permission_mode: Option<&'a crate::config::Sourced<Option<String>>>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    codex_compatibility: Option<&'a crate::config::Sourced<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     native_profile: Option<&'a crate::config::Sourced<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     native_max_turns: Option<&'a crate::config::Sourced<Option<String>>>,
@@ -533,6 +535,9 @@ fn execute_runner_command(
                 "configuration": config_report(config),
                 "harnesses": statuses
             });
+            if config.harness.value == "codex" {
+                report["codexCompatibility"] = json!({"qualification":installed_adapters::InstalledAdapter::CodexExecJson.codex_qualification(selected_status.and_then(|status| status.detected_version.as_deref())),"policy":config.codex_compatibility.value});
+            }
             if crate::kernel_startup::PUBLISHED_KERNEL_STARTUP && !cfg!(test) {
                 report["imageSource"] = json!("published-on-run");
             }
@@ -1837,7 +1842,13 @@ fn inspect_installed_adapter(
             };
         }
     };
-    if !adapter.version_is_supported(&version) {
+    if let Err(problem) = adapter.check_codex_compatibility(
+        &executable,
+        &config.cwd,
+        &probe_environment,
+        &version,
+        &config.codex_compatibility.value,
+    ) {
         return InstalledAdapterDiscovery {
             executable: Some(executable),
             version: Some(version.clone()),
@@ -1845,7 +1856,7 @@ fn inspect_installed_adapter(
             environment: None,
             auth_group: None,
             auth_readiness: "unknown",
-            problem: Some(adapter.incompatible_version_error(&version)),
+            problem: Some(problem),
         };
     }
     let auth_readiness = match installed_adapters::auth_readiness(adapter, &auth_group, &ambient) {
@@ -2377,6 +2388,7 @@ fn execute_installed_adapter(
                     &invocation_id,
                     outcome,
                     detected_version.as_deref(),
+                    rendered_payload_digest.as_deref(),
                     error,
                     config,
                     image,
@@ -2390,6 +2402,7 @@ fn execute_installed_adapter(
                     &invocation_id,
                     failure,
                     detected_version.as_deref(),
+                    rendered_payload_digest.as_deref(),
                     error,
                     config,
                     image,
@@ -2410,6 +2423,7 @@ fn execute_installed_adapter(
                 &invocation_id,
                 outcome,
                 detected_version.as_deref(),
+                rendered_payload_digest.as_deref(),
                 error,
                 config,
                 image,
@@ -2423,6 +2437,7 @@ fn execute_installed_adapter(
                 &invocation_id,
                 failure,
                 detected_version.as_deref(),
+                rendered_payload_digest.as_deref(),
                 error,
                 config,
                 image,
@@ -2442,6 +2457,7 @@ fn execute_installed_adapter(
                     &invocation_id,
                     failure,
                     detected_version.as_deref(),
+                    rendered_payload_digest.as_deref(),
                     RunnerError::catalog(ErrorCode::HarnessNeedsAuth)
                         .with_detail(
                             "reason",
@@ -2462,6 +2478,7 @@ fn execute_installed_adapter(
                 failure,
                 run_observer.native_failure.clone(),
                 detected_version.as_deref(),
+                rendered_payload_digest.as_deref(),
                 config,
                 image,
                 mode,
@@ -2477,6 +2494,7 @@ fn execute_installed_adapter(
             &invocation_id,
             outcome,
             detected_version.as_deref(),
+            rendered_payload_digest.as_deref(),
             error,
             config,
             image,
@@ -2499,6 +2517,7 @@ fn execute_installed_adapter(
                 &invocation_id,
                 outcome,
                 detected_version.as_deref(),
+                rendered_payload_digest.as_deref(),
                 error,
                 config,
                 image,
@@ -2520,6 +2539,7 @@ fn execute_installed_adapter(
                     &invocation_id,
                     outcome,
                     detected_version.as_deref(),
+                    rendered_payload_digest.as_deref(),
                     error,
                     config,
                     image,
@@ -2545,6 +2565,7 @@ fn execute_installed_adapter(
                 &invocation_id,
                 outcome,
                 detected_version.as_deref(),
+                rendered_payload_digest.as_deref(),
                 error,
                 config,
                 image,
@@ -2590,6 +2611,7 @@ fn installed_adapter_cleanup_failure_result(
     invocation_id: &str,
     failure: SupervisorFailure,
     detected_version: Option<&str>,
+    rendered_payload_digest: Option<&str>,
     error: RunnerError,
     config: &EffectiveConfig,
     image: &RuntimeImage,
@@ -2607,6 +2629,7 @@ fn installed_adapter_cleanup_failure_result(
         failure.process_exit,
         failure.process_signal,
         detected_version,
+        rendered_payload_digest,
         failure.stderr,
         config,
         image,
@@ -2692,6 +2715,7 @@ fn installed_adapter_success_result(
         "invocationId":invocation_id,
         "runner":{"name":RUNNER_NAME,"version":RUNNER_VERSION,"commit":RUNNER_COMMIT},
         "adapter":{"id":adapter.id(),"harnessVersion":harness_version,"descriptorDigestSha256":sha256_hex(adapter.recipe_json().as_bytes())},
+        "codexCompatibility": {"qualification":adapter.codex_qualification(harness_version.as_deref())},
         "transport":adapter.transport(),
         "negotiatedCapabilities":{"promptPlacement":adapter.prompt_placement(),"isolation":adapter.isolation_guarantee(),"streaming":"structured","cancellation":containment_label(outcome.containment),"terminal":"structured"},
         "languageImage":{"formatVersion":image.manifest.image_format_version,"version":image.manifest.image_version,"sha256":image.aggregate_sha256()},
@@ -2705,6 +2729,12 @@ fn installed_adapter_success_result(
         "diagnosticRefs":[],
         "runnerExitCode":0
     });
+    if adapter != installed_adapters::InstalledAdapter::CodexExecJson {
+        result
+            .as_object_mut()
+            .expect("result object")
+            .remove("codexCompatibility");
+    }
     if let Some(limits) = crate::config::native_limits(config) {
         result["nativeLimits"] = limits;
     }
@@ -2818,6 +2848,7 @@ fn installed_adapter_postprocess_failure(
     invocation_id: &str,
     outcome: ProcessOutcome,
     detected_version: Option<&str>,
+    rendered_payload_digest: Option<&str>,
     error: RunnerError,
     config: &EffectiveConfig,
     image: &RuntimeImage,
@@ -2835,6 +2866,7 @@ fn installed_adapter_postprocess_failure(
         outcome.process_exit.into(),
         outcome.process_signal,
         detected_version.or(outcome.probed_version.as_deref()),
+        rendered_payload_digest,
         outcome.stderr,
         config,
         image,
@@ -2853,6 +2885,7 @@ fn installed_adapter_failure_result(
     failure: SupervisorFailure,
     native_failure: Option<Value>,
     detected_version: Option<&str>,
+    rendered_payload_digest: Option<&str>,
     config: &EffectiveConfig,
     image: &RuntimeImage,
     mode: OutputMode,
@@ -2914,6 +2947,7 @@ fn installed_adapter_failure_result(
         failure.process_exit,
         failure.process_signal,
         detected_version,
+        rendered_payload_digest,
         failure.stderr,
         config,
         image,
@@ -2939,6 +2973,7 @@ fn render_installed_failure(
     process_exit: Option<i32>,
     process_signal: Option<String>,
     harness_version: Option<&str>,
+    rendered_payload_digest: Option<&str>,
     diagnostic: String,
     config: &EffectiveConfig,
     image: &RuntimeImage,
@@ -2977,10 +3012,11 @@ fn render_installed_failure(
         "invocationId":invocation_id,
         "runner":{"name":RUNNER_NAME,"version":RUNNER_VERSION,"commit":RUNNER_COMMIT},
         "adapter":{"id":adapter.id(),"harnessVersion":harness_version,"descriptorDigestSha256":sha256_hex(adapter.recipe_json().as_bytes())},
+        "codexCompatibility": {"qualification":adapter.codex_qualification(harness_version)},
         "transport":adapter.transport(),
         "negotiatedCapabilities":{"promptPlacement":adapter.prompt_placement(),"isolation":adapter.isolation_guarantee(),"streaming":"structured","cancellation":"process-group-best-effort","terminal":"structured"},
         "languageImage":{"formatVersion":image.manifest.image_format_version,"version":image.manifest.image_version,"sha256":image.aggregate_sha256()},
-        "digests":{"invocationSha256":invocation_digest,"taskSha256":task_digest,"normalizedEventsSha256":sha256_hex(&event_bytes),"deliveredImageSha256":if process_started { Some(image.manifest.model_visible_bytes.sha256.as_str()) } else { None },"renderedPayloadSha256":null},
+        "digests":{"invocationSha256":invocation_digest,"taskSha256":task_digest,"normalizedEventsSha256":sha256_hex(&event_bytes),"deliveredImageSha256":if process_started { Some(image.manifest.model_visible_bytes.sha256.as_str()) } else { None },"renderedPayloadSha256":rendered_payload_digest},
         "cwd":{"path":config.cwd.display().to_string(),"identitySha256":sha256_hex(config.cwd.as_os_str().to_string_lossy().as_bytes())},
         "timing":{"startedAt":timestamp,"firstEventAt":if process_started { Some(timestamp.as_str()) } else { None },"cancellationAt":if error.code == ErrorCode::Cancelled { Some(timestamp.as_str()) } else { None },"terminalAt":timestamp,"durationMs":0},
         "terminal":{"classification":if error.code == ErrorCode::Cancelled { "cancelled" } else if error.code == ErrorCode::HarnessFailed && process_exit.is_some() { "exit-code" } else { "runner-error" },"transportCompleted":terminal_observed,"terminalEventObserved":terminal_observed,"exitCode":process_exit,"signal":process_signal},
@@ -2991,6 +3027,12 @@ fn render_installed_failure(
         "runnerExitCode":exit_code,
         "error":error
     });
+    if adapter != installed_adapters::InstalledAdapter::CodexExecJson {
+        result
+            .as_object_mut()
+            .expect("result object")
+            .remove("codexCompatibility");
+    }
     if let Some(limits) = crate::config::native_limits(config) {
         result["nativeLimits"] = limits;
     }
@@ -3945,6 +3987,7 @@ fn config_source_entries(config: &EffectiveConfig) -> Vec<Value> {
     for (key, source) in [
         ("outputContract", &config.output_contract.source),
         ("permissionMode", &config.permission_mode.source),
+        ("codexCompatibility", &config.codex_compatibility.source),
         ("nativeMaxTurns", &config.native_max_turns.source),
         ("nativeTimeout", &config.native_timeout.source),
         ("nativeToolTimeout", &config.native_tool_timeout.source),
@@ -4188,7 +4231,7 @@ fn forward_error_outcome_with_diagnostic(
         _ => ("user-provider", "harness-managed"),
     };
     let exit_code = error.exit_code;
-    let result = json!({
+    let mut result = json!({
         "schema":"openprose.runner-result/1",
         "invocationId":invocation_id,
         "runner":{"name":RUNNER_NAME,"version":RUNNER_VERSION,"commit":RUNNER_COMMIT},
@@ -4207,6 +4250,9 @@ fn forward_error_outcome_with_diagnostic(
         "runnerExitCode":exit_code,
         "error":error
     });
+    if config.harness.value == "codex" {
+        result["codexCompatibility"] = json!({"qualification":installed_adapters::InstalledAdapter::CodexExecJson.codex_qualification(error.details.as_ref().and_then(|d|d.get("detectedVersion")).and_then(Value::as_str))});
+    }
     if diagnostic.is_empty() {
         CommandOutcome::json(result, exit_code)
     } else {
@@ -4276,6 +4322,19 @@ fn doctor_adapter_facts(
                     None => "available",
                     Some(ErrorCode::HarnessNeedsAuth) => "needs-auth",
                     Some(ErrorCode::HarnessUnavailable) => "missing",
+                    Some(ErrorCode::HarnessIncompatible)
+                        if discovery
+                            .problem
+                            .as_ref()
+                            .and_then(|error| error.details.as_ref())
+                            .and_then(|details| details.get("compatibilityStatus"))
+                            .and_then(Value::as_str)
+                            .is_some_and(|value| {
+                                matches!(value, "unqualified" | "probe-failed")
+                            }) =>
+                    {
+                        "blocked"
+                    }
                     Some(ErrorCode::ConfigInvalid) => status.availability.as_str(),
                     Some(_) => "incompatible",
                 }
@@ -4361,6 +4420,9 @@ fn config_report(config: &EffectiveConfig) -> ConfigReport<'_> {
             color: &config.color,
             verbose: &config.verbose,
             auth_profile: &config.auth_profile,
+            codex_compatibility: (config.codex_compatibility.source.kind
+                != ConfigSourceKind::Default)
+                .then_some(&config.codex_compatibility),
             output_contract: (config.output_contract.source.kind != ConfigSourceKind::Default)
                 .then_some(&config.output_contract),
             permission_mode: (config.permission_mode.source.kind != ConfigSourceKind::Default)
@@ -4418,6 +4480,11 @@ fn render_config_human(config: &EffectiveConfig) -> String {
         source_label(&config.auth_profile.source),
     );
     for (name, value, source) in [
+        (
+            "codexCompatibility",
+            config.codex_compatibility.value.as_str(),
+            &config.codex_compatibility.source,
+        ),
         (
             "outputContract",
             config.output_contract.value.as_str(),
@@ -4577,14 +4644,36 @@ fn inspect_installed_binary(
         &adapter.version_probe(),
         &CancellationToken::default(),
     ) {
-        Ok(version) if adapter.version_is_supported(&version) => {
-            Ok(("available".to_owned(), Some(version), runtime_prerequisites))
+        Ok(version) => {
+            let availability = match adapter.check_codex_compatibility(
+                &executable,
+                &config.cwd,
+                &environment,
+                &version,
+                &config.codex_compatibility.value,
+            ) {
+                Ok(()) => "available",
+                Err(problem) if problem.code == ErrorCode::ProcessCleanupFailed => {
+                    return Err(problem);
+                }
+                Err(problem)
+                    if problem
+                        .details
+                        .as_ref()
+                        .and_then(|d| d.get("compatibilityStatus"))
+                        .and_then(Value::as_str)
+                        .is_some_and(|status| matches!(status, "unqualified" | "probe-failed")) =>
+                {
+                    "blocked"
+                }
+                Err(_) => "incompatible",
+            };
+            Ok((
+                availability.to_owned(),
+                Some(version),
+                runtime_prerequisites,
+            ))
         }
-        Ok(version) => Ok((
-            "incompatible".to_owned(),
-            Some(version),
-            runtime_prerequisites,
-        )),
         Err(failure) if failure.kind == FailureKind::CleanupFailed => {
             Err(map_supervisor_failure(&failure)
                 .with_detail("adapterId", adapter.id())
