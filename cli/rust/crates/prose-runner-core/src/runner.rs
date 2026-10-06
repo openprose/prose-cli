@@ -3558,14 +3558,17 @@ fn map_supervisor_failure(failure: &SupervisorFailure) -> RunnerError {
         let taxonomy: Value =
             serde_json::from_str(include_str!("../../../../shared/errors/taxonomy.v1.json"))
                 .expect("shared error taxonomy");
-        error.message = taxonomy["recordByteLimit"]["message"]
+        taxonomy["recordByteLimit"]["message"]
             .as_str()
             .expect("record limit message")
-            .to_owned();
-        error.action = taxonomy["recordByteLimit"]["action"]
+            .clone_into(&mut error.message);
+        taxonomy["recordByteLimit"]["action"]
             .as_str()
             .expect("record limit action")
-            .to_owned();
+            .clone_into(&mut error.action);
+        error.retryable = taxonomy["recordByteLimit"]["retryable"]
+            .as_bool()
+            .expect("record limit retryability");
         return error.with_detail("admittedRecordCount", failure.records.len());
     }
     if matches!(
@@ -5723,7 +5726,7 @@ fn record_limit_is_resource_failure_with_frozen_recovery() {
         "harness structured output exceeded a fixed record limit",
     );
     failure.transport_diagnostic = Some(json!({"schema":"openprose.transport-diagnostic/1",
-        "reason":"record-byte-limit","observedBytes":1048577,"limitBytes":1048576,"saturated":false}));
+        "reason":"record-byte-limit","observedBytes":1_048_577,"limitBytes":1_048_576,"saturated":false}));
     let rendered = serde_json::to_value(map_supervisor_failure(&failure)).unwrap();
     for (key, expected) in fixture["recordLimits"]["error"].as_object().unwrap() {
         assert_eq!(&rendered[key], expected, "{key}");
@@ -5731,7 +5734,7 @@ fn record_limit_is_resource_failure_with_frozen_recovery() {
     assert_eq!(rendered["details"]["terminalEventObserved"], false);
     assert_eq!(
         rendered["details"]["transportDiagnostic"]["observedBytes"],
-        1048577
+        1_048_577
     );
     failure.transport_diagnostic.as_mut().unwrap()["reason"] = json!("aggregate-stdout-limit");
     assert_eq!(

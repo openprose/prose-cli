@@ -1,5 +1,5 @@
 import { test, expect } from "bun:test";
-import { mkdtemp, writeFile, readFile, rm } from "node:fs/promises";
+import { mkdtemp, writeFile, readFile, unlink, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import fixture from "../../shared/fixtures/adapters/native-output.v1.json";
@@ -10,8 +10,21 @@ import { sentinelImage } from "../src/assets/sentinel";
 for (const cell of fixture.recordLimits.cases) {
   test(`record limit black box: ${cell.name}`, async () => {
     const root = await mkdtemp(join(tmpdir(), "prose-record-limit-"));
+    const pidFile = join(root, "native.pid");
+    async function removeOwnedNative() {
+      let pid: number;
+      try { pid = Number(await readFile(pidFile, "utf8")); }
+      catch (error: any) { if (error.code === "ENOENT") return; throw error; }
+      if (!Number.isSafeInteger(pid) || pid <= 1) throw new Error("Invalid synthetic child PID");
+      try { process.kill(pid, "SIGKILL"); }
+      catch (error: any) { if (error.code !== "ESRCH") throw error; }
+      for (let count = 0; count < 100; count++) {
+        try { process.kill(pid, 0); await Bun.sleep(10); }
+        catch (error: any) { if (error.code !== "ESRCH") throw error; return; }
+      }
+      throw new Error("Synthetic native child did not disappear during failure cleanup");
+    }
     try {
-      const pidFile = join(root, "native.pid");
       const record = JSON.stringify({ type: "item.completed", item: { type: "command_execution", id: "tool1", command: "fixture", aggregated_output: "", exit_code: 0, status: "completed" } });
       const padding = cell.recordBytes - Buffer.byteLength(record);
       const source = `#!${process.execPath}
@@ -30,7 +43,7 @@ ${cell.accepted ? "console.log(JSON.stringify({type:'turn.completed',usage:{inpu
       const argv = ["--harness", "codex", "--auth-profile", "cached-chatgpt-login", "--output-contract", "native", "--native-output-bytes", String(cell.aggregateBytes), "--timeout", "5s", "--output", "json", "--", "execute", "fixture.md"];
       let stdout = "";
       const dependencies: CliDependencies = {
-        platform: "darwin", arch: "arm64", processCwd: root,
+        platform: process.platform, arch: process.arch, processCwd: root,
         env: { PATH: root, HOME: root }, userConfigPath: join(root, "absent.toml"),
         imageBundle: sentinelImage,
         clock: { now: () => "2026-01-01T00:00:00.000Z", monotonicMs: () => performance.now() },
@@ -47,16 +60,25 @@ ${cell.accepted ? "console.log(JSON.stringify({type:'turn.completed',usage:{inpu
       for (const binary of [process.env.PROSE_RECORD_LIMIT_RUST_BINARY, process.env.PROSE_RECORD_LIMIT_BUN_BINARY]) {
         if (binary === undefined) continue;
         const child = Bun.spawn([binary, ...argv], { cwd: root, env: { PATH: root, HOME: root, XDG_CONFIG_HOME: root }, stdout: "pipe", stderr: "pipe" });
-        const timer = setTimeout(() => child.kill(), 8000);
+        const timer = setTimeout(() => child.kill("SIGKILL"), 8000);
         try {
-          const [output, _diagnostic, exit] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text(), child.exited]);
+          const [output, diagnostic, exit] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text(), child.exited]);
+          expect(diagnostic).toBe("");
           check(JSON.parse(output.trim()), exit);
           await checkCleanup();
-        } finally { clearTimeout(timer); }
+        } finally {
+          clearTimeout(timer);
+          try { await removeOwnedNative(); }
+          finally {
+            if (child.exitCode === null) child.kill("SIGKILL");
+            await child.exited;
+          }
+        }
       }
       async function checkCleanup() {
         const pid = Number(await readFile(pidFile, "utf8"));
         expect(() => process.kill(pid, 0)).toThrow();
+        await unlink(pidFile);
       }
       function check(result: any, code: number) {
         expect(result.nativeOutputLimits.maxRecordBytes).toBe(fixture.recordLimits.recordLimitBytes);
@@ -73,6 +95,9 @@ ${cell.accepted ? "console.log(JSON.stringify({type:'turn.completed',usage:{inpu
           expect(result.semanticStatus).not.toBe("fulfilled");
         }
       }
-    } finally { await rm(root, { recursive: true, force: true }); }
-  }, 15000);
+    } finally {
+      try { await removeOwnedNative(); }
+      finally { await rm(root, { recursive: true, force: true }); }
+    }
+  }, 30000);
 }
