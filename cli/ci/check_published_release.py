@@ -40,22 +40,23 @@ def check(binary: Path, runner: str, commit: str, version: str, execute=None, *,
                'TMPDIR': directory, 'LANG': 'C', 'LC_ALL': 'C',
                'HTTP_PROXY': 'http://127.0.0.1:9', 'HTTPS_PROXY': 'http://127.0.0.1:9',
                'ALL_PROXY': 'http://127.0.0.1:9', 'NO_PROXY': ''}
-        def run(args, expected_code):
+        def run(probe, args, expected_code):
             call = execute or (lambda argv, cwd, environment: build_local.execute_bounded(argv, cwd, environment, timeout_seconds=15))
             result = call(([str(node)] if node else []) + [str(binary), *args], root, env)
             if result.returncode != expected_code or result.stderr:
-                raise ValueError('offline release probe failed its exit/stderr contract')
+                raise ValueError(f'offline release probe {probe} failed its exit/stderr contract '
+                                 f'(exit {result.returncode}; stderr present: {bool(result.stderr)})')
             return result.stdout.decode('utf-8')
-        if run(['--version'], 0).strip() != f'prose {version} ({runner})':
+        if run('version', ['--version'], 0).strip() != f'prose {version} ({runner})':
             raise ValueError('version banner does not match requested release')
-        doctor = json.loads(run(['--output=json', 'cli', 'doctor'], 10))
+        doctor = json.loads(run('doctor', ['--output=json', 'cli', 'doctor'], 10))
         if not subset(doctor, contract['doctor']) or not subset(doctor.get('runner'), {'name': runner, 'commit': commit, 'version': version}):
             raise ValueError('release doctor does not attest published startup without test seams')
-        inventory = json.loads(run(['--output=json', 'cli', 'harness', 'list'], 0))
+        inventory = json.loads(run('harness-list', ['--output=json', 'cli', 'harness', 'list'], 0))
         mocks = [item for item in inventory['harnesses'] if item['id'] == 'mock']
         if len(mocks) != 1 or not subset(mocks[0], contract['mock']):
             raise ValueError('mock execution must be unavailable in release binaries')
-        result = json.loads(run(['--harness=mock', '--output=json', 'run', 'hello'], contract['mockRunExitCode']))
+        result = json.loads(run('mock-run', ['--harness=mock', '--output=json', 'run', 'hello'], contract['mockRunExitCode']))
         if result.get('error', result).get('code') != contract['mockRunErrorCode']:
             raise ValueError('mock request did not fail closed')
     if hashlib.sha256(binary.read_bytes()).hexdigest() != before:
