@@ -21,6 +21,34 @@ NAME = 'prose-agents-sdk'
 RECEIPT = 'agents-sdk-build.json'
 NOTICES = 'AGENTS-SDK-NOTICES.txt'
 MAX_BYTES = 256 * 1024 * 1024
+# Identity probes must not initialize the provider SDK before the fixed probe deadline.
+ENTRY_SOURCE = (
+    'import sys\n'
+    "if sys.argv[1:] == ['--version']:\n"
+    " print('prose-agents-sdk 0.1.0')\n"
+    "elif '--packaged-self-test' in sys.argv:\n"
+    ' import json, ssl, pathlib, certifi, agents, openai, pydantic, jiter\n'
+    ' from importlib.metadata import version\n'
+    ' ssl.create_default_context(cafile=certifi.where())\n'
+    " print(json.dumps({'schema':'openprose.sdk-packaged-self-test/1','openaiAgents':version('openai-agents'),'openai':version('openai'),'certificates':pathlib.Path(certifi.where()).is_file(),'modelCalls':0},sort_keys=True))\n"
+    "elif '--packaged-tool-self-test' in sys.argv:\n"
+    ' import sdk_tool_selftest\n'
+    ' sdk_tool_selftest.main()\n'
+    "elif '--packaged-library-test' in sys.argv:\n"
+    ' import json, pathlib, re\n'
+    ' versions=[]; count=0\n'
+    " for path in pathlib.Path(sys._MEIPASS).rglob('*'):\n"
+    '  if path.is_file() and not path.is_symlink() and path.stat().st_size<=268435456:\n'
+    "   with path.open('rb') as stream:\n"
+    "    if stream.read(4)!=b'\\x7fELF': continue\n"
+    '    data=stream.read()\n'
+    '   count+=1\n'
+    "   versions.extend(tuple(int(x) for x in v.split(b'.')) for v in re.findall(rb'GLIBC_([0-9]+\\.[0-9]+(?:\\.[0-9]+)?)',data))\n"
+    " print(json.dumps({'schema':'openprose.sdk-packaged-libraries/1','elfCount':count,'requiredGlibcMaximum':'.'.join(str(x) for x in max(versions)) if versions else None,'modelCalls':0},sort_keys=True))\n"
+    'else:\n'
+    ' import runpy\n'
+    " runpy.run_module('prose_sdk_runtime',run_name='__main__')\n"
+)
 TOOL_SELF_TEST_SOURCE = r'''
 import asyncio
 import json
@@ -165,25 +193,7 @@ def build(output, *, epoch=0, codesign_identity=None):
     # A frozen module cannot run python -c; this explicit self-test entrypoint is bundled
     # separately and exercises imported SDK modules/certificate resources without API calls.
     entry = output / 'sdk-entry.py'
-    entry.write_text("import sys\nif '--packaged-self-test' in sys.argv:\n"
-                     " import json, ssl, pathlib, certifi, agents, openai, pydantic, jiter\n"
-                     " from importlib.metadata import version\n"
-                     " ssl.create_default_context(cafile=certifi.where())\n"
-                     " print(json.dumps({'schema':'openprose.sdk-packaged-self-test/1','openaiAgents':version('openai-agents'),'openai':version('openai'),'certificates':pathlib.Path(certifi.where()).is_file(),'modelCalls':0},sort_keys=True))\n"
-                     "elif '--packaged-tool-self-test' in sys.argv:\n"
-                     " import sdk_tool_selftest\n sdk_tool_selftest.main()\n"
-                     "elif '--packaged-library-test' in sys.argv:\n"
-                     " import json, pathlib, re\n"
-                     " versions=[]; count=0\n"
-                     " for path in pathlib.Path(sys._MEIPASS).rglob('*'):\n"
-                     "  if path.is_file() and not path.is_symlink() and path.stat().st_size<=268435456:\n"
-                     "   with path.open('rb') as stream:\n"
-                     "    if stream.read(4)!=b'\\x7fELF': continue\n"
-                     "    data=stream.read()\n"
-                     "   count+=1\n"
-                     "   versions.extend(tuple(int(x) for x in v.split(b'.')) for v in re.findall(rb'GLIBC_([0-9]+\\.[0-9]+(?:\\.[0-9]+)?)',data))\n"
-                     " print(json.dumps({'schema':'openprose.sdk-packaged-libraries/1','elfCount':count,'requiredGlibcMaximum':'.'.join(str(x) for x in max(versions)) if versions else None,'modelCalls':0},sort_keys=True))\n"
-                     "else:\n import runpy\n runpy.run_module('prose_sdk_runtime',run_name='__main__')\n")
+    entry.write_text(ENTRY_SOURCE)
     # Snapshot the concurrently maintained runtime before freezing. Receipt binds exact bytes.
     source_copy = output / 'prose_sdk_runtime.py'; source_copy.write_bytes(SOURCE.read_bytes())
     source_sha = digest(source_copy)

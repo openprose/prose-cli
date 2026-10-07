@@ -1,5 +1,8 @@
 import importlib.util
 import os
+import json
+import subprocess
+import sys
 from pathlib import Path
 import tempfile
 import unittest
@@ -9,6 +12,60 @@ import build_agents_sdk as sdk
 
 
 class BuildSdkTests(unittest.TestCase):
+    def test_generated_exact_version_probe_avoids_all_sdk_and_runtime_imports(self):
+        # Execute the bytes actually bundled by the builder, with heavy imports fatal.
+        wrapper = """import builtins, sys
+original_import = builtins.__import__
+def lightweight_import(name, *args, **kwargs):
+    if name != 'sys':
+        raise RuntimeError('Unexpected version-probe import: ' + name)
+    return original_import(name, *args, **kwargs)
+builtins.__import__ = lightweight_import
+sys.argv = ['prose-agents-sdk', '--version']
+""" + "exec(compile(" + repr(sdk.ENTRY_SOURCE) + ", 'sdk-entry.py', 'exec'))\n"
+        result = subprocess.run([sys.executable, '-I', '-c', wrapper],
+                                capture_output=True, timeout=5,
+                                env={'PATH': '', 'PYTHONDONTWRITEBYTECODE': '1'})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, b'prose-agents-sdk 0.1.0\n')
+        self.assertEqual(result.stderr, b'')
+
+    def test_generated_nonversion_and_mixed_argv_keep_runtime_dispatch(self):
+        for arguments in ([], ['--cwd', '/work', '--prompt', 'task'],
+                          ['--version', '--model', 'chosen'], ['--version', '--version']):
+            with self.subTest(arguments=arguments):
+                wrapper = """import json, sys, types
+runtime_dispatch = types.ModuleType('runpy')
+def run_module(name, run_name):
+    print(json.dumps({'module': name, 'runName': run_name, 'argv': sys.argv[1:]}))
+runtime_dispatch.run_module = run_module
+sys.modules['runpy'] = runtime_dispatch
+""" + 'sys.argv = ' + repr(['prose-agents-sdk', *arguments]) + '\n'
+                wrapper += "exec(compile(" + repr(sdk.ENTRY_SOURCE) + ", 'sdk-entry.py', 'exec'))\n"
+                result = subprocess.run([sys.executable, '-I', '-c', wrapper],
+                                        capture_output=True, timeout=5,
+                                        env={'PATH': '', 'PYTHONDONTWRITEBYTECODE': '1'})
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(json.loads(result.stdout),
+                                 {'module': 'prose_sdk_runtime', 'runName': '__main__', 'argv': arguments})
+                self.assertEqual(result.stderr, b'')
+
+    def test_generated_packaged_tool_selftest_keeps_precedence_for_mixed_version_argv(self):
+        for arguments in (['--packaged-tool-self-test'], ['--version', '--packaged-tool-self-test']):
+            with self.subTest(arguments=arguments):
+                wrapper = """import sys, types
+selftest = types.ModuleType('sdk_tool_selftest')
+selftest.main = lambda: print('tool-self-test-dispatched')
+sys.modules['sdk_tool_selftest'] = selftest
+""" + 'sys.argv = ' + repr(['prose-agents-sdk', *arguments]) + '\n'
+                wrapper += "exec(compile(" + repr(sdk.ENTRY_SOURCE) + ", 'sdk-entry.py', 'exec'))\n"
+                result = subprocess.run([sys.executable, '-I', '-c', wrapper],
+                                        capture_output=True, timeout=5,
+                                        env={'PATH': '', 'PYTHONDONTWRITEBYTECODE': '1'})
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.stdout, b'tool-self-test-dispatched\n')
+                self.assertEqual(result.stderr, b'')
+
     def test_lock_is_closed_and_contains_all_runtime_and_build_requirements(self):
         packages = sdk.lock_packages()
         self.assertEqual(len(packages), 46)
