@@ -4866,7 +4866,11 @@ fn runner_diagnostics_and_identity_stay_local() {
         }
     );
     assert_eq!(harnesses[6]["testOnly"], true);
+}
 
+#[test]
+fn explicit_codex_doctor_stays_local_and_reports_missing_harness() {
+    let temp = TempDir::new().unwrap();
     let installed_doctor = prose(
         temp.path(),
         &[
