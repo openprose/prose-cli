@@ -358,7 +358,16 @@ def exercise(package: Path, manifest: dict[str, Any], archives: dict[str, Any], 
         if hashlib.sha256(active.read_bytes()).hexdigest() != verified['packageIdentity']['rustBinarySha256']:
             raise ValueError('Rust link switch did not select the verified executable')
         if previous is not None:
-            command('uninstall-fresh-before-upgrade', [brew, 'uninstall', f'{TAP}/prose-bun', f'{TAP}/prose-rust'])
+            # Initial admission established exclusive ownership of both formulas.
+            # Upgrade retains old kegs; ordinary uninstall removes only one version.
+            def require_empty_owned_installation(label: str) -> None:
+                installed = command(label, [brew, 'list', '--formula', '--versions']).stdout
+                if any(line.split()[0].split('/')[-1] in {'prose-bun', 'prose-rust'} for line in installed.splitlines() if line.split()):
+                    raise ValueError('Owned rehearsal kegs survived all-version uninstall')
+                if active.exists() or active.is_symlink() or active_helper.exists() or active_helper.is_symlink():
+                    raise ValueError('Owned rehearsal commands survived all-version uninstall')
+            command('uninstall-fresh-before-upgrade', [brew, 'uninstall', '--force', f'{TAP}/prose-bun', f'{TAP}/prose-rust'])
+            require_empty_owned_installation('remaining-kegs-before-upgrades')
             settings = output / 'user-settings/cli.toml'
             settings_bytes = b'# explicit upgrade preservation\ntimeout = "9m"\n'
             settings.write_bytes(settings_bytes)
@@ -375,7 +384,7 @@ def exercise(package: Path, manifest: dict[str, Any], archives: dict[str, Any], 
                 command(selected + '-install-base-rust', [brew, 'install', '--build-from-source', f'{TAP}/prose-rust'])
                 if selected == 'bun':
                     command(selected + '-unlink-base-rust', [brew, 'unlink', f'{TAP}/prose-rust'])
-                    command(selected + '-link-base-bun', [brew, 'link', f'{TAP}/prose-bun'])
+                command(selected + '-link-base-selected', [brew, 'link', f'{TAP}/prose-{selected}'])
                 if pub.digest(active) != previous['binaryHashes'][selected]:
                     raise ValueError('Selected prior executable differs from genuine published bytes')
                 base_banner = command(selected + '-base-version', [str(active), '--version']).stdout.strip()
@@ -402,7 +411,8 @@ def exercise(package: Path, manifest: dict[str, Any], archives: dict[str, Any], 
                     raise ValueError('Upgrade changed the selected implementation or candidate identity')
                 qualify_installed_sdk(active, manifest, verified, command, selected + '-upgraded-selected', expected_timeout='9m')
                 preserve(selected + '-settings-after-selected-upgrade')
-                command(selected + '-uninstall-upgraded', [brew, 'uninstall', f'{TAP}/prose-bun', f'{TAP}/prose-rust'])
+                command(selected + '-uninstall-upgraded', [brew, 'uninstall', '--force', f'{TAP}/prose-bun', f'{TAP}/prose-rust'])
+                require_empty_owned_installation(selected + '-remaining-kegs-after-upgrade')
                 preserve(selected + '-settings-after-uninstall')
                 if active.exists() or active.is_symlink():
                     raise ValueError('Upgraded command survived uninstall')
@@ -410,7 +420,7 @@ def exercise(package: Path, manifest: dict[str, Any], archives: dict[str, Any], 
     finally:
         # Remove only packages under the newly owned rehearsal tap.
         for implementation in ('bun', 'rust'):
-            cleaned = subprocess.run([brew, 'uninstall', f'{TAP}/prose-{implementation}'], env=env, text=True, capture_output=True, timeout=180)
+            cleaned = subprocess.run([brew, 'uninstall', '--force', f'{TAP}/prose-{implementation}'], env=env, text=True, capture_output=True, timeout=180)
             (output / f'cleanup-{implementation}.log').write_text(cleaned.stdout + cleaned.stderr)
         untapped = subprocess.run([brew, 'untap', TAP], env=env, text=True, capture_output=True, timeout=180)
         (output / 'cleanup-tap.log').write_text(untapped.stdout + untapped.stderr)

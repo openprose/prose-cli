@@ -337,6 +337,7 @@ class NativeExerciseTests(unittest.TestCase):
         self.previous = {'version': '0.15.0-rc.3', 'root': self.root, 'manifestSha256': 'd' * 64,
                          'archives': self.archives,
                          'binaryHashes': {i: hashlib.sha256(('old-' + i).encode()).hexdigest() for i in ('bun', 'rust')}}
+        self.retained_versions = {}; self.retained_before_force = []; self.leave_retained_keg = False
         self.kegs = {}; self.tapped = False; self.calls = []; self.corrupt_settings = False
         self.bad_dry_run = False
         self.runtime_banner = 'prose-agents-sdk 0.1.0'
@@ -358,11 +359,14 @@ class NativeExerciseTests(unittest.TestCase):
                         filename = 'prose-' + implementation + '.rb'
                         (self.installed_tap / 'Formula' / filename).write_bytes((self.output / 'tap/Formula' / filename).read_bytes())
             elif verb == 'untap': self.tapped = False
-            elif verb == 'list': out = ''.join('prose-' + i + ' ' + state[1] + '\n' for i, state in self.kegs.items())
+            elif verb == 'list':
+                out = ''.join('prose-' + i + ' ' + ' '.join(sorted(self.retained_versions.get(i, {state[1]}))) + '\n' for i, state in self.kegs.items())
             elif verb in {'install', 'upgrade'}:
                 implementation = argv[-1].split('-')[-1]
                 formula = (self.installed_tap / 'Formula' / ('prose-' + implementation + '.rb')).read_text()
                 version = rehearsal.re.search(r'  version "([^"]+)"', formula).group(1)
+                if verb == 'install' and version in self.retained_versions.get(implementation, set()):
+                    return subprocess.CompletedProcess(argv, 0, 'Already installed, not linked\n', '')
                 if verb == 'upgrade':
                     self.assertIn(implementation, self.kegs, 'Upgrade requires an installed previous keg')
                     self.assertEqual(self.kegs[implementation][1], '0.15.0-rc.3', 'Upgrade must replace an actual previous version')
@@ -371,6 +375,7 @@ class NativeExerciseTests(unittest.TestCase):
                 binary.write_bytes((('new-' if version.endswith('.4') else 'old-') + implementation).encode())
                 if version.endswith('.4'): (keg / 'prose-agents-sdk').write_bytes(b'sdk')
                 self.kegs[implementation] = (keg.parent, version)
+                self.retained_versions.setdefault(implementation, set()).add(version)
                 self.assertFalse(self.active.exists() or self.active.is_symlink(), 'Install/upgrade must vacate shared command')
                 self.active.symlink_to(binary)
                 if self.corrupt_settings and verb == 'upgrade':
@@ -383,11 +388,24 @@ class NativeExerciseTests(unittest.TestCase):
                     if self.active.resolve() != binary.resolve(): out = 'Could not symlink'; code = 1
                 else: self.active.symlink_to(binary)
             elif verb == 'uninstall':
-                for name in argv[2:]:
+                force = '--force' in argv
+                for name in [arg for arg in argv[2:] if arg != '--force']:
+                    self.assertTrue(name.startswith(rehearsal.TAP + '/prose-'), 'All-version cleanup must stay in the owned tap')
                     implementation = name.split('-')[-1]
                     if implementation in self.kegs:
+                        versions = self.retained_versions.get(implementation, {self.kegs[implementation][1]})
+                        if force: self.retained_before_force.append((implementation, set(versions)))
                         if self.active.is_symlink() and self.active.resolve().parent.parent == self.kegs[implementation][0].resolve(): self.active.unlink()
-                        del self.kegs[implementation]
+                        remaining = set() if force else versions - {self.kegs[implementation][1]}
+                        if self.leave_retained_keg and force and len(versions) > 1:
+                            remaining = {'0.15.0-rc.3'}
+                        if remaining:
+                            self.retained_versions[implementation] = remaining
+                            version = sorted(remaining)[-1]
+                            self.kegs[implementation] = (self.prefix / 'Cellar' / implementation / version, version)
+                        else:
+                            self.retained_versions.pop(implementation, None)
+                            del self.kegs[implementation]
             elif verb != 'test': self.fail('Unexpected brew command: ' + str(argv))
         elif argv[0] == 'git': pass  # Inert fake: no Git operation occurs in this test.
         elif Path(argv[0]).name == 'prose-agents-sdk': out = '{}\n'
@@ -431,6 +449,58 @@ class NativeExerciseTests(unittest.TestCase):
             if '--dry-run' not in argv: self.assertNotIn('OPENAI_API_KEY', env)
         self.assertFalse(self.active.exists() or self.active.is_symlink())
         self.assertNotEqual(self.installed_tap, self.output / 'tap')
+
+    def test_genuine_upgrade_retains_old_kegs_until_guarded_all_version_uninstall(self):
+        receipt = self.exercise()
+        retained = [(implementation, versions) for implementation, versions in self.retained_before_force
+                    if versions == {'0.15.0-rc.3', '0.15.0-rc.4'}]
+        self.assertEqual([implementation for implementation, _ in retained], ['bun', 'rust', 'bun', 'rust'])
+        self.assertEqual(self.retained_versions, {})
+        names = [check['name'] for check in receipt['checks']]
+        self.assertIn('bun-remaining-kegs-after-upgrade', names)
+        self.assertIn('rust-remaining-kegs-after-upgrade', names)
+        for argv, _ in self.calls:
+            if argv[:2] == ['brew', 'uninstall']:
+                self.assertIn('--force', argv)
+                self.assertTrue(all(arg.startswith(rehearsal.TAP + '/prose-') for arg in argv[2:] if arg != '--force'))
+
+    def test_retained_old_keg_after_force_fails_before_second_round(self):
+        self.leave_retained_keg = True
+        with self.assertRaisesRegex(ValueError, 'kegs survived all-version uninstall'):
+            self.exercise()
+        self.assertFalse((self.output / 'homebrew-rehearsal.json').exists())
+        # The second round must not disguise retained RC3 as a fresh installation.
+        labels = [p.name for p in self.output.glob('rust-install-base-*.log')]
+        self.assertEqual(labels, [])
+
+    def test_lingering_helper_after_all_version_uninstall_is_refused(self):
+        original_execute = self.execute
+        def leave_helper(argv, **kwargs):
+            had_old_and_new = any(len(versions) > 1 for versions in self.retained_versions.values())
+            result = original_execute(argv, **kwargs)
+            if argv[:2] == ['brew', 'uninstall'] and '--force' in argv and had_old_and_new:
+                (self.prefix / 'bin/prose-agents-sdk').write_bytes(b'lingering-helper')
+            return result
+        with patch.object(self, 'execute', side_effect=leave_helper):
+            with self.assertRaisesRegex(ValueError, 'commands survived all-version uninstall'):
+                self.exercise()
+        self.assertFalse((self.output / 'homebrew-rehearsal.json').exists())
+
+    def test_ordinary_uninstall_retains_old_unlinked_keg_and_reinstall_does_not_link(self):
+        self.exercise()
+        for version in ('0.15.0-rc.3', '0.15.0-rc.4'):
+            (self.prefix / 'Cellar/bun' / version / 'bin').mkdir(parents=True, exist_ok=True)
+        self.retained_versions['bun'] = {'0.15.0-rc.3', '0.15.0-rc.4'}
+        self.kegs['bun'] = (self.prefix / 'Cellar/bun/0.15.0-rc.4', '0.15.0-rc.4')
+        env = {'PROSE_CONFIG_DIR': str(self.output / 'user-settings')}
+        self.execute(['brew', 'uninstall', rehearsal.TAP + '/prose-bun'], env=env)
+        self.assertEqual(self.retained_versions['bun'], {'0.15.0-rc.3'})
+        formula = self.installed_tap / 'Formula/prose-bun.rb'
+        formula.write_text(formula.read_text().replace('0.15.0-rc.4', '0.15.0-rc.3'))
+        result = self.execute(['brew', 'install', '--build-from-source', rehearsal.TAP + '/prose-bun'], env=env)
+        self.assertEqual(result.returncode, 0)
+        self.assertIn('Already installed, not linked', result.stdout)
+        self.assertFalse(self.active.exists() or self.active.is_symlink())
 
     def test_changed_settings_fail_instead_of_claiming_upgrade_success(self):
         self.corrupt_settings = True
