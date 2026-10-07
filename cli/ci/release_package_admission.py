@@ -258,10 +258,11 @@ def validate_identity_inputs(
         "native-manifest.json",
         f"prose-rust{suffix}",
         f"prose-bun{suffix}",
-        "prose-agents-sdk", "agents-sdk-build.json", "AGENTS-SDK-NOTICES.txt",
     }
     if target_id == "win-x64":
         expected_files.add("openprose-windows-process-host.exe")
+    else:
+        expected_files.update({"prose-agents-sdk", "agents-sdk-build.json", "AGENTS-SDK-NOTICES.txt"})
     if set(files) != expected_files:
         fail("NATIVE_LINEAGE_MISMATCH", "native artifact file membership differs")
     for name, raw in files.items():
@@ -759,18 +760,23 @@ def native_lineage(
             "nativeSha256": files[path]["sha256"],
             "packagedBinarySha256": packaged,
         }
-    sdk = payloads['release'].get('agentsSdk')
-    if not isinstance(sdk, dict):
-        fail('NATIVE_LINEAGE_MISMATCH', 'Release lacks packaged SDK identity')
-    npm = payloads['npmPackage']
-    encoded = payloads['context']['encoded'][npm['platformName']]
-    import io, tarfile
-    with tarfile.open(fileobj=io.BytesIO(encoded), mode='r:gz') as archive:
-        for name in ('prose-agents-sdk', 'agents-sdk-build.json', 'AGENTS-SDK-NOTICES.txt'):
-            member = archive.getmember('package/bin/' + name)
-            data = archive.extractfile(member).read()
-            if files.get(name) != {'byteLength': len(data), 'sha256': sha256(data)}:
-                fail('NATIVE_LINEAGE_MISMATCH', 'Packaged SDK differs from native artifact: ' + name)
+    if target_id == "win-x64":
+        if 'agentsSdk' in payloads['release']:
+            fail('NATIVE_LINEAGE_MISMATCH', 'Windows static authority cannot claim packaged SDK support')
+        sdk = 'not-applicable'
+    else:
+        sdk = payloads['release'].get('agentsSdk')
+        if not isinstance(sdk, dict):
+            fail('NATIVE_LINEAGE_MISMATCH', 'Release lacks packaged SDK identity')
+        npm = payloads['npmPackage']
+        encoded = payloads['context']['encoded'][npm['platformName']]
+        import io, tarfile
+        with tarfile.open(fileobj=io.BytesIO(encoded), mode='r:gz') as archive:
+            for name in ('prose-agents-sdk', 'agents-sdk-build.json', 'AGENTS-SDK-NOTICES.txt'):
+                member = archive.getmember('package/bin/' + name)
+                data = archive.extractfile(member).read()
+                if files.get(name) != {'byteLength': len(data), 'sha256': sha256(data)}:
+                    fail('NATIVE_LINEAGE_MISMATCH', 'Packaged SDK differs from native artifact: ' + name)
     windows = native["windowsProcessHost"]
     if target_id == "win-x64":
         if windows != payloads["release"]["windowsProcessHost"]:
@@ -1003,7 +1009,8 @@ def run_admission(
                     else {}
                 )
                 benchmark.verify_installed_tree(
-                    installed["npmPrefix"], record["treeIdentity"], links
+                    installed["npmPrefix"], record["treeIdentity"], links,
+                    sdk_evidence=installed.get("sdkEvidence", {}),
                 )
             else:
                 benchmark.verify_installed_tree(
@@ -1011,6 +1018,7 @@ def run_admission(
                         "destination"
                     ],
                     record["treeIdentity"],
+                    sdk_evidence=installed.get("sdkEvidence", {}),
                 )
     benchmark.assert_package_output_unchanged(source_context)
     benchmark.assert_package_output_unchanged(snapshot_context)

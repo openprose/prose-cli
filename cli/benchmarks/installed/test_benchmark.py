@@ -719,12 +719,29 @@ def make_release_package_output(root: Path, *, platform_value: str = PLATFORM) -
                 members[index] = (name, canonical(package), mode)
 
     rewrite_tar(platform_package, release_platform_manifest)
+    if platform_value.startswith('win32-'):
+        # Windows remains a static package/sidecar authority fixture; there is
+        # no supported packaged SDK target or native SDK execution claim.
+        manifest_path.write_text(json.dumps(manifest, sort_keys=True), 'utf-8')
+        refresh_evidence(output)
+        return output
     import sys
     ci_path = str(ROOT / 'cli/ci')
     if ci_path not in sys.path:
         sys.path.insert(0, ci_path)
     from test_kernel_rc_evidence import sdk_fixture
     sdk, sdk_table = sdk_fixture(platform_value)
+    if platform_value.startswith('darwin-'):
+        # npm's pinned pacote extractor intentionally drops Link entries.
+        # Its install fixture must describe the complete physical tree it ships;
+        # separate custody tests retain the alias graph and missing-alias poisons.
+        sdk_table['symlinks'] = {}
+        receipt = json.loads(sdk_table['files']['agents-sdk-build.json'][0])
+        receipt['payload']['entries'] = [row for row in receipt['payload']['entries']
+                                         if row['type'] != 'symlink']
+        encoded = json.dumps(receipt, sort_keys=True).encode()
+        sdk_table['files']['agents-sdk-build.json'] = (encoded, 0o644)
+        sdk['receiptSha256'] = digest(encoded)
     sdk_members = [(n, d, m) for n, (d, m) in sdk_table["files"].items()]
     sdk_members += [(n, b"", ("directory", m)) for n, m in sdk_table["directories"].items()]
     sdk_members += [(n, b"", target) for n, target in sdk_table["symlinks"].items()]
@@ -2065,6 +2082,36 @@ class NativeSdkSbomCustodyTests(unittest.TestCase):
 
 
 
+class WindowsStaticSdkBoundaryTests(unittest.TestCase):
+    def test_windows_release_preserves_static_sidecar_checks_without_sdk(self):
+        with tempfile.TemporaryDirectory() as raw:
+            packages = make_release_package_output(Path(raw), platform_value='win32-x64')
+            with mock.patch.object(BENCHMARK, 'sdk_modules', side_effect=AssertionError('No POSIX SDK decoder')):
+                context = BENCHMARK.verify_package_output(packages, expected_platform='win32-x64', purpose='release-invariants')
+                payloads = BENCHMARK.validate_package_payloads(context)
+            self.assertNotIn('agentsSdk', context['release'])
+            self.assertNotIn('agentsSdkPython', json.loads(context['encoded']['dependency-evidence.json'])['inventories'])
+            self.assertIn('windowsProcessHost', context['release'])
+            self.assertTrue(payloads)
+
+    def test_rehashed_windows_sdk_identity_is_rejected_before_posix_decoder(self):
+        with tempfile.TemporaryDirectory() as raw:
+            packages = make_release_package_output(Path(raw), platform_value='win32-x64')
+            path = packages / 'release-manifest.json'
+            release = json.loads(path.read_bytes()); release['agentsSdk'] = {'unsupported': True}
+            path.write_bytes(canonical(release))
+            sums = ''.join(f'{digest(p.read_bytes())}  {p.name}\n' for p in sorted(packages.iterdir()) if p.name != 'SHA256SUMS')
+            (packages / 'SHA256SUMS').write_text(sums)
+            with mock.patch.object(BENCHMARK, 'sdk_modules', side_effect=AssertionError('No POSIX SDK decoder')):
+                with self.assertRaises(BENCHMARK.BenchmarkError) as rejected:
+                    BENCHMARK.verify_package_output(packages, expected_platform='win32-x64', purpose='release-invariants')
+            self.assertEqual(rejected.exception.code, 'PLATFORM_UNSUPPORTED')
+            self.assertEqual(rejected.exception.message, 'Windows static admission cannot contain an SDK identity')
+            with self.assertRaises(BENCHMARK.BenchmarkError) as decoded:
+                BENCHMARK.decode_archive_members(b'not executed', 'Windows SDK poison', manifest=release)
+            self.assertEqual(decoded.exception.code, 'PLATFORM_UNSUPPORTED')
+
+
 class CompleteSdkInstalledTreeTests(unittest.TestCase):
     def fixture(self, root):
         BENCHMARK.sdk_modules()
@@ -2099,6 +2146,29 @@ class CompleteSdkInstalledTreeTests(unittest.TestCase):
             root = Path(raw).resolve(); target = root / 'directory'; target.mkdir(); link = root / 'link'; link.symlink_to(target)
             with self.assertRaises(BENCHMARK.BenchmarkError):
                 BENCHMARK.capture_installed_tree(root, {link: target})
+
+    def test_missing_physical_sdk_alias_is_not_repaired_or_ignored(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw).resolve(); sibling, context, _ = self.fixture(root)
+            alias = sibling / 'prose-agents-sdk-runtime/Python.framework/Python'
+            alias.unlink()
+            with self.assertRaisesRegex(ValueError, 'complete typed member inventory differs'):
+                BENCHMARK.capture_installed_tree(root, sdk_context=context)
+
+    def test_npm_release_fixture_has_a_complete_alias_free_mac_payload(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw).resolve()
+            packages = make_release_package_output(root, platform_value='darwin-x64')
+            context = BENCHMARK.verify_package_output(packages, expected_platform='darwin-x64', purpose='release-invariants')
+            artifact = next(row for row in context['release']['artifacts'] if row['kind'] == 'npm-platform')
+            members = BENCHMARK.decode_archive_members(context['encoded'][artifact['path']], artifact['path'], manifest=context['release'])
+            self.assertEqual(members.table['symlinks'], {})
+            sibling = root / 'installed'; sibling.mkdir()
+            _, custody, _ = BENCHMARK.sdk_modules()
+            custody.materialize_sdk_members(context['release'], members.table, sibling)
+            installed_context = BENCHMARK.sdk_tree_context(members, 'installed')
+            identity = BENCHMARK.capture_installed_tree(root, sdk_context=installed_context)
+            self.assertNotIn('sdk-directory-symlink', [row['type'] for row in identity['entries']])
 
     def test_payload_poison_with_rehashed_report_identity_is_refused(self):
         import copy

@@ -241,11 +241,12 @@ def authority_inputs(
             "sha256": payloads["extracted"]["bun"]["binarySha256"],
         },
     }
-    sdk_archive = packages / f'openprose-prose-cli-{release["platform"]}-{release["version"]}.tgz'
-    with tarfile.open(sdk_archive) as archive:
-        for name in ('prose-agents-sdk', 'agents-sdk-build.json', 'AGENTS-SDK-NOTICES.txt'):
-            data = archive.extractfile('package/bin/' + name).read()
-            files[name] = {'byteLength': len(data), 'sha256': hashlib.sha256(data).hexdigest()}
+    if 'agentsSdk' in release:
+        sdk_archive = packages / f'openprose-prose-cli-{release["platform"]}-{release["version"]}.tgz'
+        with tarfile.open(sdk_archive) as archive:
+            for name in ('prose-agents-sdk', 'agents-sdk-build.json', 'AGENTS-SDK-NOTICES.txt'):
+                data = archive.extractfile('package/bin/' + name).read()
+                files[name] = {'byteLength': len(data), 'sha256': hashlib.sha256(data).hexdigest()}
     windows = None
     if target_id == "win-x64":
         windows = release["windowsProcessHost"]

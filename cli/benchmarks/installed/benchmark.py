@@ -1243,6 +1243,8 @@ def verify_package_output(
         platform_value,
         purpose,
     )
+    if platform_value.startswith('win32-') and 'agentsSdk' in release:
+        fail('PLATFORM_UNSUPPORTED', 'Windows static admission cannot contain an SDK identity')
     evidence_names = set(encoded) - set(artifacts)
     if evidence_names != REQUIRED_EVIDENCE:
         fail(
@@ -1288,7 +1290,7 @@ def verify_package_output(
         artifacts,
         dependency_digest,
     )
-    if release['mode'] in ('release', 'kernel-rc'):
+    if release['mode'] in ('release', 'kernel-rc') and not platform_value.startswith('win32-'):
         import sys
         ci_path = str(Path(__file__).resolve().parents[2] / 'ci')
         if ci_path not in sys.path:
@@ -1481,6 +1483,8 @@ def decode_archive_members(
     archive_bytes: bytes, label: str, *, manifest=None
 ) -> dict[str, tuple[bytes, int]]:
     if manifest is not None and isinstance(manifest.get('agentsSdk'), dict):
+        if str(manifest.get('platform', '')).startswith('win32-'):
+            fail('PLATFORM_UNSUPPORTED', 'Windows static admission cannot contain an SDK identity')
         pub, custody, _ = sdk_modules()
         try:
             table = pub.decode_sdk_archive(archive_bytes, manifest, label=label)
