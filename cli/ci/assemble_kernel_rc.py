@@ -39,6 +39,7 @@ def assemble(roots, output, evidence, live_smoke=None):
             diagnostic, policy = manifest['embeddedDiagnosticImage'], manifest['kernelPolicy']
         pub.require(manifest['version'] == version == report['version'] and manifest['source']['revision'] == source == report['sourceRevision'], 'Mixed candidate versions or source commits')
         pub.require(manifest['embeddedDiagnosticImage'] == diagnostic and manifest['kernelPolicy'] == policy, 'Mixed diagnostic image or kernel policy')
+        custody.validate_producer_command_logs(report, manifest, lambda relative: custody.read_command_log_bytes(root / relative))
         for item in manifest['artifacts']:
             name = item['path']
             pub.require(pub.safe_name(name), 'Unsafe package artifact name')
@@ -75,8 +76,12 @@ def assemble(roots, output, evidence, live_smoke=None):
         checks = {name: pub.read_json(root / ('logs/' + name + '.json')) for name in custody.CHECKS}
         custody.validate_native(report, manifest, checks, native_hashes, launcher_hash)
         pub.require(custody.SDK_PAYLOAD_EVIDENCE in report['evidence'], 'Missing complete installed SDK payload evidence')
-        custody.validate_installed_sdk_payloads(pub.read_json(root / custody.SDK_PAYLOAD_EVIDENCE), manifest, table)
+        custody.validate_installed_sdk_payloads(pub.read_json(root / custody.SDK_PAYLOAD_EVIDENCE, max_bytes=16*1024*1024), manifest, table)
         custody.validate_sdk_producer_evidence(manifest, table, report['evidence'], lambda relative: (root / relative).read_bytes())
+        custody.validate_linux_runtime_evidence(report, manifest, table,
+            lambda relative: custody.read_command_log_bytes(root / relative),
+            expected_sources=custody.read_linux_runtime_sources(Path(__file__).resolve().parents[2])
+                if platform.startswith('linux-') else None)
         all_binary_hashes.update(native_hashes)
         # Retain every report-bound input, including the five structured native
         # observations. Publication independently repeats these bindings.
@@ -92,6 +97,28 @@ def assemble(roots, output, evidence, live_smoke=None):
         inventory[name] = (actual, {'name': name, 'sha256': pub.digest(actual), 'size': actual.stat().st_size, 'kind': 'evidence', 'platform': platform, 'implementation': 'shared'})
         reports[platform] = {'status': 'pass', 'report': name}
         manifests[platform] = manifest
+    live = pub.read_json(live_smoke) if live_smoke else {'status': 'not-run'}
+    live_paths = {}
+    live_names = set()
+    if live_smoke:
+        for runner, attempt in live.get('runners', {}).items():
+            for role, record in attempt.get('evidence', {}).items():
+                name = custody.live_asset_name(runner, role, record)
+                pub.require(name not in inventory and name not in live_names, 'Live evidence filename collision')
+                live_names.add(name)
+                live_paths[(runner, role)] = live_smoke.parent / record['path']
+        custody.validate_live_smoke(live, source, version, all_binary_hashes, live_paths)
+        pub.require(len(live_names) == 2 * len(custody.LIVE_ROLES), 'All sixteen live evidence assets are required')
+    else:
+        # Live names have a reserved namespace; their exact file suffixes are
+        # bound after capture, but every required runner/role needs an asset.
+        pub.require(not any(name.startswith('live-bun-') or name.startswith('live-rust-') for name in inventory),
+                    'Offline inventory collides with reserved live evidence namespace')
+    pub.require('SHA256SUMS' not in inventory and 'kernel-rc-release-evidence.json' not in inventory,
+                'Global release evidence filename collision')
+    reserved_live_count = len(live_names) if live_smoke else 2 * len(custody.LIVE_ROLES)
+    pub.require(len(inventory) + 2 + reserved_live_count <= 128,
+                'Artifact inventory exceeds 128 including required live evidence')
     output.mkdir(parents=True)
     for name, (path, _) in inventory.items():
         shutil.copyfile(path, output / name)
@@ -103,20 +130,13 @@ def assemble(roots, output, evidence, live_smoke=None):
     pub.require(len(archives) == 13 and checksum_path.name not in inventory, 'Expected thirteen install archives')
     checksum_path.write_bytes(''.join(item['sha256'] + '  ' + item['name'] + '\n' for item in archives).encode('ascii'))
     inventory[checksum_path.name] = (checksum_path, {'name': checksum_path.name, 'sha256': pub.digest(checksum_path), 'size': checksum_path.stat().st_size, 'kind': 'evidence', 'platform': 'all', 'implementation': 'shared'})
-    live = pub.read_json(live_smoke) if live_smoke else {'status': 'not-run'}
     preflight = {'schema': 'openprose.kernel-rc-release-evidence/1', 'version': version, 'sourceSha': source, 'status': 'pass' if live_smoke else 'incomplete', 'failures': [] if live_smoke else ['Exact-source live smoke remains required'], 'imageSource': 'published-on-run', 'embeddedDiagnosticImage': diagnostic, 'kernelPolicy': policy, 'platforms': reports, 'liveSmoke': live}
     if live_smoke:
-        paths = {}
-        for runner, attempt in live.get('runners', {}).items():
-            for role, record in attempt.get('evidence', {}).items():
-                custody.live_asset_name(runner, role, record)
-                paths[(runner, role)] = live_smoke.parent / record['path']
-        custody.validate_live_smoke(live, source, version, all_binary_hashes, paths)
         for runner, attempt in live['runners'].items():
             for role, record in attempt['evidence'].items():
                 name = custody.live_asset_name(runner, role, record)
                 pub.require(name not in inventory and pub.safe_name(name), 'Live evidence filename collision')
-                actual = paths[(runner, role)]
+                actual = live_paths[(runner, role)]
                 shutil.copyfile(actual, output / name)
                 inventory[name] = (actual, {'name': name, 'sha256': record['sha256'], 'size': record['byteLength'], 'kind': 'evidence', 'platform': 'darwin-arm64', 'implementation': runner})
     preflight_path = output / 'kernel-rc-release-evidence.json'

@@ -117,6 +117,70 @@ class ArchiveAdmissionTests(unittest.TestCase):
             rehearsal.select_archives(self.package)
 
 
+class CompleteSdkEvidenceJsonAdmissionTests(unittest.TestCase):
+    def setUp(self):
+        # Reuse the complete authenticated multi-platform package factory only;
+        # its native observations are synthetic and no executables are run.
+        from test_assemble_kernel_rc import AssemblyTests
+        self.fixture = AssemblyTests('test_generated_packages_assemble_without_claiming_live_qualification')
+        self.fixture.setUp()
+        self.addCleanup(self.fixture.doCleanups)
+
+    def test_complete_sdk_evidence_above_generic_limit_verifies(self):
+        root, path = self.fixture.resize_installed_sdk_evidence(1024 * 1024 + 128)
+        with self.assertRaisesRegex(ValueError, 'Invalid JSON file'):
+            rehearsal.pub.read_json(path)
+        verified, manifest, archives = rehearsal.verify_kernel_rc(root, self.fixture.source, self.fixture.version)
+        self.assertEqual(verified['source'], self.fixture.source)
+        self.assertEqual(manifest['platform'], 'darwin-arm64')
+        self.assertEqual(set(archives), {'bun', 'rust'})
+
+    def test_complete_sdk_evidence_above_specific_limit_refuses(self):
+        root, _ = self.fixture.resize_installed_sdk_evidence(16 * 1024 * 1024 + 1)
+        with self.assertRaisesRegex(ValueError, 'Invalid JSON file'):
+            rehearsal.verify_kernel_rc(root, self.fixture.source, self.fixture.version)
+
+    def test_linux_runtime_packet_missing_or_rehashed_source_refuses(self):
+        import base64
+        root = next(root for root in self.fixture.roots if root.name == 'linux-x64-gnu')
+        report_path = root / 'build-report.json'; report = json.loads(report_path.read_bytes())
+        path = root / rehearsal.custody.LINUX_RUNTIME_EVIDENCE; original = path.read_bytes()
+        del report['evidence'][rehearsal.custody.LINUX_RUNTIME_EVIDENCE]; report_path.write_text(json.dumps(report))
+        with self.assertRaises(ValueError): rehearsal.verify_kernel_rc(root, self.fixture.source, self.fixture.version)
+        bundle = json.loads(original); row = next(row for row in bundle['members'] if row['path'] == 'sources/cli/ci/sdk_native_inventory.py')
+        data = b'altered source despite recomputed inner and outer digests'
+        row.update(base64=base64.b64encode(data).decode(), sha256=hashlib.sha256(data).hexdigest(), byteLength=len(data))
+        path.write_text(json.dumps(bundle)); report['evidence'][rehearsal.custody.LINUX_RUNTIME_EVIDENCE] = {
+            'sha256': hashlib.sha256(path.read_bytes()).hexdigest(), 'byteLength': path.stat().st_size}
+        report_path.write_text(json.dumps(report))
+        with self.assertRaises(ValueError): rehearsal.verify_kernel_rc(root, self.fixture.source, self.fixture.version)
+
+    def test_complete_linux_runtime_packets_verify_both_targets(self):
+        for platform in ('linux-x64-gnu', 'linux-arm64-gnu'):
+            root = next(root for root in self.fixture.roots if root.name == platform)
+            with self.subTest(platform=platform):
+                verified, manifest, archives = rehearsal.verify_kernel_rc(root, self.fixture.source, self.fixture.version)
+                self.assertEqual(verified['source'], self.fixture.source)
+                self.assertEqual(manifest['platform'], platform)
+                self.assertEqual(set(archives), {'bun', 'rust'})
+
+    def test_mac_runtime_claim_refuses_before_packet_callback(self):
+        from unittest.mock import Mock
+        root = next(root for root in self.fixture.roots if root.name == 'darwin-arm64')
+        report_path = root / 'build-report.json'; report = json.loads(report_path.read_bytes())
+        path = root / rehearsal.custody.LINUX_RUNTIME_EVIDENCE; path.write_bytes(b'unexpected Mac runtime claim')
+        report['evidence'][rehearsal.custody.LINUX_RUNTIME_EVIDENCE] = {
+            'sha256': hashlib.sha256(path.read_bytes()).hexdigest(), 'byteLength': path.stat().st_size}
+        report_path.write_text(json.dumps(report))
+        callback = Mock(side_effect=AssertionError('Mac packet callback must not be used'))
+        actual = rehearsal.custody.validate_linux_runtime_evidence
+        def validate(report, manifest, table, read_bytes, *, expected_sources):
+            return actual(report, manifest, table, callback, expected_sources=expected_sources)
+        with patch.object(rehearsal.custody, 'validate_linux_runtime_evidence', side_effect=validate), self.assertRaises(ValueError):
+            rehearsal.verify_kernel_rc(root, self.fixture.source, self.fixture.version)
+        callback.assert_not_called()
+
+
 class KernelRcAdmissionTests(unittest.TestCase):
     SOURCE = 'a' * 40
     VERSION = '0.15.0-rc.3'
@@ -170,6 +234,9 @@ class KernelRcAdmissionTests(unittest.TestCase):
         (self.root / 'package/release-manifest.json').write_text(json.dumps(self.manifest))
         for name, check in self.checks.items():
             (self.root / 'logs' / (name + '.json')).write_text(json.dumps(check))
+        from test_kernel_rc_evidence import producer_command_log_fixture
+        for relative, encoded in producer_command_log_fixture(self.report).items():
+            (self.root / relative).write_bytes(encoded)
         self.report['evidence'] = {str(path.relative_to(self.root)): {
             'sha256': hashlib.sha256(path.read_bytes()).hexdigest(), 'byteLength': path.stat().st_size}
             for directory in ('package', 'logs') for path in (self.root / directory).iterdir()}
@@ -186,6 +253,17 @@ class KernelRcAdmissionTests(unittest.TestCase):
         self.assertEqual(verified['packageIdentity']['bunBinarySha256'], hashlib.sha256(b'bun').hexdigest())
         self.assertEqual(manifest['version'], self.VERSION)
         self.assertEqual(set(selected), {'bun', 'rust'})
+
+    def test_command_bundle_missing_or_rehashed_raw_poison_is_refused(self):
+        report_path = self.root / 'build-report.json'; path = self.root / rehearsal.custody.COMMAND_LOG_EVIDENCE
+        original = path.read_bytes(); report = json.loads(report_path.read_bytes())
+        del report['evidence'][rehearsal.custody.COMMAND_LOG_EVIDENCE]; report_path.write_text(json.dumps(report))
+        with self.assertRaises(ValueError): self.verify()
+        bundle = json.loads(original); bundle['members'][0]['base64'] = 'eA=='
+        path.write_text(json.dumps(bundle)); report['evidence'][rehearsal.custody.COMMAND_LOG_EVIDENCE] = {
+            'sha256': hashlib.sha256(path.read_bytes()).hexdigest(), 'byteLength': path.stat().st_size}
+        report_path.write_text(json.dumps(report))
+        with self.assertRaises(ValueError): self.verify()
 
     def test_expected_source_and_version_are_mandatory_exact_anchors(self):
         for source, version in [('bad', self.VERSION), ('c' * 40, self.VERSION),

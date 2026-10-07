@@ -14,6 +14,336 @@ def require(ok, message):
         raise ValueError(message)
 
 
+COMMAND_LOG_EVIDENCE = 'logs/producer-command-logs.json'
+COMMAND_LOG_MAX_BYTES = 16 * 1024 * 1024
+COMMAND_LOG_MAC_MEMBERS = (
+    'logs/build-bun.log', 'logs/build-rust.log', 'logs/build-sdk.log',
+    'logs/npm-install-cache.log', 'logs/npm-install.log', 'logs/package.log',
+    'logs/rust-ad-hoc-sign.log', 'logs/rust-ad-hoc-verify.log',
+)
+COMMAND_LOG_LINUX_MEMBERS = (
+    'logs/build-bun.log', 'logs/build-rust.log', 'logs/npm-install-cache.log',
+    'logs/npm-install.log', 'logs/package.log',
+)
+COMMAND_LOG_PLATFORMS = ('darwin-arm64', 'darwin-x64', 'linux-arm64-gnu', 'linux-x64-gnu')
+
+
+def read_command_log_bytes(path):
+    """Read bounded regular owned bytes with stable no-follow descriptor custody."""
+    import stat
+    path = Path(path)
+    require(path.is_absolute() and path.parent.resolve(strict=True) == path.parent,
+            'Command log parent must be canonical')
+    before = path.lstat()
+    require(stat.S_ISREG(before.st_mode) and before.st_uid == os.getuid()
+            and 0 <= before.st_size <= COMMAND_LOG_MAX_BYTES,
+            'Command log must be bounded owned regular bytes')
+    identity = lambda value: (value.st_dev, value.st_ino, value.st_mode, value.st_uid,
+                              value.st_size, value.st_mtime_ns, value.st_ctime_ns)
+    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    try:
+        require(identity(os.fstat(descriptor)) == identity(before), 'Command log changed before read')
+        with os.fdopen(descriptor, 'rb', closefd=False) as stream:
+            data = stream.read(COMMAND_LOG_MAX_BYTES + 1)
+        require(len(data) == before.st_size and len(data) <= COMMAND_LOG_MAX_BYTES
+                and identity(os.fstat(descriptor)) == identity(before)
+                and identity(path.lstat()) == identity(before), 'Command log changed during read')
+        return data
+    finally:
+        os.close(descriptor)
+
+
+def validate_producer_command_logs(report, manifest, read_bytes):
+    """Validate byte-preserving opaque logs; these bytes confer no execution authority."""
+    import base64
+    require(isinstance(report, dict) and isinstance(manifest, dict), 'Command log producer headers absent')
+    platform, source, version = report.get('platform'), report.get('sourceRevision'), report.get('version')
+    require(report.get('schema') == 'openprose.kernel-rc-build/1' and platform in COMMAND_LOG_PLATFORMS
+            and isinstance(source, str) and re.fullmatch('[0-9a-f]{40}', source)
+            and isinstance(version, str) and re.fullmatch('[A-Za-z0-9][A-Za-z0-9.+_-]{0,127}', version),
+            'Invalid command log report identity')
+    require(manifest.get('schema') == 'openprose.local-release-manifest/1' and manifest.get('mode') == 'kernel-rc'
+            and manifest.get('platform') == platform and manifest.get('version') == version
+            and manifest.get('source') == {'revision': source, 'verification': 'matched-product-doctor'},
+            'Command log manifest identity differs')
+    names = COMMAND_LOG_MAC_MEMBERS if platform.startswith('darwin-') else COMMAND_LOG_LINUX_MEMBERS
+    evidence = report.get('evidence')
+    require(isinstance(evidence, dict) and COMMAND_LOG_EVIDENCE in evidence
+            and not set(names).intersection(evidence), 'Mandatory command log bundle missing or originals duplicated')
+    record = evidence[COMMAND_LOG_EVIDENCE]
+    require(isinstance(record, dict) and set(record) == {'sha256', 'byteLength'}
+            and isinstance(record['sha256'], str) and re.fullmatch('[0-9a-f]{64}', record['sha256'])
+            and type(record['byteLength']) is int and 0 < record['byteLength'] <= COMMAND_LOG_MAX_BYTES,
+            'Command log bundle evidence unbounded or invalid')
+    raw = read_bytes(COMMAND_LOG_EVIDENCE)
+    require(isinstance(raw, bytes) and len(raw) == record['byteLength'] and len(raw) <= COMMAND_LOG_MAX_BYTES
+            and hashlib.sha256(raw).hexdigest() == record['sha256'], 'Command log bundle differs from producer evidence')
+    def pairs(rows):
+        value = {}
+        for key, item in rows:
+            require(key not in value, 'Duplicate command log JSON key')
+            value[key] = item
+        return value
+    try:
+        bundle = json.loads(raw, object_pairs_hook=pairs)
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise ValueError('Invalid command log bundle JSON') from error
+    require(isinstance(bundle, dict) and set(bundle) == {'schema', 'platform', 'sourceRevision', 'version', 'members'}
+            and bundle['schema'] == 'openprose.kernel-rc-command-logs/1' and bundle['platform'] == platform
+            and bundle['sourceRevision'] == source and bundle['version'] == version,
+            'Command log bundle header differs')
+    members = bundle['members']
+    require(isinstance(members, list) and len(members) == len(names), 'Command log member coverage differs')
+    result = {}
+    for expected, row in zip(names, members):
+        require(isinstance(row, dict) and set(row) == {'path', 'sha256', 'byteLength', 'base64'}
+                and row['path'] == expected and isinstance(row['sha256'], str)
+                and re.fullmatch('[0-9a-f]{64}', row['sha256']) and type(row['byteLength']) is int
+                and 0 <= row['byteLength'] <= COMMAND_LOG_MAX_BYTES and isinstance(row['base64'], str),
+                'Command log member identity differs')
+        require(len(row['base64']) == 4 * ((row['byteLength'] + 2) // 3), 'Command log base64 length differs')
+        try:
+            data = base64.b64decode(row['base64'], validate=True)
+        except (ValueError, UnicodeEncodeError) as error:
+            raise ValueError('Invalid command log base64') from error
+        require(base64.b64encode(data).decode('ascii') == row['base64']
+                and len(data) == row['byteLength'] and hashlib.sha256(data).hexdigest() == row['sha256'],
+                'Command log member bytes differ')
+        result[expected] = data
+    return result
+
+
+LINUX_RUNTIME_EVIDENCE = 'logs/sdk-linux-runtime.json'
+LINUX_RUNTIME_MAX_BYTES = 16 * 1024 * 1024
+LINUX_RUNTIME_SOURCE_PATHS = (
+    'cli/ci/verify_agents_sdk_linux.py', 'cli/ci/agents-sdk-linux-runtime.lock.json',
+    'cli/ci/build_agents_sdk_linux.py', 'cli/ci/sdk_native_inventory.py',
+)
+LINUX_RUNTIME_JOB_PATHS = tuple(sorted(('job/pull-runtime.log', 'job/inspect-runtime.log') +
+    tuple('job/' + name + suffix for name in ('base', 'version', 'imports', 'tools', 'libraries') for suffix in ('.log', '.sh'))))
+LINUX_RUNTIME_MEMBER_PATHS = tuple(sorted(('runtime-report.json',) + LINUX_RUNTIME_JOB_PATHS +
+    tuple('sources/' + name for name in LINUX_RUNTIME_SOURCE_PATHS)))
+
+
+def read_linux_runtime_sources(source_root):
+    """Hash trusted explicit caller source bytes, never source identities from a packet."""
+    root = Path(source_root)
+    require(root.is_absolute() and root.resolve(strict=True) == root and root.is_dir(),
+            'Linux runtime trusted source root must be canonical')
+    return {name: hashlib.sha256(read_command_log_bytes(root / name)).hexdigest() for name in LINUX_RUNTIME_SOURCE_PATHS}
+
+
+def _runtime_json(raw):
+    def pairs(rows):
+        result = {}
+        for key, value in rows:
+            require(key not in result, 'Duplicate Linux runtime JSON key'); result[key] = value
+        return result
+    try: return json.loads(raw, object_pairs_hook=pairs)
+    except (UnicodeDecodeError, json.JSONDecodeError) as error: raise ValueError('Invalid Linux runtime JSON') from error
+
+
+def _runtime_equal(left, right):
+    return json.dumps(left, sort_keys=True, separators=(',', ':')) == json.dumps(right, sort_keys=True, separators=(',', ':'))
+
+
+def _runtime_script_contract(source, machine):
+    """Extract only authenticated literal constants; never evaluate or execute Python."""
+    import ast
+    tree = ast.parse(source)
+    constants = {}
+    def literal(node):
+        if isinstance(node, ast.Constant) and type(node.value) in (str, int): return node.value
+        if isinstance(node, ast.Tuple): return tuple(literal(item) for item in node.elts)
+        raise ValueError('Runtime script contract must contain literals only')
+    for node in tree.body:
+        if isinstance(node, ast.Assign):
+            for name in node.targets:
+                if isinstance(name, ast.Name) and name.id in ('BASE', 'PROBES'):
+                    require(name.id not in constants, 'Duplicate runtime script contract')
+                    constants[name.id] = literal(node.value)
+    require(set(constants) == {'BASE', 'PROBES'} and isinstance(constants['BASE'], str)
+            and constants['PROBES'] == (('version', '--version', 5), ('imports', '--packaged-self-test', 30),
+                ('tools', '--packaged-tool-self-test', 30), ('libraries', '--packaged-library-test', 30)),
+            'Linux runtime probe contract differs')
+    scripts = {'job/base.sh': constants['BASE'].format(machine=machine).encode()}
+    scripts.update({'job/' + name + '.sh': ('timeout --kill-after=1s ' + str(seconds) +
+        's /source/prose-agents-sdk ' + flag + '\n').encode() for name, flag, seconds in constants['PROBES']})
+    return scripts
+
+
+def _runtime_sdk_trio(table):
+    prefix = '' if SDK_NAMES[0] in table['files'] else sdk_archive_prefix(table)
+    return {name: table['files'][prefix + name][0] for name in SDK_NAMES}
+
+
+def _runtime_file_identity(path, maximum, mode):
+    """Stream an owned no-follow payload leaf; never duplicate helper bytes in a packet."""
+    import stat
+    before = path.lstat()
+    require(stat.S_ISREG(before.st_mode) and before.st_uid == os.getuid()
+            and stat.S_IMODE(before.st_mode) == mode and 0 < before.st_size <= maximum,
+            'Linux runtime copied payload metadata differs')
+    identity = lambda st: (st.st_dev, st.st_ino, st.st_mode, st.st_uid, st.st_size, st.st_mtime_ns, st.st_ctime_ns)
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    try:
+        require(identity(os.fstat(fd)) == identity(before), 'Linux runtime payload changed before read')
+        h = hashlib.sha256(); total = 0
+        while True:
+            block = os.read(fd, 65536)
+            if not block: break
+            total += len(block); require(total <= maximum, 'Linux runtime payload exceeds bound'); h.update(block)
+        require(total == before.st_size and identity(os.fstat(fd)) == identity(before)
+                and identity(path.lstat()) == identity(before), 'Linux runtime payload changed during read')
+        return {'sha256': h.hexdigest(), 'byteLength': total}
+    finally: os.close(fd)
+
+
+def validate_linux_runtime_tree(root, runtime_report, sdk_table):
+    """Check every physical successful verifier member and copied payload, without execution."""
+    import stat
+    root = Path(root)
+    require(root.is_absolute() and root.resolve(strict=True) == root and root.is_dir(), 'Runtime tree must be canonical')
+    expected_files = {'runtime-report.json', *LINUX_RUNTIME_JOB_PATHS, *('payload/' + name for name in SDK_NAMES)}
+    expected_dirs = {'', 'job', 'job/home', 'job/docker-config', 'payload'}
+    observed_files = set(); observed_dirs = set(); before = {}
+    def identity(st): return (st.st_dev, st.st_ino, st.st_mode, st.st_uid, st.st_size, st.st_mtime_ns, st.st_ctime_ns)
+    def walk(directory, relative):
+        st = directory.lstat()
+        require(stat.S_ISDIR(st.st_mode) and st.st_uid == os.getuid(), 'Runtime tree directory is aliased or unowned')
+        observed_dirs.add(relative); before[relative] = identity(st)
+        fd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            require(identity(os.fstat(fd)) == identity(st), 'Runtime directory changed before scan')
+            with os.scandir(fd) as entries:
+                for item in entries:
+                    name = relative + '/' + item.name if relative else item.name
+                    info = os.stat(item.name, dir_fd=fd, follow_symlinks=False)
+                    if stat.S_ISDIR(info.st_mode):
+                        require(name in expected_dirs, 'Unexpected Linux runtime directory')
+                        walk(root / name, name)
+                        require(identity((root / name).lstat()) == identity(info), 'Runtime child directory changed')
+                    else:
+                        require(stat.S_ISREG(info.st_mode) and name in expected_files and info.st_uid == os.getuid(),
+                                'Unexpected or aliased Linux runtime file')
+                        observed_files.add(name); before[name] = identity(info)
+            require(identity(os.fstat(fd)) == identity(st), 'Runtime directory changed during scan')
+        finally: os.close(fd)
+    walk(root, '')
+    require(observed_files == expected_files and observed_dirs == expected_dirs, 'Linux runtime physical tree coverage differs')
+    trio = _runtime_sdk_trio(sdk_table)
+    expected_payload = runtime_report['inputs']['payload']
+    require(isinstance(expected_payload, dict) and set(expected_payload) == set(SDK_NAMES), 'Runtime trio coverage differs')
+    for name, maximum in zip(SDK_NAMES, (256 * 1024**2, 2 * 1024**2, 8 * 1024**2)):
+        observed = _runtime_file_identity(root / 'payload' / name, maximum, 0o555 if name == SDK_NAMES[0] else 0o444)
+        require(observed == {'sha256': hashlib.sha256(trio[name]).hexdigest(), 'byteLength': len(trio[name])}
+                and observed['sha256'] == expected_payload[name], 'Linux runtime copied trio differs')
+    for relative in ('runtime-report.json', *LINUX_RUNTIME_JOB_PATHS): read_command_log_bytes(root / relative)
+    for relative, expected in before.items():
+        st = (root / relative).lstat()
+        require(identity(st) == expected, 'Linux runtime tree changed during validation')
+
+
+def validate_linux_runtime_evidence(report, manifest, sdk_table, read_bytes, *, expected_sources):
+    """Validate retained clean-runtime proof against trusted source and actual packaged SDK bytes."""
+    import base64
+    require(isinstance(report, dict) and isinstance(manifest, dict), 'Linux runtime producer headers absent')
+    platform, source, version = report.get('platform'), report.get('sourceRevision'), report.get('version')
+    require(report.get('schema') == 'openprose.kernel-rc-build/1' and platform in COMMAND_LOG_PLATFORMS
+            and isinstance(source, str) and re.fullmatch('[0-9a-f]{40}', source)
+            and isinstance(version, str) and re.fullmatch('[A-Za-z0-9][A-Za-z0-9.+_-]{0,127}', version)
+            and manifest.get('schema') == 'openprose.local-release-manifest/1' and manifest.get('mode') == 'kernel-rc'
+            and manifest.get('platform') == platform and manifest.get('version') == version
+            and manifest.get('source') == {'revision': source, 'verification': 'matched-product-doctor'},
+            'Linux runtime producer identity differs')
+    evidence = report.get('evidence')
+    require(isinstance(evidence, dict), 'Linux runtime evidence map absent')
+    if platform.startswith('darwin-'):
+        require(LINUX_RUNTIME_EVIDENCE not in evidence, 'Mac report contains Linux runtime proof'); return None
+    require(isinstance(expected_sources, dict) and set(expected_sources) == set(LINUX_RUNTIME_SOURCE_PATHS)
+            and all(isinstance(h, str) and re.fullmatch('[0-9a-f]{64}', h) for h in expected_sources.values()),
+            'Trusted Linux runtime source map absent or invalid')
+    record = evidence.get(LINUX_RUNTIME_EVIDENCE)
+    require(isinstance(record, dict) and set(record) == {'sha256', 'byteLength'} and isinstance(record['sha256'], str)
+            and re.fullmatch('[0-9a-f]{64}', record['sha256']) and type(record['byteLength']) is int
+            and 0 < record['byteLength'] <= LINUX_RUNTIME_MAX_BYTES, 'Mandatory Linux runtime packet missing or unbounded')
+    raw = read_bytes(LINUX_RUNTIME_EVIDENCE)
+    require(isinstance(raw, bytes) and len(raw) == record['byteLength'] and len(raw) <= LINUX_RUNTIME_MAX_BYTES
+            and hashlib.sha256(raw).hexdigest() == record['sha256'], 'Linux runtime packet differs from evidence')
+    packet = _runtime_json(raw)
+    require(isinstance(packet, dict) and set(packet) == {'schema', 'platform', 'sourceRevision', 'version', 'runtimeReport', 'members'}
+            and packet['schema'] == 'openprose.sdk-linux-runtime-evidence/1' and packet['platform'] == platform
+            and packet['sourceRevision'] == source and packet['version'] == version, 'Linux runtime packet header differs')
+    rows = packet['members']
+    require(isinstance(rows, list) and len(rows) == len(LINUX_RUNTIME_MEMBER_PATHS), 'Linux runtime packet coverage differs')
+    files = {}
+    for name, row in zip(LINUX_RUNTIME_MEMBER_PATHS, rows):
+        require(isinstance(row, dict) and set(row) == {'path', 'sha256', 'byteLength', 'base64'} and row['path'] == name
+                and isinstance(row['sha256'], str) and re.fullmatch('[0-9a-f]{64}', row['sha256'])
+                and type(row['byteLength']) is int and 0 <= row['byteLength'] <= LINUX_RUNTIME_MAX_BYTES
+                and isinstance(row['base64'], str) and len(row['base64']) == 4 * ((row['byteLength'] + 2) // 3),
+                'Linux runtime packet member differs')
+        try: data = base64.b64decode(row['base64'], validate=True)
+        except (ValueError, UnicodeEncodeError) as error: raise ValueError('Invalid Linux runtime base64') from error
+        require(base64.b64encode(data).decode() == row['base64'] and len(data) == row['byteLength']
+                and hashlib.sha256(data).hexdigest() == row['sha256'], 'Linux runtime member bytes differ')
+        files[name] = data
+    for name, digest in expected_sources.items():
+        require(hashlib.sha256(files['sources/' + name]).hexdigest() == digest, 'Linux runtime source differs from trusted checkout')
+    runtime = packet['runtimeReport']; keys = {'schema', 'platform', 'runtime', 'inputs', 'results', 'version', 'modelCalls',
+        'networkUsed', 'networkUsageScope', 'preparationNetworkEnabled', 'cpuFloorQualified', 'qualification', 'publicationAuthorized'}
+    require(isinstance(runtime, dict) and set(runtime) == keys and _runtime_equal(_runtime_json(files['runtime-report.json']), runtime)
+            and runtime['schema'] == 'openprose.sdk-linux-clean-runtime/1' and runtime['platform'] == platform
+            and runtime['version'] == 'prose-agents-sdk 0.1.0' and type(runtime['modelCalls']) is int and runtime['modelCalls'] == 0
+            and runtime['networkUsed'] is False and runtime['networkUsageScope'] == 'runtime-probes-only'
+            and runtime['preparationNetworkEnabled'] is True and runtime['cpuFloorQualified'] is False
+            and runtime['qualification'] == 'native-clean-glibc-2.34-only' and runtime['publicationAuthorized'] is False,
+            'Linux runtime structured claims differ')
+    lock = _runtime_json(files['sources/cli/ci/agents-sdk-linux-runtime.lock.json'])
+    require(isinstance(lock, dict) and set(lock) == {'schema', 'platforms'} and lock['schema'] == 'openprose.sdk-linux-runtime-inputs/1'
+            and isinstance(lock['platforms'], dict) and set(lock['platforms']) == {'linux-x64-gnu', 'linux-arm64-gnu'},
+            'Linux runtime trusted lock differs')
+    machine, oci = ('x86_64', 'amd64') if platform == 'linux-x64-gnu' else ('aarch64', 'arm64')
+    target = lock['platforms'][platform]
+    require(isinstance(target, dict) and set(target) == {'machine', 'dockerPlatform', 'runtime'} and target['machine'] == machine
+            and target['dockerPlatform'] == 'linux/' + oci and isinstance(target['runtime'], dict)
+            and set(target['runtime']) == {'image', 'configSha256', 'metadataUrl', 'indexDigest'}
+            and re.fullmatch(r'quay.io/almalinuxorg/9-minimal@sha256:[0-9a-f]{64}', target['runtime']['image'])
+            and re.fullmatch('[0-9a-f]{64}', target['runtime']['configSha256'])
+            and re.fullmatch('sha256:[0-9a-f]{64}', target['runtime']['indexDigest'])
+            and isinstance(target['runtime']['metadataUrl'], str) and target['runtime']['metadataUrl'].startswith('https://')
+            and runtime['runtime'] == target['runtime'], 'Linux runtime image target differs')
+    inspect = _runtime_json(files['job/inspect-runtime.log'])
+    require(isinstance(inspect, dict) and inspect.get('Id') == 'sha256:' + target['runtime']['configSha256']
+            and inspect.get('Os') == 'linux' and inspect.get('Architecture') == oci
+            and isinstance(inspect.get('RepoDigests'), list) and target['runtime']['image'] in inspect['RepoDigests'],
+            'Linux runtime inspected image differs')
+    validate_sdk_archive_table(manifest, sdk_table)
+    trio = _runtime_sdk_trio(sdk_table); receipt = _runtime_json(trio[SDK_NAMES[1]])
+    helper = trio[SDK_NAMES[0]]
+    require(helper[:6] == b'\x7fELF\x02\x01' and len(helper) >= 20 and int.from_bytes(helper[18:20], 'little') == (62 if machine == 'x86_64' else 183), 'Linux runtime helper ELF architecture differs')
+    inputs = runtime['inputs']
+    slots = {'driverSha256': LINUX_RUNTIME_SOURCE_PATHS[0], 'lockSha256': LINUX_RUNTIME_SOURCE_PATHS[1],
+             'lifecycleSha256': LINUX_RUNTIME_SOURCE_PATHS[2], 'inventorySha256': LINUX_RUNTIME_SOURCE_PATHS[3]}
+    require(isinstance(inputs, dict) and set(inputs) == {'payload', *slots} and isinstance(inputs['payload'], dict)
+            and inputs['payload'] == {name: hashlib.sha256(data).hexdigest() for name, data in trio.items()}
+            and all(inputs[slot] == expected_sources[name] for slot, name in slots.items()), 'Linux runtime input identities differ')
+    snapshot = receipt['linuxBuildSourceSnapshot']
+    require(snapshot['driverSha256'] == inputs['lifecycleSha256']
+            and snapshot['sources']['cli/ci/sdk_native_inventory.py'] == inputs['inventorySha256'],
+            'Linux runtime source differs from frozen construction')
+    results = runtime['results']
+    expected = {'imports': receipt['selfTest'], 'tools': receipt['toolSelfTest'], 'libraries': receipt['linuxLibraries']}
+    require(isinstance(results, dict) and _runtime_equal(results, expected)
+            and all(_runtime_equal(_runtime_json(files['job/' + name + '.log']), value) for name, value in expected.items()),
+            'Linux runtime probe differs from frozen receipt')
+    require(files['job/base.log'] == ('glibc=2.34\narchitecture=' + machine + '\nnoBuildTools=true\n').encode()
+            and files['job/version.log'] == b'prose-agents-sdk 0.1.0\n', 'Linux runtime base or cold version differs')
+    scripts = _runtime_script_contract(files['sources/cli/ci/verify_agents_sdk_linux.py'], machine)
+    require(all(files[name] == content for name, content in scripts.items()), 'Linux runtime probe script contract differs')
+    return runtime
+
+
 def asset_name(platform, relative, artifacts):
     require(isinstance(relative, str), 'Invalid evidence path')
     path = PurePosixPath(relative)
@@ -109,7 +439,7 @@ def validate_sdk_members(manifest, members, prefix, platform, *, historical=None
     require(sdk['path'] == SDK_NAMES[0] and sdk['python'] == '3.10.20'
             and sdk['pyinstaller'] == '6.22.3' and sdk['version'] == '0.1.0'
             and sdk['discovery'] == 'canonical-cli-sibling'
-            and sdk['selfTest'] == SDK_IMPORT_TEST and sdk['toolSelfTest'] == SDK_TOOL_TEST,
+            and _runtime_equal(sdk['selfTest'], SDK_IMPORT_TEST) and _runtime_equal(sdk['toolSelfTest'], SDK_TOOL_TEST),
             'Packaged SDK policy or tool qualification differs')
     require(all(prefix + name in members for name in SDK_NAMES), 'Missing packaged SDK siblings')
     if table is not None:
@@ -129,8 +459,8 @@ def validate_sdk_members(manifest, members, prefix, platform, *, historical=None
     require(receipt.get('schema') == 'openprose.agents-sdk-build/1'
             and receipt.get('platform') == os_name and receipt.get('architecture') == architecture
             and receipt.get('python') == sdk['python'] and receipt.get('pyinstaller') == sdk['pyinstaller']
-            and receipt.get('helper') == {k: sdk[k] for k in ('path', 'byteLength', 'sha256')}
-            and receipt.get('selfTest') == SDK_IMPORT_TEST and receipt.get('toolSelfTest') == SDK_TOOL_TEST
+            and _runtime_equal(receipt.get('helper'), {k: sdk[k] for k in ('path', 'byteLength', 'sha256')})
+            and _runtime_equal(receipt.get('selfTest'), SDK_IMPORT_TEST) and _runtime_equal(receipt.get('toolSelfTest'), SDK_TOOL_TEST)
             and type(receipt.get('modelCalls')) is int and receipt['modelCalls'] == 0
             and receipt.get('publicationAuthorized') is False,
             'Packaged SDK build receipt identity differs')
@@ -140,8 +470,8 @@ def validate_sdk_members(manifest, members, prefix, platform, *, historical=None
         and all(isinstance(v, str) and re.fullmatch(r'[0-9a-f]{64}', v) for v in sources.values())
         and sources['harnesses/agents-sdk/requirements-build.txt'] == sdk['dependencyLockSha256'],
         'Packaged SDK source/lock binding differs')
-    require(receipt.get('notices') == {'path': SDK_NAMES[2], 'byteLength': len(notices),
-                                     'sha256': sdk['noticesSha256']}, 'SDK notices receipt differs')
+    require(_runtime_equal(receipt.get('notices'), {'path': SDK_NAMES[2], 'byteLength': len(notices),
+                                     'sha256': sdk['noticesSha256']}), 'SDK notices receipt differs')
     dependencies = receipt.get('dependencies')
     require(isinstance(dependencies, list) and dependencies, 'SDK dependency receipt is missing')
     seen = set()
@@ -423,6 +753,7 @@ def verify_platform_evidence(plan, root, platform, report_name, binary_hashes):
     require(manifest.get('embeddedDiagnosticImage') == preflight.get('embeddedDiagnosticImage') and manifest.get('kernelPolicy') == preflight.get('kernelPolicy'), 'Native manifest kernel policy differs from qualification')
     artifact_names = {a['path'] for a in manifest.get('artifacts', [])}
     evidence = report.get('evidence', {})
+    validate_producer_command_logs(report, manifest, lambda relative: read_command_log_bytes(root / asset_name(platform, relative, artifact_names)))
     require(isinstance(evidence, dict) and set(CHECK_PATHS + SDK_PROBES).union({'package/release-manifest.json',SDK_PAYLOAD_EVIDENCE}).issubset(evidence), 'Required structured evidence is missing')
     seen = set()
     for relative, record in evidence.items():
@@ -448,6 +779,7 @@ def verify_platform_evidence(plan, root, platform, report_name, binary_hashes):
     def sdk_archive(name):
         table=pub.read_sdk_archive(root/name,manifest);tables.append(table);return table
     validate_sdk_archives(manifest,sdk_archive)
+    validate_linux_runtime_evidence(report, manifest, tables[0], lambda relative: read_command_log_bytes(root / asset_name(platform, relative, artifact_names)), expected_sources=read_linux_runtime_sources(Path(__file__).resolve().parents[2]) if platform.startswith('linux-') else None)
     validate_installed_sdk_payloads(pub.read_json(root/asset_name(platform,SDK_PAYLOAD_EVIDENCE,artifact_names),max_bytes=16*1024*1024),manifest,tables[0])
     validate_sdk_producer_evidence(manifest,tables[0],evidence,lambda relative:(root/asset_name(platform,relative,artifact_names)).read_bytes())
     for relative in SDK_PROBES:

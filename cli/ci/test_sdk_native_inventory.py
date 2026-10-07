@@ -98,7 +98,9 @@ def input_fixture(root, target='linux-x64-gnu'):
     # Canonical encoded URLs exactly match the approved v3 driver lock's full archive pins.
     version = '20260807'
     archive = {'url': 'https://github.com/astral-sh/python-build-standalone/releases/download/' + version + '/cpython-3.10.20%2B' + version + '-' + arch + '-unknown-linux-gnu-pgo%2Blto-full.tar.zst',
-               'sha256': '9e57324fd5e25f485fa5c8c587a2fe02f34a869092abd463e8e816c3cb1d48f2' if arch == 'x86_64' else '9201b2d72f8ea0250d594716cfefd8cd85f7b21a8741ba473fafcde58776c619',
+               # Synthetic provider metadata must not impersonate an inspected
+               # archive whose exact PYTHON.json hash is part of the erratum.
+               'sha256': 'e' * 64,
                'byteLength': 66186516 if arch == 'x86_64' else 65985139, 'targetTriple': arch + '-unknown-linux-gnu',
                'metadataUrl': 'https://api.github.com/repos/astral-sh/python-build-standalone/releases/tags/20260807'}
     value = {'schema': 'openprose.sdk-linux-native-input/1', 'target': target,
@@ -518,6 +520,113 @@ class MacPayloadTests(unittest.TestCase):
             native.validate_macos_payload(**value)
         with mock.patch.object(native, 'SDK_PAYLOAD_MAX_METADATA', 2), self.assertRaisesRegex(ValueError, 'metadata'):
             native.validate_macos_payload(**value)
+
+
+
+
+
+# Actual pinned provider license bytes; source/archive identity is separately tested.
+PBS_ZLIB_LICENSE = b"\n  Copyright (C) 1995-2017 Jean-loup Gailly and Mark Adler\n\n  This software is provided 'as-is', without any express or implied\n  warranty.  In no event will the authors be held liable for any damages\n  arising from the use of this software.\n\n  Permission is granted to anyone to use this software for any purpose,\n  including commercial applications, and to alter it and redistribute it\n  freely, subject to the following restrictions:\n\n  1. The origin of this software must not be misrepresented; you must not\n     claim that you wrote the original software. If you use this software\n     in a product, an acknowledgment in the product documentation would be\n     appreciated but is not required.\n  2. Altered source versions must be plainly marked as such, and must not be\n     misrepresented as being the original software.\n  3. This notice may not be removed or altered from any source distribution.\n\n  Jean-loup Gailly        Mark Adler\n  jloup@gzip.org          madler@alumni.caltech.edu\n"
+
+
+class PythonMetadataErratumTests(unittest.TestCase):
+    def declaration(self):
+        return {'name': 'zlib', 'licenses': ['Zlib'],
+                'licensePaths': ['licenses/LICENSE.zlib-ng.txt', 'licenses/LICENSE.zlib.txt']}
+
+    def constructor_fixture(self, root, target):
+        value, _, _, _ = input_fixture(root, target)
+        python = Path(value['pythonDistribution']['root']); metadata = python / 'PYTHON.json'
+        info = json.loads(metadata.read_bytes())
+        info['build_info']['extensions']['zlib'] = [{'variant': 'default',
+            'links': [{'name': 'z', 'path_static': 'build/lib/libz.a'}], 'licenses': ['Zlib'],
+            'license_paths': self.declaration()['licensePaths']}]
+        metadata.write_text(json.dumps(info))
+        (python / 'licenses').mkdir(); (python / 'licenses/LICENSE.zlib.txt').write_bytes(PBS_ZLIB_LICENSE)
+        archive_sha, metadata_sha = native.PBS_ZLIB_PARENTS[value['pythonArchive']['targetTriple']]
+        value['pythonArchive']['sha256'] = archive_sha
+        # Controlled metadata authentication seam models a verified upstream
+        # record without embedding two entire94KB upstream JSON files here.
+        original_sha = native.sha; metadata_bytes = metadata.read_bytes()
+        digest = lambda data: metadata_sha if data == metadata_bytes else original_sha(data)
+        return value, python, mock.patch.object(native, 'sha', side_effect=digest)
+
+    def portable_fixture(self, root, target):
+        value, _, _, _ = input_fixture(root, target)
+        machine = 62 if target == 'linux-x64-gnu' else 183
+        rows, origins = native.assign_origins([native.elf_record('libgcc_s.so.1', elf(machine=machine))], value, [], lambda _: None)
+        python = origins['python']; archive_sha, metadata_sha = native.PBS_ZLIB_PARENTS[python['archive']['targetTriple']]
+        python['archive']['sha256'] = archive_sha; python['metadataSha256'] = metadata_sha
+        python['declaredExtensionLicenses'] = [self.declaration()]
+        python['licenses'].append(native.record('licenses/LICENSE.zlib.txt', PBS_ZLIB_LICENSE))
+        python['metadataErrata'] = native.python_metadata_errata(python['archive'], metadata_sha, python['declaredExtensionLicenses'])
+        return {'libraries': rows, 'symbolClosureVerified': True,
+                'libgccSelection': {**native.record('libgcc_s.so.1', elf(machine=machine)), 'analysisTocSha256': 'a' * 64}, 'origins': origins}
+
+    def test_both_pinned_constructor_mappings_keep_original_declaration(self):
+        for target in ('linux-x64-gnu', 'linux-arm64-gnu'):
+            with self.subTest(target=target), tempfile.TemporaryDirectory() as temp:
+                value, _, authenticated = self.constructor_fixture(Path(temp), target)
+                with authenticated: origin, _ = native.python_origin(value)
+                self.assertEqual(origin['declaredExtensionLicenses'], [self.declaration()])
+                self.assertEqual(len(origin['metadataErrata']), 1)
+                self.assertEqual(origin['metadataErrata'][0]['extension']['effectiveLicensePaths'], ['licenses/LICENSE.zlib.txt'])
+                self.assertEqual({r['path'] for r in origin['licenses']}, {'LICENSE', 'licenses/LICENSE.zlib.txt'})
+
+    def test_known_parent_cannot_downgrade_or_mix_identities(self):
+        archive_sha, metadata_sha = native.PBS_ZLIB_PARENTS['x86_64-unknown-linux-gnu']
+        archive = {'sha256': archive_sha, 'targetTriple': 'x86_64-unknown-linux-gnu'}
+        for changed_archive, changed_meta in [({**archive, 'sha256': '0' * 64}, metadata_sha),
+                (archive, '0' * 64), ({**archive, 'targetTriple': 'aarch64-unknown-linux-gnu'}, metadata_sha)]:
+            with self.assertRaises(ValueError): native.python_metadata_errata(changed_archive, changed_meta, [self.declaration()])
+        for declarations in ([], [self.declaration(), self.declaration()], [None], ['zlib']):
+            with self.assertRaises(ValueError): native.python_metadata_errata(archive, metadata_sha, declarations)
+
+    def test_constructor_requires_absent_omitted_leaf_and_exact_actual_text(self):
+        for poison in ('present', 'dangling', 'retained-alias', 'retained-bytes', 'missing-other'):
+            with self.subTest(poison=poison), tempfile.TemporaryDirectory() as temp:
+                value, root, authenticated = self.constructor_fixture(Path(temp), 'linux-x64-gnu')
+                retained = root / 'licenses/LICENSE.zlib.txt'; omitted = root / 'licenses/LICENSE.zlib-ng.txt'
+                if poison == 'present': omitted.write_bytes(PBS_ZLIB_LICENSE)
+                elif poison == 'dangling': omitted.symlink_to('absent')
+                elif poison == 'retained-alias': retained.rename(root / 'text'); retained.symlink_to('../text')
+                elif poison == 'retained-bytes': retained.write_bytes(b'wrong license')
+                else: (root / 'LICENSE').unlink()
+                with authenticated, self.assertRaises(ValueError): native.python_origin(value)
+
+    def test_portable_mapping_and_every_fixed_field_are_closed_on_both_targets(self):
+        for target in ('linux-x64-gnu', 'linux-arm64-gnu'):
+            with tempfile.TemporaryDirectory() as temp:
+                original = self.portable_fixture(Path(temp), target)
+                self.assertEqual(native.validate_native_dependencies(original, target), original)
+                mutations = [lambda p: p.update(metadataErrata=[]), lambda p: p.pop('metadataErrata'),
+                    lambda p: p.update(declaredExtensionLicenses=[]),
+                    lambda p: p['declaredExtensionLicenses'].append(self.declaration()),
+                    lambda p: p['declaredExtensionLicenses'][0].update(licenses=['MIT']),
+                    lambda p: p['metadataErrata'].append(copy.deepcopy(p['metadataErrata'][0])),
+                    lambda p: p['metadataErrata'][0].update(extra=True),
+                    lambda p: p['metadataErrata'][0].update(upstreamCommit='0' * 40),
+                    lambda p: p['metadataErrata'][0]['sourceSha256s'].update({'pythonbuild/utils.py': '0' * 64}),
+                    lambda p: p['metadataErrata'][0]['extension'].update(variant='other'),
+                    lambda p: p['metadataErrata'][0]['extension'].update(links=[]),
+                    lambda p: p['metadataErrata'][0]['extension'].update(effectiveLicensePaths=[]),
+                    lambda p: p['metadataErrata'][0]['retainedLicense'].update(byteLength=995.0),
+                    lambda p: p['licenses'][-1].update(sha256='0' * 64),
+                    lambda p: p['licenses'][-1].update(byteLength=994),
+                    lambda p: p.update(declaredExtensionLicenses=[None])]
+                for mutate in mutations:
+                    changed = copy.deepcopy(original); mutate(changed['origins']['python'])
+                    with self.assertRaises(ValueError): native.validate_native_dependencies(changed, target)
+
+    def test_unknown_provider_never_skips_missing_declared_text(self):
+        with tempfile.TemporaryDirectory() as temp:
+            value, _, _, _ = input_fixture(Path(temp))
+            root = Path(value['pythonDistribution']['root']); metadata = root / 'PYTHON.json'
+            origin, _ = native.python_origin(value); self.assertEqual(origin['metadataErrata'], [])
+            info = json.loads(metadata.read_bytes()); info['build_info']['extensions']['zlib'] = [
+                {'licenses': ['Zlib'], 'license_paths': self.declaration()['licensePaths']}]
+            metadata.write_text(json.dumps(info))
+            with self.assertRaises(ValueError): native.python_origin(value)
 
 
 if __name__ == '__main__':

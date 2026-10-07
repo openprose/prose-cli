@@ -1,4 +1,5 @@
 import hashlib
+import base64
 import io
 import json
 from pathlib import Path
@@ -25,6 +26,9 @@ def linux_receipt_fixture(platform='linux-x64-gnu'):
         snapshot = value['sourceSnapshot']
         snapshot['sources']['harnesses/agents-sdk/run.py'] = 'f' * 64
         snapshot['sources']['harnesses/agents-sdk/requirements-build.txt'] = 'e' * 64
+        # Source custody is real; the native bytes/results remain synthetic.
+        snapshot['driverSha256'] = p.digest(package.CLI.parent / 'cli/ci/build_agents_sdk_linux.py')
+        snapshot['sources']['cli/ci/sdk_native_inventory.py'] = p.digest(package.CLI.parent / 'cli/ci/sdk_native_inventory.py')
         return {'linuxBuildInputSha256': native.sha(('synthetic-native-input-' + platform).encode()), 'linuxBuildSourceSnapshot': snapshot,
                 'nativeDependencies': {'libraries': rows, 'symbolClosureVerified': True, 'origins': origins,
                     'libgccSelection': {**native.record('libgcc_s.so.1', library.read_bytes()), 'analysisTocSha256': 'a' * 64}},
@@ -35,6 +39,9 @@ def linux_receipt_fixture(platform='linux-x64-gnu'):
 def sdk_fixture(platform):
     """Hermetic bytes with production-shaped custody; never executable release evidence."""
     helper = ('fixture-sdk-' + platform).encode(); notices = b'fixture-notices'
+    if platform.startswith('linux'):
+        from test_sdk_native_inventory import elf
+        helper = elf(machine=62 if platform == 'linux-x64-gnu' else 183)
     sha = lambda data: hashlib.sha256(data).hexdigest()
     sdk = {'path': 'prose-agents-sdk', 'byteLength': len(helper), 'sha256': sha(helper),
            'noticesSha256': sha(notices), 'python': '3.10.20', 'pyinstaller': '6.22.3', 'version': '0.1.0',
@@ -63,7 +70,7 @@ class AssemblyTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
-        self.root = Path(self.temp.name)
+        self.root = Path(self.temp.name).resolve()
         self.roots = []
         self.source = 'a' * 40
         self.version = '0.15.0-rc.1'
@@ -118,6 +125,16 @@ class AssemblyTests(unittest.TestCase):
                     (root / relative).write_bytes(encoded)
             evidence = {str(f.relative_to(root)): {'sha256': p.digest(f), 'byteLength': f.stat().st_size} for directory in (output, logs) for f in directory.iterdir()}
             report = {'schema': 'openprose.kernel-rc-build/1', 'platform': platform, 'version': self.version, 'sourceRevision': self.source, 'imageSource': 'published-on-run', 'testSeamsEnabled': False, 'qualification': 'offline-install-only', 'publicationAuthorized': False, 'modelCalls': 0, 'kernelFetches': 0, 'checks': [{'name': n, 'status': 'passed'} for n in ('built-bun','built-rust','installed-bun','installed-rust','installed-npm')], 'evidence': evidence}
+            from test_kernel_rc_evidence import producer_command_log_fixture
+            for relative, encoded in producer_command_log_fixture(report).items():
+                (root / relative).write_bytes(encoded)
+                report['evidence'][relative] = {'sha256': p.digest(root / relative), 'byteLength': len(encoded)}
+            if platform.startswith('linux'):
+                from test_kernel_rc_evidence import linux_runtime_fixture
+                relative = custody.LINUX_RUNTIME_EVIDENCE
+                encoded = linux_runtime_fixture(report, manifest, sdk_members, package.CLI.parent)[relative]
+                (root / relative).write_bytes(encoded)
+                report['evidence'][relative] = {'sha256': p.digest(root / relative), 'byteLength': len(encoded)}
             (root / 'build-report.json').write_text(json.dumps(report))
         self.evidence = 'https://github.com/openprose/example-evidence/tree/' + 'b'*40 + '/test'
 
@@ -152,6 +169,121 @@ class AssemblyTests(unittest.TestCase):
         self.assertEqual(len([x for x in plan['artifacts'] if x['kind'] == 'npm']), 5)
         with self.assertRaisesRegex(ValueError, 'Kernel qualification'):
             p.load_plan(self.root/'assembly/publication-plan.json')
+
+    def test_command_bundle_is_required_and_rehashed_raw_poison_refuses_before_output(self):
+        root = self.roots[0]; report_path = root / 'build-report.json'
+        report = json.loads(report_path.read_bytes()); path = root / custody.COMMAND_LOG_EVIDENCE
+        original = path.read_bytes(); del report['evidence'][custody.COMMAND_LOG_EVIDENCE]
+        report_path.write_text(json.dumps(report))
+        missing = self.root / 'missing-command-bundle'
+        with self.assertRaises(ValueError): a.assemble(self.roots, missing, self.evidence)
+        self.assertFalse(missing.exists())
+        bundle = json.loads(original); bundle['members'][0]['base64'] = 'eA=='
+        path.write_text(json.dumps(bundle)); report['evidence'][custody.COMMAND_LOG_EVIDENCE] = {
+            'sha256': p.digest(path), 'byteLength': path.stat().st_size}
+        report_path.write_text(json.dumps(report))
+        poisoned = self.root / 'poisoned-command-bundle'
+        with self.assertRaises(ValueError): a.assemble(self.roots, poisoned, self.evidence)
+        self.assertFalse(poisoned.exists())
+
+    def test_actual_cohort_reserves_all_live_names_and_refuses_before_copy(self):
+        baseline = a.assemble(self.roots, self.root / 'budget-baseline', self.evidence)
+        reserved_live = len(custody.LIVE_ROLES) * 2
+        self.assertEqual(reserved_live, 16)
+        available = 128 - reserved_live - len(baseline['artifacts'])
+        self.assertGreater(available, 0)
+        root = self.roots[0]; report_path = root / 'build-report.json'; report = json.loads(report_path.read_bytes())
+        for index in range(available):
+            relative = 'logs/extra-opaque-' + str(index) + '.log'; path = root / relative
+            path.write_bytes(b'unknown log retained separately')
+            report['evidence'][relative] = {'sha256': p.digest(path), 'byteLength': path.stat().st_size}
+        report_path.write_text(json.dumps(report))
+        offline = a.assemble(self.roots, self.root / 'budget-boundary', self.evidence)
+        self.assertEqual(len(offline['artifacts']) + reserved_live, 128)
+        live_path = self.root / 'budget-live.json'; live_path.write_text(json.dumps(self.live_report()))
+        complete = a.assemble(self.roots, self.root / 'budget-with-live', self.evidence, live_path)
+        self.assertEqual(len(complete['artifacts']), 128)
+        self.assertEqual(len([row for row in complete['artifacts'] if row['name'].startswith('live-')]), 16)
+        names = {row['name'] for row in complete['artifacts']}
+        for platform in p.PLATFORMS:
+            for relative in (*custody.CHECK_PATHS, *custody.SDK_PROBES,
+                             custody.SDK_PAYLOAD_EVIDENCE, custody.COMMAND_LOG_EVIDENCE):
+                self.assertIn(platform + '-logs-' + Path(relative).name, names)
+            if platform.startswith('darwin'):
+                for relative in (custody.SDK_SIGNATURE_EVIDENCE, custody.SDK_COLLECT_EVIDENCE):
+                    self.assertIn(platform + '-logs-' + Path(relative).name, names)
+            else:
+                self.assertIn(platform + '-logs-' + Path(custody.LINUX_RUNTIME_EVIDENCE).name, names)
+        relative = 'logs/one-too-many-opaque.log'; path = root / relative; path.write_bytes(b'kept')
+        report['evidence'][relative] = {'sha256': p.digest(path), 'byteLength': path.stat().st_size}
+        report_path.write_text(json.dumps(report))
+        output = self.root / 'over-budget-before-copy'
+        with self.assertRaises(ValueError): a.assemble(self.roots, output, self.evidence)
+        self.assertFalse(output.exists())
+
+    def test_linux_runtime_packet_is_mandatory_before_output(self):
+        for platform in ('linux-x64-gnu', 'linux-arm64-gnu'):
+            root = next(root for root in self.roots if root.name == platform)
+            path = root / 'build-report.json'; original = path.read_bytes(); report = json.loads(original)
+            del report['evidence'][custody.LINUX_RUNTIME_EVIDENCE]; path.write_text(json.dumps(report))
+            output = self.root / ('missing-runtime-' + platform)
+            with self.assertRaises(ValueError): a.assemble(self.roots, output, self.evidence)
+            self.assertFalse(output.exists()); path.write_bytes(original)
+
+    def test_rehashed_linux_runtime_source_result_script_or_record_poison_refuses(self):
+        root = next(root for root in self.roots if root.name == 'linux-x64-gnu')
+        path = root / custody.LINUX_RUNTIME_EVIDENCE; original = path.read_bytes()
+        report_path = root / 'build-report.json'; original_report = report_path.read_bytes()
+        def replace(bundle, name, data):
+            row = next(row for row in bundle['members'] if row['path'] == name)
+            row.update(base64=base64.b64encode(data).decode(), sha256=hashlib.sha256(data).hexdigest(), byteLength=len(data))
+        for poison in ('source', 'result', 'script', 'member', 'oversize'):
+            bundle = json.loads(original)
+            if poison == 'source': replace(bundle, 'sources/cli/ci/sdk_native_inventory.py', b'wrong trusted source')
+            elif poison == 'result':
+                bundle['runtimeReport']['results']['imports']['modelCalls'] = 1
+                replace(bundle, 'runtime-report.json', json.dumps(bundle['runtimeReport']).encode())
+                replace(bundle, 'job/imports.log', json.dumps(bundle['runtimeReport']['results']['imports']).encode())
+            elif poison == 'script': replace(bundle, 'job/version.sh', b'timeout --kill-after=1s 6s /source/prose-agents-sdk --version\n')
+            elif poison == 'member': bundle['members'].pop()
+            encoded = json.dumps(bundle).encode()
+            if poison == 'oversize': encoded += b' ' * (16 * 1024 * 1024 + 1 - len(encoded))
+            path.write_bytes(encoded); report = json.loads(original_report)
+            report['evidence'][custody.LINUX_RUNTIME_EVIDENCE] = {'sha256': p.digest(path), 'byteLength': len(encoded)}
+            report_path.write_text(json.dumps(report)); output = self.root / ('poison-runtime-' + poison)
+            with self.subTest(poison=poison), self.assertRaises(ValueError): a.assemble(self.roots, output, self.evidence)
+            self.assertFalse(output.exists())
+        path.write_bytes(original); report_path.write_bytes(original_report)
+
+    def resize_installed_sdk_evidence(self, byte_length):
+        root = next(root for root in self.roots if root.name == 'darwin-arm64')
+        path = root / custody.SDK_PAYLOAD_EVIDENCE
+        original = path.read_bytes()
+        self.assertLess(len(original), byte_length)
+        path.write_bytes(original + b' ' * (byte_length - len(original)))
+        self.assertEqual(path.stat().st_size, byte_length)
+        self.assertEqual(json.loads(path.read_bytes()), json.loads(original))
+        report_path = root / 'build-report.json'
+        report = json.loads(report_path.read_bytes())
+        report['evidence'][custody.SDK_PAYLOAD_EVIDENCE] = {
+            'sha256': p.digest(path), 'byteLength': path.stat().st_size}
+        report_path.write_text(json.dumps(report))
+        return root, path
+
+    def test_complete_sdk_evidence_above_generic_json_limit_assembles(self):
+        _, path = self.resize_installed_sdk_evidence(1024 * 1024 + 128)
+        with self.assertRaisesRegex(ValueError, 'Invalid JSON file'):
+            p.read_json(path)
+        plan = a.assemble(self.roots, self.root / 'large-sdk-assembly', self.evidence)
+        self.assertEqual(plan['qualification']['status'], 'development')
+        self.assertTrue((self.root / 'large-sdk-assembly/publication-plan.json').is_file())
+
+    def test_complete_sdk_evidence_above_specific_json_limit_refuses_assembly(self):
+        self.resize_installed_sdk_evidence(16 * 1024 * 1024 + 1)
+        output = self.root / 'oversize-sdk-assembly'
+        with self.assertRaisesRegex(ValueError, 'Invalid JSON file'):
+            a.assemble(self.roots, output, self.evidence)
+        self.assertFalse(output.exists())
 
     def test_aggregate_checksums_bind_only_all_install_archives(self):
         output = self.root / 'checksums'

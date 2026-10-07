@@ -34,6 +34,139 @@ def digest(path):
     return h.hexdigest()
 
 
+def write_installed_sdk_payloads(path, records):
+    """Write the fixed custody order, independent of package artifact order."""
+    surfaces = ('installed-bun', 'installed-rust', 'installed-npm')
+    require(isinstance(records, list) and len(records) == len(surfaces),
+            'Three installed SDK payload surfaces required')
+    by_surface = {}
+    for record in records:
+        require(isinstance(record, dict) and set(record) == {'surface', 'before', 'after'}
+                and record['surface'] in surfaces and record['surface'] not in by_surface
+                and record['before'] == record['after'],
+                'Installed SDK payload surface identity differs')
+        by_surface[record['surface']] = record
+    encoded = json.dumps([by_surface[surface] for surface in surfaces], sort_keys=True).encode('utf-8') + b'\n'
+    require(len(encoded) <= 16 * 1024 * 1024, 'Installed SDK payload record exceeds evidence bound')
+    path.write_bytes(encoded)
+
+
+def producer_command_log_evidence(output, report, manifest):
+    """Bundle only closed opaque logs; preserve originals and all other evidence."""
+    platform_id = manifest['platform']
+    require(platform_id in sdk_custody.COMMAND_LOG_PLATFORMS, 'Unsupported command-log platform')
+    names = (sdk_custody.COMMAND_LOG_MAC_MEMBERS if platform_id.startswith('darwin-')
+             else sdk_custody.COMMAND_LOG_LINUX_MEMBERS)
+    target = output / sdk_custody.COMMAND_LOG_EVIDENCE
+    require(not target.exists() and not target.is_symlink(), 'Command-log bundle must be fresh')
+    require(sdk_custody.COMMAND_LOG_EVIDENCE not in report['evidence'], 'Command-log bundle already recorded')
+    def stat_identity(path):
+        info = path.lstat()
+        return tuple(getattr(info, key) for key in
+                     ('st_dev', 'st_ino', 'st_mode', 'st_uid', 'st_size', 'st_mtime_ns', 'st_ctime_ns'))
+    rows = []; originals = {}; original_metadata = {}; raw_total = encoded_total = 0
+    for name in names:
+        original_metadata[name] = stat_identity(output / name)
+        data = sdk_custody.read_command_log_bytes(output / name)
+        require(stat_identity(output / name) == original_metadata[name], 'Original command-log metadata changed')
+        raw_total += len(data); encoded_total += 4 * ((len(data) + 2) // 3)
+        require(raw_total <= sdk_custody.COMMAND_LOG_MAX_BYTES
+                and encoded_total <= sdk_custody.COMMAND_LOG_MAX_BYTES,
+                'Command-log bundle exceeds evidence bound')
+        identity = {'sha256': hashlib.sha256(data).hexdigest(), 'byteLength': len(data)}
+        recorded = report['evidence'].get(name)
+        require(isinstance(recorded, dict) and type(recorded.get('byteLength')) is int
+                and recorded == identity, 'Original command-log evidence changed')
+        rows.append({'path': name, **identity, 'base64': base64.b64encode(data).decode('ascii')})
+        originals[name] = data
+    bundle = {'schema': 'openprose.kernel-rc-command-logs/1', 'platform': platform_id,
+              'sourceRevision': report['sourceRevision'], 'version': report['version'], 'members': rows}
+    encoded = json.dumps(bundle, sort_keys=True).encode('utf-8') + b'\n'
+    require(0 < len(encoded) <= sdk_custody.COMMAND_LOG_MAX_BYTES, 'Command-log bundle exceeds evidence bound')
+    evidence = {name: record for name, record in report['evidence'].items() if name not in originals}
+    evidence[sdk_custody.COMMAND_LOG_EVIDENCE] = {'sha256': hashlib.sha256(encoded).hexdigest(), 'byteLength': len(encoded)}
+    prospective = {**report, 'evidence': evidence}
+    decoded = sdk_custody.validate_producer_command_logs(prospective, manifest,
+        lambda name: encoded if name == sdk_custody.COMMAND_LOG_EVIDENCE else None)
+    require(decoded == originals, 'Command-log bundle differs from original bytes')
+    for name, data in originals.items():
+        require(sdk_custody.read_command_log_bytes(output / name) == data,
+                'Original command-log bytes changed before bundling')
+        require(stat_identity(output / name) == original_metadata[name], 'Original command-log metadata changed')
+    with target.open('xb') as stream:
+        stream.write(encoded)
+    require(sdk_custody.read_command_log_bytes(target) == encoded, 'Written command-log bundle changed')
+    require(all(stat_identity(output / name) == original_metadata[name] for name in originals),
+            'Original command-log metadata changed after bundling')
+    return evidence
+
+
+def producer_linux_runtime_evidence(output, report, manifest, sdk_table, *, source_root):
+    """Retain the closed runtime proof without flattening its physical tree."""
+    if not manifest['platform'].startswith('linux-'):
+        sdk_custody.validate_linux_runtime_evidence(report, manifest, sdk_table,
+            lambda name: sdk_custody.read_command_log_bytes(output / name), expected_sources=None)
+        return dict(report['evidence'])
+    target = output / sdk_custody.LINUX_RUNTIME_EVIDENCE
+    require(not target.exists() and not target.is_symlink(), 'Linux runtime packet must be fresh')
+    require(sdk_custody.LINUX_RUNTIME_EVIDENCE not in report['evidence'], 'Linux runtime packet already recorded')
+    runtime_root = output / 'agents-sdk-runtime'
+    raw_report = sdk_custody.read_command_log_bytes(runtime_root / 'runtime-report.json')
+    runtime_report = json.loads(raw_report, object_pairs_hook=pub.object_pairs)
+    expected_sources = sdk_custody.read_linux_runtime_sources(source_root)
+    sdk_custody.validate_linux_runtime_tree(runtime_root, runtime_report, sdk_table)
+    def stat_identity(path):
+        info = path.lstat()
+        return tuple(getattr(info, key) for key in
+                     ('st_dev', 'st_ino', 'st_mode', 'st_uid', 'st_size', 'st_mtime_ns', 'st_ctime_ns'))
+    rows = []; originals = {}; metadata = {}; raw_total = encoded_total = 0
+    for name in sdk_custody.LINUX_RUNTIME_MEMBER_PATHS:
+        if name.startswith('sources/'):
+            relative = name[len('sources/'):]
+            require(relative in expected_sources, 'Unknown Linux runtime source')
+            path = source_root / relative
+        else:
+            path = runtime_root / name
+        metadata[path] = stat_identity(path)
+        data = sdk_custody.read_command_log_bytes(path)
+        require(stat_identity(path) == metadata[path], 'Linux runtime member metadata changed')
+        raw_total += len(data); encoded_total += 4 * ((len(data) + 2) // 3)
+        require(raw_total <= sdk_custody.LINUX_RUNTIME_MAX_BYTES
+                and encoded_total <= sdk_custody.LINUX_RUNTIME_MAX_BYTES,
+                'Linux runtime packet exceeds evidence bound')
+        digest_value = hashlib.sha256(data).hexdigest()
+        if name.startswith('sources/'):
+            require(digest_value == expected_sources[relative], 'Linux runtime trusted source changed')
+        rows.append({'path': name, 'sha256': digest_value, 'byteLength': len(data),
+                     'base64': base64.b64encode(data).decode('ascii')})
+        originals[path] = data
+    packet = {'schema': 'openprose.sdk-linux-runtime-evidence/1', 'platform': manifest['platform'],
+              'sourceRevision': report['sourceRevision'], 'version': report['version'],
+              'runtimeReport': runtime_report, 'members': rows}
+    encoded = json.dumps(packet, sort_keys=True).encode('utf-8') + b'\n'
+    require(0 < len(encoded) <= sdk_custody.LINUX_RUNTIME_MAX_BYTES, 'Linux runtime packet exceeds evidence bound')
+    evidence = {**report['evidence'], sdk_custody.LINUX_RUNTIME_EVIDENCE:
+                {'sha256': hashlib.sha256(encoded).hexdigest(), 'byteLength': len(encoded)}}
+    prospective = {**report, 'evidence': evidence}
+    require(sdk_custody.validate_linux_runtime_evidence(prospective, manifest, sdk_table,
+        lambda name: encoded if name == sdk_custody.LINUX_RUNTIME_EVIDENCE else None,
+        expected_sources=expected_sources) == runtime_report, 'Linux runtime packet proof differs')
+    for path, data in originals.items():
+        require(sdk_custody.read_command_log_bytes(path) == data and stat_identity(path) == metadata[path],
+                'Linux runtime original changed before packet write')
+    require(sdk_custody.read_linux_runtime_sources(source_root) == expected_sources, 'Linux runtime source snapshot changed')
+    sdk_custody.validate_linux_runtime_tree(runtime_root, runtime_report, sdk_table)
+    with target.open('xb') as stream:
+        stream.write(encoded)
+    require(sdk_custody.validate_linux_runtime_evidence(prospective, manifest, sdk_table,
+        lambda name: sdk_custody.read_command_log_bytes(output / name),
+        expected_sources=expected_sources) == runtime_report, 'Written Linux runtime packet proof differs')
+    require(all(stat_identity(path) == metadata[path] for path in originals), 'Linux runtime original metadata changed')
+    require(sdk_custody.read_linux_runtime_sources(source_root) == expected_sources, 'Linux runtime source snapshot changed')
+    sdk_custody.validate_linux_runtime_tree(runtime_root, runtime_report, sdk_table)
+    return evidence
+
+
 def environment(output, ambient):
     """Keep tool caches, but exclude credentials, user npm config and image overrides."""
     env = {k: ambient[k] for k in ('PATH', 'DEVELOPER_DIR', 'SDKROOT') if k in ambient}
@@ -300,9 +433,7 @@ def build(version, output, *, agents_sdk_python=None, linux_python_archive=None)
     sdk_after = installed_sdk_identity(installed_helpers[0].parent, manifest)
     require(sdk_after == sdk_before, 'Installed npm SDK tree changed during probes')
     sdk_records.append({'surface': 'installed-npm', 'before': sdk_before, 'after': sdk_after})
-    sdk_encoded = json.dumps(sdk_records, sort_keys=True).encode('utf-8') + b'\n'
-    require(len(sdk_encoded) <= 16 * 1024 * 1024, 'Installed SDK payload record exceeds evidence bound')
-    (logs / 'installed-sdk-payloads.json').write_bytes(sdk_encoded)
+    write_installed_sdk_payloads(logs / 'installed-sdk-payloads.json', sdk_records)
     report = {'schema': 'openprose.kernel-rc-build/1', 'version': version, 'sourceRevision': revision,
               'platform': manifest['platform'], 'imageSource': 'published-on-run', 'testSeamsEnabled': False,
               'signing': 'unsigned', 'modelCalls': 0, 'kernelFetches': 0,
@@ -311,15 +442,12 @@ def build(version, output, *, agents_sdk_python=None, linux_python_archive=None)
               'evidence': {str(p.relative_to(output)): {'sha256': digest(p), 'byteLength': p.stat().st_size} for directory in (logs, package)
                            for p in sorted(directory.rglob('*')) if p.is_file()}}
     report['evidence'].update(sdk_producer_evidence(output, sdk_output))
-    if manifest['platform'].startswith('darwin-'):
-        producer_archive = next(package / item['path'] for item in manifest['artifacts'] if item['kind'] == 'standalone-archive')
-        sdk_custody.validate_sdk_producer_evidence(manifest, pub.read_sdk_archive(producer_archive, manifest),
-            report['evidence'], lambda name: (output / name).read_bytes())
-    if sys.platform.startswith('linux'):
-        native_evidence = output / 'agents-sdk-runtime'
-        report['evidence'].update({str(p.relative_to(output)): {'sha256': digest(p), 'byteLength': p.stat().st_size}
-                                  for p in sorted(native_evidence.rglob('*'))
-                                  if p.is_file() and not p.is_symlink() and 'payload' not in p.relative_to(native_evidence).parts})
+    producer_archive = next(package / item['path'] for item in manifest['artifacts'] if item['kind'] == 'standalone-archive')
+    sdk_table = pub.read_sdk_archive(producer_archive, manifest)
+    sdk_custody.validate_sdk_producer_evidence(manifest, sdk_table,
+        report['evidence'], lambda name: (output / name).read_bytes())
+    report['evidence'] = producer_command_log_evidence(output, report, manifest)
+    report['evidence'] = producer_linux_runtime_evidence(output, report, manifest, sdk_table, source_root=ROOT)
     (output / 'build-report.json').write_text(json.dumps(report, indent=2, sort_keys=True) + '\n')
     return report
 

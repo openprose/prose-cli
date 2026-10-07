@@ -174,6 +174,7 @@ def verify_kernel_rc(root: Path, expected_source: str, expected_version: str) ->
                         and path.is_file() and not path.is_symlink()
                         and path.stat().st_size == record['byteLength'] and pub.digest(path) == record['sha256'],
                         'Native evidence identity mismatch: ' + relative)
+    custody.validate_producer_command_logs(report, manifest, lambda relative: custody.read_command_log_bytes(root / relative))
     for item in artifacts:
         name = item['path']
         custody.require(isinstance(name, str) and SAFE_NAME.fullmatch(name) and '..' not in name,
@@ -214,8 +215,12 @@ def verify_kernel_rc(root: Path, expected_source: str, expected_version: str) ->
     custody.validate_native(report, manifest, checks, hashes, launcher_hash)
     if 'agentsSdk' in manifest:
         custody.require(custody.SDK_PAYLOAD_EVIDENCE in evidence, 'Missing complete installed SDK payload evidence')
-        custody.validate_installed_sdk_payloads(pub.read_json(root / custody.SDK_PAYLOAD_EVIDENCE), manifest, npm_table)
+        custody.validate_installed_sdk_payloads(pub.read_json(root / custody.SDK_PAYLOAD_EVIDENCE, max_bytes=16*1024*1024), manifest, npm_table)
         custody.validate_sdk_producer_evidence(manifest, npm_table, evidence, lambda relative: (root / relative).read_bytes())
+    custody.validate_linux_runtime_evidence(report, manifest, npm_table if 'agentsSdk' in manifest else None,
+        lambda relative: custody.read_command_log_bytes(root / relative),
+        expected_sources=custody.read_linux_runtime_sources(Path(__file__).resolve().parents[2])
+            if manifest['platform'].startswith('linux-') else None)
     # Original build trees retain these files; uploaded artifact trees retain the
     # built probes instead. Both bind to the exact packaged executable hashes.
     binaries = root / 'binaries'

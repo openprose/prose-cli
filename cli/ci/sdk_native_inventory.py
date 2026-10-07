@@ -364,6 +364,44 @@ def validate_input(path, supplier, source_root, target):
     return value, sha(data), texts
 
 
+# PBS 20260807 generator unions both downloads' licenses for library name "z";
+# Unix build-zlib.sh selects zlib. These inspected pins alone admit the erratum:
+# https://github.com/astral-sh/python-build-standalone/tree/00c8a06113f11220667c3bcf5fab1672ff9e78ef
+PBS_ZLIB_PARENTS = {
+    'x86_64-unknown-linux-gnu': ('9e57324fd5e25f485fa5c8c587a2fe02f34a869092abd463e8e816c3cb1d48f2',
+                               '181c0b9324c9f7c3bcd19464a8e49153bf086016c79330792e2b3dc59e22b359'),
+    'aarch64-unknown-linux-gnu': ('9201b2d72f8ea0250d594716cfefd8cd85f7b21a8741ba473fafcde58776c619',
+                                '277d87ea8c5603e11d5793b4cb3f59c06cc950a136fa9cbb15f3ae0a2f7264fa'),
+}
+
+
+def python_metadata_errata(archive, metadata_sha, declarations):
+    """Only the inspected PBS metadata overclaim has an effective-path mapping."""
+    require(isinstance(declarations, list) and all(isinstance(row, dict) for row in declarations),
+            'Invalid Python extension license declarations')
+    recognized = archive['sha256'] in {row[0] for row in PBS_ZLIB_PARENTS.values()} or metadata_sha in {
+        row[1] for row in PBS_ZLIB_PARENTS.values()}
+    if not recognized: return []
+    pair = PBS_ZLIB_PARENTS.get(archive['targetTriple'])
+    require(pair == (archive['sha256'], metadata_sha), 'Mismatched recognized Python metadata parent')
+    original = ['licenses/LICENSE.zlib-ng.txt', 'licenses/LICENSE.zlib.txt']
+    zlib = [row for row in declarations if row.get('name') == 'zlib']
+    require(zlib == [{'name': 'zlib', 'licenses': ['Zlib'], 'licensePaths': original}],
+            'Recognized Python metadata requires unchanged unique zlib declaration')
+    return [{'schema': 'openprose.pbs-license-metadata-erratum/1',
+             'archiveSha256': pair[0], 'metadataSha256': pair[1], 'targetTriple': archive['targetTriple'],
+             'extension': {'name': 'zlib', 'variant': 'default',
+                           'links': [{'name': 'z', 'path_static': 'build/lib/libz.a'}], 'licenses': ['Zlib'],
+                           'originalLicensePaths': original, 'effectiveLicensePaths': ['licenses/LICENSE.zlib.txt']},
+             'retainedLicense': {'path': 'licenses/LICENSE.zlib.txt', 'byteLength': 995,
+                 'sha256': '818922b2620f12801a12bf78e399644a30990e66824abd8ca8ec24d451d6f92c'},
+             'upstreamCommit': '00c8a06113f11220667c3bcf5fab1672ff9e78ef',
+             'sourceSha256s': {
+                 'pythonbuild/utils.py': '561a16f50f2402a702153eeedab00be6590b79d1c6fd46b65c7de5f40b077157',
+                 'pythonbuild/downloads.py': 'eaec25f19f4e473825512528bb4130ef2b6ec66881b12b80885888bcbb2156f2',
+                 'cpython-unix/build-zlib.sh': '58e58a24f79cec8ecfc250adcce8ec829753e59cdfd54cf4de4d37018c45c0f9'}}]
+
+
 def python_origin(value):
     distribution = value['pythonDistribution']; root = Path(distribution['root'])
     data = read_file(distribution['metadataPath'], MAX_METADATA); info = load_json(data)
@@ -392,6 +430,23 @@ def python_origin(value):
                 require(paths, 'Declared Python native license lacks corresponding text')
                 license_paths.update(paths)
                 static.append({'name': name, 'licenses': declared, 'licensePaths': sorted(paths)})
+    errata = python_metadata_errata(value['pythonArchive'], sha(data), static)
+    if errata:
+        extension = errata[0]['extension']; variants = extensions['zlib']
+        require(len(variants) == 1 and variants[0].get('variant') == extension['variant']
+                and variants[0].get('links') == extension['links']
+                and variants[0].get('licenses') == extension['licenses']
+                and variants[0].get('license_paths') == extension['originalLicensePaths'],
+                'Recognized Python zlib metadata variant differs')
+        omitted = root / 'licenses/LICENSE.zlib-ng.txt'
+        try: omitted.lstat()
+        except FileNotFoundError: pass
+        else: raise ValueError('Recognized Python erratum requires absent zlib-ng license leaf')
+        license_paths.remove('licenses/LICENSE.zlib-ng.txt')
+        retained = errata[0]['retainedLicense']; retained_path = root / retained['path']
+        require(retained_path.resolve() == root.resolve() / retained['path'], 'Python erratum license alias forbidden')
+        require(record(retained['path'], read_file(retained_path, 1024 * 1024)) == retained,
+                'Python erratum retained zlib license differs')
     licenses = []
     for relative in sorted(license_paths):
         safe_path(relative); text = read_file(root / relative, 1024 * 1024)
@@ -407,7 +462,7 @@ def python_origin(value):
     require(core_path.is_relative_to(root.resolve()) and sha(read_file(core_path)) in owned, 'Python shared core bytes are absent')
     # These are full-provider declarations, not proof that each extension shipped.
     return {'archive': value['pythonArchive'], 'metadataSha256': sha(data), 'licenses': licenses,
-            'declaredExtensionLicenses': static}, owned
+            'declaredExtensionLicenses': static, 'metadataErrata': errata}, owned
 
 
 def wheel_origins(packages, distributions):
@@ -492,7 +547,7 @@ replace CArchive/extracted-byte custody or establish missing supplier facts.
     for row in supplier['licenses']:
         keys(row, ('path', 'sha256', 'byteLength', 'packagePath'), 'supplier license')
         file_row({k: row[k] for k in ('path', 'sha256', 'byteLength')})
-    python = origins['python']; keys(python, ('archive', 'metadataSha256', 'licenses', 'declaredExtensionLicenses'), 'Python origin')
+    python = origins['python']; keys(python, ('archive', 'metadataSha256', 'licenses', 'declaredExtensionLicenses', 'metadataErrata'), 'Python origin')
     keys(python['archive'], ('url', 'sha256', 'byteLength', 'targetTriple', 'metadataUrl'), 'Python origin archive')
     digest(python['metadataSha256']); digest(python['archive']['sha256'])
     require(python['archive']['targetTriple'] == arch + '-unknown-linux-gnu' and
@@ -501,11 +556,21 @@ replace CArchive/extracted-byte custody or establish missing supplier facts.
     require(isinstance(python['licenses'], list) and python['licenses'], 'Missing Python license evidence')
     for row in python['licenses']: file_row(row)
     require(isinstance(python['declaredExtensionLicenses'], list), 'Invalid Python static dependencies')
+    expected_errata = python_metadata_errata(python['archive'], python['metadataSha256'], python['declaredExtensionLicenses'])
+    require(isinstance(python['metadataErrata'], list) and
+            json.dumps(python['metadataErrata'], sort_keys=True) == json.dumps(expected_errata, sort_keys=True),
+            'Python metadata errata differ from recognized mapping')
+    if expected_errata:
+        retained = expected_errata[0]['retainedLicense']
+        require([row for row in python['licenses'] if row['path'] == retained['path']] == [retained],
+                'Python erratum retained license evidence differs')
     for row in python['declaredExtensionLicenses']:
         keys(row, ('name', 'licenses', 'licensePaths'), 'Python static dependency')
         require(isinstance(row['name'], str) and row['name'] and isinstance(row['licenses'], list) and row['licenses'] and
                 isinstance(row['licensePaths'], list) and row['licensePaths'] and
-                all(path in {r['path'] for r in python['licenses']} for path in row['licensePaths']),
+                all(path in {r['path'] for r in python['licenses']} or
+                    (bool(expected_errata) and row['name'] == 'zlib' and path == 'licenses/LICENSE.zlib-ng.txt')
+                    for path in row['licensePaths']),
                 'Unbound Python static dependency licenses')
     wheels = origins['wheels']; require(isinstance(wheels, list) and wheels == sorted(wheels, key=lambda r: r['name']), 'Unsorted native wheel origins')
     names = set()

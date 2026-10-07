@@ -2,6 +2,7 @@
 import hashlib
 import json
 import unittest
+from pathlib import Path
 import kernel_rc_evidence as custody
 import publication as pub
 import test_assemble_kernel_rc as assembly_tests
@@ -69,6 +70,372 @@ def sdk_archive_fixture(table,prefix='root/',cli=b'fixture-cli',extra_files=None
             info=tarfile.TarInfo(prefix+name);info.type=tarfile.SYMTYPE;info.mode=0o777;info.linkname=target;archive.addfile(info)
     return stream.getvalue()
 
+
+
+def producer_command_log_fixture(report):
+    """Opaque synthetic bytes only; no build, command or native execution authority."""
+    import base64
+    names = custody.COMMAND_LOG_MAC_MEMBERS if report['platform'].startswith('darwin-') else custody.COMMAND_LOG_LINUX_MEMBERS
+    rows = []
+    for i, name in enumerate(names):
+        data = b'' if i == 0 else b'Synthetic opaque command bytes: ' + name.encode() + b'\x00\xff'
+        rows.append({'path': name, 'sha256': hashlib.sha256(data).hexdigest(),
+                     'byteLength': len(data), 'base64': base64.b64encode(data).decode()})
+    bundle = {'schema': 'openprose.kernel-rc-command-logs/1', 'platform': report['platform'],
+              'sourceRevision': report['sourceRevision'], 'version': report['version'], 'members': rows}
+    return {custody.COMMAND_LOG_EVIDENCE: json.dumps(bundle, sort_keys=True).encode()}
+
+
+def linux_runtime_fixture(report, manifest, sdk_table, source_root):
+    """Synthetic retained runtime proof from trusted source bytes; never container execution."""
+    import base64
+    platform = report['platform']
+    if platform.startswith('darwin-'): return {}
+    sources = {name: custody.read_command_log_bytes(Path(source_root) / name) for name in custody.LINUX_RUNTIME_SOURCE_PATHS}
+    expected_sources = {name: hashlib.sha256(data).hexdigest() for name, data in sources.items()}
+    lock = json.loads(sources['cli/ci/agents-sdk-linux-runtime.lock.json']); target = lock['platforms'][platform]
+    machine = target['machine']; trio = custody._runtime_sdk_trio(sdk_table); receipt = json.loads(trio[custody.SDK_NAMES[1]])
+    runtime = {'schema': 'openprose.sdk-linux-clean-runtime/1', 'platform': platform, 'runtime': target['runtime'],
+        'inputs': {'payload': {name: hashlib.sha256(data).hexdigest() for name, data in trio.items()},
+            'driverSha256': expected_sources[custody.LINUX_RUNTIME_SOURCE_PATHS[0]],
+            'lockSha256': expected_sources[custody.LINUX_RUNTIME_SOURCE_PATHS[1]],
+            'lifecycleSha256': expected_sources[custody.LINUX_RUNTIME_SOURCE_PATHS[2]],
+            'inventorySha256': expected_sources[custody.LINUX_RUNTIME_SOURCE_PATHS[3]]},
+        'results': {'imports': receipt['selfTest'], 'tools': receipt['toolSelfTest'], 'libraries': receipt['linuxLibraries']},
+        'version': 'prose-agents-sdk 0.1.0', 'modelCalls': 0, 'networkUsed': False,
+        'networkUsageScope': 'runtime-probes-only', 'preparationNetworkEnabled': True,
+        'cpuFloorQualified': False, 'qualification': 'native-clean-glibc-2.34-only', 'publicationAuthorized': False}
+    files = {'sources/' + name: data for name, data in sources.items()}
+    files['runtime-report.json'] = json.dumps(runtime, sort_keys=True).encode() + b'\n'
+    files.update(custody._runtime_script_contract(sources['cli/ci/verify_agents_sdk_linux.py'], machine))
+    files['job/pull-runtime.log'] = b''
+    files['job/inspect-runtime.log'] = json.dumps({'Id': 'sha256:' + target['runtime']['configSha256'], 'Os': 'linux',
+        'Architecture': target['dockerPlatform'].split('/')[1], 'RepoDigests': [target['runtime']['image']]}).encode() + b'\n'
+    files['job/base.log'] = ('glibc=2.34\narchitecture=' + machine + '\nnoBuildTools=true\n').encode()
+    files['job/version.log'] = b'prose-agents-sdk 0.1.0\n'
+    for name, value in runtime['results'].items(): files['job/' + name + '.log'] = json.dumps(value, sort_keys=True).encode() + b'\n'
+    packet = {'schema': 'openprose.sdk-linux-runtime-evidence/1', 'platform': platform,
+        'sourceRevision': report['sourceRevision'], 'version': report['version'], 'runtimeReport': runtime,
+        'members': [{'path': name, 'sha256': hashlib.sha256(files[name]).hexdigest(), 'byteLength': len(files[name]),
+            'base64': base64.b64encode(files[name]).decode()} for name in custody.LINUX_RUNTIME_MEMBER_PATHS]}
+    files[custody.LINUX_RUNTIME_EVIDENCE] = json.dumps(packet, sort_keys=True).encode()
+    return files
+
+
+class LinuxRuntimeEvidenceTests(unittest.TestCase):
+    SOURCE_ROOT = Path(__file__).resolve().parents[2]
+
+    def fixture(self, platform='linux-x64-gnu'):
+        report = {'schema': 'openprose.kernel-rc-build/1', 'platform': platform, 'sourceRevision': 'a' * 40,
+                  'version': '0.15.0-rc.4', 'evidence': {}}
+        sdk, direct = sdk_fixture(platform)
+        table = {'files': {'root/prose': (b'fixture-cli', 0o755), **{'root/' + k: v for k, v in direct['files'].items()}},
+                 'directories': {}, 'symlinks': {}}
+        manifest = {'schema': 'openprose.local-release-manifest/1', 'mode': 'kernel-rc', 'platform': platform,
+                    'version': report['version'], 'source': {'revision': report['sourceRevision'], 'verification': 'matched-product-doctor'},
+                    'agentsSdk': sdk}
+        files = linux_runtime_fixture(report, manifest, table, self.SOURCE_ROOT)
+        self.bind(report, files)
+        return report, manifest, table, files
+
+    def bind(self, report, files):
+        raw = files[custody.LINUX_RUNTIME_EVIDENCE]
+        report['evidence'][custody.LINUX_RUNTIME_EVIDENCE] = {'sha256': hashlib.sha256(raw).hexdigest(), 'byteLength': len(raw)}
+
+    def verify(self, report, manifest, table, files, expected=None):
+        return custody.validate_linux_runtime_evidence(report, manifest, table, files.__getitem__,
+            expected_sources=expected if expected is not None else custody.read_linux_runtime_sources(self.SOURCE_ROOT))
+
+    def changed(self, mutate):
+        report, manifest, table, files = self.fixture(); packet = json.loads(files[custody.LINUX_RUNTIME_EVIDENCE])
+        mutate(packet); files[custody.LINUX_RUNTIME_EVIDENCE] = json.dumps(packet).encode(); self.bind(report, files)
+        with self.assertRaises(ValueError): self.verify(report, manifest, table, files)
+
+    def set_member(self, packet, name, data):
+        import base64
+        row = next(r for r in packet['members'] if r['path'] == name)
+        row.update(sha256=hashlib.sha256(data).hexdigest(), byteLength=len(data), base64=base64.b64encode(data).decode())
+
+    def claims(self, packet, mutate):
+        mutate(packet['runtimeReport']); self.set_member(packet, 'runtime-report.json', json.dumps(packet['runtimeReport']).encode())
+
+    def test_both_targets_complete_runtime_packet_and_real_source_lookup(self):
+        for platform in ('linux-x64-gnu', 'linux-arm64-gnu'):
+            report, manifest, table, files = self.fixture(platform)
+            observed = self.verify(report, manifest, table, files)
+            self.assertEqual(observed['platform'], platform)
+            self.assertEqual(len(json.loads(files[custody.LINUX_RUNTIME_EVIDENCE])['members']), 17)
+            self.assertLess(len(files[custody.LINUX_RUNTIME_EVIDENCE]), custody.LINUX_RUNTIME_MAX_BYTES)
+
+    def test_mac_absence_and_unexpected_claim_and_missing_linux_before_callback(self):
+        from unittest import mock
+        report, manifest, _, _ = self.fixture()
+        reader = mock.Mock(side_effect=AssertionError('Must not read'))
+        report['platform'] = manifest['platform'] = 'darwin-arm64'; report['evidence'].clear()
+        self.assertIsNone(custody.validate_linux_runtime_evidence(report, manifest, None, reader, expected_sources=None))
+        report['evidence'][custody.LINUX_RUNTIME_EVIDENCE] = {}
+        with self.assertRaises(ValueError): custody.validate_linux_runtime_evidence(report, manifest, None, reader, expected_sources=None)
+        report['platform'] = manifest['platform'] = 'linux-x64-gnu'; report['evidence'].clear()
+        with self.assertRaises(ValueError): custody.validate_linux_runtime_evidence(report, manifest, None, reader,
+            expected_sources=custody.read_linux_runtime_sources(self.SOURCE_ROOT))
+        reader.assert_not_called()
+
+    def test_bad_headers_trusted_sources_and_packet_size_refuse_before_read(self):
+        from unittest import mock
+        for poison in ('header', 'source-map', 'source-hash', 'bool-size', 'oversize'):
+            report, manifest, table, files = self.fixture(); sources = custody.read_linux_runtime_sources(self.SOURCE_ROOT)
+            if poison == 'header': manifest['source']['verification'] = 'unverified'
+            elif poison == 'source-map': sources.pop(custody.LINUX_RUNTIME_SOURCE_PATHS[0])
+            elif poison == 'source-hash': sources[custody.LINUX_RUNTIME_SOURCE_PATHS[0]] = False
+            else: report['evidence'][custody.LINUX_RUNTIME_EVIDENCE]['byteLength'] = True if poison == 'bool-size' else custody.LINUX_RUNTIME_MAX_BYTES + 1
+            reader = mock.Mock(side_effect=AssertionError('Must not read'))
+            with self.assertRaises(ValueError): custody.validate_linux_runtime_evidence(report, manifest, table, reader, expected_sources=sources)
+            reader.assert_not_called()
+
+    def test_rehashed_source_input_image_and_runtime_claims_rejected(self):
+        mutations = [lambda r: r.update(cpuFloorQualified=True), lambda r: r.update(networkUsed=True),
+            lambda r: r.update(networkUsageScope='all'), lambda r: r.update(preparationNetworkEnabled=False),
+            lambda r: r.update(publicationAuthorized=True), lambda r: r.update(modelCalls=False),
+            lambda r: r['inputs']['payload'].update({'prose-agents-sdk': '0' * 64}),
+            lambda r: r['inputs'].update(inventorySha256='0' * 64),
+            lambda r: r['runtime'].update(configSha256='0' * 64)]
+        for mutate in mutations:
+            self.changed(lambda p: self.claims(p, mutate))
+        self.changed(lambda p: self.set_member(p, 'sources/cli/ci/verify_agents_sdk_linux.py', b'not trusted source'))
+        self.changed(lambda p: self.set_member(p, 'job/inspect-runtime.log', b'{}'))
+
+    def test_raw_report_probe_numeric_types_cannot_coerce_into_equal_receipt(self):
+        def raw_report(packet):
+            value = dict(packet['runtimeReport']); value['modelCalls'] = False
+            self.set_member(packet, 'runtime-report.json', json.dumps(value).encode())
+        self.changed(raw_report)
+        for name, value in [('imports', False), ('libraries', 0.0)]:
+            def raw_probe(packet, name=name, value=value):
+                result = dict(packet['runtimeReport']['results'][name]); result['modelCalls'] = value
+                self.set_member(packet, 'job/' + name + '.log', json.dumps(result).encode())
+            self.changed(raw_probe)
+        self.changed(lambda p: self.claims(p, lambda r: r['results']['libraries'].update(elfCount=1.0)))
+
+    def test_coherently_rehashed_sdk_numeric_identities_rejected(self):
+        # Mutate both authorities and regenerate runtime facts: hashes alone must not
+        # turn Python's bool/int/float equality into a valid fixed SDK qualification.
+        for field, key, value in [('selfTest', 'modelCalls', False),
+                                  ('selfTest', 'modelCalls', 0.0),
+                                  ('selfTest', 'certificates', 1),
+                                  ('toolSelfTest', 'modelCalls', False),
+                                  ('toolSelfTest', 'networkUsed', 0),
+                                  ('toolSelfTest', 'shellEffects', 1.0),
+                                  ('helper', 'byteLength', 'float'),
+                                  ('notices', 'byteLength', 'float')]:
+            with self.subTest(field=field, key=key, value=value):
+                import copy
+                report, manifest, table, _ = self.fixture()
+                manifest, table = copy.deepcopy(manifest), copy.deepcopy(table)
+                receipt = json.loads(table['files']['root/agents-sdk-build.json'][0])
+                receipt[field][key] = float(receipt[field][key]) if value == 'float' else value
+                if field in ('selfTest', 'toolSelfTest'):
+                    manifest['agentsSdk'][field][key] = value
+                encoded = json.dumps(receipt).encode()
+                table['files']['root/agents-sdk-build.json'] = (encoded, 0o644)
+                manifest['agentsSdk']['receiptSha256'] = hashlib.sha256(encoded).hexdigest()
+                files = linux_runtime_fixture(report, manifest, table, self.SOURCE_ROOT)
+                self.bind(report, files)
+                with self.assertRaisesRegex(ValueError, 'Packaged SDK policy|Packaged SDK build receipt|SDK notices receipt'):
+                    self.verify(report, manifest, table, files)
+
+    def test_rehashed_scripts_base_version_and_probe_values_rejected(self):
+        controls = [('job/version.sh', b'timeout --kill-after=1s 30s /source/prose-agents-sdk --version\n'),
+                    ('job/base.log', b'glibc=2.34\nnoBuildTools=false\n'),
+                    ('job/version.log', b'prose-agents-sdk 0.2.0\n'), ('job/tools.log', b'{}')]
+        for name, data in controls: self.changed(lambda p, name=name, data=data: self.set_member(p, name, data))
+
+    def test_rehashed_packet_member_and_json_envelope_poisons_rejected(self):
+        for mutate in [lambda p: p.update(extra=True), lambda p: p.update(sourceRevision='b' * 40),
+            lambda p: p['members'].pop(), lambda p: p['members'].reverse(),
+            lambda p: p['members'][0].update(path='unknown'), lambda p: p['members'][0].update(byteLength=False),
+            lambda p: p['members'][0].update(base64='!!!!', byteLength=1),
+            lambda p: p['members'][0].update(sha256='0' * 64)]: self.changed(mutate)
+
+    def materialize(self, root, files, table):
+        (root / 'job/home').mkdir(parents=True); (root / 'job/docker-config').mkdir(); (root / 'payload').mkdir()
+        for name in ('runtime-report.json', *custody.LINUX_RUNTIME_JOB_PATHS): (root / name).write_bytes(files[name])
+        for name, data in custody._runtime_sdk_trio(table).items():
+            path = root / 'payload' / name; path.write_bytes(data); path.chmod(0o555 if name == custody.SDK_NAMES[0] else 0o444)
+        return json.loads(files['runtime-report.json'])
+
+    def test_physical_tree_exact_payload_modes_and_unknowns_refuse(self):
+        import tempfile
+        for poison in ('good', 'extra-payload', 'extra-job', 'cleanup', 'mode', 'alias', 'nested', 'bytes', 'empty-home'):
+            report, manifest, table, files = self.fixture()
+            with tempfile.TemporaryDirectory() as temp:
+                root = Path(temp).resolve(); runtime = self.materialize(root, files, table)
+                if poison == 'extra-payload': (root / 'payload/unknown').write_bytes(b'x')
+                elif poison == 'extra-job': (root / 'job/unexpected').write_bytes(b'x')
+                elif poison == 'cleanup': (root / 'job/version-cleanup-error.txt').write_bytes(b'failure')
+                elif poison == 'mode': (root / 'payload/prose-agents-sdk').chmod(0o755)
+                elif poison == 'alias':
+                    path = root / 'payload/agents-sdk-build.json'; path.unlink(); path.symlink_to('../runtime-report.json')
+                elif poison == 'nested': (root / 'payload/nested').mkdir()
+                elif poison == 'bytes':
+                    path = root / 'payload/prose-agents-sdk'; path.chmod(0o755); path.write_bytes(b'changed'); path.chmod(0o555)
+                elif poison == 'empty-home': (root / 'job/home/state').write_bytes(b'x')
+                if poison == 'good': custody.validate_linux_runtime_tree(root, runtime, table)
+                else:
+                    with self.assertRaises(ValueError): custody.validate_linux_runtime_tree(root, runtime, table)
+
+    def test_literal_script_extraction_never_executes_python(self):
+        source = custody.read_command_log_bytes(self.SOURCE_ROOT / custody.LINUX_RUNTIME_SOURCE_PATHS[0])
+        scripts = custody._runtime_script_contract(source + b'\nraise RuntimeError("must never execute")\n', 'x86_64')
+        self.assertIn(b' 5s ', scripts['job/version.sh'])
+        with self.assertRaises(ValueError): custody._runtime_script_contract(b'BASE = str("dynamic")\nPROBES=()\n', 'x86_64')
+
+
+class ProducerCommandLogTests(unittest.TestCase):
+    def fixture(self, platform='darwin-arm64'):
+        report = {'schema': 'openprose.kernel-rc-build/1', 'platform': platform,
+                  'sourceRevision': 'a' * 40, 'version': '0.15.0-rc.4', 'evidence': {}}
+        manifest = {'schema': 'openprose.local-release-manifest/1', 'mode': 'kernel-rc',
+                    'platform': platform, 'version': report['version'],
+                    'source': {'revision': report['sourceRevision'], 'verification': 'matched-product-doctor'}}
+        files = producer_command_log_fixture(report)
+        self.bind(report, files)
+        return report, manifest, files
+
+    def bind(self, report, files):
+        report['evidence'][custody.COMMAND_LOG_EVIDENCE] = {
+            'sha256': hashlib.sha256(files[custody.COMMAND_LOG_EVIDENCE]).hexdigest(),
+            'byteLength': len(files[custody.COMMAND_LOG_EVIDENCE])}
+
+    def poison_bundle(self, mutate):
+        report, manifest, files = self.fixture()
+        bundle = json.loads(files[custody.COMMAND_LOG_EVIDENCE]); mutate(bundle)
+        files[custody.COMMAND_LOG_EVIDENCE] = json.dumps(bundle).encode(); self.bind(report, files)
+        with self.assertRaises(ValueError): custody.validate_producer_command_logs(report, manifest, files.__getitem__)
+
+    def test_four_platforms_exact_opaque_bytes_and_zero_are_admitted(self):
+        import base64
+        for platform in custody.COMMAND_LOG_PLATFORMS:
+            report, manifest, files = self.fixture(platform)
+            observed = custody.validate_producer_command_logs(report, manifest, files.__getitem__)
+            rows = json.loads(files[custody.COMMAND_LOG_EVIDENCE])['members']
+            self.assertEqual(observed, {r['path']: base64.b64decode(r['base64']) for r in rows})
+            self.assertEqual(next(iter(observed.values())), b'')
+            self.assertEqual(len(observed), 8 if platform.startswith('darwin-') else 5)
+
+    def test_headers_and_mandatory_evidence_refuse_before_read(self):
+        from unittest import mock
+        for part, key, value in [('report', 'schema', 'other'), ('report', 'platform', 'win-x64'),
+                ('report', 'sourceRevision', 'not-source'), ('report', 'version', True),
+                ('manifest', 'mode', 'development'), ('manifest', 'platform', 'darwin-x64'),
+                ('manifest', 'version', 'different'), ('manifest', 'source', {'revision': 'a' * 40})]:
+            report, manifest, _ = self.fixture(); (report if part == 'report' else manifest)[key] = value
+            reader = mock.Mock(side_effect=AssertionError('Reader must not run'))
+            with self.assertRaises(ValueError): custody.validate_producer_command_logs(report, manifest, reader)
+            reader.assert_not_called()
+        for poison in ('absent', 'original', 'bool', 'negative', 'oversize', 'hash', 'extra'):
+            report, manifest, _ = self.fixture(); record = report['evidence'][custody.COMMAND_LOG_EVIDENCE]
+            if poison == 'absent': report['evidence'].clear()
+            elif poison == 'original': report['evidence'][custody.COMMAND_LOG_MAC_MEMBERS[0]] = record
+            elif poison == 'hash': record['sha256'] = 'BAD'
+            elif poison == 'extra': record['extra'] = 1
+            else: record['byteLength'] = {'bool': True, 'negative': -1, 'oversize': custody.COMMAND_LOG_MAX_BYTES + 1}[poison]
+            reader = mock.Mock(side_effect=AssertionError('Reader must not run'))
+            with self.assertRaises(ValueError): custody.validate_producer_command_logs(report, manifest, reader)
+            reader.assert_not_called()
+
+    def test_rehashed_closed_header_and_member_coverage_poisons_refuse(self):
+        controls = [lambda b: b.update(extra=True), lambda b: b.update(schema='other'),
+            lambda b: b.update(platform='linux-x64-gnu'), lambda b: b.update(sourceRevision='b' * 40),
+            lambda b: b.update(version='other'), lambda b: b['members'].pop(),
+            lambda b: b['members'].append(b['members'][0]), lambda b: b['members'].reverse(),
+            lambda b: b['members'][1].update(path=b['members'][0]['path']),
+            lambda b: b['members'][0].update(path='logs/unapproved.log'),
+            lambda b: b['members'][0].update(extra=True)]
+        for mutate in controls:
+            with self.subTest(mutate=mutate): self.poison_bundle(mutate)
+
+    def test_rehashed_inner_bytes_types_and_noncanonical_base64_refuse(self):
+        import base64
+        controls = [lambda b: b['members'][0].update(byteLength=False),
+            lambda b: b['members'][0].update(byteLength=-1),
+            lambda b: b['members'][0].update(byteLength=custody.COMMAND_LOG_MAX_BYTES + 1),
+            lambda b: b['members'][0].update(sha256='0' * 64),
+            lambda b: b['members'][1].update(base64=base64.b64encode(b'changed').decode(), byteLength=7),
+            lambda b: b['members'][1].update(base64='Zh==', byteLength=1, sha256=hashlib.sha256(b'f').hexdigest()),
+            lambda b: b['members'][1].update(base64='Zg=\n', byteLength=1),
+            lambda b: b['members'][0].update(base64='!!!!', byteLength=1),
+            lambda b: b['members'][0].update(base64='éééé', byteLength=1)]
+        for mutate in controls:
+            with self.subTest(mutate=mutate): self.poison_bundle(mutate)
+
+    def test_outer_hash_length_and_duplicate_json_key_refuse(self):
+        for poison in ('hash', 'length', 'duplicate-json'):
+            report, manifest, files = self.fixture()
+            if poison == 'hash': report['evidence'][custody.COMMAND_LOG_EVIDENCE]['sha256'] = '0' * 64
+            elif poison == 'length': report['evidence'][custody.COMMAND_LOG_EVIDENCE]['byteLength'] -= 1
+            else:
+                raw = files[custody.COMMAND_LOG_EVIDENCE]
+                files[custody.COMMAND_LOG_EVIDENCE] = raw.replace(b'{', b'{"schema":"duplicate",', 1); self.bind(report, files)
+            with self.assertRaises(ValueError): custody.validate_producer_command_logs(report, manifest, files.__getitem__)
+
+    def test_aggregate_budget_refuses_before_read_or_json_decode(self):
+        from unittest import mock
+        report, manifest, files = self.fixture()
+        with mock.patch.object(custody, 'COMMAND_LOG_MAX_BYTES', len(files[custody.COMMAND_LOG_EVIDENCE]) - 1):
+            reader = mock.Mock(side_effect=AssertionError('Reader must not run'))
+            with self.assertRaises(ValueError): custody.validate_producer_command_logs(report, manifest, reader)
+            reader.assert_not_called()
+
+    def test_reader_nofollow_refuses_leaf_replaced_before_open(self):
+        import tempfile, os
+        from pathlib import Path
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp).resolve(); path = root / 'log'; path.write_bytes(b'original')
+            target = root / 'target'; target.write_bytes(b'outside')
+            real = os.open
+            def replace_then_open(*args, **kwargs):
+                path.unlink(); path.symlink_to('target'); return real(*args, **kwargs)
+            with mock.patch.object(custody.os, 'open', side_effect=replace_then_open):
+                with self.assertRaises(OSError): custody.read_command_log_bytes(path)
+            self.assertEqual(target.read_bytes(), b'outside')
+
+    def test_unknown_logs_remain_bound_separately(self):
+        report, manifest, files = self.fixture(); data = b'unknown retained bytes'
+        report['evidence']['logs/unknown.log'] = {'sha256': hashlib.sha256(data).hexdigest(), 'byteLength': len(data)}
+        self.assertEqual(len(custody.validate_producer_command_logs(report, manifest, files.__getitem__)), 8)
+        self.assertIn('logs/unknown.log', report['evidence'])
+
+    def test_stable_reader_accepts_zero_and_refuses_alias_special_oversize(self):
+        import os, tempfile
+        from pathlib import Path
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp).resolve(); path = root / 'log'; path.write_bytes(b'')
+            self.assertEqual(custody.read_command_log_bytes(path), b'')
+            alias = root / 'alias'; alias.symlink_to('log')
+            with self.assertRaises(ValueError): custody.read_command_log_bytes(alias)
+            fifo = root / 'fifo'; os.mkfifo(fifo)
+            with self.assertRaises(ValueError): custody.read_command_log_bytes(fifo)
+            path.write_bytes(b'12345')
+            with mock.patch.object(custody, 'COMMAND_LOG_MAX_BYTES', 4), self.assertRaises(ValueError):
+                custody.read_command_log_bytes(path)
+
+    def test_stable_reader_refuses_actual_replacement_during_read(self):
+        import tempfile, os
+        from pathlib import Path
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp).resolve(); path = root / 'log'; path.write_bytes(b'original')
+            real = os.fdopen
+            class ReplacingReader:
+                def __init__(self, stream): self.stream = stream
+                def __enter__(self): return self
+                def __exit__(self, *args): self.stream.close()
+                def read(self, limit):
+                    data = self.stream.read(limit); path.unlink(); path.write_bytes(data); return data
+            with mock.patch.object(custody.os, 'fdopen', side_effect=lambda *a, **k: ReplacingReader(real(*a, **k))):
+                with self.assertRaisesRegex(ValueError, 'changed during'): custody.read_command_log_bytes(path)
 
 
 class OnedirCustodyTests(unittest.TestCase):

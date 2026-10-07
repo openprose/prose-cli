@@ -218,6 +218,132 @@ class KernelRCSdkExtractionTests(unittest.TestCase):
 
 
 class CompleteSdkProducerEvidenceTests(unittest.TestCase):
+    def installed_records(self, platform):
+        from test_kernel_rc_evidence import sdk_fixture
+        sdk, table = sdk_fixture(platform)
+        table = {kind: {'release/' + name: value for name, value in rows.items()}
+                 for kind, rows in table.items()}
+        table['files']['release/prose'] = (b'nonexecuted CLI fixture', 0o755)
+        prefix = rc.sdk_custody.sdk_archive_prefix(table)
+        identity = {name: {'sha256': hashlib.sha256(table['files'][prefix + name][0]).hexdigest(),
+                           'byteLength': len(table['files'][prefix + name][0])}
+                    for name in rc.sdk_custody.SDK_NAMES}
+        if platform.startswith('darwin'):
+            payload = json.loads(table['files'][prefix + 'agents-sdk-build.json'][0])['payload']
+            identity['supportTree'] = {'payload': payload,
+                'sha256': hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(',', ':')).encode()).hexdigest(),
+                'byteLength': payload['totalRegularBytes'], 'entryCount': len(payload['entries'])}
+        return {'platform': platform, 'agentsSdk': sdk}, table, [
+            {'surface': surface, 'before': copy.deepcopy(identity), 'after': copy.deepcopy(identity)}
+            for surface in ('installed-rust', 'installed-bun', 'installed-npm')]
+
+    def test_actual_producer_writer_canonicalizes_shuffled_surfaces_for_custody(self):
+        for platform in ('darwin-arm64', 'darwin-x64'):
+            with self.subTest(platform=platform), tempfile.TemporaryDirectory() as directory:
+                manifest, table, records = self.installed_records(platform)
+                with self.assertRaisesRegex(ValueError, 'surface identity differs'):
+                    rc.sdk_custody.validate_installed_sdk_payloads(records, manifest, table)
+                path = Path(directory) / 'installed-sdk-payloads.json'
+                rc.write_installed_sdk_payloads(path, records)
+                recorded = json.loads(path.read_bytes())
+                self.assertEqual([r['surface'] for r in recorded],
+                                 ['installed-bun', 'installed-rust', 'installed-npm'])
+                self.assertEqual(rc.sdk_custody.validate_installed_sdk_payloads(recorded, manifest, table), recorded)
+                self.assertEqual({r['surface']: r for r in records}, {r['surface']: r for r in recorded})
+
+    def test_producer_refuses_duplicate_missing_unknown_or_changed_surfaces_before_write(self):
+        _, _, original = self.installed_records('darwin-arm64')
+        poisons = [original[:2], [original[0], original[0], original[2]]]
+        unknown = copy.deepcopy(original); unknown[0]['surface'] = 'installed-other'; poisons.append(unknown)
+        changed = copy.deepcopy(original); changed[0]['after']['prose-agents-sdk']['byteLength'] += 1; poisons.append(changed)
+        for records in poisons:
+            with self.subTest(records=records), tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / 'installed-sdk-payloads.json'
+                with self.assertRaises(ValueError):
+                    rc.write_installed_sdk_payloads(path, records)
+                self.assertFalse(path.exists())
+
+    def command_log_fixture(self, output, platform='darwin-arm64'):
+        (output / 'logs').mkdir()
+        names = (rc.sdk_custody.COMMAND_LOG_MAC_MEMBERS if platform.startswith('darwin')
+                 else rc.sdk_custody.COMMAND_LOG_LINUX_MEMBERS)
+        data = {name: (b'' if i % 2 == 0 else b'opaque\x00\xff\n' + name.encode())
+                for i, name in enumerate(names)}
+        data['logs/unknown-future.log'] = b'keep unknown producer output'
+        data['logs/installed-sdk-bun.json'] = b'{"structured":"not bundled"}'
+        evidence = {}
+        for name, encoded in reversed(list(data.items())):
+            (output / name).write_bytes(encoded)
+            evidence[name] = {'sha256': hashlib.sha256(encoded).hexdigest(), 'byteLength': len(encoded)}
+        report = {'schema': 'openprose.kernel-rc-build/1', 'platform': platform,
+                  'sourceRevision': 'a' * 40, 'version': '0.15.0-rc.4', 'evidence': evidence}
+        manifest = {'schema': 'openprose.local-release-manifest/1', 'mode': 'kernel-rc',
+                    'platform': platform, 'version': report['version'],
+                    'source': {'revision': report['sourceRevision'], 'verification': 'matched-product-doctor'}}
+        return report, manifest, data
+
+    def test_actual_opaque_writer_preserves_shuffled_raw_zero_unknown_and_structured_bytes(self):
+        for platform in rc.sdk_custody.COMMAND_LOG_PLATFORMS:
+            with self.subTest(platform=platform), tempfile.TemporaryDirectory() as directory:
+                output = Path(directory).resolve()
+                report, manifest, originals = self.command_log_fixture(output, platform)
+                original_report = copy.deepcopy(report)
+                metadata = {name: ((output / name).stat().st_mode, (output / name).stat().st_mtime_ns)
+                            for name in originals}
+                evidence = rc.producer_command_log_evidence(output, report, manifest)
+                self.assertEqual(report, original_report)
+                decoded = rc.sdk_custody.validate_producer_command_logs({**report, 'evidence': evidence}, manifest,
+                    lambda name: rc.sdk_custody.read_command_log_bytes(output / name))
+                self.assertEqual(decoded, {name: data for name, data in originals.items()
+                                          if name not in ('logs/unknown-future.log', 'logs/installed-sdk-bun.json')})
+                self.assertEqual(set(evidence), {'logs/unknown-future.log', 'logs/installed-sdk-bun.json',
+                                               rc.sdk_custody.COMMAND_LOG_EVIDENCE})
+                for name, data in originals.items():
+                    self.assertEqual((output / name).read_bytes(), data)
+                    self.assertEqual(((output / name).stat().st_mode, (output / name).stat().st_mtime_ns), metadata[name])
+                bundle = json.loads((output / rc.sdk_custody.COMMAND_LOG_EVIDENCE).read_bytes())
+                for row in bundle['members']:
+                    if row['byteLength'] == 0:
+                        self.assertEqual(row['base64'], '')
+                        self.assertEqual(row['sha256'], hashlib.sha256(b'').hexdigest())
+
+    def test_opaque_writer_refuses_stale_evidence_changed_metadata_and_existing_output(self):
+        for poison in ('stale-evidence', 'changed-mode', 'existing-output'):
+            with self.subTest(poison=poison), tempfile.TemporaryDirectory() as directory:
+                output = Path(directory).resolve(); report, manifest, _ = self.command_log_fixture(output)
+                name = rc.sdk_custody.COMMAND_LOG_MAC_MEMBERS[0]
+                target = output / rc.sdk_custody.COMMAND_LOG_EVIDENCE
+                if poison == 'stale-evidence':
+                    (output / name).write_bytes(b'changed after original evidence capture')
+                if poison == 'existing-output': target.write_bytes(b'preserve existing bundle')
+                reader = rc.sdk_custody.read_command_log_bytes
+                def changed(path):
+                    data = reader(path)
+                    if path == output / name: path.chmod(0o755)
+                    return data
+                with patch.object(rc.sdk_custody, 'read_command_log_bytes',
+                                  side_effect=changed if poison == 'changed-mode' else reader):
+                    with self.assertRaises(ValueError):
+                        rc.producer_command_log_evidence(output, report, manifest)
+                if poison == 'existing-output': self.assertEqual(target.read_bytes(), b'preserve existing bundle')
+                else: self.assertFalse(target.exists())
+
+    def test_opaque_writer_rejects_oversized_encoded_bundle_before_write(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory).resolve(); report, manifest, _ = self.command_log_fixture(output)
+            # Exactly16MiB of base64 alone, so required JSON metadata exceeds
+            # the real aggregate bound even though the raw file is admissible.
+            name = rc.sdk_custody.COMMAND_LOG_MAC_MEMBERS[0]
+            data = b'x' * (12 * 1024 * 1024)
+            (output / name).write_bytes(data)
+            report['evidence'][name] = {'sha256': hashlib.sha256(data).hexdigest(), 'byteLength': len(data)}
+            for other in rc.sdk_custody.COMMAND_LOG_MAC_MEMBERS[1:]:
+                (output / other).write_bytes(b'')
+                report['evidence'][other] = {'sha256': hashlib.sha256(b'').hexdigest(), 'byteLength': 0}
+            with self.assertRaisesRegex(ValueError, 'exceeds evidence bound'):
+                rc.producer_command_log_evidence(output, report, manifest)
+            self.assertFalse((output / rc.sdk_custody.COMMAND_LOG_EVIDENCE).exists())
+
     def test_support_resource_names_cannot_select_cli_or_receipt(self):
         from test_qualify_installed_sdk import sdk_archive_with_resource_names
         with tempfile.TemporaryDirectory() as raw:
@@ -285,6 +411,136 @@ class CompleteSdkProducerEvidenceTests(unittest.TestCase):
                         (sdk / 'codesign.log').write_text(json.dumps(proof))
                     with self.assertRaises(ValueError): rc.sdk_producer_evidence(root, sdk)
                     (sdk / 'codesign.log').write_bytes(original); (sdk / 'collect.toc').write_bytes(toc)
+
+
+class KernelRCLinuxRuntimeProducerTests(unittest.TestCase):
+    def fixture(self, output, platform='linux-x64-gnu', *, large_helper=False):
+        from test_kernel_rc_evidence import sdk_fixture, linux_runtime_fixture
+        sdk, table = sdk_fixture(platform)
+        table = {kind: {'release/' + name: value for name, value in rows.items()}
+                 for kind, rows in table.items()}
+        table['files']['release/prose'] = (b'nonexecuted CLI fixture', 0o755)
+        if large_helper:
+            helper = table['files']['release/prose-agents-sdk'][0]
+            helper += b'\0' * (16 * 1024 * 1024 + 1 - len(helper))
+            receipt = json.loads(table['files']['release/agents-sdk-build.json'][0])
+            receipt['helper'].update(sha256=hashlib.sha256(helper).hexdigest(), byteLength=len(helper))
+            encoded = json.dumps(receipt, sort_keys=True).encode()
+            table['files']['release/prose-agents-sdk'] = (helper, 0o755)
+            table['files']['release/agents-sdk-build.json'] = (encoded, 0o644)
+            sdk.update(sha256=receipt['helper']['sha256'], byteLength=len(helper),
+                       receiptSha256=hashlib.sha256(encoded).hexdigest())
+        report = {'schema': 'openprose.kernel-rc-build/1', 'platform': platform,
+                  'sourceRevision': 'a' * 40, 'version': '0.15.0-rc.4', 'evidence': {}}
+        manifest = {'schema': 'openprose.local-release-manifest/1', 'mode': 'kernel-rc',
+                    'platform': platform, 'version': report['version'], 'agentsSdk': sdk,
+                    'source': {'revision': report['sourceRevision'], 'verification': 'matched-product-doctor'}}
+        (output / 'logs').mkdir()
+        if platform.startswith('darwin'):
+            return report, manifest, table, {}
+        originals = linux_runtime_fixture(report, manifest, table, rc.ROOT)
+        runtime = output / 'agents-sdk-runtime'
+        for name in ('job/home', 'job/docker-config', 'payload'):
+            (runtime / name).mkdir(parents=True, exist_ok=True)
+        for name, data in originals.items():
+            if not name.startswith('sources/') and name != rc.sdk_custody.LINUX_RUNTIME_EVIDENCE:
+                (runtime / name).write_bytes(data)
+        for name in rc.sdk_custody.SDK_NAMES:
+            path = runtime / 'payload' / name
+            path.write_bytes(table['files']['release/' + name][0])
+            path.chmod(0o555 if name == 'prose-agents-sdk' else 0o444)
+        (output / 'logs/unknown.log').write_bytes(b'preserve other evidence')
+        report['evidence']['logs/unknown.log'] = {
+            'sha256': hashlib.sha256(b'preserve other evidence').hexdigest(), 'byteLength': 23}
+        return report, manifest, table, originals
+
+    def test_actual_runtime_packet_writer_preserves_all_originals_and_replays_both_architectures(self):
+        for platform in ('linux-x64-gnu', 'linux-arm64-gnu'):
+            with self.subTest(platform=platform), tempfile.TemporaryDirectory() as directory:
+                output = Path(directory).resolve(); report, manifest, table, originals = self.fixture(output, platform)
+                before_report = copy.deepcopy(report)
+                evidence = rc.producer_linux_runtime_evidence(output, report, manifest, table, source_root=rc.ROOT)
+                self.assertEqual(report, before_report)
+                self.assertEqual(set(evidence), {'logs/unknown.log', rc.sdk_custody.LINUX_RUNTIME_EVIDENCE})
+                packet_path = output / rc.sdk_custody.LINUX_RUNTIME_EVIDENCE
+                runtime_report = rc.sdk_custody.validate_linux_runtime_evidence({**report, 'evidence': evidence},
+                    manifest, table, lambda name: rc.sdk_custody.read_command_log_bytes(output / name),
+                    expected_sources=rc.sdk_custody.read_linux_runtime_sources(rc.ROOT))
+                self.assertEqual(runtime_report, json.loads(originals['runtime-report.json']))
+                packet = json.loads(packet_path.read_bytes())
+                self.assertEqual(len(packet['members']), 17)
+                self.assertFalse(any(row['path'].startswith('payload/') for row in packet['members']))
+                for name, data in originals.items():
+                    if name.startswith('sources/'):
+                        self.assertEqual((rc.ROOT / name[len('sources/'):]).read_bytes(), data)
+                    elif name != rc.sdk_custody.LINUX_RUNTIME_EVIDENCE:
+                        self.assertEqual((output / 'agents-sdk-runtime' / name).read_bytes(), data)
+                for name in rc.sdk_custody.SDK_NAMES:
+                    self.assertEqual((output / 'agents-sdk-runtime/payload' / name).read_bytes(),
+                                     table['files']['release/' + name][0])
+
+    def test_runtime_writer_refuses_extra_directory_payload_file_alias_or_changed_copied_trio(self):
+        for poison in ('extra-job-file', 'extra-directory', 'extra-payload', 'payload-alias', 'changed-trio', 'wrong-mode'):
+            with self.subTest(poison=poison), tempfile.TemporaryDirectory() as directory:
+                output = Path(directory).resolve(); report, manifest, table, _ = self.fixture(output)
+                runtime = output / 'agents-sdk-runtime'; helper = runtime / 'payload/prose-agents-sdk'
+                if poison == 'extra-job-file': (runtime / 'job/unknown.log').write_bytes(b'not silently discarded')
+                elif poison == 'extra-directory': (runtime / 'job/home/unknown').mkdir()
+                elif poison == 'extra-payload': (runtime / 'payload/unknown').write_bytes(b'not silently discarded')
+                elif poison == 'payload-alias':
+                    helper.unlink(); helper.symlink_to(output / 'absent')
+                elif poison == 'changed-trio':
+                    helper.chmod(0o755); helper.write_bytes(b'changed copied bytes'); helper.chmod(0o555)
+                elif poison == 'wrong-mode': helper.chmod(0o755)
+                with self.assertRaises(ValueError):
+                    rc.producer_linux_runtime_evidence(output, report, manifest, table, source_root=rc.ROOT)
+                self.assertFalse((output / rc.sdk_custody.LINUX_RUNTIME_EVIDENCE).exists())
+
+    def test_runtime_writer_requires_trusted_source_bytes_and_fresh_packet(self):
+        for poison in ('changed-source', 'existing-packet'):
+            with self.subTest(poison=poison), tempfile.TemporaryDirectory() as directory:
+                output = Path(directory).resolve(); report, manifest, table, originals = self.fixture(output)
+                source_root = rc.ROOT
+                target = output / rc.sdk_custody.LINUX_RUNTIME_EVIDENCE
+                if poison == 'existing-packet': target.write_bytes(b'preserve prior packet')
+                else:
+                    source_root = output / 'source-fixture'; source_root.mkdir()
+                    for name in rc.sdk_custody.LINUX_RUNTIME_SOURCE_PATHS:
+                        path = source_root / name; path.parent.mkdir(parents=True, exist_ok=True)
+                        path.write_bytes(originals['sources/' + name])
+                    changed = source_root / 'cli/ci/build_agents_sdk_linux.py'
+                    changed.write_bytes(changed.read_bytes() + b'\n# changed trusted source fixture\n')
+                with self.assertRaises(ValueError):
+                    rc.producer_linux_runtime_evidence(output, report, manifest, table, source_root=source_root)
+                if poison == 'existing-packet': self.assertEqual(target.read_bytes(), b'preserve prior packet')
+                else: self.assertFalse(target.exists())
+
+    def test_runtime_packet_cap_does_not_limit_copied_helper_to_sixteen_mebibytes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory).resolve(); report, manifest, table, _ = self.fixture(output, large_helper=True)
+            evidence = rc.producer_linux_runtime_evidence(output, report, manifest, table, source_root=rc.ROOT)
+            self.assertGreater((output / 'agents-sdk-runtime/payload/prose-agents-sdk').stat().st_size, 16 * 1024 * 1024)
+            self.assertLess(evidence[rc.sdk_custody.LINUX_RUNTIME_EVIDENCE]['byteLength'], 16 * 1024 * 1024)
+
+    def test_runtime_writer_refuses_oversized_packet_before_write(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory).resolve(); report, manifest, table, _ = self.fixture(output)
+            (output / 'agents-sdk-runtime/job/pull-runtime.log').write_bytes(b'x' * (12 * 1024 * 1024))
+            with self.assertRaisesRegex(ValueError, 'exceeds evidence bound'):
+                rc.producer_linux_runtime_evidence(output, report, manifest, table, source_root=rc.ROOT)
+            self.assertFalse((output / rc.sdk_custody.LINUX_RUNTIME_EVIDENCE).exists())
+
+    def test_mac_absence_guard_performs_no_linux_source_lookup_or_runtime_reads(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory).resolve(); report, manifest, table, _ = self.fixture(output, 'darwin-arm64')
+            with patch.object(rc.sdk_custody, 'read_linux_runtime_sources') as sources, \
+                    patch.object(rc.sdk_custody, 'read_command_log_bytes') as reader:
+                self.assertEqual(rc.producer_linux_runtime_evidence(output, report, manifest, table,
+                    source_root=output / 'absent'), {})
+                report['evidence'][rc.sdk_custody.LINUX_RUNTIME_EVIDENCE] = {'sha256': 'a' * 64, 'byteLength': 1}
+                with self.assertRaisesRegex(ValueError, 'Mac report contains'):
+                    rc.producer_linux_runtime_evidence(output, report, manifest, table, source_root=output / 'absent')
+                sources.assert_not_called(); reader.assert_not_called()
 
 
 class NativeSdkRoutingTests(unittest.TestCase):
