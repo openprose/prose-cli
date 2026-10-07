@@ -63,6 +63,97 @@ class ContractRegistryTest(unittest.TestCase):
 
 
 class RunnerUnitTest(unittest.TestCase):
+    def npm_fixture(self, root):
+        prefix=root.resolve()/'installed'
+        base='lib/node_modules/@openprose/prose-cli'
+        child=base+'-darwin-arm64'
+        rows={'launcher':base+'/bin/prose.js','metaManifest':base+'/package.json','platformManifest':child+'/package.json','native':child+'/bin/prose'}
+        launcher=b"const fs=require('node:fs'); const path=require('node:path'); process.stdout.write(JSON.stringify({argv:process.argv.slice(1),child:fs.existsSync(path.resolve(__dirname,'../../prose-cli-darwin-arm64/bin/prose'))}));"
+        launcher+=b" if(process.env.SDK_FIXTURE_EXECUTE){const cp=require('node:child_process'); const child=path.resolve(__dirname,'../../prose-cli-darwin-arm64/bin/prose'); const native=cp.spawnSync(child,[],{encoding:'utf8'}); if(native.status!==0)process.exit(91); const helper=cp.spawnSync(process.env.SDK_FIXTURE_PYTHON,[path.join(path.dirname(child),'prose-agents-sdk'),'--cwd',process.cwd(),'--instructions',path.join(process.cwd(),'instructions'),'--model','gpt-6.1-sol','--prompt',JSON.stringify({argv:['prose','run','input.prose.md']})],{encoding:'utf8'}); if(helper.status!==0){process.stderr.write(helper.stderr);process.exit(92);} process.stderr.write(helper.stdout); }"
+        native=Path('/usr/bin/true').read_bytes()
+        cohort={'schema':'openprose.npm-cohort/3','version':'0.16.0-rc.1','sourceRevision':'a'*40,'admittedPlatforms':['darwin-arm64']}
+        meta={'name':'@openprose/prose-cli','version':cohort['version'],'type':'commonjs','bin':{'prose':'bin/prose.js'},'openproseCohort':cohort,'optionalDependencies':{'@openprose/prose-cli-darwin-arm64':'npm:@openprose/prose-cli@0.16.0-0.rc.1-darwin-arm64'},'openproseLauncher':{'path':'bin/prose.js','sha256':runner.sha256(launcher),'byteLength':len(launcher)}}
+        platform={'name':'@openprose/prose-cli','version':'0.16.0-0.rc.1-darwin-arm64','openproseCohort':cohort,'openprosePlatform':'darwin-arm64','openproseSourceRevision':'a'*40,'openproseBinary':'bin/prose','openproseBinarySha256':runner.sha256(native),'openproseBinaryByteLength':len(native)}
+        contents={'launcher':launcher,'native':native,'metaManifest':json.dumps(meta).encode(),'platformManifest':json.dumps(platform).encode()}
+        files={}
+        for key,relative in rows.items():
+            path=prefix/relative; path.parent.mkdir(parents=True,exist_ok=True); path.write_bytes(contents[key]); path.chmod(0o700)
+            files[key]={'path':relative,'sha256':runner.sha256(contents[key]),'byteLength':len(contents[key])}
+        return {'prefix':str(prefix),'platform':'darwin-arm64','files':files}
+
+    def test_npm_context_rejects_malformed_escape_symlink_and_custody_changes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            context=self.npm_fixture(Path(temporary))
+            self.assertEqual(4,len(runner.npm_context_paths(context)))
+            for mutation in ('null','missing','escape','length','unknown','platform','files-list','row-list','prefix-type'):
+                changed=json.loads(json.dumps(context))
+                if mutation=='null': changed=None
+                elif mutation=='missing': del changed['files']['native']
+                elif mutation=='escape': changed['files']['native']['path']='../native'
+                elif mutation=='length': changed['files']['native']['byteLength']=True
+                elif mutation=='unknown': changed['secret']='unaccepted'
+                elif mutation=='files-list': changed['files']=[]
+                elif mutation=='row-list': changed['files']['native']=[]
+                elif mutation=='prefix-type': changed['prefix']=None
+                else: changed['platform']='linux-x64-musl'
+                with self.subTest(mutation=mutation), self.assertRaises(ValueError): runner.npm_context_paths(changed)
+            path=Path(context['prefix'])/context['files']['native']['path']
+            data=path.read_bytes(); path.write_bytes(data+b'changed')
+            with self.assertRaisesRegex(ValueError,'bytes changed'): runner.npm_context_paths(context)
+            path.write_bytes(data); foreign=path.with_name('foreign'); path.rename(foreign); path.symlink_to(foreign)
+            with self.assertRaisesRegex(ValueError,'symlink'): runner.npm_context_paths(context)
+
+    def test_npm_context_rejects_metadata_rebound_to_foreign_cohort(self):
+        for field in ('name','version','openprosePlatform','openproseSourceRevision','openproseCohort','openproseBinarySha256'):
+            with self.subTest(field=field), tempfile.TemporaryDirectory() as temporary:
+                context=self.npm_fixture(Path(temporary)); row=context['files']['platformManifest']; path=Path(context['prefix'])/row['path']
+                payload=json.loads(path.read_text()); payload[field]={'schema':'foreign'} if field=='openproseCohort' else 'foreign'
+                path.write_text(json.dumps(payload)); row.update(sha256=runner.sha256(path.read_bytes()),byteLength=path.stat().st_size)
+                with self.assertRaises(ValueError): runner.npm_context_paths(context)
+
+    def test_npm_context_rejects_unbound_interpreter_labels_and_metadata_shapes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            context=self.npm_fixture(Path(temporary)); launcher=Path(context['prefix'])/context['files']['launcher']['path']
+            product=runner.Product('fixture',launcher,'bun',Path(sys.executable))
+            for specifications in ([['unknown',json.dumps(context)]],[['fixture',json.dumps(context)],['fixture',json.dumps(context)]],[['fixture','[]']]):
+                with self.assertRaises(ValueError): runner.attach_npm_contexts([product],specifications)
+            with self.assertRaisesRegex(ValueError,'explicit Bun launcher'):
+                runner.attach_npm_contexts([runner.Product('fixture',launcher,'bun')],[['fixture',json.dumps(context)]])
+        for key in ('metaManifest','platformManifest'):
+            with self.subTest(key=key), tempfile.TemporaryDirectory() as temporary:
+                context=self.npm_fixture(Path(temporary)); row=context['files'][key]; path=Path(context['prefix'])/row['path']; path.write_bytes(b'[]')
+                row.update(sha256=runner.sha256(b'[]'),byteLength=2)
+                with self.assertRaises(ValueError): runner.npm_context_paths(context)
+
+    @unittest.skipUnless(shutil.which('node'),'Node is required for npm closure fixture')
+    def test_sdk_npm_executes_immutable_snapshot_with_minimal_relocated_closure(self):
+        for number in (4,8):
+            with self.subTest(case=number), tempfile.TemporaryDirectory() as temporary:
+                root=Path(temporary); context=self.npm_fixture(root)
+                launcher=Path(context['prefix'])/context['files']['launcher']['path']
+                product=runner.Product('npm-launcher',launcher,'bun',Path(shutil.which('node')))
+                product=runner.attach_npm_contexts([product],[['npm-launcher',json.dumps(context)]])[0]
+                snapshot=runner.snapshot_product(product,runner.capture_candidate_identity(product),root/'snapshot')
+                environment,workspace=runner.product_roots(root/'case','npm-launcher'); runner.isolate_workspace(workspace)
+                case=json.loads((runner.CASES/'adapters'/f'sdk-production-{number:02}.json').read_text())
+                execution,fixture,poison=runner.prepare_sdk_installation(snapshot,case,workspace,environment)
+                (workspace/'instructions').write_bytes(b'OPENPROSE_SENTINEL_IMAGE_V1')
+                process_environment={'PATH':str(poison),'SDK_FIXTURE_EXECUTE':'1','SDK_FIXTURE_PYTHON':str(Path(sys.executable).resolve())}
+                self.assertEqual(snapshot.execution_executable,execution.execution_executable)
+                self.assertEqual(number==8,execution.execution_launch_path.is_symlink())
+                native=Path(fixture['nativePath']); self.assertTrue((native.parent/'prose-agents-sdk').is_file())
+                self.assertEqual(4,len(fixture['npmCloneFiles']))
+                result=runner.run_owned_process(execution.execution_argv(['opaque']),cwd=workspace,environment=process_environment,timeout_seconds=3)
+                self.assertEqual(0,result.exit_code,result.stderr)
+                records=[json.loads(line) for line in result.stderr.splitlines()]; self.assertEqual('final',records[-1]['type']); self.assertTrue((workspace/'.sdk-harness-started').is_file())
+                payload=json.loads(result.stdout); self.assertTrue(payload['child']); self.assertEqual([str(execution.execution_launch_path),'opaque'],payload['argv'])
+                observation=runner.Observation(product,case,0,b'',b'',workspace=workspace,sdk_fixture=fixture)
+                self.assertEqual([],runner.validate_sdk_effects(observation))
+                execution.execution_source_context.write_text("throw Error('mutable clone executed')")
+                result=runner.run_owned_process(execution.execution_argv(['opaque']),cwd=workspace,environment=process_environment,timeout_seconds=3)
+                self.assertEqual(0,result.exit_code,result.stderr)
+                self.assertIn('SDK npm relocated closure bytes changed',runner.validate_sdk_effects(observation))
+
     def test_host_oracle_keeps_admitted_expectations_and_requires_rejection(self):
         for path in runner.case_paths(7, set()):
             case = json.loads(path.read_text("utf-8"))

@@ -766,6 +766,42 @@ def _conformance_inputs(
     return candidates, node_path, node_digest
 
 
+def _npm_conformance_context(install: Path, raw_report: Mapping[str, Any]) -> dict[str, Any]:
+    platform=raw_report.get('platform')
+    if not isinstance(platform,str) or not re.fullmatch('[a-z0-9-]+',platform):
+        raise RehearsalError('npm conformance platform is invalid')
+    records=raw_report.get('installations')
+    npm=[row for row in records or [] if row.get('surface')=='npm-launcher']
+    if len(npm)!=1:
+        raise RehearsalError('npm conformance requires the benchmark-bound installed tree')
+    entries=npm[0].get('treeIdentity',{}).get('entries',[])
+    prefix=install/'npm-prefix'
+    meta='lib/node_modules/@openprose/prose-cli'
+    child='lib/node_modules/@openprose/prose-cli-'+platform
+    relative={'metaManifest':meta+'/package.json','launcher':meta+'/bin/prose.js',
+              'platformManifest':child+'/package.json','native':child+'/bin/prose'}
+    files={}
+    for key,name in relative.items():
+        matching=[row for row in entries if row.get('path')==name]
+        if len(matching)!=1 or matching[0].get('type')!='regular':
+            raise RehearsalError('npm conformance closure lacks one benchmark-bound regular file')
+        row=matching[0]
+        digest=require_sha(row.get('sha256'),'npm '+key)
+        length=row.get('byteLength')
+        if type(length) is not int or not 0<length<=256*1024*1024:
+            raise RehearsalError('npm conformance closure byte length is invalid')
+        path=prefix/name
+        _require_custodied_path(install,path,'npm '+key)
+        observed=build_local.digest_file(path)
+        if observed['sha256']!=digest or observed['byteLength']!=length:
+            raise RehearsalError('npm conformance closure differs from benchmark custody')
+        files[key]={'path':name,'byteLength':length,'sha256':digest}
+    npm_surface=raw_report['surfaces']['npm-launcher']
+    if files['native']['sha256']!=npm_surface['binarySha256'] or files['native']['sha256']!=raw_report['surfaces']['direct-bun']['binarySha256'] or files['platformManifest']['sha256']!=raw_report['launcherResolution']['platformManifestSha256'] or files['launcher']['sha256']!=npm_surface['launcherSourceSha256']:
+        raise RehearsalError('npm conformance closure cross-binding mismatch')
+    return {'prefix':str(prefix.resolve()),'platform':platform,'files':files}
+
+
 def _run_mechanical_conformance(
     runner: Any,
     raw_report: Mapping[str, Any],
@@ -787,6 +823,8 @@ def _run_mechanical_conformance(
     for label, expected_runner, executable in candidates:
         argv.extend(("--candidate", label, expected_runner, str(executable)))
     argv.extend(("--candidate-interpreter", "npm-launcher", str(node_path)))
+    npm_context=_npm_conformance_context(install,raw_report)
+    argv.extend(('--candidate-npm-context','npm-launcher',json.dumps(npm_context,sort_keys=True,separators=(',',':'))))
     remaining = _deadline_remaining(deadline, "before Phase 7 conformance")
     execute = executor
     if execute is None:
@@ -798,6 +836,9 @@ def _run_mechanical_conformance(
         )
     completed = execute(argv, Path(__file__).resolve().parents[2], environment)
     _deadline_remaining(deadline, "after Phase 7 conformance")
+    if _npm_conformance_context(install,raw_report)!=npm_context:
+        raise RehearsalError('npm conformance closure changed during execution')
+    _conformance_inputs(install,raw_report)
     if completed.returncode != 0:
         diagnostic = (completed.stderr or completed.stdout)[:4096]
         raise RehearsalError(

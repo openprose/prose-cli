@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import argparse
 from copy import deepcopy
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import hashlib
 import json
 import os
@@ -84,9 +84,9 @@ NODE_COMMONJS_SNAPSHOT_BOOTSTRAP = """
 const fs = require("node:fs");
 const path = require("node:path");
 const Module = require("node:module");
-const [snapshot, sourceFilename, ...opaqueArgv] = process.argv.slice(1);
+const [snapshot, sourceFilename, launchFilename, ...opaqueArgv] = process.argv.slice(1);
 if (!snapshot || !sourceFilename) throw new Error("missing conformance snapshot context");
-process.argv = [process.execPath, sourceFilename, ...opaqueArgv];
+process.argv = [process.execPath, launchFilename, ...opaqueArgv];
 const candidate = new Module(sourceFilename, module);
 candidate.filename = sourceFilename;
 candidate.paths = Module._nodeModulePaths(path.dirname(sourceFilename));
@@ -103,6 +103,8 @@ class Product:
     execution_executable: Path | None = None
     execution_interpreter: Path | None = None
     execution_source_context: Path | None = None
+    npm_context: dict[str, Any] | None = None
+    execution_launch_path: Path | None = None
 
     @property
     def expected_runner_name(self) -> str:
@@ -119,6 +121,7 @@ class Product:
                 "--",
                 str(executable),
                 str(self.execution_source_context),
+                str(self.execution_launch_path or self.execution_source_context),
                 *arguments,
             ]
         return [
@@ -408,6 +411,7 @@ def snapshot_product(
         executable,
         interpreter,
         source_context,
+        product.npm_context,
     )
 
 
@@ -1623,12 +1627,81 @@ def isolate_workspace(workspace: Path) -> None:
         raise ValueError("mechanical workspace Git boundary must be a directory or file")
 
 
+def npm_context_paths(context: dict[str, Any]) -> dict[str, Path]:
+    if not isinstance(context,dict) or set(context) != {'prefix','platform','files'} or not isinstance(context['platform'],str) or context['platform'] not in {'darwin-arm64','darwin-x64','linux-arm64-gnu','linux-x64-gnu'}:
+        raise ValueError('SDK npm context must be an explicit closed native platform')
+    if not isinstance(context['prefix'],str):
+        raise ValueError('SDK npm context prefix must be a string')
+    prefix=Path(context['prefix'])
+    if not prefix.is_absolute() or prefix.resolve()!=prefix or prefix.is_symlink() or not prefix.is_dir():
+        raise ValueError('SDK npm context prefix must be a regular absolute directory')
+    meta='lib/node_modules/@openprose/prose-cli'
+    platform='lib/node_modules/@openprose/prose-cli-'+context['platform']
+    required={'metaManifest':meta+'/package.json','launcher':meta+'/bin/prose.js',
+              'platformManifest':platform+'/package.json','native':platform+'/bin/prose'}
+    files=context['files']
+    if not isinstance(files,dict) or set(files)!=set(required):
+        raise ValueError('SDK npm context closure is incomplete')
+    paths={}
+    for key,relative in required.items():
+        row=files[key]
+        if not isinstance(row,dict) or set(row)!={'path','byteLength','sha256'} or row['path']!=relative or type(row['byteLength']) is not int or not 0<row['byteLength']<=256*1024*1024 or not isinstance(row['sha256'],str) or not re.fullmatch('[0-9a-f]{64}',row['sha256']):
+            raise ValueError('SDK npm context file identity is malformed')
+        path=prefix/relative
+        for member in (path,*path.parents):
+            if member==prefix.parent:
+                break
+            if member.is_symlink():
+                raise ValueError('SDK npm context closure contains a symlink')
+        if not path.is_file() or path.stat().st_size!=row['byteLength'] or sha256(path.read_bytes())!=row['sha256']:
+            raise ValueError('SDK npm context file bytes changed: '+key)
+        paths[key]=path
+    manifest=json.loads(paths['platformManifest'].read_text('utf-8'))
+    meta_manifest=json.loads(paths['metaManifest'].read_text('utf-8'))
+    native=files['native']
+    cohort=meta_manifest.get('openproseCohort') if isinstance(meta_manifest,dict) else None
+    if not isinstance(manifest,dict) or not isinstance(cohort,dict) or cohort!=manifest.get('openproseCohort') or cohort.get('schema') not in {'openprose.npm-cohort/1','openprose.npm-cohort/2','openprose.npm-cohort/3'}:
+        raise ValueError('SDK npm metadata has a mismatched cohort')
+    version=cohort.get('version')
+    revision=cohort.get('sourceRevision')
+    if not isinstance(version,str) or not isinstance(revision,str) or not revision or not isinstance(cohort.get('admittedPlatforms'),list) or context['platform'] not in cohort['admittedPlatforms']:
+        raise ValueError('SDK npm cohort identity is incomplete')
+    alias=cohort['schema']=='openprose.npm-cohort/3'
+    core,separator,prerelease=version.partition('-')
+    child_version=(core+'-0.'+prerelease+'-'+context['platform'] if separator else version+'-'+context['platform']) if alias else version
+    child_name='@openprose/prose-cli' if alias else '@openprose/prose-cli-'+context['platform']
+    dependency=('npm:@openprose/prose-cli@'+child_version) if alias else version
+    launcher_identity={'path':'bin/prose.js','sha256':files['launcher']['sha256'],'byteLength':files['launcher']['byteLength']}
+    if (manifest.get('name')!=child_name or manifest.get('version')!=child_version or manifest.get('openprosePlatform')!=context['platform'] or manifest.get('openproseSourceRevision')!=revision or manifest.get('openproseBinary')!='bin/prose' or manifest.get('openproseBinarySha256')!=native['sha256'] or manifest.get('openproseBinaryByteLength')!=native['byteLength'] or meta_manifest.get('name')!='@openprose/prose-cli' or meta_manifest.get('version')!=version or meta_manifest.get('type')!='commonjs' or meta_manifest.get('bin')!={'prose':'bin/prose.js'} or meta_manifest.get('openproseLauncher')!=launcher_identity or not isinstance(meta_manifest.get('optionalDependencies'),dict) or meta_manifest['optionalDependencies'].get('@openprose/prose-cli-'+context['platform'])!=dependency):
+        raise ValueError('SDK npm platform metadata does not bind its compiled child')
+    with paths['native'].open('rb') as stream:
+        magic=stream.read(4)
+    if magic not in (b'\x7fELF',b'\xcf\xfa\xed\xfe',b'\xfe\xed\xfa\xcf',b'\xca\xfe\xba\xbe',b'\xbe\xba\xfe\xca'):
+        raise ValueError('SDK npm child must be a native compiled candidate')
+    return paths
+
+
+def attach_npm_contexts(products: list[Product], specifications: list[list[str]]) -> list[Product]:
+    contexts={}
+    for label,encoded in specifications:
+        if label in contexts or label not in {product.name for product in products}:
+            raise ValueError('SDK npm context label is duplicate or unknown')
+        contexts[label]=json.loads(encoded)
+    for product in products:
+        if product.name in contexts:
+            if product.interpreter is None or product.expected_runner_name!='bun':
+                raise ValueError('SDK npm context requires an explicit Bun launcher interpreter')
+            npm_context_paths(contexts[product.name])
+    return [replace(product,npm_context=contexts.get(product.name,product.npm_context)) for product in products]
+
+
 def prepare_sdk_installation(product: Product, case: dict[str, Any], workspace: Path,
                              environment_root: Path) -> tuple[Product, dict[str, Any], Path]:
     """Exercise real sibling discovery using an exact native candidate byte copy."""
     workspace = workspace.resolve()
     environment_root = environment_root.resolve()
-    if product.interpreter is not None or product.execution_interpreter is not None:
+    interpreted=product.interpreter is not None or product.execution_interpreter is not None
+    if interpreted and product.npm_context is None:
         raise ValueError("SDK installation cases require a native compiled candidate")
     oracle = json.loads((CLI / 'shared/fixtures/adapters/sdk-production.json').read_text('utf-8'))
     entries = [entry for entry in oracle['cases'] if entry['id'] == case['id']]
@@ -1641,10 +1714,26 @@ def prepare_sdk_installation(product: Product, case: dict[str, Any], workspace: 
     install = environment_root / 'relocated installation' / 'real bin'
     install.mkdir(parents=True, exist_ok=False)
     source = product.execution_executable or product.executable
-    native = install / 'prose'
+    npm_paths=None
+    if interpreted:
+        npm_paths=npm_context_paths(product.npm_context)
+        if product.execution_source_context != npm_paths['launcher'].resolve() or not _uses_node_commonjs_source_context(npm_paths['launcher'],product.execution_interpreter or product.interpreter):
+            raise ValueError('SDK npm context requires the exact authenticated CommonJS launcher')
+        if source.read_bytes()!=npm_paths['launcher'].read_bytes():
+            raise ValueError('SDK npm launcher snapshot differs from its authenticated source')
+        prefix=install/'npm-prefix'
+        for key in ('metaManifest','launcher','platformManifest'):
+            destination=prefix/product.npm_context['files'][key]['path']
+            destination.parent.mkdir(parents=True,exist_ok=True)
+            shutil.copyfile((product.execution_executable or product.executable) if key=='launcher' else npm_paths[key],destination)
+        native=prefix/product.npm_context['files']['native']['path']
+        source=npm_paths['native']
+    else:
+        native = install / 'prose'
+    native.parent.mkdir(parents=True,exist_ok=True)
     shutil.copyfile(source, native)
     native.chmod(0o700)
-    helper = install / 'prose-agents-sdk'
+    helper = native.parent / 'prose-agents-sdk'
     shutil.copyfile(INSTALLED_ADAPTER_HARNESS, helper)
     helper.chmod(0o700)
     poison = environment_root / 'foreign-path'
@@ -1652,13 +1741,15 @@ def prepare_sdk_installation(product: Product, case: dict[str, Any], workspace: 
     shutil.copyfile(INSTALLED_ADAPTER_HARNESS, poison / 'prose-agents-sdk')
     (poison / 'prose-agents-sdk').chmod(0o700)
     (poison / 'python3').symlink_to(Path(sys.executable).resolve())
+    launcher_context=(prefix/product.npm_context['files']['launcher']['path']) if interpreted else None
+    launch_target=launcher_context if interpreted else native
     if fixture['installation'] == 'symlink':
         shim = environment_root / 'user bin'
         shim.mkdir()
         target = shim / 'prose'
-        target.symlink_to(native)
+        target.symlink_to(launch_target)
     else:
-        target = native
+        target = launch_target
     if fixture['userConfig'] is not None:
         user = workspace / 'home/.prose/cli.toml'
         user.parent.mkdir(parents=True)
@@ -1676,8 +1767,15 @@ def prepare_sdk_installation(product: Product, case: dict[str, Any], workspace: 
     setup = dict(scenario=fixture['scenario'],expectedHelper=str(helper.resolve()),model=oracle['defaults']['model'],limits=limits,usageObservation=usage,modelIdentity=identity,wireNumberLexemes=fixture.get('wireNumberLexemes', {}),errorType=fixture.get('rawErrorType','ExecutionError'),setupReason=fixture.get('rawSetupReason'),errorMessage=fixture.get('rawMessage','safe fixture failure'))
     (workspace / '.sdk-compatibility-fixture.json').write_text(json.dumps(setup), encoding='utf-8')
     execution = Product(product.name, product.executable, product.runner_name,
-                        execution_executable=target)
+                        product.interpreter, (product.execution_executable or product.executable) if interpreted else target, product.execution_interpreter,
+                        launcher_context, product.npm_context, target if interpreted else None)
     fixture = {**fixture, 'nativePath': str(native), 'nativeSha256': sha256(source.read_bytes())}
+    if interpreted:
+        fixture['npmContext']=product.npm_context
+        fixture['npmCloneFiles']=[{'path':str(prefix/row['path']),'sha256':row['sha256'],'byteLength':row['byteLength']} for row in product.npm_context['files'].values()]
+    preflight=validate_sdk_effects(Observation(product,case,0,b'',b'',workspace=workspace,sdk_fixture=fixture))
+    if preflight:
+        raise ValueError('; '.join(preflight))
     return execution, fixture, poison
 
 
@@ -1702,6 +1800,15 @@ def validate_sdk_effects(observation: Observation) -> list[str]:
             failures.append('SDK default upgrade changed an explicit alternative harness preference')
     except OSError:
         failures.append('SDK fixture effect bytes unavailable')
+    if 'npmContext' in fixture:
+        try:
+            npm_context_paths(fixture['npmContext'])
+            for row in fixture['npmCloneFiles']:
+                path=Path(row['path'])
+                if any(member.is_symlink() for member in (path,*path.parents)) or not path.is_file() or path.stat().st_size!=row['byteLength'] or sha256(path.read_bytes())!=row['sha256']:
+                    failures.append('SDK npm relocated closure bytes changed')
+        except (OSError,ValueError,TypeError,KeyError):
+            failures.append('SDK npm original closure custody changed')
     for group in fixture.get('absentObservationGroups', []):
         parsed = observation.parsed
         error = parsed.get('error') if isinstance(parsed, dict) else None
@@ -2358,6 +2465,7 @@ def main(argv: list[str] | None = None) -> int:
             "the interpreter bytes are bound into the report"
         ),
     )
+    parser.add_argument('--candidate-npm-context',action='append',nargs=2,default=[],metavar=('LABEL','JSON'),help='Explicit benchmark-bound npm native child closure for SDK installation fixtures')
     args = parser.parse_args(argv)
     if args.candidate and (args.rust is not None or args.bun is not None):
         parser.error("--candidate cannot be combined with --rust or --bun")
@@ -2377,6 +2485,7 @@ def main(argv: list[str] | None = None) -> int:
             ]
         )
         products = attach_candidate_interpreters(products, args.candidate_interpreter)
+        products = attach_npm_contexts(products,args.candidate_npm_context)
     except ValueError as error:
         parser.error(str(error))
     verified_products: list[Product] = []
@@ -2392,6 +2501,7 @@ def main(argv: list[str] | None = None) -> int:
                 if product.interpreter is not None
                 else None
             ),
+            npm_context=product.npm_context,
         )
         try:
             identity = capture_candidate_identity(verified)

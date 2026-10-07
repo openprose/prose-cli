@@ -273,6 +273,7 @@ class FakeBenchmark:
         (meta_root / "bin").mkdir(parents=True)
         (platform_root / "bin").mkdir(parents=True)
         (meta_root / "bin" / "prose.js").write_bytes(LAUNCHER_BYTES)
+        (meta_root / "package.json").write_bytes(b'{"name":"@openprose/prose-cli","version":"0.1.0"}\n')
         (platform_root / "package.json").write_bytes(PLATFORM_MANIFEST_BYTES)
         (platform_root / "bin" / "prose").write_bytes(BUN_BYTES)
         command.parent.mkdir(parents=True)
@@ -304,6 +305,8 @@ class FakeBenchmark:
             ),
             "npm-launcher": "$INSTALL_ROOT/" + str(command.relative_to(install)),
         }
+        closure=(meta_root/'package.json',meta_root/'bin/prose.js',platform_root/'package.json',platform_root/'bin/prose')
+        self.raw['installations']=[{'surface':'npm-launcher','treeIdentity':{'entries':[{'path':str(path.relative_to(install/'npm-prefix')),'type':'regular','byteLength':path.stat().st_size,'sha256':sha(path.read_bytes())} for path in closure]}}]
         self.tree_digests = self._current_tree_digests(install)
         return copy.deepcopy(self.raw)
 
@@ -461,6 +464,43 @@ def conformance_kwargs(mutate_after_write=None):
 
 
 class ReleaseRehearsalTests(unittest.TestCase):
+    def test_npm_context_is_bound_to_exact_benchmark_inventory_and_all_surfaces(self):
+        for mutation in ('none','missing','duplicate','native-cross','launcher-cross','platform-cross','file-change','symlink'):
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as directory:
+                root=Path(directory); _build,raw,analysis=reports(); benchmark=FakeBenchmark(raw,analysis)
+                install=root/'install'; observed=benchmark.run_benchmark(root/'package',install,trials=1,timeout_seconds=1,deadline_monotonic=time.monotonic()+10)
+                original=rehearse_release._npm_conformance_context(install,observed)
+                self.assertEqual({'prefix','platform','files'},set(original))
+                self.assertEqual({'launcher','native','metaManifest','platformManifest'},set(original['files']))
+                changed=copy.deepcopy(observed)
+                if mutation=='missing': changed['installations'][0]['treeIdentity']['entries'].pop()
+                elif mutation=='duplicate': changed['installations'].append(copy.deepcopy(changed['installations'][0]))
+                elif mutation=='native-cross': changed['surfaces']['direct-bun']['binarySha256']='f'*64
+                elif mutation=='launcher-cross': changed['surfaces']['npm-launcher']['launcherSourceSha256']='f'*64
+                elif mutation=='platform-cross': changed['launcherResolution']['platformManifestSha256']='f'*64
+                elif mutation in ('file-change','symlink'):
+                    path=Path(original['prefix'])/original['files']['metaManifest']['path']
+                    if mutation=='file-change': path.write_bytes(b'tampered')
+                    else:
+                        foreign=path.with_name('foreign'); path.rename(foreign); path.symlink_to(foreign)
+                if mutation=='none': self.assertEqual(original,rehearse_release._npm_conformance_context(install,changed))
+                else:
+                    with self.assertRaises(rehearse_release.RehearsalError): rehearse_release._npm_conformance_context(install,changed)
+
+    def test_npm_context_checks_custody_after_failed_conformance(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory); _build,raw,analysis=reports(); benchmark=FakeBenchmark(raw,analysis)
+            install=root/'install'; observed=benchmark.run_benchmark(root/'package',install,trials=1,timeout_seconds=1,deadline_monotonic=time.monotonic()+10)
+            runner,_execute=fake_conformance()
+            context=rehearse_release._npm_conformance_context(install,observed)
+            def failing_executor(argv,cwd,environment):
+                index=argv.index('--candidate-npm-context')
+                self.assertEqual('npm-launcher',argv[index+1]); self.assertEqual(context,json.loads(argv[index+2]))
+                (Path(context['prefix'])/context['files']['native']['path']).write_bytes(b'tampered')
+                return subprocess.CompletedProcess(argv,1,b'',b'failed fixture')
+            with self.assertRaisesRegex(rehearse_release.RehearsalError,'benchmark custody'):
+                rehearse_release._run_mechanical_conformance(runner,observed,install,root/'report.json',{},time.monotonic()+10,failing_executor)
+
     def test_conformance_inputs_require_a_versioned_exact_node_identity(self) -> None:
         _build, raw, analysis = reports()
         benchmark = FakeBenchmark(raw, analysis)
