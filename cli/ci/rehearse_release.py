@@ -802,13 +802,34 @@ def _npm_conformance_context(install: Path, raw_report: Mapping[str, Any]) -> di
     return {'prefix':str(prefix.resolve()),'platform':platform,'files':files}
 
 
-def _sdk_conformance_contexts(install, raw_report, release, module):
-    """Bind real SDK trees before deliberately substituting the fixture oracle."""
-    if not isinstance(release, dict) or 'agentsSdk' not in release:
+def _sdk_release_identity(raw_report, release):
+    """Distinguish the explicit non-publishable development fixture from SDK custody."""
+    release = require_object(release, 'explicit SDK release context')
+    if 'agentsSdk' not in release:
+        if release.get('mode') in ('release', 'kernel-rc'):
+            raise RehearsalError('Production release lacks an SDK identity')
+        if (release.get('mode') not in ('development', 'alpha')
+                or release.get('releaseEligible') is not False
+                or release.get('publicationAuthorized') is not False):
+            raise RehearsalError('SDK-absent context requires an explicit non-publishable historical or development package')
         if 'sdkEvidence' in raw_report:
             raise RehearsalError('SDK installation evidence lacks an explicit release identity')
+        return None
+    if release['agentsSdk'] == 'not-packaged-development-fixture':
+        if (release.get('mode') != 'development'
+                or release.get('releaseEligible') is not False
+                or release.get('publicationAuthorized') is not False
+                or 'sdkEvidence' in raw_report):
+            raise RehearsalError('SDK placeholder requires an explicit non-publishable development fixture')
+        return None
+    return require_object(release['agentsSdk'], 'release SDK identity')
+
+
+def _sdk_conformance_contexts(install, raw_report, release, module):
+    """Bind real SDK trees before deliberately substituting the fixture oracle."""
+    sdk = _sdk_release_identity(raw_report, release)
+    if sdk is None:
         return {}
-    sdk = require_object(release['agentsSdk'], 'release SDK identity')
     import qualify_installed_sdk as installed_sdk
     import kernel_rc_evidence as sdk_custody
     import sdk_native_inventory as inventory
@@ -847,9 +868,9 @@ def _sdk_conformance_contexts(install, raw_report, release, module):
 
 
 def _sdk_report_binding(raw_report, release):
-    if not isinstance(release, dict) or 'agentsSdk' not in release:
+    sdk = _sdk_release_identity(raw_report, release)
+    if sdk is None:
         return None
-    sdk = require_object(release['agentsSdk'], 'release SDK identity')
     receipt_sha = require_sha(sdk.get('receiptSha256'), 'SDK receipt')
     payload_sha = 'not-applicable'
     if release['platform'].startswith('darwin-'):
@@ -869,7 +890,7 @@ def _validate_sdk_conformance_binding(value, raw_report, release):
     expected_sdk = _sdk_report_binding(raw_report, release)
     observed_sdk = value.get('sdkSourceCustody')
     if expected_sdk is None:
-        if observed_sdk is not None or 'sdkEvidence' in raw_report:
+        if 'sdkSourceCustody' in value or 'sdkEvidence' in raw_report:
             raise RehearsalError('SDK conformance report lacks explicit release context')
     elif not isinstance(observed_sdk, dict) or any(observed_sdk.get(k) != v for k, v in expected_sdk.items()):
         raise RehearsalError('SDK conformance source differs from authenticated release')

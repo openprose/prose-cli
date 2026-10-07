@@ -335,6 +335,9 @@ class FakeBenchmark:
         return {
             "platform": expected_platform,
             "release": {
+                "mode": "development",
+                "releaseEligible": False,
+                "publicationAuthorized": False,
                 "version": self.raw["packageIdentity"]["version"],
                 "source": {"revision": self.raw["packageIdentity"]["sourceRevision"]},
             },
@@ -499,7 +502,8 @@ class ReleaseRehearsalTests(unittest.TestCase):
                 (Path(context['prefix'])/context['files']['native']['path']).write_bytes(b'tampered')
                 return subprocess.CompletedProcess(argv,1,b'',b'failed fixture')
             with self.assertRaisesRegex(rehearse_release.RehearsalError,'benchmark custody'):
-                rehearse_release._run_mechanical_conformance(runner,observed,install,root/'report.json',{},time.monotonic()+10,failing_executor)
+                rehearse_release._run_mechanical_conformance(runner,observed,install,root/'report.json',{},time.monotonic()+10,failing_executor,
+                    release={'mode': 'development', 'releaseEligible': False, 'publicationAuthorized': False})
 
     def test_conformance_inputs_require_a_versioned_exact_node_identity(self) -> None:
         _build, raw, analysis = reports()
@@ -1141,6 +1145,59 @@ class ReleaseRehearsalTests(unittest.TestCase):
 
 
 class CompleteSdkConformanceCustodyTests(unittest.TestCase):
+    def test_exact_development_placeholder_has_no_sdk_source_or_report_claim(self):
+        release = {'mode': 'development', 'releaseEligible': False,
+                   'publicationAuthorized': False, 'agentsSdk': 'not-packaged-development-fixture'}
+        self.assertEqual(rehearse_release._sdk_conformance_contexts(Path('/not-read'), {}, release, None), {})
+        self.assertIsNone(rehearse_release._sdk_report_binding({}, release))
+        rehearse_release._validate_sdk_conformance_binding({}, {}, release)
+        for claim in ({}, None, False, []):
+            with self.subTest(claim=claim), self.assertRaises(rehearse_release.RehearsalError):
+                rehearse_release._validate_sdk_conformance_binding({'sdkSourceCustody': claim}, {}, release)
+
+    def test_sdk_absent_historical_alpha_requires_explicit_nonpromotion_authority(self):
+        release = {'mode': 'alpha', 'releaseEligible': False, 'publicationAuthorized': False}
+        self.assertEqual(rehearse_release._sdk_conformance_contexts(Path('/not-read'), {}, release, None), {})
+        self.assertIsNone(rehearse_release._sdk_report_binding({}, release))
+        for key in ('releaseEligible', 'publicationAuthorized'):
+            changed = copy.deepcopy(release); changed.pop(key)
+            with self.subTest(missing=key), self.assertRaises(rehearse_release.RehearsalError):
+                rehearse_release._sdk_report_binding({}, changed)
+        for raw_release in (None, [], 'development'):
+            with self.subTest(nonobject=raw_release):
+                with self.assertRaises(rehearse_release.RehearsalError):
+                    rehearse_release._sdk_conformance_contexts(Path('/not-read'), {}, raw_release, None)
+                with self.assertRaises(rehearse_release.RehearsalError):
+                    rehearse_release._sdk_report_binding({}, raw_release)
+
+    def test_placeholder_and_sdk_absence_refuse_production_or_ambiguous_authority(self):
+        baseline = {'mode': 'development', 'releaseEligible': False,
+                    'publicationAuthorized': False, 'agentsSdk': 'not-packaged-development-fixture'}
+        for poison in ('release', 'kernel-rc', 'alpha', 'missing-mode', 'release-eligible',
+                       'missing-release-eligible', 'publication-authorized', 'missing-publication',
+                       'unknown-string', 'null', 'false', 'list', 'sdk-evidence'):
+            release = copy.deepcopy(baseline); raw = {}
+            if poison in ('release', 'kernel-rc', 'alpha'): release['mode'] = poison
+            elif poison == 'missing-mode': release.pop('mode')
+            elif poison == 'release-eligible': release['releaseEligible'] = True
+            elif poison == 'missing-release-eligible': release.pop('releaseEligible')
+            elif poison == 'publication-authorized': release['publicationAuthorized'] = True
+            elif poison == 'missing-publication': release.pop('publicationAuthorized')
+            elif poison == 'sdk-evidence': raw['sdkEvidence'] = {}
+            else: release['agentsSdk'] = {'unknown-string': 'not-packaged', 'null': None, 'false': False, 'list': []}[poison]
+            with self.subTest(poison=poison):
+                with self.assertRaises(rehearse_release.RehearsalError):
+                    rehearse_release._sdk_conformance_contexts(Path('/not-read'), raw, release, None)
+                with self.assertRaises(rehearse_release.RehearsalError):
+                    rehearse_release._sdk_report_binding(raw, release)
+        for mode in ('release', 'kernel-rc', None):
+            release = {'mode': mode, 'releaseEligible': False, 'publicationAuthorized': False}
+            with self.subTest(omitted=mode):
+                with self.assertRaises(rehearse_release.RehearsalError):
+                    rehearse_release._sdk_report_binding({}, release)
+                with self.assertRaises(rehearse_release.RehearsalError):
+                    rehearse_release._sdk_conformance_contexts(Path('/not-read'), {}, release, None)
+
     def fixture(self, root, platform='darwin-x64'):
         from test_kernel_rc_evidence import sdk_fixture
         import kernel_rc_evidence as custody
