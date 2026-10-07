@@ -185,8 +185,10 @@ export async function resolveRevNumber(context: Context, reference: ProgramRef, 
  * caller's own program must be one of its revisions (a commit id is named as
  * such, with the rev_id to pass), and a latest reference reads the newest
  * rev_id. Another owner's pinned reference is checked by the service.
+ * Without a `read` request (`run quote`), a bare SLUG pins the newest
+ * revision the caller's listing names.
  */
-export async function resolveToRun(context: Context, reference: ProgramRef, list: number, read: number, option: string | undefined, verifyPinned: boolean): Promise<string> {
+export async function resolveToRun(context: Context, reference: ProgramRef, list: number, read: number | undefined, option: string | undefined, verifyPinned: boolean): Promise<string> {
   const given = option === undefined ? "" : context.option(option) ?? "";
   if (reference.owner === "" || reference.revNumber !== undefined || (verifyPinned && reference.rev !== undefined)) {
     const slug = reference.slug;
@@ -220,6 +222,10 @@ export async function resolveToRun(context: Context, reference: ProgramRef, list
           }
           throw noRevision(context, name, slug, rev, own.revisions);
         }
+      } else if (read === undefined && reference.rev === undefined) {
+        const newest = own.revisions[0]?.rev_id;
+        if (typeof newest !== "string" || !validRev(newest)) throw failure("SERVICE_PROTOCOL_INVALID");
+        reference.rev = newest;
       }
     } else {
       if (reference.owner === "") throw missingOwn(context, slug, missing?.details ?? {});
@@ -231,6 +237,10 @@ export async function resolveToRun(context: Context, reference: ProgramRef, list
       }
     }
   }
+  const fixed = pinned(reference);
+  if (fixed !== undefined) return fixed;
+  // Without a read request the service resolves the latest revision itself.
+  if (read === undefined) return `${reference.owner}/${reference.slug}`;
   return (await resolveProgramRef(context, reference, read)).ref;
 }
 

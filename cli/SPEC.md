@@ -2478,14 +2478,20 @@ models, with `suggestedArgv` the same command using the nearest; a failed
 lookup is advisory (the service decides) except an interrupt. `program draft`
 quotes the run hold (`GET /run/quote` with no parameters, advisory) into its
 plan. The hold depends on model, reasoning effort, environment, declared tools
-and bound repositories. `run quote` and the `run submit` plan send only the
-`model`, `reasoning_effort` and `environment` the user gave, plus
-`repositories=1` for any `--repo` or `--commit-output`; the `job create` plan
-sends the spec's `model`, `reasoning_effort` and `environment`, plus
-`repositories=1` for a `repository_url` or `context_repository_url`. Nothing
-is defaulted, the program is not inspected for the quote and tools are never
-sent, so a quote does not cover the program's own run settings or declared
-tools. `org
+and bound repositories, and the service prices a program itself, so the CLI
+never inspects program text. The `run submit` plan posts its exact submission
+body to `POST /run/quote` with the `POST /run` query minus `live` and
+`session`. `run quote FILE` posts `{content, model, reasoning_effort,
+repositories, output}` (never inputs) with the same query; `run quote --from`
+sends `GET /run/quote?program_ref=` (a bare SLUG or `@N` is resolved first, as
+for `run submit`) with the given `model`, `reasoning_effort`, `environment` and
+`repositories=1`; without either it sends only those parameters. The
+`job create` plan sends the pinned `program_ref` with the spec's `model`,
+`reasoning_effort` and `environment`, plus `repositories=1` for a
+`repository_url` or `context_repository_url`. Nothing is defaulted; the
+program quotes send the key when one is set (private programs need it). The
+`run quote` result carries the service's `basis` (each value with its source:
+request, program or default) when it sends one. `org
 create` checks the service slug rule (1-63 lowercase letters, digits or
 interior hyphens; not `openprose`, `system`, `default`, `invitations` or
 UUID-shaped) before any request, suggesting a derived slug as `suggestedArgv`
@@ -2505,8 +2511,8 @@ the `--yes` help line reads `required because <confirmReason>.` and
 <confirmReason>`; `render_service_help.py --check` and the manifest schema
 refuse a missing, misplaced or circular reason. `run quote` results carry
 `holdBasis` and its human output says what the hold depends on, that the
-quote covers only the options given, and that the price is known only after
-settlement.
+quote covers the program and options given (`basis` names where each came
+from), and that the price is known only after settlement.
 
 **Transport.** Requests never follow redirects and are never retried, not even
 GETs. Each operation has a transport class with bounded time and size:

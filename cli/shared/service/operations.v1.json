@@ -3,7 +3,7 @@
   "contract": "service/1",
   "interactionsSource": {
     "file": "service-interactions.v1.json",
-    "sha256": "4eb59d64fc7f2392a1112741ebabdaa4628454b9fce0737dc94eeb20f04e5108"
+    "sha256": "2a272f2afc0ef4c87431b947f71af6ce5a7fe8dc731f96e106c25e156a077a01"
   },
   "grammar": {
     "usage": "prose [--output human|json|jsonl] cli <command> [ARGUMENTS] [OPTIONS]",
@@ -1208,7 +1208,8 @@
       "invalid_account": "SERVICE_REQUEST_REJECTED",
       "reserved_slug": "SERVICE_REQUEST_REJECTED",
       "immutable_organization_identity": "SERVICE_REQUEST_REJECTED",
-      "organization_forbidden": "SERVICE_REQUEST_REJECTED"
+      "organization_forbidden": "SERVICE_REQUEST_REJECTED",
+      "program_not_found": "SERVICE_RESOURCE_NOT_FOUND"
     },
     "routeOverrides": [
       {
@@ -1954,16 +1955,17 @@
       ],
       "contract": "service/1",
       "feature": "runs",
-      "summary": "Report the hold a run reserves: money set aside from the wallet while the run is live. It is not the price. The environment is checked first.\nThe hold depends on the model, reasoning effort, environment, declared tools and bound repositories, and what the run does not use is released when it settles. The quote sends only the --model, --reasoning-effort, --environment, --repo and --commit-output you give. It does not read the program, so a program that sets its own model, effort or environment, or declares tools, can hold a different amount. A run's price is known only after it settles (`cli run show RUN_ID`, price_cents). The program, inputs and options `cli run submit` takes are accepted, so you can quote the exact command you will submit.",
+      "summary": "Report the hold a run reserves: money set aside from the wallet while the run is live. It is not the price. The environment is checked first.\nThe hold depends on the model, reasoning effort, environment, declared tools and bound repositories, and what the run does not use is released when it settles. With FILE or --from the service prices that program, including its own run settings and declared tools; --model, --reasoning-effort, --environment, --repo and --commit-output override them. `basis` names where each value came from (request, program or default). A run's price is known only after it settles (`cli run show RUN_ID`, price_cents). The program, inputs and options `cli run submit` takes are accepted, so you can quote the exact command you will submit.",
       "interaction": "run.quote",
       "interactions": [
         "health.read",
-        "run.quote"
+        "run.quote",
+        "program.revisions"
       ],
       "arguments": [
         {
           "name": "FILE",
-          "description": "Program file, or - for standard input, as `cli run submit` takes it. Accepted so a quote names the same command as `cli run submit`; the quote does not read the program, so the program's own run settings and declared tools are not included.",
+          "description": "Program file, or - for standard input, as `cli run submit` takes it. The service prices this program, including its own run settings and declared tools.",
           "required": false,
           "variadic": false
         }
@@ -1972,7 +1974,7 @@
         {
           "name": "--from",
           "value": "[OWNER/]SLUG[@REV]",
-          "description": "Run a saved program; a bare SLUG is your own program. @REV is a rev_id, or @N (@revN) for revision N of your own program; without @REV the latest revision is pinned. Accepted so a quote names the same command as `cli run submit`; the quote does not read the program, so the program's own run settings and declared tools are not included.",
+          "description": "Run a saved program; a bare SLUG is your own program. @REV is a rev_id, or @N (@revN) for revision N of your own program; without @REV the service prices the latest revision. The service prices this program, including its own run settings and declared tools.",
           "repeatable": false,
           "required": false
         },
@@ -1993,7 +1995,7 @@
         {
           "name": "--model",
           "value": "MODEL",
-          "description": "Hosted model id (see `cli model list`). Sent with the quote: the hold depends on it.",
+          "description": "Hosted model id (see `cli model list`). Sent with the quote; overrides the program's own setting.",
           "default": "the service's default_model (`cli model list`)",
           "repeatable": false,
           "required": false
@@ -2001,7 +2003,7 @@
         {
           "name": "--reasoning-effort",
           "value": "EFFORT",
-          "description": "Reasoning effort supported by the model. Sent with the quote: the hold depends on it.",
+          "description": "Reasoning effort supported by the model. Sent with the quote; overrides the program's own setting.",
           "repeatable": false,
           "required": false,
           "choices": [
@@ -2015,7 +2017,7 @@
         {
           "name": "--environment",
           "value": "ENV",
-          "description": "Execution environment offered by the service (for example builtin or linux). Sent with the quote: the hold depends on it.",
+          "description": "Execution environment offered by the service (for example builtin or linux). Sent with the quote; overrides the program's own setting.",
           "default": "the service's default environment",
           "repeatable": false,
           "required": false
@@ -2031,14 +2033,14 @@
         {
           "name": "--repo",
           "value": "OWNER/NAME[@BRANCH]",
-          "description": "Read-only repository context. Any --repo or --commit-output sends repositories=1 with the quote: a bound repository adds to the hold.",
+          "description": "Read-only repository context. Sent with the quote: a bound repository adds to the hold.",
           "repeatable": true,
           "required": false
         },
         {
           "name": "--commit-output",
           "value": "OWNER/NAME[@BRANCH]",
-          "description": "Writable repository that receives the run's commit. Any --repo or --commit-output sends repositories=1 with the quote: a bound repository adds to the hold.",
+          "description": "Writable repository that receives the run's commit. Sent with the quote: a bound repository adds to the hold.",
           "repeatable": false,
           "required": false
         }
@@ -2070,13 +2072,71 @@
           },
           "auth": "none",
           "body": null,
-          "when": "always",
+          "when": "no FILE or --from",
           "catalogRoute": {
             "method": "GET",
             "path": "/run/quote",
             "auth": "none"
           },
           "response": "run-quote"
+        },
+        {
+          "interaction": "run.quote",
+          "method": "GET",
+          "path": "/run/quote",
+          "query": {
+            "program_ref": "{program_ref}",
+            "model": "{model}",
+            "reasoning_effort": "{reasoning_effort}",
+            "environment": "{environment}",
+            "repositories": "1"
+          },
+          "auth": "optional",
+          "body": null,
+          "when": "--from",
+          "catalogRoute": {
+            "method": "GET",
+            "path": "/run/quote",
+            "auth": "none"
+          },
+          "response": "run-quote"
+        },
+        {
+          "interaction": "run.quote",
+          "method": "POST",
+          "path": "/run/quote",
+          "query": {
+            "environment": "{environment}",
+            "runtime": "{runtime}",
+            "repositories": "{repositories}",
+            "output_repository": "{output_repository}"
+          },
+          "auth": "optional",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": "json",
+          "when": "FILE",
+          "catalogRoute": {
+            "method": "POST",
+            "path": "/run/quote",
+            "auth": "none"
+          },
+          "response": "run-quote"
+        },
+        {
+          "interaction": "program.revisions",
+          "method": "GET",
+          "path": "/programs/{slug}/revisions",
+          "auth": "bearer",
+          "body": null,
+          "when": "--from SLUG or @N",
+          "catalogRoute": {
+            "method": "GET",
+            "path": "/programs/{slug}/revisions",
+            "auth": "api_key_or_session_token"
+          },
+          "response": "program-revisions"
         }
       ],
       "effect": "read",
@@ -2256,21 +2316,24 @@
         },
         {
           "interaction": "run.quote",
-          "method": "GET",
+          "method": "POST",
           "path": "/run/quote",
           "query": {
-            "model": "{model}",
-            "reasoning_effort": "{reasoning_effort}",
             "environment": "{environment}",
-            "repositories": "1"
+            "runtime": "{runtime}",
+            "repositories": "{repositories}",
+            "output_repository": "{output_repository}"
           },
-          "auth": "none",
-          "body": null,
+          "auth": "bearer",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": "json",
           "when": "confirmation",
           "catalogRoute": {
-            "method": "GET",
+            "method": "POST",
             "path": "/run/quote",
-            "auth": "none"
+            "auth": "api_key_or_session_token"
           },
           "response": "run-quote"
         },
@@ -4653,19 +4716,20 @@
           "method": "GET",
           "path": "/run/quote",
           "query": {
+            "program_ref": "{program_ref}",
             "model": "{model}",
             "reasoning_effort": "{reasoning_effort}",
             "environment": "{environment}",
             "repositories": "1",
             "job_type": "{job_type}"
           },
-          "auth": "none",
+          "auth": "bearer",
           "body": null,
           "when": "confirmation",
           "catalogRoute": {
             "method": "GET",
             "path": "/run/quote",
-            "auth": "none"
+            "auth": "api_key_or_session_token"
           },
           "response": "run-quote"
         },

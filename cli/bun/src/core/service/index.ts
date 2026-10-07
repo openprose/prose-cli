@@ -118,6 +118,18 @@ export class Context {
     return failure("SERVICE_AUTH_REQUIRED", details);
   }
 
+  /**
+   * Whether a credential is configured (the environment variable, else the OS
+   * store), for requests whose key is optional: they send it when there is
+   * one and go anonymous otherwise. An unreadable store counts as none.
+   */
+  async credentialConfigured(): Promise<boolean> {
+    const value = this.deps.env[this.environment.credentialEnv];
+    if (value !== undefined && value !== "") return true;
+    try { return (await this.transport.storedCredential()) !== null; }
+    catch { return false; }
+  }
+
   knownCredential(): string | undefined { return this.credential; }
   /** Where the resolved credential came from, once resolved. */
   credentialOrigin(): "environment" | "store" | undefined { return this.credentialSource; }

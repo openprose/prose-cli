@@ -91,7 +91,7 @@ fn an_input_file_of_exactly_one_mebibyte_is_planned() {
     std::fs::write(temp.path().join("p.prose.md"), "Reply ok.\n").unwrap();
     std::fs::write(temp.path().join("max.txt"), "y".repeat(MEBIBYTE)).unwrap();
     let fixture = json!({"environment": "production", "exchanges": [
-        {"method": "GET", "path": "/run/quote", "status": 200,
+        {"method": "POST", "path": "/run/quote", "status": 200,
          "body": {"hold": {"hold_usd": "1.02", "ttl_seconds": 900}, "pricing_policy_id": "p"}}
     ]});
     let output = prose(

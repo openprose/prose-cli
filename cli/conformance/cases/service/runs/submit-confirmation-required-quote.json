@@ -25,13 +25,14 @@
     "storeAvailable": true,
     "exchanges": [
       {
-        "method": "GET",
+        "method": "POST",
         "path": "/run/quote",
         "requestHeaders": {
           "Authorization": {
-            "present": false
+            "present": true
           }
         },
+        "expectedSha256": "ff2b93e1185f8f379d05b79546262b4bede0761fc4868b35ad38d360497d7060",
         "status": 200,
         "body": {
           "hold": {

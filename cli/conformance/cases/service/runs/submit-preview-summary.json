@@ -54,17 +54,14 @@
         }
       },
       {
-        "method": "GET",
+        "method": "POST",
         "path": "/run/quote",
-        "query": {
-          "model": "model-luna",
-          "reasoning_effort": "high"
-        },
         "requestHeaders": {
           "Authorization": {
-            "present": false
+            "present": true
           }
         },
+        "expectedSha256": "47174bcbacbfe05188410ba75e45b52acb1bc7314f1bd3408e2e2eec1bbc0060",
         "status": 200,
         "body": {
           "hold": {
