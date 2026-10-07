@@ -160,7 +160,7 @@ describe("shared runner contracts", () => {
       error: {
         code: "HOSTED_UNAVAILABLE",
         action: "To use the hosted service, run `cli run submit FILE --preview`; running programs on this machine needs a local harness (`cli harness list`).",
-        details: { suggestedArgv: ["--harness", "openprose", "--output", "json", "cli", "run", "submit", "fixture.prose.md", "--preview"] },
+        details: { suggestedArgv: ["--output", "json", "cli", "run", "submit", "fixture.prose.md", "--preview"] },
       },
     });
     expect(io.invocations).toHaveLength(0);
