@@ -367,7 +367,7 @@ def validate_input(path, supplier, source_root, target):
 def python_origin(value):
     distribution = value['pythonDistribution']; root = Path(distribution['root'])
     data = read_file(distribution['metadataPath'], MAX_METADATA); info = load_json(data)
-    require(info.get('version') == 8, 'Unsupported full Python metadata version')
+    require(info.get('version') == '8', 'Unsupported full Python metadata version')
     require(info.get('python_version') == '3.10.20' and info.get('target_triple') == value['pythonArchive']['targetTriple'] and
             info.get('libpython_link_mode') == 'shared', 'Python metadata is not the target full shared distribution')
     license_paths = {info.get('license_path')} if info.get('license_path') else set()

@@ -1,4 +1,6 @@
 import io
+import copy
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -7,6 +9,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 import build_kernel_rc as rc
+import npm_alias_install
 
 
 class KernelRCBuildTests(unittest.TestCase):
@@ -109,6 +112,77 @@ class KernelRCBuildTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'bytes changed'):
                 rc.verified_artifacts(root)
 
+
+
+class NpmAliasSdkArchiveTests(unittest.TestCase):
+    def fixture(self, path):
+        from test_qualify_installed_sdk import sdk_archive, archive
+        manifest, table = sdk_archive(path, prefix='package/bin/')
+        encoded = table['files']['package/bin/agents-sdk-build.json'][0]
+        receipt = json.loads(encoded)
+        for index in range(140):
+            name = 'prose-agents-sdk-runtime/resource-' + str(index).zfill(3)
+            data = b'nonexecuted support fixture'
+            table['files']['package/bin/' + name] = (data, 0o644)
+            receipt['payload']['entries'].append({'path': name, 'type': 'file', 'mode': 0o644,
+                'byteLength': len(data), 'sha256': hashlib.sha256(data).hexdigest()})
+            receipt['payload']['totalRegularBytes'] += len(data)
+        receipt['payload']['entries'].sort(key=lambda row: row['path'])
+        encoded = json.dumps(receipt, sort_keys=True).encode()
+        table['files']['package/bin/agents-sdk-build.json'] = (encoded, 0o644)
+        manifest['agentsSdk']['receiptSha256'] = hashlib.sha256(encoded).hexdigest()
+        metadata = {'name': '@openprose/prose-cli', 'version': '0.15.0-rc.4', 'os': ['darwin'], 'cpu': ['x64']}
+        table['files']['package/package.json'] = (json.dumps(metadata).encode(), 0o644)
+        archive(path, table['files'], table)
+        manifest['artifacts'] = [{'path': path.name, 'kind': 'npm-platform',
+            'byteLength': path.stat().st_size, 'sha256': hashlib.sha256(path.read_bytes()).hexdigest()}]
+        return manifest, table, metadata
+
+    def test_explicit_sdk_authority_accepts_complete_tree_above_generic_limit(self):
+        with tempfile.TemporaryDirectory() as raw:
+            path = Path(raw) / 'sdk-platform.tgz'; manifest, table, metadata = self.fixture(path)
+            self.assertGreater(sum(len(rows) for rows in table.values()), 128)
+            observed, payload = npm_alias_install.platform_payload(path, sdk_manifest=manifest)
+            self.assertEqual(observed, metadata)
+            self.assertEqual(payload, path.read_bytes())
+            with self.assertRaisesRegex(ValueError, 'Too many archive members'):
+                npm_alias_install.platform_payload(path)
+
+    def test_rehashed_support_or_artifact_authority_poison_fails_before_server_or_commands(self):
+        from test_qualify_installed_sdk import archive
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw); path = root / 'sdk-platform.tgz'
+            for poison in ('filename', 'digest', 'length', 'bool-length', 'duplicate-artifact', 'missing-identity', 'support'):
+                manifest, table, _ = self.fixture(path)
+                if poison == 'filename': manifest['artifacts'][0]['path'] = 'other.tgz'
+                elif poison == 'digest': manifest['artifacts'][0]['sha256'] = '0' * 64
+                elif poison == 'length': manifest['artifacts'][0]['byteLength'] += 1
+                elif poison == 'bool-length': manifest['artifacts'][0]['byteLength'] = True
+                elif poison == 'duplicate-artifact': manifest['artifacts'].append(copy.deepcopy(manifest['artifacts'][0]))
+                elif poison == 'missing-identity': manifest.pop('agentsSdk')
+                else:
+                    table['files']['package/bin/prose-agents-sdk-runtime/resource-000'] = (b'poison', 0o644)
+                    archive(path, table['files'], table)
+                    manifest['artifacts'][0].update(byteLength=path.stat().st_size, sha256=hashlib.sha256(path.read_bytes()).hexdigest())
+                with self.subTest(poison=poison), patch.object(npm_alias_install, 'ThreadingHTTPServer') as server:
+                    command = unittest.mock.Mock(side_effect=AssertionError('No npm call'))
+                    with self.assertRaises(ValueError):
+                        npm_alias_install.install(root / 'meta.tgz', path, root / 'prefix', env={}, cwd=root,
+                                                  command=command, log=root / 'npm.log', sdk_manifest=manifest)
+                    server.assert_not_called(); command.assert_not_called()
+                    self.assertFalse((root / 'prefix').exists())
+
+    def test_generic_prior_archive_retains_regular_only_policy(self):
+        from test_qualify_installed_sdk import archive
+        with tempfile.TemporaryDirectory() as raw:
+            path = Path(raw) / 'prior.tgz'
+            metadata = {'name': '@openprose/prose-cli', 'version': '0.15.0-rc.3'}
+            files = {'package/package.json': (json.dumps(metadata).encode(), 0o644)}
+            archive(path, files)
+            self.assertEqual(npm_alias_install.platform_payload(path, sdk_manifest=None)[0], metadata)
+            archive(path, files, {'symlinks': {'package/alias': 'package.json'}})
+            with self.assertRaisesRegex(ValueError, 'Links and special members'):
+                npm_alias_install.platform_payload(path, sdk_manifest=None)
 
 
 class KernelRCSdkExtractionTests(unittest.TestCase):

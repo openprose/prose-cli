@@ -83,7 +83,7 @@ def input_fixture(root, target='linux-x64-gnu'):
     python = root / 'python'; python.mkdir()
     (python / 'LICENSE').write_text('Python fixture license')
     (python / 'libpython.so').write_bytes(elf(machine=machine, symbol='Py_Initialize'))
-    info = {'version': 8, 'python_version': '3.10.20', 'target_triple': arch + '-unknown-linux-gnu', 'libpython_link_mode': 'shared',
+    info = {'version': '8', 'python_version': '3.10.20', 'target_triple': arch + '-unknown-linux-gnu', 'libpython_link_mode': 'shared',
             'licenses': ['Python-2.0'], 'license_path': 'LICENSE', 'build_info': {'core': {'shared_lib': 'libpython.so'}, 'extensions': {}}}
     metadata = python / 'PYTHON.json'; metadata.write_text(json.dumps(info))
     image = lambda floor: {'image': 'quay.io/pypa/manylinux_' + floor + '_' + arch + '@sha256:' + 'a' * 64,
@@ -269,6 +269,38 @@ class NativeInventoryTests(unittest.TestCase):
             self.assertEqual([r['path'] for r in origin['licenses']], ['LICENSE', 'zlib-license'])
             (root / 'zlib-license').unlink()
             with self.assertRaises(ValueError): native.python_origin(value)
+
+    def test_python_metadata_requires_canonical_upstream_string_version_on_both_targets(self):
+        for target in ('linux-x64-gnu', 'linux-arm64-gnu'):
+            with self.subTest(target=target), tempfile.TemporaryDirectory() as temp:
+                value, _, _, _ = input_fixture(Path(temp), target)
+                root = Path(value['pythonDistribution']['root']); metadata = root / 'PYTHON.json'
+                original = json.loads(metadata.read_text())
+                origin, owned = native.python_origin(value)
+                self.assertEqual(origin['archive']['targetTriple'], original['target_triple'])
+                self.assertEqual(origin['metadataSha256'], native.sha(metadata.read_bytes()))
+                self.assertIn(native.sha((root / 'libpython.so').read_bytes()), owned)
+                for version in (8, 8.0, True, None, '08', '8.0', ' 8', '8 ', '9', [], {}):
+                    changed = copy.deepcopy(original); changed['version'] = version
+                    metadata.write_text(json.dumps(changed))
+                    with self.subTest(version=version), self.assertRaisesRegex(ValueError, 'metadata version'):
+                        native.python_origin(value)
+                changed = copy.deepcopy(original); changed.pop('version'); metadata.write_text(json.dumps(changed))
+                with self.assertRaisesRegex(ValueError, 'metadata version'): native.python_origin(value)
+
+    def test_python_metadata_string_version_does_not_bypass_native_origin_guards(self):
+        with tempfile.TemporaryDirectory() as temp:
+            value, _, _, _ = input_fixture(Path(temp))
+            metadata = Path(value['pythonDistribution']['metadataPath']); original = json.loads(metadata.read_text())
+            mutations = [lambda v: v.update(python_version='3.10.19'),
+                         lambda v: v.update(target_triple='aarch64-unknown-linux-gnu'),
+                         lambda v: v.update(libpython_link_mode='static'),
+                         lambda v: v.update(licenses=[]), lambda v: v.pop('license_path'),
+                         lambda v: v['build_info']['core'].update(shared_lib='absent.so'),
+                         lambda v: v['build_info'].update(extensions=[])]
+            for mutate in mutations:
+                changed = copy.deepcopy(original); mutate(changed); metadata.write_text(json.dumps(changed))
+                with self.assertRaises(ValueError): native.python_origin(value)
 
     def test_wheel_native_and_license_members_are_checked_against_record(self):
         with tempfile.TemporaryDirectory() as temp:

@@ -350,9 +350,9 @@ def qualify(candidate_root, previous_release, output, source, version, node, npm
     root = output / 'npm'; root.mkdir()
     env = q.environment(root, npm=True, explicit_config=True)
     prefix = root / 'prefix'
-    def install(packages, label):
-        return npm_alias_install.install(*packages, prefix, env=env, cwd=root, command=q.npm_command, log=q.logs / (label + '.log'))
-    installs = [install(candidate_npm, 'npm-fresh')]
+    def install(packages, label, sdk_manifest):
+        return npm_alias_install.install(*packages, prefix, env=env, cwd=root, command=q.npm_command, log=q.logs / (label + '.log'), sdk_manifest=sdk_manifest)
+    installs = [install(candidate_npm, 'npm-fresh', manifest)]
     launcher = prefix / 'bin/prose'
     def npm_payload():
         native = list((prefix / 'lib/node_modules').rglob('prose-agents-sdk'))
@@ -364,9 +364,9 @@ def qualify(candidate_root, previous_release, output, source, version, node, npm
     q.defaults([node, launcher], 'bun', version, source, root, env, 'npm-fresh')
     saved = q.save_preferences([node, launcher], root, env, 'npm')
     q.execute(['npm', 'uninstall', '--global', '--prefix', prefix, '--offline', '--ignore-scripts', '--no-audit', '--no-fund', '@openprose/prose-cli'], env=env, cwd=root, label='npm-remove-fresh')
-    installs.append(install(previous_npm, 'npm-previous'))
+    installs.append(install(previous_npm, 'npm-previous', None))
     q.identity([node, launcher], 'bun', previous_plan['version'], previous_plan['source'], root, env, 'npm-previous')
-    installs.append(install(candidate_npm, 'npm-upgrade'))
+    installs.append(install(candidate_npm, 'npm-upgrade', manifest))
     npm_payload()
     q.identity([node, launcher], 'bun', version, source, root, env, 'npm-upgraded')
     q.preferences([node, launcher], root, env, 'npm-upgraded', saved)
@@ -378,7 +378,7 @@ def qualify(candidate_root, previous_release, output, source, version, node, npm
     env = q.environment(root, npm=True)
     # Populate only the exact platform package using the established offline
     # installer; npm exec itself installs the original root tarball in _npx.
-    install_record = npm_alias_install.install(*candidate_npm, root / 'cache-primer-prefix', env=env, cwd=root, command=q.npm_command, log=q.logs / 'npx-prime.log')
+    install_record = npm_alias_install.install(*candidate_npm, root / 'cache-primer-prefix', env=env, cwd=root, command=q.npm_command, log=q.logs / 'npx-prime.log', sdk_manifest=manifest)
     env = offline_registry_environment(env, install_record)
     shutil.rmtree(root / 'cache-primer-prefix')
     command = [node, npm, 'exec', '--offline', '--yes', '--ignore-scripts', '--no-audit', '--no-fund', '--package', candidate_npm[0], '--', 'prose']

@@ -14,6 +14,7 @@ import re
 import subprocess
 import selectors
 import signal
+import stat
 import time
 import uuid
 import shutil
@@ -79,15 +80,44 @@ def source_hashes(source):
 def assert_stable(source, snapshot):
     require(source_hashes(source)==snapshot, 'Source, runtime tests, driver or lock changed')
 
-def check_output(output):
+def check_output(output, *, live=False):
+    """Account without following aliases; only active entries may disappear."""
     count=0; size=0
-    for path in output.rglob('*'):
-        count+=1;require(count <= MAX_FILES, 'Owned output file limit exceeded')
-        # Vendor archive symlinks may exist internally; never follow these for
-        # accounting, and never allow symlinked owned top-level stages.
-        if path.is_file() and not path.is_symlink():
-            size+=path.stat().st_size
-            require(size<=MAX_RETAINED_BYTES,'Owned output byte limit exceeded')
+    # Root disappearance/aliasing always refuses, including active scans.
+    root=os.open(output,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
+    try:
+        require(os.fstat(root).st_uid==os.getuid(),'Owned output directory required')
+        def scan(directory):
+            nonlocal count,size
+            with os.scandir(directory) as entries:
+                for entry in entries:
+                    # Count each observed entry even if an active writer removes it.
+                    count+=1;require(count<=MAX_FILES,'Owned output file limit exceeded')
+                    try:
+                        info=os.stat(entry.name,dir_fd=directory,follow_symlinks=False)
+                    except FileNotFoundError:
+                        if not live: raise
+                        continue
+                    if stat.S_ISREG(info.st_mode):
+                        size+=info.st_size
+                        require(size<=MAX_RETAINED_BYTES,'Owned output byte limit exceeded')
+                    elif stat.S_ISDIR(info.st_mode):
+                        try:
+                            child=os.open(entry.name,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW,dir_fd=directory)
+                        except FileNotFoundError:
+                            if not live: raise
+                            continue
+                        try:
+                            opened=os.fstat(child)
+                            require((opened.st_dev,opened.st_ino)==(info.st_dev,info.st_ino),
+                                    'Owned output directory changed during accounting')
+                            scan(child)
+                        finally: os.close(child)
+                    else:
+                        # Vendor aliases are accounted as entries, never traversed.
+                        require(stat.S_ISLNK(info.st_mode),'Unexpected owned output file type')
+        scan(root)
+    finally: os.close(root)
     return size
 
 def verify_archive(path, row):
@@ -467,7 +497,7 @@ def process(command, output, label, *, timeout=1200, max_bytes=MAX_LOG_BYTES, de
             while events.get_map():
                 require(time.monotonic()<deadline,'Process deadline exceeded: '+label)
                 if time.monotonic()>=next_audit:
-                    check_output(output)
+                    check_output(output,live=p.poll() is None)
                     require(shutil.disk_usage(output).free>=512*1024**2,'Owned scratch reserve exhausted')
                     next_audit=time.monotonic()+1
                 for key,_ in events.select(min(.1,max(0,deadline-time.monotonic()))):
@@ -499,7 +529,7 @@ def stream_transport(command, output, deadline, audit):
                 while events.get_map():
                     require(time.monotonic()<deadline,'Preparation deadline exceeded')
                     if time.monotonic()>=next_audit:
-                        audit();check_output(output)
+                        audit();check_output(output,live=p.poll() is None)
                         require(shutil.disk_usage(output).free>=512*1024**2,'Owned scratch reserve exhausted')
                         next_audit=time.monotonic()+1
                     for key,_ in events.select(min(.1,max(0,deadline-time.monotonic()))):
@@ -508,7 +538,7 @@ def stream_transport(command, output, deadline, audit):
                         # Flush both streams before aggregate accounting; never write a chunk
                         # that would exceed the existing entire-job retained-byte quota.
                         tar.flush();log.flush()
-                        require(check_output(output)+len(data)<=MAX_RETAINED_BYTES,'Owned output byte limit exceeded')
+                        require(check_output(output,live=p.poll() is None)+len(data)<=MAX_RETAINED_BYTES,'Owned output byte limit exceeded')
                         if key.data=='tar':tar.write(data)
                         else:
                             total+=len(data)

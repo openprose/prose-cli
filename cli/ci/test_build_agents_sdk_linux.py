@@ -580,5 +580,75 @@ class PythonTransportControls(unittest.TestCase):
    stream.assert_not_called()
 
 
+class LiveQuotaAccountingControls(unittest.TestCase):
+ def disappear(self,root,live):
+  item=root/'temporary.pyc.owned';item.write_bytes(b'transient');original=d.os.stat
+  def remove(name,*args,**kwargs):
+   if name==item.name and kwargs.get('dir_fd') is not None:item.unlink()
+   return original(name,*args,**kwargs)
+  with patch.object(d.os,'stat',side_effect=remove):return d.check_output(root,live=live)
+ def test_only_live_disappearing_entry_is_tolerated(self):
+  with tempfile.TemporaryDirectory() as raw:
+   root=Path(raw).resolve();self.assertEqual(self.disappear(root,True),0)
+   with self.assertRaises(FileNotFoundError):self.disappear(root,False)
+ def test_live_missing_root_and_permission_failures_are_not_ignored(self):
+  with tempfile.TemporaryDirectory() as raw:
+   root=Path(raw).resolve();(root/'owned').write_bytes(b'x')
+   with self.assertRaises(FileNotFoundError):d.check_output(root/'missing',live=True)
+   with patch.object(d.os,'stat',side_effect=PermissionError(13,'fixture refusal')):
+    with self.assertRaises(PermissionError):d.check_output(root,live=True)
+ def test_live_observed_entry_and_regular_byte_limits_are_preserved(self):
+  with tempfile.TemporaryDirectory() as raw:
+   root=Path(raw).resolve()
+   with patch.object(d,'MAX_FILES',0),self.assertRaisesRegex(ValueError,'file limit'):self.disappear(root,True)
+   (root/'temporary.pyc.owned').unlink();(root/'retained').write_bytes(b'12345')
+   with patch.object(d,'MAX_RETAINED_BYTES',4),self.assertRaisesRegex(ValueError,'byte limit'):d.check_output(root,live=True)
+ def test_external_aliases_are_counted_without_following(self):
+  with tempfile.TemporaryDirectory() as raw:
+   root=Path(raw).resolve();out=root/'owned';out.mkdir();external=root/'external';external.mkdir()
+   (external/'large').write_bytes(b'123456789');(out/'alias').symlink_to(external,target_is_directory=True);(out/'file-alias').symlink_to(external/'large')
+   with patch.object(d,'MAX_RETAINED_BYTES',0):self.assertEqual(d.check_output(out,live=True),0)
+   with patch.object(d,'MAX_FILES',1),self.assertRaisesRegex(ValueError,'file limit'):d.check_output(out,live=True)
+   with self.assertRaises(OSError):d.check_output(out/'alias',live=True)
+ def test_directory_replacement_cannot_follow_an_alias(self):
+  with tempfile.TemporaryDirectory() as raw:
+   root=Path(raw).resolve();out=root/'owned';out.mkdir();child=out/'stage';child.mkdir();external=root/'external';external.mkdir();original=d.os.open
+   def replace(name,*args,**kwargs):
+    if name=='stage' and kwargs.get('dir_fd') is not None:child.rmdir();child.symlink_to(external,target_is_directory=True)
+    return original(name,*args,**kwargs)
+   with patch.object(d.os,'open',side_effect=replace),self.assertRaises(OSError):d.check_output(out,live=True)
+ def test_directory_disappearance_is_live_only_and_identity_replacement_refuses(self):
+  with tempfile.TemporaryDirectory() as raw:
+   root=Path(raw).resolve();out=root/'owned';out.mkdir();original=d.os.open
+   for live in (True,False):
+    child=out/'stage';child.mkdir()
+    def remove(name,*args,**kwargs):
+     if name=='stage' and kwargs.get('dir_fd') is not None:child.rmdir()
+     return original(name,*args,**kwargs)
+    with patch.object(d.os,'open',side_effect=remove):
+     if live:self.assertEqual(d.check_output(out,live=True),0)
+     else:
+      with self.assertRaises(FileNotFoundError):d.check_output(out)
+   child=out/'stage';child.mkdir()
+   def replace(name,*args,**kwargs):
+    if name=='stage' and kwargs.get('dir_fd') is not None:
+     child.rename(out/'old-stage');child.mkdir()
+    return original(name,*args,**kwargs)
+   with patch.object(d.os,'open',side_effect=replace),self.assertRaisesRegex(ValueError,'directory changed'):
+    d.check_output(out,live=True)
+ def test_special_files_refuse_even_during_live_scan(self):
+  with tempfile.TemporaryDirectory() as raw:
+   root=Path(raw).resolve();d.os.mkfifo(root/'pipe')
+   with self.assertRaisesRegex(ValueError,'Unexpected owned output file type'):d.check_output(root,live=True)
+ def test_process_scan_is_live_only_while_direct_child_runs(self):
+  import sys
+  with tempfile.TemporaryDirectory() as raw:
+   root=Path(raw).resolve();(root/'home').mkdir();calls=[];actual=d.check_output
+   def observe(output,**kwargs):calls.append(kwargs.get('live',False));return actual(output,**kwargs)
+   with patch.object(d,'check_output',side_effect=observe):d.process([sys.executable,'-c','import time;time.sleep(.2);print("owned")'],root,'child',timeout=2)
+   self.assertIn(True,calls)
+   self.assertEqual(d.check_output(root),sum(p.stat().st_size for p in root.iterdir() if p.is_file()))
+
+
 if __name__ == '__main__':
  unittest.main()

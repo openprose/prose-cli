@@ -285,7 +285,7 @@ def build(version, output, *, agents_sdk_python=None, linux_python_archive=None)
     meta = next(package / a['path'] for a in manifest['artifacts'] if a['kind'] == 'npm-meta')
     platform_package = next(package / a['path'] for a in manifest['artifacts'] if a['kind'] == 'npm-platform')
     alias_install = install_alias(meta, platform_package, prefix, env=env, cwd=output,
-                                  command=command, log=logs / 'npm-install.log')
+                                  command=command, log=logs / 'npm-install.log', sdk_manifest=manifest)
     (logs / 'npm-alias-install.json').write_text(json.dumps(alias_install, sort_keys=True) + '\n')
     node = shutil.which('node', path=env.get('PATH')); require(node, 'Node is required for npm launcher')
     installed_helpers = [prefix / 'lib/node_modules/@openprose' / ('prose-cli-' + manifest['platform']) / 'bin/prose-agents-sdk']
