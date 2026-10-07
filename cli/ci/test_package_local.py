@@ -22,6 +22,7 @@ import uuid
 ROOT = Path(__file__).resolve().parents[2]
 CLI = ROOT / "cli"
 SCRIPT = CLI / "ci" / "package_local.py"
+sys.path.insert(0, str(SCRIPT.parent))
 # Full fixture packaging compresses both debug executables and a second copy of
 # Bun into npm archives. Allow CPU-intensive construction on native CI.
 PACKAGING_TIMEOUT_SECONDS = 180
