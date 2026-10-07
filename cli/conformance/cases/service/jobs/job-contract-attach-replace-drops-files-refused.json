@@ -1,18 +1,19 @@
 {
-  "id": "job-contract-attach-webhook-rebind-client-merge-human",
+  "id": "job-contract-attach-replace-drops-files-refused",
   "feature": "jobs",
   "operation": "job.contract.attach",
-  "description": "The client-merge path warns that stored files and environment cannot be kept, with --allow-reset.",
+  "description": "--replace onto another revision drops the stored files; without --file, --clear-files or --allow-reset it is refused.",
   "argv": [
+    "--output",
+    "json",
     "cli",
     "job",
     "contract",
     "attach",
     "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10",
+    "exowner1/jobs-example@fedcba9876543210",
+    "--replace",
     "exowner1/jobs-example@0123456789abcdef",
-    "--reasoning-effort",
-    "high",
-    "--allow-reset",
     "--yes"
   ],
   "fixture": {
@@ -104,7 +105,15 @@
                   "branch": "main"
                 }
               ],
-              "output": null
+              "output": null,
+              "environment": "builtin",
+              "files": [
+                {
+                  "name": "notes.md",
+                  "size": 12,
+                  "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+                }
+              ]
             }
           ],
           "max_contracts": 5
@@ -112,36 +121,38 @@
         "requestHeaders": {
           "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
         }
-      },
-      {
-        "method": "POST",
-        "path": "/triggers/3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10/contracts",
-        "requestHeaders": {
-          "Authorization": {
-            "present": true
-          }
-        },
-        "expectedBody": {
-          "program_ref": "exowner1/jobs-example@0123456789abcdef",
-          "model": "model-luna",
-          "reasoning_effort": "high",
-          "repository_url": "https://github.com/exowner1/app",
-          "repository_branch": "main",
-          "inputs": {
-            "channel": "C0123",
-            "cost_center": "ops"
-          }
-        },
-        "status": 201,
-        "body": {
-          "bound": "exowner1/jobs-example@0123456789abcdef"
-        }
       }
     ]
   },
-  "exitCode": 0,
+  "exitCode": 2,
   "stdout": {
-    "text": "Attached exowner1/jobs-example@0123456789abcdef to job 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10.\n  settings: reasoning effort high; repository https://github.com/exowner1/app@main; inputs channel, cost_center\nList the job's contracts with `cli job contract list 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10`.\n"
+    "json": {
+      "interaction": "job.contracts",
+      "operation": "job.contract.attach",
+      "problem": {
+        "action": "Correct the value named in Detail; `prose --output json cli job contract attach --help` shows the accepted syntax.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "replacing exowner1/jobs-example@0123456789abcdef with exowner1/jobs-example@fedcba9876543210 drops exowner1/jobs-example@0123456789abcdef's 1 stored file(s); give them with --file, or pass --clear-files or --allow-reset",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "job",
+            "contract",
+            "attach",
+            "--help"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
   },
   "stderr": {
     "text": ""

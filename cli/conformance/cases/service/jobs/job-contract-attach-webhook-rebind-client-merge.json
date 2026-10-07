@@ -2,7 +2,7 @@
   "id": "job-contract-attach-webhook-rebind-client-merge",
   "feature": "jobs",
   "operation": "job.contract.attach",
-  "description": "On a service that does not report environment, re-attaching merges the saved settings in the client and sends them in full.",
+  "description": "On a service that does not report environment, re-attaching merges the saved settings in the client and sends them in full, with --allow-reset.",
   "argv": [
     "--output",
     "json",
@@ -14,6 +14,7 @@
     "exowner1/jobs-example@0123456789abcdef",
     "--reasoning-effort",
     "high",
+    "--allow-reset",
     "--yes"
   ],
   "fixture": {

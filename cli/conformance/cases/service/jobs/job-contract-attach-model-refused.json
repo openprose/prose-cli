@@ -89,7 +89,7 @@
         "boundary": "invocation",
         "code": "INVOCATION_INVALID",
         "details": {
-          "reason": "job 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10 is a email job; run settings (--model, --reasoning-effort, --repo, --commit-output, --input, --inputs-file, --environment, --file, --replace and the --clear options) apply to webhook jobs only",
+          "reason": "job 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10 is an email job; run settings (--model, --reasoning-effort, --repo, --commit-output, --input, --inputs-file, --environment, --file, --replace and the --clear options) apply to webhook jobs only",
           "suggestedArgv": [
             "--output",
             "json",

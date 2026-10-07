@@ -25,13 +25,15 @@
 //   service's endpoint is the secret-free job-id webhook path, carry the
 //   absolute `endpoint_url` built from the environment origin.
 // - `job contract attach|detach` take a pinned `OWNER/SLUG@REV`. Attach
-//   options set a webhook binding's run settings (other job types are
-//   refused after reading the job). The job's listed contracts are always
-//   read first, so a re-attach keeps a bound program's saved settings: a
-//   service that lists `environment` merges a same-ref re-bind itself and is
-//   sent only the changes; otherwise the saved settings are merged here. A
-//   plan (--preview, or no --yes) also reads the job and carries an advisory
-//   quote for the binding as it will run.
+//   always reads the job and its listed contracts first. Attach options set
+//   a webhook binding's run settings (other job types are refused and take
+//   the program alone), and a re-attach keeps a bound program's saved
+//   settings: a service that lists `environment` merges a same-ref re-bind
+//   itself and is sent only the changes; otherwise the saved settings are
+//   merged here, which needs --allow-reset (or a file option and
+//   --environment) because such a service cannot report stored files or
+//   environment. A plan (--preview, or no --yes) carries an advisory quote
+//   for the binding as it will run.
 // - `job contract list` adds each binding's saved settings as
 //   `run_configuration`, never the program text or file content.
 //
@@ -44,7 +46,7 @@ import { encodeSegment, holdQuery, jsonObject, parseJson, requestFor, type Reque
 import type { Context } from "./index";
 import { didYouMean, type Environment, type Json, type JsonObject } from "./manifest";
 import { parseOwnAllowed, parseProgramRef, pinned, resolveToRun, validSlug } from "./program-ref";
-import { absoluteUrl, addIso, argvText, canonicalJson, isoMs, nextLine, usdCents, validText } from "./render";
+import { absoluteUrl, addIso, canonicalJson, isoMs, nextLine, usdCents, validText } from "./render";
 import { commitNotRead, modelOption, parseInputs, parseRepository, repositoryUrl, sameRepository, tokenOption, validInputKey, type Repository } from "./runs";
 
 /** Largest job spec or configuration file. */
@@ -1030,13 +1032,15 @@ async function contractDetach(context: Context): Promise<Json> {
 /** The `job contract attach` options that change a webhook binding's settings (with --replace, they need a webhook job). */
 const BINDING_OPTIONS = [
   "--model", "--reasoning-effort", "--repo", "--commit-output", "--clear-repo", "--clear-commit-output",
-  "--input", "--inputs-file", "--clear-input", "--environment", "--file", "--clear-files", "--replace",
+  "--input", "--inputs-file", "--clear-input", "--environment", "--file", "--clear-files", "--replace", "--allow-reset",
 ] as const;
-const BINDING_FLAGS = new Set(["--clear-repo", "--clear-commit-output", "--clear-files"]);
+const BINDING_FLAGS = new Set(["--clear-repo", "--clear-commit-output", "--clear-files", "--allow-reset"]);
 /** Stored binding files: at most 20, 5 MiB each and 10 MiB in total. */
 const MAX_BINDING_FILES = 20;
 const MAX_BINDING_FILE_BYTES = 5 << 20;
 const MAX_BINDING_FILES_BYTES = 10 << 20;
+/** A stored file name the service keeps as given. */
+const FILE_NAME = /^[A-Za-z0-9_-][A-Za-z0-9._-]{0,199}$/u;
 
 /** The settings options of one `job contract attach`, checked locally. */
 interface Binding {
@@ -1053,6 +1057,8 @@ interface Binding {
   clearInputs: string[];
   environment?: string;
   replace?: string;
+  /** --allow-reset: resetting what an older service does not report is accepted. */
+  allowReset: boolean;
   /** Any option above was given. */
   any: boolean;
 }
@@ -1076,8 +1082,9 @@ async function bindingOptions(context: Context): Promise<Binding> {
     if (!validInputKey(key)) throw invocationFailure(`--clear-input ${quoteText(key)} must be an input name of 1 to 128 characters without control characters`);
     if (!clearInputs.includes(key)) clearInputs.push(key);
   }
-  for (const raw of context.optionValues("--input")) {
-    const key = raw.includes("=") ? raw.slice(0, raw.indexOf("=")) : raw;
+  // An --input without `=` fails as KEY=VALUE when the inputs are parsed.
+  for (const raw of context.optionValues("--input").filter((value) => value.includes("="))) {
+    const key = raw.slice(0, raw.indexOf("="));
     if (clearInputs.includes(key)) throw invocationFailure(`--input ${quoteText(key)} and --clear-input ${quoteText(key)} cannot be combined: --input sets the input, --clear-input removes it`);
   }
   const replaceValue = context.option("--replace");
@@ -1085,6 +1092,7 @@ async function bindingOptions(context: Context): Promise<Binding> {
   const commitValue = context.option("--commit-output");
   const binding: Binding = {
     clearRepo, clearCommit, clearInputs, clearFiles,
+    allowReset: context.flag("--allow-reset"),
     inputs: await parseInputs(context),
     any: BINDING_OPTIONS.some(given),
   };
@@ -1093,7 +1101,10 @@ async function bindingOptions(context: Context): Promise<Binding> {
   const effort = context.option("--reasoning-effort");
   if (effort !== undefined) binding.effort = effort;
   if (repoValue !== undefined) binding.repo = parseRepository("--repo", repoValue);
-  if (commitValue !== undefined) binding.commit = parseRepository("--commit-output", commitValue);
+  if (commitValue !== undefined) {
+    binding.commit = parseRepository("--commit-output", commitValue);
+    if (binding.commit.branch !== undefined) throw invocationFailure(`--commit-output ${quoteText(commitValue)} takes OWNER/NAME: the service chooses the commit's branch`);
+  }
   const environment = tokenOption(context, "--environment", "an environment");
   if (environment !== undefined) binding.environment = environment;
   if (replaceValue !== undefined) binding.replace = pinnedValue(context, replaceValue, "--replace");
@@ -1130,8 +1141,8 @@ async function bindingFiles(context: Context): Promise<JsonObject | undefined> {
     const equals = raw.indexOf("=");
     const path = equals >= 0 ? raw.slice(equals + 1) : raw;
     const name = equals >= 0 ? raw.slice(0, equals) : baseName(path);
-    if (!validText(name, 256) || name.includes("/") || name.includes("\\")) {
-      throw invocationFailure(`--file ${quoteText(raw)}: the file name must be 1 to 256 characters without /, \\ or control characters; give it as NAME=PATH`);
+    if (!FILE_NAME.test(name) || name.includes("..")) {
+      throw invocationFailure(`--file ${quoteText(raw)}: the file name must be 1 to 200 letters, digits, ., _ or -, not starting with a dot and without ..; give it as NAME=PATH`);
     }
     const bytes = await readSource(context.cwd, path, MAX_BINDING_FILE_BYTES, "--file");
     try { new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes); }
@@ -1147,15 +1158,15 @@ async function bindingFiles(context: Context): Promise<JsonObject | undefined> {
 /** Whether two repository URLs name the same repository (GitHub names ignore case). */
 const sameUrl = (left: string, right: string): boolean => left.toLowerCase() === right.toLowerCase();
 
-/** The commit output of `--commit-output`, committing to `url` (the repository the runs read). */
-function commitOutput(commit: Repository, url: string): JsonObject {
-  return commit.branch === undefined ? { type: "commit", repository: url } : { type: "commit", repository: url, branch: commit.branch };
+/** The commit output of `--commit-output`, committing to `url` (the repository the runs read); the service chooses the branch. */
+function commitOutput(url: string): JsonObject {
+  return { type: "commit", repository: url };
 }
 
 /** A bound contract's saved settings as the service listed them; a wrong shape is SERVICE_PROTOCOL_INVALID. */
 interface Saved {
-  /** The binding has stored files (their content is never listed). */
-  files?: boolean;
+  /** How many files the binding stores (their content is never listed). */
+  files: number;
   model?: string;
   effort?: string;
   environment?: string;
@@ -1168,14 +1179,13 @@ function savedSettings(contract: JsonObject): Saved {
   const field = "contracts";
   const text = (name: string, max: number): string | undefined =>
     contract[name] === null || contract[name] === undefined ? undefined : scalar(contract[name], { text: max }, `${field}.${name}`) as string;
-  const saved: Saved = { inputs: {} };
+  const saved: Saved = { inputs: {}, files: Array.isArray(contract.files) ? contract.files.length : 0 };
   const model = contract.model === null || contract.model === undefined ? undefined : scalar(contract.model, "modelId", `${field}.model`) as string;
   if (model !== undefined) saved.model = model;
   const effort = text("reasoning_effort", 32);
   if (effort !== undefined) saved.effort = effort;
   const environment = text("environment", 64);
   if (environment !== undefined) saved.environment = environment;
-  saved.files = Array.isArray(contract.files) && contract.files.length > 0;
   if (contract.repositories !== null && contract.repositories !== undefined) {
     const first = array(contract.repositories, 16, `${field}.repositories`)[0];
     if (first !== undefined) {
@@ -1213,29 +1223,63 @@ function withoutOptions(argv: readonly string[], options: readonly string[], fla
   return kept;
 }
 
-/**
- * The POST body of `job contract attach` from the job's listed contracts.
- * A re-bind of the same ref on a merging service sends only what the options
- * change (clears as JSON nulls); otherwise the saved settings of the bound
- * ref (or of the --replace target) are merged here and sent in full. An
- * unbound ref sends only the options given.
- */
 /** The settings the runs of a binding use after an attach, as the plan quote prices them. */
 interface Effective { model?: string; effort?: string; environment?: string; repository: boolean }
 
-function attachBody(reference: string, binding: Binding, contracts: JsonObject[]): { body: JsonObject; note: string | undefined; effective: Effective } {
+/** An INVOCATION_INVALID refusal with its own Action and no suggested command. */
+function refusal(reason: string, action: string): RunnerFailure {
+  const base = invocationFailure(reason);
+  return new RunnerFailure({ code: base.code, boundary: base.boundary, message: base.message, exitCode: base.exitCode, retryable: base.retryable, action, details: base.details ?? {} });
+}
+
+/**
+ * The POST body of `job contract attach` to a webhook job, from its listed
+ * contracts:
+ * - an unbound ref sends only the options given;
+ * - a bound ref with no options sends a bare program_ref on a merging
+ *   service (a no-op there) and is refused on an older one;
+ * - a re-bind of the same ref with options sends, on a merging service, only
+ *   what they change (clears as JSON nulls); on an older service the saved
+ *   settings are merged here and sent in full;
+ * - a --replace onto another revision is a full replace from the replaced
+ *   binding's saved settings, with its environment.
+ * An older service lists neither stored files nor environment, so a full
+ * re-post that would reset them needs --allow-reset (or both a file option
+ * and --environment).
+ */
+function attachBody(context: Context, id: string, reference: string, binding: Binding, contracts: JsonObject[]): { body: JsonObject; effective: Effective } {
   const base = contracts.find((contract) => contract.program_ref === (binding.replace ?? reference));
   const saved = base === undefined ? undefined : savedSettings(base);
   // A service that lists environment (and file metadata) merges a re-bind itself.
   const merging = contracts.some((contract) => Object.hasOwn(contract, "environment"));
+  // A --replace of the attached ref itself is an ordinary re-attach.
+  const moved = binding.replace !== undefined && binding.replace !== reference;
   const repoUrl = binding.repo === undefined ? undefined : repositoryUrl(binding.repo);
   // The repository the runs read after this change.
   const effectiveUrl = repoUrl ?? (binding.clearRepo ? undefined : saved?.repository?.url);
-  if (binding.commit !== undefined && (effectiveUrl === undefined || !sameUrl(effectiveUrl, repositoryUrl(binding.commit)))) {
-    throw commitNotRead(binding.commit);
-  }
-  // A new repository drops a saved output that commits elsewhere.
-  const outputElsewhere = repoUrl !== undefined && typeof saved?.output?.repository === "string" && !sameUrl(saved.output.repository, repoUrl);
+  // --repo naming the saved repository without @BRANCH keeps its branch.
+  const sameRepo = repoUrl !== undefined && saved?.repository !== undefined && sameUrl(repoUrl, saved.repository.url);
+  const repoBranch = binding.repo?.branch ?? (sameRepo ? saved?.repository?.branch : undefined);
+  /** The commit output must go to the repository the runs read; a new repository must not leave a saved one pointing elsewhere. */
+  const checkRepositories = (): void => {
+    if (binding.commit !== undefined && (effectiveUrl === undefined || !sameUrl(effectiveUrl, repositoryUrl(binding.commit)))) {
+      throw commitNotRead(binding.commit);
+    }
+    const savedOutput = typeof saved?.output?.repository === "string" ? saved.output.repository : undefined;
+    if (repoUrl !== undefined && !sameRepo && savedOutput !== undefined && !sameUrl(savedOutput, repoUrl) && binding.commit === undefined && !binding.clearCommit) {
+      throw invocationFailure(`the saved commit output goes to ${savedOutput}; with --repo give --commit-output OWNER/NAME or --clear-commit-output`);
+    }
+  };
+  const savedEffective = (): Effective => {
+    const effective: Effective = { repository: effectiveUrl !== undefined };
+    const model = binding.model ?? saved?.model;
+    if (model !== undefined) effective.model = model;
+    const effort = binding.effort ?? saved?.effort;
+    if (effort !== undefined) effective.effort = effort;
+    const environment = binding.environment ?? saved?.environment;
+    if (environment !== undefined) effective.environment = environment;
+    return effective;
+  };
   const mergedInputs = (): JsonObject => {
     const inputs: JsonObject = { ...(saved?.inputs ?? {}) };
     for (const [key, value] of binding.inputs) inputs[key] = value;
@@ -1243,47 +1287,53 @@ function attachBody(reference: string, binding: Binding, contracts: JsonObject[]
     return inputs;
   };
   const body: JsonObject = { program_ref: reference };
-  // A --replace of the attached ref itself is an ordinary re-attach.
-  const moved = binding.replace !== undefined && binding.replace !== reference;
+  if (saved !== undefined && !moved && !binding.any) {
+    if (merging) return { body, effective: savedEffective() };
+    throw refusal(
+      `${reference} is already bound to job ${humanSafeScalar(id)}; this service does not report its stored files or environment, so re-attaching it could reset them`,
+      `List its settings with \`${context.command(`job contract list ${id}`)}\`.`,
+    );
+  }
+  if (saved !== undefined && !merging && !binding.allowReset
+    && !((binding.files !== undefined || binding.clearFiles) && binding.environment !== undefined)) {
+    throw refusal(
+      `this service does not report stored files or environment, so re-attaching ${reference} would reset them; give --file or --clear-files and --environment, or pass --allow-reset`,
+      "Give --file or --clear-files and --environment, or pass --allow-reset.",
+    );
+  }
+  if (saved !== undefined && merging && moved && saved.files > 0 && binding.files === undefined && !binding.clearFiles && !binding.allowReset) {
+    throw invocationFailure(`replacing ${binding.replace!} with ${reference} drops ${binding.replace!}'s ${saved.files} stored file(s); give them with --file, or pass --clear-files or --allow-reset`);
+  }
+  checkRepositories();
   if (saved !== undefined && merging && !moved) {
     body.replace_program_ref = reference;
     if (binding.model !== undefined) body.model = binding.model;
     if (binding.effort !== undefined) body.reasoning_effort = binding.effort;
     if (binding.repo !== undefined) {
       body.repository_url = repoUrl!;
-      body.repository_branch = binding.repo.branch ?? null;
-      if (outputElsewhere) body.output = null;
+      body.repository_branch = repoBranch ?? null;
     }
     if (binding.clearRepo) Object.assign(body, { repository_url: null, repository_branch: null, output: null });
     if (binding.clearCommit) body.output = null;
-    if (binding.commit !== undefined) body.output = commitOutput(binding.commit, effectiveUrl!);
+    if (binding.commit !== undefined) body.output = commitOutput(effectiveUrl!);
     if (binding.inputs.size > 0 || binding.clearInputs.length > 0) body.inputs = mergedInputs();
     if (binding.environment !== undefined) body.environment = binding.environment;
     if (binding.files !== undefined) body.files = binding.files;
     if (binding.clearFiles) body.files = null;
     // The service keeps what is not sent: the saved settings, with the options over them.
-    const effective: Effective = { repository: effectiveUrl !== undefined };
-    const model = binding.model ?? saved.model;
-    if (model !== undefined) effective.model = model;
-    const effort = binding.effort ?? saved.effort;
-    if (effort !== undefined) effective.effort = effort;
-    const environment = binding.environment ?? saved.environment;
-    if (environment !== undefined) effective.environment = environment;
-    return { body, note: undefined, effective };
+    return { body, effective: savedEffective() };
   }
   const model = binding.model ?? saved?.model;
   if (model !== undefined) body.model = model;
   const effort = binding.effort ?? saved?.effort;
   if (effort !== undefined) body.reasoning_effort = effort;
-  const repository = binding.repo !== undefined
-    ? (binding.repo.branch === undefined ? { url: repoUrl! } : { url: repoUrl!, branch: binding.repo.branch })
-    : (binding.clearRepo ? undefined : saved?.repository);
+  const repository = repoUrl !== undefined ? { url: repoUrl, branch: repoBranch } : (binding.clearRepo ? undefined : saved?.repository);
   if (repository !== undefined) {
     body.repository_url = repository.url;
     if (repository.branch !== undefined) body.repository_branch = repository.branch;
   }
-  const output = binding.commit !== undefined ? commitOutput(binding.commit, effectiveUrl!)
-    : (binding.clearRepo || binding.clearCommit || outputElsewhere ? undefined : saved?.output);
+  const output = binding.commit !== undefined ? commitOutput(effectiveUrl!)
+    : (binding.clearRepo || binding.clearCommit ? undefined : saved?.output);
   if (output !== undefined) body.output = output;
   const inputs = mergedInputs();
   if (Object.keys(inputs).length > 0) body.inputs = inputs;
@@ -1291,28 +1341,19 @@ function attachBody(reference: string, binding: Binding, contracts: JsonObject[]
   // carried too (an older service lists none).
   const environment = binding.environment ?? (moved ? saved?.environment : undefined);
   if (environment !== undefined) body.environment = environment;
+  // A full body carries no stored files: --clear-files is expressed by omission.
   if (binding.files !== undefined) body.files = binding.files;
-  // Clearing files of an unbound program changes nothing.
-  else if (binding.clearFiles && saved !== undefined) body.files = null;
   if (binding.replace !== undefined) body.replace_program_ref = binding.replace;
   const effective: Effective = { repository: repository !== undefined };
   if (model !== undefined) effective.model = model;
   if (effort !== undefined) effective.effort = effort;
   if (environment !== undefined) effective.environment = environment;
-  // An older service lists neither stored files nor environment, so a
-  // client-merged re-bind cannot carry them; stored file content is never
-  // listed, so a move cannot carry the files either.
-  let note: string | undefined;
-  if (saved !== undefined && !merging) note = DROPPED_NOTE;
-  else if (moved && saved?.files === true && binding.files === undefined && !binding.clearFiles) note = FILES_NOTE;
-  return { body, note, effective };
+  return { body, effective };
 }
 
 /** Job types that always bind a repository, so their runs are quoted with one. */
 const REPOSITORY_JOB_TYPES = ["github-issue-opened", "github-pull-request-opened", "github-release-published"];
 
-const DROPPED_NOTE = "note: this service does not report stored files or environment; re-attaching may drop them\n";
-const FILES_NOTE = "note: stored files are not carried to the new revision; pass --file to attach them\n";
 
 async function contractAttach(context: Context): Promise<Json> {
   const id = jobId(context);
@@ -1323,17 +1364,14 @@ async function contractAttach(context: Context): Promise<Json> {
   // Settings apply to webhook jobs only, and a plan's quote prices the
   // job's type: read the job first.
   const plan = context.invocation.preview || !context.invocation.yes;
-  let live = false;
-  let jobType: string | undefined;
-  if (binding.any || plan) {
-    const detail = projectDetail(await getJson(context, 0, jobPath), false, context.environment);
-    const kind = (detail.job as JsonObject).type;
-    if (typeof kind === "string") jobType = kind;
-    if (binding.any && kind !== "webhook") {
-      const error = invocationFailure(`job ${id} is a ${humanSafeScalar(typeof kind === "string" ? kind : "")} job; run settings (--model, --reasoning-effort, --repo, --commit-output, --input, --inputs-file, --environment, --file, --replace and the --clear options) apply to webhook jobs only`);
-      throw context.corrected(error, "Attach without those options: `{command}`", withoutBindingOptions(context.invocation.argv));
-    }
-    live = (detail.status as JsonObject | undefined)?.delivery_mode === "live";
+  const detail = projectDetail(await getJson(context, 0, jobPath), false, context.environment);
+  const kind = (detail.job as JsonObject).type;
+  const jobType = typeof kind === "string" ? kind : undefined;
+  if (binding.any && jobType !== "webhook") {
+    const named = humanSafeScalar(jobType ?? "");
+    const article = /^[aeiou]/u.test(named) ? "an" : "a";
+    const error = invocationFailure(`job ${id} is ${article} ${named} job; run settings (--model, --reasoning-effort, --repo, --commit-output, --input, --inputs-file, --environment, --file, --replace and the --clear options) apply to webhook jobs only`);
+    throw context.corrected(error, "Attach without those options: `{command}`", withoutBindingOptions(context.invocation.argv));
   }
   // The listed contracts keep a bound program's saved settings.
   const listed = array((await getJson(context, 1, path)).contracts ?? null, 16, "contracts").map((contract) => object(contract, "contracts"));
@@ -1346,7 +1384,10 @@ async function contractAttach(context: Context): Promise<Json> {
     const error = invocationFailure(`${reference} is already bound to job ${humanSafeScalar(id)}; --replace would reset its settings. Change it in place without --replace, or detach ${replaced} first`);
     throw context.corrected(error, "Change it in place without --replace: `{command}`", withoutOptions(context.invocation.argv, ["--replace"], new Set()));
   }
-  const { body, note, effective } = attachBody(reference, binding, listed);
+  // Any other job type takes the program alone.
+  const { body, effective } = jobType === "webhook"
+    ? attachBody(context, id, reference, binding, listed)
+    : { body: { program_ref: reference } as JsonObject, effective: { repository: false } as Effective };
   const bytes = new TextEncoder().encode(canonicalJson(body));
   const planned = context.planned(2, path, [], bytes);
   if (plan) {
@@ -1361,24 +1402,8 @@ async function contractAttach(context: Context): Promise<Json> {
   }
   const gate = context.gate(planned);
   if (gate.kind === "preview") return gate.result;
-  let response: JsonObject;
-  try { response = jsonObject(await context.send({ ...requestFor(context.operation, 2, path), body: bytes })); }
-  catch (caught) {
-    // A live webhook may refuse binding changes: switching it to test delivery first allows them.
-    const message = caught instanceof RunnerFailure ? caught.details?.serviceMessage : undefined;
-    if (live && caught instanceof RunnerFailure && caught.code === "SERVICE_REQUEST_REJECTED" && typeof message === "string" && /immutable/iu.test(message)) {
-      const argv = context.followUpArgv(["job", "update", id, "--spec-file", "-", "--yes"]);
-      const stdin = canonicalJson({ delivery_mode: "test" });
-      throw new RunnerFailure({
-        code: caught.code, boundary: caught.boundary, message: caught.message, exitCode: caught.exitCode, retryable: caught.retryable,
-        action: `${caught.action} The job delivers live; to change its binding, switch it to test delivery first: \`${argvText(argv)}\` with details.suggestedStdin on standard input.`,
-        details: { ...(caught.details ?? {}), suggestedArgv: argv, suggestedStdin: `${stdin}\n` },
-      });
-    }
-    throw caught;
-  }
+  const response = jsonObject(await context.send({ ...requestFor(context.operation, 2, path), body: bytes }));
   if (response.bound !== reference) throw protocol("bound");
-  if (note !== undefined && context.mode === "human") context.err(note);
   const settings = settingsLine(body);
   context.human = `Attached ${humanSafeScalar(reference)} to job ${humanSafeScalar(id)}.\n`
     + (settings === undefined ? "" : `  settings: ${settings}\n`)

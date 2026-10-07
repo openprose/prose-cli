@@ -1849,7 +1849,12 @@ const BINDING_OPTIONS: [&str; 10] = [
     "--replace",
     "--file",
 ];
-const BINDING_FLAGS: [&str; 3] = ["--clear-repo", "--clear-commit-output", "--clear-files"];
+const BINDING_FLAGS: [&str; 4] = [
+    "--clear-repo",
+    "--clear-commit-output",
+    "--clear-files",
+    "--allow-reset",
+];
 
 /// `--file` limits: files per binding, bytes per file and bytes in all.
 const MAX_BINDING_FILES: usize = 20;
@@ -1857,7 +1862,8 @@ const MAX_BINDING_FILE_BYTES: u64 = 5 << 20;
 const MAX_BINDING_FILES_BYTES: u64 = 10 << 20;
 
 /// The binding settings given to `job contract attach`, checked before any
-/// request.
+/// request. Each flag is an independent command-line switch.
+#[allow(clippy::struct_excessive_bools)]
 struct BindingOptions {
     model: Option<String>,
     effort: Option<String>,
@@ -1873,6 +1879,19 @@ struct BindingOptions {
     /// `--file`: each NAME with its content in base64, when given.
     files: Option<BTreeMap<String, String>>,
     clear_files: bool,
+    /// `--allow-reset`: reset what the service cannot report.
+    allow_reset: bool,
+}
+
+/// A stored file name: 1 to 200 of `A-Z a-z 0-9 . _ -`, not starting with
+/// a dot and without `..`.
+fn valid_file_name(name: &str) -> bool {
+    (1..=200).contains(&name.len())
+        && name
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
+        && !name.starts_with('.')
+        && !name.contains("..")
 }
 
 /// `--file [NAME=]PATH` values: UTF-8 files by NAME (default the path's
@@ -1898,9 +1917,9 @@ fn parse_binding_files(context: &Context<'_>) -> Result<BTreeMap<String, String>
                 .unwrap_or_default();
             (base.to_owned(), value.as_str())
         };
-        if !valid_text(&name, 256) || name.contains(['/', '\\']) {
+        if !valid_file_name(&name) {
             return Err(invalid(format!(
-                "--file {value_quoted}: the file name must be 1 to 256 characters without /, \\ or control characters; give it as NAME=PATH",
+                "--file {value_quoted}: the file name must be 1 to 200 letters, digits, ., _ or -, not starting with a dot and without ..; give it as NAME=PATH",
                 value_quoted = crate::error::quote(value)
             )));
         }
@@ -2007,6 +2026,14 @@ impl BindingOptions {
             .option("--commit-output")
             .map(|value| runs::parse_repository("--commit-output", value))
             .transpose()?;
+        if let (Some(commit), Some(value)) = (&commit, context.option("--commit-output")) {
+            if commit.branch.is_some() {
+                return Err(invalid(format!(
+                    "--commit-output {value_quoted} takes OWNER/NAME: the service chooses the commit's branch",
+                    value_quoted = crate::error::quote(value)
+                )));
+            }
+        }
         let environment = context.option("--environment").map(str::to_owned);
         if let Some(environment) = environment
             .as_deref()
@@ -2054,7 +2081,15 @@ impl BindingOptions {
             replace,
             files,
             clear_files,
+            allow_reset: context.flag("--allow-reset"),
         })
+    }
+
+    /// Whether an older service may reset what it cannot report: with
+    /// `--allow-reset`, or when the files and environment are both given.
+    fn may_reset(&self) -> bool {
+        self.allow_reset
+            || ((self.files.is_some() || self.clear_files) && self.environment.is_some())
     }
 
     /// `files`: the given set (it replaces the stored one), or a JSON null
@@ -2090,16 +2125,10 @@ fn same_url(left: &str, right: &str) -> bool {
     left.eq_ignore_ascii_case(right)
 }
 
-/// `{type: "commit", repository, branch?}`: the repository is the effective
-/// repository's URL as the binding stores it, the branch `--commit-output`'s.
-fn commit_output(url: &str, commit: &Repository) -> Value {
-    let mut output = Map::new();
-    output.insert("type".into(), json!("commit"));
-    output.insert("repository".into(), json!(url));
-    if let Some(branch) = &commit.branch {
-        output.insert("branch".into(), json!(branch));
-    }
-    Value::Object(output)
+/// `{type: "commit", repository}`: the effective repository's URL as the
+/// binding stores it; the service chooses the commit's branch.
+fn commit_output(url: &str) -> Value {
+    json!({"type": "commit", "repository": url})
 }
 
 /// This invocation's argv without the webhook-only binding options.
@@ -2143,8 +2172,8 @@ struct SavedBinding {
     output: Option<Value>,
     inputs: Option<Map<String, Value>>,
     environment: Option<Value>,
-    /// Whether the binding stores files (their content is never listed).
-    has_files: bool,
+    /// How many files the binding stores (their content is never listed).
+    file_count: usize,
 }
 
 impl SavedBinding {
@@ -2174,14 +2203,46 @@ impl SavedBinding {
             output,
             inputs: raw["inputs"].as_object().cloned(),
             environment: text(&configuration["environment"]),
-            has_files: configuration["stored_files"]
-                .as_array()
-                .is_some_and(|files| !files.is_empty()),
+            file_count: configuration["stored_files"].as_array().map_or(0, Vec::len),
         }
     }
 
     fn output_repository(&self) -> Option<&str> {
         self.output.as_ref()?["repository"].as_str()
+    }
+}
+
+/// How `job contract attach` builds its body from the listing.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum AttachPath {
+    /// A bare `{program_ref}` (a job of another type, or a plain re-attach
+    /// on a service that keeps what it saved).
+    Bare,
+    /// A program that is not bound: only the options given.
+    Fresh,
+    /// A service that merges: only the changes.
+    ServerMerge,
+    /// The saved settings with the options applied, in full.
+    ClientMerge,
+}
+
+/// An older service's re-post of a bound binding resets the stored files and
+/// environment it does not report.
+fn older_reset_refused(reference: &str) -> RunnerError {
+    let mut error = invalid(format!(
+        "this service does not report stored files or environment, so re-attaching {reference} would reset them; give --file or --clear-files and --environment, or pass --allow-reset"
+    ));
+    "Give --file or --clear-files and --environment, or pass --allow-reset."
+        .clone_into(&mut error.action);
+    error
+}
+
+/// "a" or "an" before a job type.
+fn article(word: &str) -> &'static str {
+    if word.starts_with(['a', 'e', 'i', 'o', 'u']) {
+        "an"
+    } else {
+        "a"
     }
 }
 
@@ -2191,32 +2252,25 @@ fn contract_attach(context: &mut Context<'_>) -> Result<Value, RunnerError> {
     let settings_given = BindingOptions::any(context);
     let options = BindingOptions::parse(context)?;
     let plan = context.invocation.preview || !context.invocation.yes;
-    // Request 0: binding settings apply to webhook jobs only, and a plan's
-    // quote prices the job's type.
-    let mut live = false;
-    let mut job_type = None;
-    if settings_given || plan {
-        let body = get_json(context, 0, &format!("/triggers/{}", encode_segment(&id)))?;
-        let detail = project_detail(&body, false, &context.environment)?;
-        job_type = detail["job"]["type"]
-            .as_str()
-            .filter(|kind| !kind.is_empty())
-            .map(str::to_owned);
-        let kind = job_type.as_deref().unwrap_or_default();
-        if settings_given && kind != "webhook" {
-            let error = invalid(format!(
-                "job {} is a {} job; run settings (--model, --reasoning-effort, --repo, --commit-output, --input, --inputs-file, --environment, --file, --replace and the --clear options) apply to webhook jobs only",
-                human_safe_scalar(&id),
-                human_safe_scalar(kind)
-            ));
-            let argv = argv_without_binding_options(&context.invocation.argv);
-            return Err(context.corrected(
-                error,
-                "Attach without those options: `{command}`",
-                argv,
-            ));
-        }
-        live = detail["status"]["delivery_mode"] == "live";
+    // Request 0: the job's type. Settings apply to webhook jobs only, and a
+    // plan's quote prices the job's type.
+    let job_body = get_json(context, 0, &format!("/triggers/{}", encode_segment(&id)))?;
+    let detail = project_detail(&job_body, false, &context.environment)?;
+    let job_type = detail["job"]["type"]
+        .as_str()
+        .filter(|kind| !kind.is_empty())
+        .map(str::to_owned);
+    let kind = job_type.as_deref().unwrap_or_default();
+    let webhook = kind == "webhook";
+    if settings_given && !webhook {
+        let error = invalid(format!(
+            "job {} is {} {} job; run settings (--model, --reasoning-effort, --repo, --commit-output, --input, --inputs-file, --environment, --file, --replace and the --clear options) apply to webhook jobs only",
+            human_safe_scalar(&id),
+            article(kind),
+            human_safe_scalar(kind)
+        ));
+        let argv = argv_without_binding_options(&context.invocation.argv);
+        return Err(context.corrected(error, "Attach without those options: `{command}`", argv));
     }
     // Request 1: the bound programs and their saved settings.
     let path = format!("/triggers/{}/contracts", encode_segment(&id));
@@ -2230,17 +2284,23 @@ fn contract_attach(context: &mut Context<'_>) -> Result<Value, RunnerError> {
     let merging = contracts
         .iter()
         .any(|contract| contract.get("environment").is_some());
-    // --replace onto another program that is already bound would reset that
-    // binding's settings.
-    if let Some(replaced) = options
+    let bound = |target: &str| {
+        contracts
+            .iter()
+            .zip(&projected)
+            .find(|(_, contract)| contract["program_ref"].as_str() == Some(target))
+            .map(|(raw, contract)| SavedBinding::of(raw, contract))
+    };
+    // A --replace of another revision is a full replace; one of the
+    // attached ref itself is an ordinary re-attach.
+    let moved = options
         .replace
         .as_deref()
-        .filter(|replaced| *replaced != reference)
-    {
-        if contracts
-            .iter()
-            .any(|contract| contract["program_ref"].as_str() == Some(reference.as_str()))
-        {
+        .filter(|replaced| *replaced != reference);
+    if let Some(replaced) = moved {
+        // ...and onto another program that is already bound it would reset
+        // that binding's settings.
+        if bound(&reference).is_some() {
             let error = invalid(format!(
                 "{reference} is already bound to job {}; --replace would reset its settings. Change it in place without --replace, or detach {replaced} first",
                 human_safe_scalar(&id)
@@ -2253,29 +2313,64 @@ fn contract_attach(context: &mut Context<'_>) -> Result<Value, RunnerError> {
             ));
         }
     }
-    let base = options.replace.as_deref().unwrap_or(&reference);
-    let saved = contracts
-        .iter()
-        .zip(&projected)
-        .find(|(_, contract)| contract["program_ref"].as_str() == Some(base))
-        .map(|(raw, contract)| SavedBinding::of(raw, contract));
+    let saved = if webhook {
+        bound(moved.unwrap_or(&reference))
+    } else {
+        None
+    };
+    let route = match (&saved, moved) {
+        _ if !webhook => AttachPath::Bare,
+        (None, _) => AttachPath::Fresh,
+        (Some(_), None) if !settings_given => {
+            if !merging {
+                let mut error = invalid(format!(
+                    "{reference} is already bound to job {}; this service does not report its stored files or environment, so re-attaching it could reset them",
+                    human_safe_scalar(&id)
+                ));
+                error.action = format!(
+                    "List its settings with `{}`.",
+                    context.command(&format!("job contract list {id}"))
+                );
+                return Err(error);
+            }
+            AttachPath::Bare
+        }
+        (Some(_), None) if merging => AttachPath::ServerMerge,
+        (Some(saved), Some(replaced)) => {
+            if !merging && !options.may_reset() {
+                return Err(older_reset_refused(&reference));
+            }
+            if merging
+                && saved.file_count > 0
+                && options.files.is_none()
+                && !options.clear_files
+                && !options.allow_reset
+            {
+                return Err(invalid(format!(
+                    "replacing {replaced} with {reference} drops {replaced}'s {} stored file(s); give them with --file, or pass --clear-files or --allow-reset",
+                    saved.file_count
+                )));
+            }
+            AttachPath::ClientMerge
+        }
+        (Some(_), None) => {
+            if !options.may_reset() {
+                return Err(older_reset_refused(&reference));
+            }
+            AttachPath::ClientMerge
+        }
+    };
     let mut body = Map::new();
     body.insert("program_ref".into(), json!(reference));
-    // A --replace of the attached ref itself is an ordinary re-attach.
-    let moved = options
-        .replace
-        .as_deref()
-        .is_some_and(|replaced| replaced != reference);
-    let client_merge = saved.is_some() && (moved || !merging);
-    match &saved {
-        // A merging service keeps what it saved: send the same ref as
-        // replace_program_ref and only the changes.
-        Some(saved) if !client_merge => {
+    match (route, &saved) {
+        (AttachPath::ServerMerge, Some(saved)) => {
             body.insert("replace_program_ref".into(), json!(reference));
             server_merge(&options, saved, &mut body)?;
         }
-        Some(saved) => client_merge_body(&options, saved, moved, &mut body)?,
-        None => {
+        (AttachPath::ClientMerge, Some(saved)) => {
+            client_merge_body(&options, saved, moved.is_some(), &mut body)?;
+        }
+        (AttachPath::Fresh, _) => {
             if let Some(commit) = &options.commit {
                 if options.repo.is_none() {
                     return Err(runs::commit_output_mismatch(commit));
@@ -2283,16 +2378,19 @@ fn contract_attach(context: &mut Context<'_>) -> Result<Value, RunnerError> {
             }
             fresh_body(&options, &mut body);
         }
+        _ => {}
     }
-    if let Some(replace) = &options.replace {
-        body.insert("replace_program_ref".into(), json!(replace));
+    if route != AttachPath::Bare {
+        if let Some(replace) = &options.replace {
+            body.insert("replace_program_ref".into(), json!(replace));
+        }
     }
     let body = Value::Object(body);
     let bytes = canonical(&body).into_bytes();
     let mut planned = context.planned(2, &path, &[], Some(&bytes));
     if plan {
         // Advisory: a failed quote leaves the plan without one.
-        let server_saved = saved.as_ref().filter(|_| !client_merge);
+        let server_saved = saved.as_ref().filter(|_| route == AttachPath::ServerMerge);
         let inputs = effective_hold(&body, server_saved, job_type.as_deref());
         let request = quote_request(context, 3, &inputs);
         match send_quote(context, &request) {
@@ -2306,25 +2404,9 @@ fn contract_attach(context: &mut Context<'_>) -> Result<Value, RunnerError> {
     }
     let mut request = Request::from_manifest(context.operation, 2, path);
     request.body = Some(bytes);
-    let response = match context.send(&request) {
-        Err(error) if live && immutable_refusal(&error) => {
-            return Err(live_refusal(context, &id, error));
-        }
-        other => other?.json_object()?,
-    };
+    let response = context.send(&request)?.json_object()?;
     if response.get("bound").and_then(Value::as_str) != Some(reference.as_str()) {
         return Err(protocol("bound"));
-    }
-    if context.mode == crate::OutputMode::Human {
-        if client_merge && !merging {
-            let _ = context.err.write_all(OLDER_SERVICE_NOTE.as_bytes());
-        } else if moved
-            && options.files.is_none()
-            && !options.clear_files
-            && saved.as_ref().is_some_and(|saved| saved.has_files)
-        {
-            let _ = context.err.write_all(FILES_NOT_CARRIED_NOTE.as_bytes());
-        }
     }
     let mut text = format!(
         "Attached {} to job {}.\n",
@@ -2342,11 +2424,6 @@ fn contract_attach(context: &mut Context<'_>) -> Result<Value, RunnerError> {
     context.human = Some(text);
     Ok(json!({"contracts": [{"program_ref": reference}]}))
 }
-
-const OLDER_SERVICE_NOTE: &str =
-    "note: this service does not report stored files or environment; re-attaching may drop them\n";
-const FILES_NOT_CARRIED_NOTE: &str =
-    "note: stored files are not carried to the new revision; pass --file to attach them\n";
 
 /// Job types whose runs always read a repository.
 const REPOSITORY_JOB_TYPES: [&str; 3] = [
@@ -2410,12 +2487,32 @@ fn check_commit_output(
     }
 }
 
-/// Whether a `--repo` leaves the saved commit output pointing elsewhere.
-fn output_elsewhere(options: &BindingOptions, saved: &SavedBinding) -> bool {
-    match (&options.repo, saved.output_repository()) {
-        (Some(repo), Some(output)) => !same_url(&repo.url(), output),
-        _ => false,
+/// A `--repo` must not leave the saved commit output pointing at another
+/// repository unless the output is also given or cleared.
+fn check_repo_output(options: &BindingOptions, saved: &SavedBinding) -> Result<(), RunnerError> {
+    let (Some(repo), Some(output)) = (&options.repo, saved.output_repository()) else {
+        return Ok(());
+    };
+    if same_url(&repo.url(), output) || options.commit.is_some() || options.clear_commit {
+        return Ok(());
     }
+    Err(invalid(format!(
+        "the saved commit output goes to {}; with --repo give --commit-output OWNER/NAME or --clear-commit-output",
+        human_safe_scalar(output)
+    )))
+}
+
+/// The branch a `--repo` binds: its own `@BRANCH`, else the saved branch
+/// when it names the saved repository.
+fn repo_branch(repo: &Repository, saved: &SavedBinding) -> Option<Value> {
+    if let Some(branch) = &repo.branch {
+        return Some(json!(branch));
+    }
+    saved
+        .repository
+        .as_ref()
+        .filter(|(url, _)| url.as_str().is_some_and(|url| same_url(url, &repo.url())))
+        .and_then(|(_, branch)| branch.clone())
 }
 
 /// The server-merge body: only the fields the options change, with JSON
@@ -2426,6 +2523,7 @@ fn server_merge(
     body: &mut Map<String, Value>,
 ) -> Result<(), RunnerError> {
     let commit_url = check_commit_output(options, saved)?;
+    check_repo_output(options, saved)?;
     if let Some(model) = &options.model {
         body.insert("model".into(), json!(model));
     }
@@ -2434,10 +2532,10 @@ fn server_merge(
     }
     if let Some(repo) = &options.repo {
         body.insert("repository_url".into(), json!(repo.url()));
-        body.insert("repository_branch".into(), json!(repo.branch));
-        if output_elsewhere(options, saved) {
-            body.insert("output".into(), Value::Null);
-        }
+        body.insert(
+            "repository_branch".into(),
+            repo_branch(repo, saved).unwrap_or(Value::Null),
+        );
     }
     if options.clear_repo {
         body.insert("repository_url".into(), Value::Null);
@@ -2447,8 +2545,8 @@ fn server_merge(
     if options.clear_commit {
         body.insert("output".into(), Value::Null);
     }
-    if let (Some(commit), Some(url)) = (&options.commit, &commit_url) {
-        body.insert("output".into(), commit_output(url, commit));
+    if let Some(url) = &commit_url {
+        body.insert("output".into(), commit_output(url));
     }
     if let Some(inputs) = options.merged_inputs(saved.inputs.as_ref()) {
         body.insert("inputs".into(), Value::Object(inputs));
@@ -2470,6 +2568,7 @@ fn client_merge_body(
     body: &mut Map<String, Value>,
 ) -> Result<(), RunnerError> {
     let commit_url = check_commit_output(options, saved)?;
+    check_repo_output(options, saved)?;
     let mut model = saved.model.clone();
     let mut effort = saved.effort.clone();
     let mut repository = saved.repository.clone();
@@ -2481,10 +2580,7 @@ fn client_merge_body(
         effort = Some(json!(value));
     }
     if let Some(repo) = &options.repo {
-        repository = Some((json!(repo.url()), repo.branch.as_ref().map(|b| json!(b))));
-        if output_elsewhere(options, saved) {
-            output = None;
-        }
+        repository = Some((json!(repo.url()), repo_branch(repo, saved)));
     }
     if options.clear_repo {
         repository = None;
@@ -2493,8 +2589,8 @@ fn client_merge_body(
     if options.clear_commit {
         output = None;
     }
-    if let (Some(commit), Some(url)) = (&options.commit, &commit_url) {
-        output = Some(commit_output(url, commit));
+    if let Some(url) = &commit_url {
+        output = Some(commit_output(url));
     }
     let inputs = options
         .merged_inputs(saved.inputs.as_ref())
@@ -2522,7 +2618,8 @@ fn client_merge_body(
     } else if let Some(environment) = saved.environment.as_ref().filter(|_| moved) {
         body.insert("environment".into(), environment.clone());
     }
-    options.put_files(body, true);
+    // A full body clears by omission.
+    options.put_files(body, false);
     Ok(())
 }
 
@@ -2541,8 +2638,8 @@ fn fresh_body(options: &BindingOptions, body: &mut Map<String, Value>) {
             body.insert("repository_branch".into(), json!(branch));
         }
     }
-    if let (Some(commit), Some(repo)) = (&options.commit, &options.repo) {
-        body.insert("output".into(), commit_output(&repo.url(), commit));
+    if let (Some(_), Some(repo)) = (&options.commit, &options.repo) {
+        body.insert("output".into(), commit_output(&repo.url()));
     }
     if let Some(inputs) = options
         .merged_inputs(None)
@@ -2554,35 +2651,6 @@ fn fresh_body(options: &BindingOptions, body: &mut Map<String, Value>) {
         body.insert("environment".into(), json!(environment));
     }
     options.put_files(body, false);
-}
-
-/// The service's refusal to change a live webhook's binding.
-fn immutable_refusal(error: &RunnerError) -> bool {
-    error.code == ErrorCode::ServiceRequestRejected
-        && error
-            .details
-            .as_ref()
-            .and_then(|details| details.get("serviceMessage"))
-            .and_then(Value::as_str)
-            .is_some_and(|message| message.to_ascii_lowercase().contains("immutable"))
-}
-
-/// A live webhook's refusal to change its binding: also name the switch to
-/// test delivery, with the spec on standard input.
-fn live_refusal(context: &Context<'_>, id: &str, error: RunnerError) -> RunnerError {
-    let words = ["job", "update", id, "--spec-file", "-", "--yes"];
-    let mut error = error;
-    error.action = format!(
-        "{} The job delivers live; to change its binding, switch it to test delivery first: `{}` with details.suggestedStdin on standard input.",
-        error.action,
-        context.command(&words.join(" "))
-    );
-    error
-        .with_detail("suggestedArgv", json!(context.follow_up_argv(&words)))
-        .with_detail(
-            "suggestedStdin",
-            Value::String("{\"delivery_mode\":\"test\"}\n".into()),
-        )
 }
 
 /// `reasoning effort E; repository URL@BRANCH; commit output URL; inputs
@@ -3095,6 +3163,7 @@ mod tests {
             replace: None,
             files: None,
             clear_files: false,
+            allow_reset: false,
         };
         let saved = SavedBinding {
             model: Some(json!("model-a")),
@@ -3103,7 +3172,13 @@ mod tests {
             output: Some(json!({"type": "commit", "repository": "https://github.com/o/app"})),
             inputs: Some(json!({"n": 1, "k": 2}).as_object().unwrap().clone()),
             environment: Some(json!("builtin")),
-            has_files: true,
+            file_count: 1,
+        };
+        // Another repository would orphan the saved commit output.
+        assert!(server_merge(&options, &saved, &mut Map::new()).is_err());
+        let options = BindingOptions {
+            clear_commit: true,
+            ..options
         };
         let mut body = Map::new();
         server_merge(&options, &saved, &mut body).unwrap();
@@ -3119,20 +3194,39 @@ mod tests {
             json!({"model": "model-a", "repository_url": "https://github.com/o/other",
                    "inputs": {"k": 2, "t": "v"}})
         );
+        // The saved repository named again keeps its branch.
+        let same = BindingOptions {
+            repo: Some(runs::parse_repository("--repo", "O/App").unwrap()),
+            clear_commit: false,
+            ..options
+        };
+        let mut body = Map::new();
+        server_merge(&same, &saved, &mut body).unwrap();
+        assert_eq!(body["repository_branch"], json!("main"));
         // A move to another revision also carries the saved environment, and
         // the commit output names the effective repository's URL.
         let moved = BindingOptions {
             repo: None,
-            commit: Some(runs::parse_repository("--commit-output", "O/APP@out").unwrap()),
-            ..options
+            commit: Some(runs::parse_repository("--commit-output", "O/APP").unwrap()),
+            ..same
         };
         let mut body = Map::new();
         client_merge_body(&moved, &saved, true, &mut body).unwrap();
         assert_eq!(body["environment"], json!("builtin"));
         assert_eq!(
             body["output"],
-            json!({"type": "commit", "repository": "https://github.com/o/app", "branch": "out"})
+            json!({"type": "commit", "repository": "https://github.com/o/app"})
         );
+    }
+
+    #[test]
+    fn file_names_and_articles() {
+        assert!(valid_file_name("notes.md") && valid_file_name("a_b-1"));
+        for name in [".env", "a..b", "a/b", "a b", ""] {
+            assert!(!valid_file_name(name), "{name}");
+        }
+        assert!(!valid_file_name(&"a".repeat(201)));
+        assert_eq!((article("email"), article("schedule")), ("an", "a"));
     }
 
     #[test]
