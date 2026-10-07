@@ -129,3 +129,9 @@ Linux minimal-runtime verification uses explicit `exec` on its existing 512 MiB 
 
 
 Shell cancellation retains and shields subprocess acquisition until it obtains the owned process handle, then retains cleanup through repeated cancellation. Cleanup attempts process-group termination, capture settlement and reaping without replacing the initiating error. Safe secondary cleanup failures are carried in existing tool or native error records; cancellation and timeout messages do not promise group termination. Acquisition and exceptional reaping retain their existing placement outside the command completion timeout. This does not establish a total cleanup deadline or detached-process containment. The descendant cancellation fixture explicitly orders readiness, cancellation and effect release rather than racing fixed sleeps.
+
+
+The locked SDK's ordinary parent cancellation can leave tool invocation cleanup pending. The harness therefore owns shell, retrieval and child operations explicitly, closes admission during shutdown and settles owned operations before terminal output and client closure. Late tool/child/provider callbacks cannot start work after closing. Initiating failures and cancellation remain visible; safe shell cleanup diagnostics retain their per-shell bound and a run aggregate bounded by the existing function-tool budget. This adds no total cleanup deadline, detached-process containment or billing guarantee.
+
+
+Published-kernel network and HTTP failures report a distinct retrieval error with a fixed resource stage, an observed HTTP status when available, and guidance to check access to `https://pkg.prose.md`. Invalid redirects, structure and digests retain integrity errors. Diagnostic retryability does not trigger automatic retries; the existing deadline and byte limits remain in force, and no fallback kernel is selected.

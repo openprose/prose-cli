@@ -95,6 +95,62 @@ class ContractsTest(unittest.TestCase):
                 self.assertIn(route, admissions[harness]["credentialGroups"])
         self.assertEqual(fixture["failurePolicy"], "no-echo-or-provider-fallback")
 
+    def test_kernel_retrieval_failure_oracle_and_closed_diagnostics(self):
+        fixture = load_json(FIXTURES / "kernel-startup/release.json")
+        policy = load_json(SHARED / "image/kernel-startup/policy.json")
+        contract = load_json(FIXTURES / "adapters/kernel-startup.json")["retrievalError"]
+        self.assertEqual(contract["automaticRetries"], 0)
+        self.assertFalse(contract["requestPolicy"]["fallback"])
+        for key in ("timeoutMs", "maxMetadataBytes", "maxKernelBytes"):
+            self.assertEqual(contract["requestPolicy"][key], policy[key])
+        cases = fixture["retrievalFailures"]
+        self.assertEqual(len(cases), 57)
+        self.assertEqual(len({case["id"] for case in cases}), 57)
+        self.assertEqual({case["stage"] for case in cases}, {"entry", "descriptor", "inventory", "kernel"})
+        urls = list(fixture["responses"])
+        validator = self.validator("runner-error.schema.json")
+        for case in cases:
+            error = case["error"]
+            self.assert_valid("runner-error.schema.json", error)
+            self.assertEqual(case["expectedCalls"], urls[:contract["stages"].index(case["stage"]) + 1])
+            self.assertEqual(error["details"]["stage"], case["stage"])
+            self.assertEqual(error["retryable"], case["trigger"] != "http" or case["httpStatus"] in contract["retryableHttpStatuses"])
+            for key, bad in (("stage", "provider"), ("failureKind", "integrity"), ("origin", "https://evil.invalid"), ("reason", "secret-provider-body")):
+                poisoned = deepcopy(error)
+                poisoned["details"][key] = bad
+                self.assertTrue(list(validator.iter_errors(poisoned)), (case["id"], key))
+            poisoned = deepcopy(error)
+            poisoned["details"]["rawCause"] = "secret"
+            self.assertTrue(list(validator.iter_errors(poisoned)))
+            poisoned = deepcopy(error)
+            poisoned["retryable"] = not error["retryable"]
+            self.assertTrue(list(validator.iter_errors(poisoned)))
+        http = deepcopy(next(case["error"] for case in cases if case["trigger"] == "http"))
+        for bad in (None, True, "404", 404.5, 99, 600):
+            http["details"]["httpStatus"] = bad
+            self.assertTrue(list(validator.iter_errors(http)))
+        for stage in contract["stages"]:
+            for status in (200, 100, 204, 302, 399, 400, 599):
+                sample = deepcopy(next(case["error"] for case in cases if case.get("httpStatus") == 404))
+                sample["details"].update(stage=stage, httpStatus=status)
+                valid = status != 200 and (stage != "entry" or status >= 400)
+                self.assertEqual(not list(validator.iter_errors(sample)), valid, (stage, status))
+        del http["details"]["httpStatus"]
+        self.assertTrue(list(validator.iter_errors(http)))
+        absent = deepcopy(cases[0]["error"])
+        del absent["details"]
+        self.assertTrue(list(validator.iter_errors(absent)))
+        for case in fixture["unrecognizedTransportObjects"]:
+            self.assertEqual(case["error"]["code"], "KERNEL_RETRIEVAL_FAILED")
+            self.assertEqual(case["error"]["details"]["failureKind"], "transport")
+            self.assert_valid("runner-error.schema.json", case["error"])
+        transport = deepcopy(cases[0]["error"])
+        transport["details"]["httpStatus"] = 503
+        self.assertTrue(list(validator.iter_errors(transport)))
+        for case in fixture["primaryPriorityCases"]:
+            self.assertEqual(case["initiatingCode"], case["expectedCode"])
+        self.assertEqual({case["expectedCode"] for case in fixture["integrityCases"]}, {"IMAGE_INVALID"})
+
     def test_safe_transport_diagnostics(self):
         validator = self.validator("transport-diagnostic.schema.json")
         for fixture in load_json(FIXTURES / "transport-diagnostics.json"):
@@ -1023,7 +1079,7 @@ class ContractsTest(unittest.TestCase):
             "CONFIG_INVALID", "INVOCATION_INVALID", "HARNESS_UNAVAILABLE",
             "HARNESS_INCOMPATIBLE",
             "HARNESS_NEEDS_AUTH", "TRANSPORT_UNSUPPORTED",
-            "PROMPT_CHANNEL_UNSUPPORTED", "IMAGE_INVALID", "IMAGE_TOO_LARGE",
+            "PROMPT_CHANNEL_UNSUPPORTED", "KERNEL_RETRIEVAL_FAILED", "IMAGE_INVALID", "IMAGE_TOO_LARGE",
             "RECURSIVE_INVOCATION", "STARTUP_TIMEOUT", "PROTOCOL_MALFORMED",
             "PROTOCOL_TRUNCATED", "HARNESS_FAILED", "SEMANTIC_STATUS_UNKNOWN",
             "CANCELLED", "PROCESS_CLEANUP_FAILED", "HOSTED_UNAVAILABLE",
@@ -1041,7 +1097,10 @@ class ContractsTest(unittest.TestCase):
         self.assertEqual({record["code"] for record in records}, expected_codes)
         self.assertEqual(len(records), len(expected_codes))
         for record in records:
-            self.assert_valid("runner-error.schema.json", {"schema": "openprose.runner-error/1", **record})
+            sample = {"schema": "openprose.runner-error/1", **record}
+            if record["code"] == "KERNEL_RETRIEVAL_FAILED":
+                sample["details"] = load_json(FIXTURES / "kernel-startup/release.json")["retrievalFailures"][3]["error"]["details"]
+            self.assert_valid("runner-error.schema.json", sample)
             self.assertNotIn("prose cli", record["action"])
             self.assertNotIn("$PROSE", record["action"])
         cleanup = next(record for record in records if record["code"] == "PROCESS_CLEANUP_FAILED")

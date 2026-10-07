@@ -175,8 +175,13 @@ class ServiceContractTest(unittest.TestCase):
         self.assert_invalid(self.result_ref("model.list"), {"models": [], "default_model": "model-sol", "hidden": []})
 
     # ----------------------------------------------------------------- taxonomy
-    def test_taxonomy_grows_additively_to_43_codes_with_parity(self):
-        self.assertEqual(43, len(self.taxonomy))
+    def test_taxonomy_grows_additively_to_44_codes_with_parity(self):
+        self.assertEqual(44, len(self.taxonomy))
+        retrieval = self.taxonomy["KERNEL_RETRIEVAL_FAILED"]
+        self.assertEqual((retrieval["boundary"], retrieval["exitCode"], retrieval["retryable"]),
+                         ("image", 20, False))
+        self.assertIn("https://pkg.prose.md", retrieval["action"])
+        self.assertNotEqual(retrieval["action"], self.taxonomy["IMAGE_INVALID"]["action"])
         for code, exit_code in NEW_CODES.items():
             self.assertEqual(exit_code, self.taxonomy[code]["exitCode"], code)
         schema = load_json(SCHEMAS / "runner-error.schema.json")
@@ -190,7 +195,10 @@ class ServiceContractTest(unittest.TestCase):
                 self.assertEqual(value, self.taxonomy[code][field], (code, field))
         for record in self.taxonomy.values():
             self.assertNotIn("prose cli", record["action"])
-            self.assert_valid("runner-error.schema.json", {"schema": "openprose.runner-error/1", **record})
+            sample = {"schema": "openprose.runner-error/1", **record}
+            if record["code"] == "KERNEL_RETRIEVAL_FAILED":
+                sample["details"] = load_json(SHARED / "fixtures" / "kernel-startup" / "release.json")["retrievalFailures"][3]["error"]["details"]
+            self.assert_valid("runner-error.schema.json", sample)
 
     def test_hosted_unavailable_text_is_unchanged(self):
         self.assertEqual(HOSTED_UNAVAILABLE, self.taxonomy["HOSTED_UNAVAILABLE"])

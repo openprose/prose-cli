@@ -96,6 +96,83 @@ class BudgetExceeded(Exception):
     """An aggregate invocation budget was exhausted."""
 
 
+async def _settle_protected(task):
+    """Join retained cleanup despite cancellation; report the first interruption."""
+    interrupted = None
+    while not task.done():
+        try:
+            await asyncio.shield(task)
+        except asyncio.CancelledError as error:
+            if interrupted is None:
+                interrupted = error
+    task.result()
+    return interrupted
+
+
+class OwnedOperations:
+    """Own application effects independently of SDK background cancellation."""
+    def __init__(self, max_tools):
+        self.max_tools = max_tools
+        self.tasks = []
+        self.shell_failures = {}
+        self.closing = False
+        self.shutdown_task = None
+        self.pending_at_shutdown = False
+
+    def require_open(self):
+        if self.closing:
+            raise asyncio.CancelledError()
+
+    async def perform(self, factory, *, is_shell=False):
+        self.require_open()
+        if len(self.tasks) >= self.max_tools:
+            raise BudgetExceeded()
+        async def tracked():
+            try:
+                self.require_open()
+                return await factory()
+            except BaseException as error:
+                if is_shell:
+                    rows = _shell_cleanup_details(error).get('shellCleanupFailures', [])
+                    if rows:
+                        self.shell_failures[task] = rows
+                raise
+        task = asyncio.create_task(tracked())
+        self.tasks.append(task)
+        try:
+            return await asyncio.shield(task)
+        except BaseException as primary:
+            if not task.done():
+                task.cancel()
+            async def settle():
+                await asyncio.gather(task, return_exceptions=True)
+            retained = asyncio.create_task(settle())
+            await _settle_protected(retained)
+            if is_shell and task in self.shell_failures:
+                primary._shell_cleanup_failures = self.shell_failures[task]
+            raise
+
+    async def shutdown(self, primary=None):
+        self.closing = True
+        if self.shutdown_task is None:
+            self.pending_at_shutdown = any(not task.done() for task in self.tasks)
+            async def settle():
+                for task in self.tasks:
+                    if not task.done():
+                        task.cancel()
+                await asyncio.gather(*self.tasks, return_exceptions=True)
+            self.shutdown_task = asyncio.create_task(settle())
+        interrupted = await _settle_protected(self.shutdown_task)
+        if primary is None and interrupted is not None:
+            raise interrupted
+
+    def cleanup_details(self):
+        # Keep identical failures from distinct operations. Each entry was
+        # validated once by the single-shell <=5-row parser at its boundary.
+        rows = [row for task in self.tasks for row in self.shell_failures.get(task, [])]
+        return {'shellCleanupFailures': rows} if rows else {}
+
+
 async def shell(command, cwd, timeout, env, output_limit=30000):
     # Retain ownership while subprocess creation connects its pipes. Cancellation
     # of that constructor otherwise lets asyncio kill only the direct child.
@@ -310,13 +387,16 @@ async def retrieve_public(url, timeout, output_limit=60000):
 
 class GuardedResponses:
     """Guard the actual SDK request after instruction/history/tool conversion."""
-    def __init__(self, resource, max_input_bytes, observed_models, observed_tiers=None):
+    def __init__(self, resource, max_input_bytes, observed_models, observed_tiers=None, admission=None):
         self.resource = resource
         self.max_input_bytes = max_input_bytes
         self.observed_models = observed_models
         self.observed_tiers = observed_tiers if observed_tiers is not None else set()
+        self.admission = admission
 
     async def create(self, **kwargs):
+        if self.admission is not None:
+            self.admission()
         payload = {field: kwargs[field] for field in ('instructions', 'input', 'tools', 'text')
                    if field in kwargs and isinstance(kwargs[field], (str, list, dict))}
         if len(json.dumps(payload, ensure_ascii=False).encode('utf-8')) > self.max_input_bytes:
@@ -333,12 +413,13 @@ class GuardedResponses:
 
 class GuardedClient:
     """Retain request guards when the SDK uses public client.with_options()."""
-    def __init__(self, client, max_input_bytes, observed_models, observed_tiers):
+    def __init__(self, client, max_input_bytes, observed_models, observed_tiers, admission=None):
         self.client = client
         self.max_input_bytes = max_input_bytes
         self.observed_models = observed_models
         self.observed_tiers = observed_tiers
-        self.responses = GuardedResponses(client.responses, max_input_bytes, observed_models, observed_tiers)
+        self.admission = admission
+        self.responses = GuardedResponses(client.responses, max_input_bytes, observed_models, observed_tiers, admission)
 
     def __getattr__(self, name):
         return getattr(self.client, name)
@@ -346,7 +427,7 @@ class GuardedClient:
     def with_options(self, **kwargs):
         clone = getattr(self.client, 'with_options', None)
         client = clone(**kwargs) if callable(clone) else self.client
-        return GuardedClient(client, self.max_input_bytes, self.observed_models, self.observed_tiers)
+        return GuardedClient(client, self.max_input_bytes, self.observed_models, self.observed_tiers, self.admission)
 
 
 async def run(args):
@@ -369,6 +450,7 @@ async def run(args):
         print(json.dumps({'type': kind, 'event': kind, 'elapsed_seconds': round(time.monotonic()-start, 3), **data}), flush=True)
     max_input_bytes = getattr(args, 'max_input_bytes', 256000)
     max_tools = getattr(args, 'max_tools', 80)
+    operations = OwnedOperations(max_tools)
     max_total_tokens = getattr(args, 'max_total_tokens', 500000)
     limits = {'maxTurns': args.max_turns, 'timeoutSeconds': args.timeout,
               'toolTimeoutSeconds': args.tool_timeout, 'maxOutputTokens': args.max_output_tokens,
@@ -378,7 +460,8 @@ async def run(args):
     def fail(kind, message, setup_reason=None, cleanup_error=None):
         extra = {"setup_reason": setup_reason} if kind == "SetupError" and setup_reason in ("credential-or-permission", "model-unavailable", "local-input") else {}
         emit('error', error_type=kind, message=message, limits=limits,
-             usageObservation=observation.summary(), **extra, **_shell_cleanup_details(cleanup_error))
+             usageObservation=observation.summary(), **extra,
+             **(operations.cleanup_details() or _shell_cleanup_details(cleanup_error)))
         return 1
     emit('start', model=args.model, cwd=args.cwd, limits=limits,
          permissions={'shell': 'host_os_permissions', 'filesystemSandbox': False,
@@ -409,49 +492,56 @@ async def run(args):
     @function_tool(failure_error_function=None)
     async def execute_shell(command: str) -> str:
         """Execute bash in the working directory with host OS permissions; read/edit files. This is not a sandbox."""
+        operations.require_open()
         if len(command.encode()) > 30000:
             return json.dumps({'error': 'shell command exceeds 30000 bytes'})
         emit('tool_call', name='execute_shell', command=command)
         try:
-            result = await shell(command, cwd, min(args.tool_timeout, remaining()), tool_env)
+            result = await operations.perform(lambda: shell(command, cwd, min(args.tool_timeout, remaining()), tool_env), is_shell=True)
         except asyncio.TimeoutError as error:
             result = {'error': 'shell command timed out', **_shell_cleanup_details(error)}
         except OSError as error:
             result = {'error': 'shell could not start; check working directory and bash availability', **_shell_cleanup_details(error)}
+        operations.require_open()
         emit('tool_result', name='execute_shell', result=result)
         return json.dumps(result)
     @function_tool(failure_error_function=None)
     async def retrieve_url(url: str) -> str:
         """Retrieve text from a public HTTPS URL. Private addresses, credentials, non-443 ports and redirects are rejected."""
+        operations.require_open()
         emit('tool_call', name='retrieve_url', url=url[:4096])
         try:
-            result = await retrieve_public(url, min(args.tool_timeout, remaining()))
+            result = await operations.perform(lambda: retrieve_public(url, min(args.tool_timeout, remaining())))
         except (OSError, ValueError, asyncio.TimeoutError, asyncio.IncompleteReadError, asyncio.LimitOverrunError):
             result = {'error': 'public retrieval failed; check the HTTPS URL, server availability and response format'}
+        operations.require_open()
         emit('tool_result', name='retrieve_url', result=result)
         return json.dumps(result)
     client = AsyncOpenAI(api_key=key.strip(), max_retries=0, timeout=args.timeout)
-    client = GuardedClient(client, max_input_bytes, observed_models, observed_tiers)
+    client = GuardedClient(client, max_input_bytes, observed_models, observed_tiers, operations.require_open)
     config = RunConfig(tracing_disabled=True, model_provider=OpenAIProvider(openai_client=client))
     def make_agent(depth):
         @function_tool(failure_error_function=None)
         async def delegate(task: str) -> str:
             """Run an independent fresh agent context. Supply all needed task inputs explicitly; no parent conversation is inherited. Files remain shared."""
             nonlocal children
+            operations.require_open()
             if depth >= 1 or children >= 8:
                 raise BudgetExceeded()
             if len(task.encode()) > 60000:
                 return json.dumps({'error': 'child input exceeds 60000 bytes'})
             # A single lock covers the complete child: sibling provider calls never overlap.
             async with child_lock:
+                operations.require_open()
                 if children >= 8:
                     raise BudgetExceeded()
                 children += 1
                 child_id = children
                 emit('tool_call', name='delegate', child_id=child_id, depth=depth + 1)
                 child = make_agent(depth + 1)
-                result = await Runner.run(child, task, max_turns=args.max_turns,
-                    run_config=config, hooks=observation)
+                result = await operations.perform(lambda: Runner.run(child, task, max_turns=args.max_turns,
+                    run_config=config, hooks=observation))
+                operations.require_open()
                 child_usage.append(result.context_wrapper.usage)
                 output = str(result.final_output)
                 if len(output.encode()) > 60000:
@@ -467,6 +557,9 @@ async def run(args):
     try:
         result = await asyncio.wait_for(Runner.run(make_agent(0), args.prompt,
             max_turns=args.max_turns, run_config=config, hooks=observation), remaining())
+        await operations.shutdown()
+        if operations.pending_at_shutdown or operations.cleanup_details():
+            raise RuntimeError('Application tool work remained active at completion')
         normalized = [result.context_wrapper.usage] + child_usage
         usage = {field: sum(getattr(value, field) for value in normalized) for field in ('requests', 'input_tokens', 'output_tokens', 'total_tokens')}
         emit('final', output=result.final_output, usage={
@@ -475,8 +568,10 @@ async def run(args):
             usageObservation=observation.summary())
         return 0
     except asyncio.CancelledError as error:
+        await operations.shutdown(error)
         return fail('CancelledError', 'Execution cancelled.', cleanup_error=error)
     except Exception as error:
+        await operations.shutdown(error)
         name = type(error).__name__
         if name in ('AuthenticationError', 'PermissionDeniedError'):
             return fail('SetupError', 'OpenAI rejected the credential or account permissions. Check the API key and model access; no fallback was selected.', setup_reason='credential-or-permission', cleanup_error=error)
@@ -485,6 +580,7 @@ async def run(args):
         safe = name if name in ('MaxTurnsExceeded', 'TimeoutError', 'BudgetExceeded') else 'ExecutionError'
         return fail(safe, 'Execution stopped. Check configured limits, tool availability and OpenAI account access.', cleanup_error=error)
     finally:
+        await operations.shutdown()
         await client.close()
 
 

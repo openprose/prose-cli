@@ -51,6 +51,23 @@
         }
       },
       "rendered": "HOSTED_UNAVAILABLE at hosted-service: line\\nbreak\nDetail: tab\\there\nAction: Use the exact runner invocation {{RUNNER}} for runner operations. act\\u{001B}[31m\n"
+    },
+    {
+      "id": "kernel-retrieval-http",
+      "error": {
+        "code": "KERNEL_RETRIEVAL_FAILED",
+        "boundary": "image",
+        "message": "The published OpenProse kernel could not be retrieved.",
+        "action": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
+        "details": {
+          "reason": "Published kernel HTTP request failed.",
+          "stage": "entry",
+          "failureKind": "http",
+          "origin": "https://pkg.prose.md",
+          "httpStatus": 404
+        }
+      },
+      "rendered": "KERNEL_RETRIEVAL_FAILED at image: The published OpenProse kernel could not be retrieved.\nDetail: Published kernel HTTP request failed.\nAction: Use the exact runner invocation {{RUNNER}} for runner operations. Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.\n"
     }
   ]
 }

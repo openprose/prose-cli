@@ -174,6 +174,7 @@ pub enum ErrorCode {
     HarnessNeedsAuth,
     TransportUnsupported,
     PromptChannelUnsupported,
+    KernelRetrievalFailed,
     ImageInvalid,
     ImageTooLarge,
     RecursiveInvocation,
@@ -224,6 +225,7 @@ impl ErrorCode {
             Self::HarnessNeedsAuth => "HARNESS_NEEDS_AUTH",
             Self::TransportUnsupported => "TRANSPORT_UNSUPPORTED",
             Self::PromptChannelUnsupported => "PROMPT_CHANNEL_UNSUPPORTED",
+            Self::KernelRetrievalFailed => "KERNEL_RETRIEVAL_FAILED",
             Self::ImageInvalid => "IMAGE_INVALID",
             Self::ImageTooLarge => "IMAGE_TOO_LARGE",
             Self::RecursiveInvocation => "RECURSIVE_INVOCATION",
@@ -293,6 +295,7 @@ impl ErrorCode {
             | Self::ServiceResponseTooLarge => 10,
             Self::TransportUnsupported
             | Self::PromptChannelUnsupported
+            | Self::KernelRetrievalFailed
             | Self::ImageInvalid
             | Self::ImageTooLarge
             | Self::RecursiveInvocation => 20,
@@ -312,7 +315,7 @@ impl ErrorCode {
 
 impl ErrorCode {
     /// Every taxonomy code, in declaration order.
-    pub const ALL: [Self; 43] = [
+    pub const ALL: [Self; 44] = [
         Self::ConfigInvalid,
         Self::InvocationInvalid,
         Self::HarnessUnavailable,
@@ -320,6 +323,7 @@ impl ErrorCode {
         Self::HarnessNeedsAuth,
         Self::TransportUnsupported,
         Self::PromptChannelUnsupported,
+        Self::KernelRetrievalFailed,
         Self::ImageInvalid,
         Self::ImageTooLarge,
         Self::RecursiveInvocation,
@@ -496,6 +500,12 @@ impl RunnerError {
                 "adapter",
                 "The selected adapter cannot use a manifest-permitted instruction placement.",
                 "Choose a strict adapter reported by the `cli harness list` runner operation.",
+                false,
+            ),
+            ErrorCode::KernelRetrievalFailed => (
+                "image",
+                "The published OpenProse kernel could not be retrieved.",
+                "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
                 false,
             ),
             ErrorCode::ImageInvalid => (
@@ -1228,6 +1238,7 @@ mod tests {
             ErrorCode::HarnessNeedsAuth,
             ErrorCode::TransportUnsupported,
             ErrorCode::PromptChannelUnsupported,
+            ErrorCode::KernelRetrievalFailed,
             ErrorCode::ImageInvalid,
             ErrorCode::ImageTooLarge,
             ErrorCode::RecursiveInvocation,

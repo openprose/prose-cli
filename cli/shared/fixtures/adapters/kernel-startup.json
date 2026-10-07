@@ -48,5 +48,50 @@
     "oversize",
     "timeout",
     "http-failure"
-  ]
+  ],
+  "retrievalError": {
+    "code": "KERNEL_RETRIEVAL_FAILED",
+    "stages": [
+      "entry",
+      "descriptor",
+      "inventory",
+      "kernel"
+    ],
+    "failureKinds": [
+      "transport",
+      "http"
+    ],
+    "origin": "https://pkg.prose.md",
+    "retryableHttpStatuses": [
+      408,
+      429,
+      500,
+      502,
+      503,
+      504
+    ],
+    "automaticRetries": 0,
+    "rawCausesRetained": false,
+    "preservesIntegrityCode": "IMAGE_INVALID",
+    "requestPolicy": {
+      "timeoutMs": 15000,
+      "maxMetadataBytes": 262144,
+      "maxKernelBytes": 32768,
+      "redirects": "manual",
+      "fallback": false
+    },
+    "httpStatusPolicy": {
+      "entry": {
+        "minimum": 400,
+        "maximum": 599
+      },
+      "artifact": {
+        "minimum": 100,
+        "maximum": 599,
+        "excluded": [
+          200
+        ]
+      }
+    }
+  }
 }

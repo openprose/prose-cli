@@ -26,6 +26,52 @@ pub struct KernelResponse {
 fn invalid(reason: &str) -> RunnerError {
     RunnerError::catalog(ErrorCode::ImageInvalid).with_detail("reason", reason)
 }
+fn retrieval(stage: &str, status: Option<u16>) -> RunnerError {
+    if !["entry", "descriptor", "inventory", "kernel"].contains(&stage)
+        || status.is_some_and(|value| {
+            !(100..=599).contains(&value) || value == 200 || (stage == "entry" && value < 400)
+        })
+    {
+        return invalid(UNVERIFIED);
+    }
+    let mut error = RunnerError::catalog(ErrorCode::KernelRetrievalFailed)
+        .with_detail("stage", stage)
+        .with_detail("origin", "https://pkg.prose.md")
+        .with_detail(
+            "failureKind",
+            if status.is_some() {
+                "http"
+            } else {
+                "transport"
+            },
+        )
+        .with_detail(
+            "reason",
+            if status.is_some() {
+                "Published kernel HTTP request failed."
+            } else {
+                "Published kernel transport or response read failed."
+            },
+        );
+    error.retryable = status.is_none_or(|value| [408, 429, 500, 502, 503, 504].contains(&value));
+    if let Some(value) = status {
+        error = error.with_detail("httpStatus", value);
+    }
+    error
+}
+// Transport is staged at the request call site, never inferred from an external URL.
+fn transport() -> RunnerError {
+    RunnerError::catalog(ErrorCode::KernelRetrievalFailed)
+}
+fn staged(error: RunnerError, stage: &str) -> RunnerError {
+    match error.code {
+        ErrorCode::ImageInvalid
+        | ErrorCode::ImageTooLarge
+        | ErrorCode::Cancelled
+        | ErrorCode::StartupTimeout => error,
+        _ => retrieval(stage, None),
+    }
+}
 fn hash_valid(value: &str, length: usize) -> bool {
     value.len() == length
         && value
@@ -61,7 +107,7 @@ pub fn published_kernel(
     let agent = |url: &str| {
         crate::service::http::agent_builder(url, &crate::service::http::process_environment)
             .map(ureq::AgentBuilder::build)
-            .map_err(|_| invalid(UNVERIFIED))
+            .map_err(|_| transport())
     };
     let user_agent = policy["userAgent"].as_str().expect("user agent").to_owned();
     let interrupted = || {
@@ -95,7 +141,7 @@ pub fn published_kernel(
                 Ok(outcome) => return outcome,
                 Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
                 Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
-                    return Err(invalid(UNVERIFIED));
+                    return Err(transport());
                 }
             }
         }
@@ -114,7 +160,7 @@ pub fn published_kernel(
 fn fetch(request: ureq::Request, limit: usize) -> Result<KernelResponse, RunnerError> {
     let response = match request.call() {
         Ok(response) | Err(ureq::Error::Status(_, response)) => response,
-        Err(ureq::Error::Transport(_)) => return Err(invalid(UNVERIFIED)),
+        Err(ureq::Error::Transport(_)) => return Err(transport()),
     };
     let status = response.status();
     let location = response.header("Location").map(str::to_owned);
@@ -124,7 +170,7 @@ fn fetch(request: ureq::Request, limit: usize) -> Result<KernelResponse, RunnerE
             .into_reader()
             .take((limit + 1) as u64)
             .read_to_end(&mut bytes)
-            .map_err(|_| invalid(UNVERIFIED))?;
+            .map_err(|_| transport())?;
         if bytes.len() > limit {
             return Err(too_large(limit));
         }
@@ -157,7 +203,10 @@ pub fn published_kernel_with(
     let origin = policy["origin"].as_str().expect("origin");
     let metadata_limit = usize::try_from(policy["maxMetadataBytes"].as_u64().expect("limit"))
         .map_err(|_| invalid("Kernel metadata limit exceeds this platform"))?;
-    let response = get(entry, metadata_limit)?;
+    let response = get(entry, metadata_limit).map_err(|error| staged(error, "entry"))?;
+    if (400..=599).contains(&response.status) {
+        return Err(retrieval("entry", Some(response.status)));
+    }
     let location = response
         .location
         .filter(|location| {
@@ -185,19 +234,22 @@ pub fn published_kernel_with(
         return Err(invalid("Kernel entry selected an unsupported release URL."));
     }
     let root = url.strip_suffix("README.md").expect("verified suffix");
-    let mut read = |url: &str, limit: usize| -> Result<Vec<u8>, RunnerError> {
-        let response = get(url, limit)?;
+    let mut read = |url: &str, limit: usize, stage: &str| -> Result<Vec<u8>, RunnerError> {
+        let response = get(url, limit).map_err(|error| staged(error, stage))?;
         if response.status != 200 {
-            return Err(invalid("Published kernel artifact retrieval failed."));
+            return Err(retrieval(stage, Some(response.status)));
         }
         if response.bytes.len() > limit {
             return Err(too_large(limit));
         }
         Ok(response.bytes)
     };
-    let descriptor: Value =
-        serde_json::from_slice(&read(&format!("{root}descriptor.json"), metadata_limit)?)
-            .map_err(|_| invalid(UNVERIFIED))?;
+    let descriptor: Value = serde_json::from_slice(&read(
+        &format!("{root}descriptor.json"),
+        metadata_limit,
+        "descriptor",
+    )?)
+    .map_err(|_| invalid(UNVERIFIED))?;
     let commit = descriptor["source"]["commit"].as_str().unwrap_or("");
     let inventory_hash = descriptor["inventory_sha256"].as_str().unwrap_or("");
     if descriptor["identity"] != "openprose/core"
@@ -209,7 +261,11 @@ pub fn published_kernel_with(
     {
         return Err(invalid("Published kernel descriptor identity is invalid."));
     }
-    let inventory = read(&format!("{root}inventory.json"), metadata_limit)?;
+    let inventory = read(
+        &format!("{root}inventory.json"),
+        metadata_limit,
+        "inventory",
+    )?;
     if sha256_hex(&inventory) != inventory_hash {
         return Err(invalid("Published kernel inventory digest mismatch."));
     }
@@ -222,6 +278,7 @@ pub fn published_kernel_with(
         &url,
         usize::try_from(policy["maxKernelBytes"].as_u64().expect("kernel limit"))
             .map_err(|_| invalid("Kernel byte limit exceeds this platform"))?,
+        "kernel",
     )?;
     if kernel.is_empty() || sha256_hex(&kernel) != kernel_hash {
         return Err(invalid("Published kernel content digest mismatch."));
@@ -279,6 +336,84 @@ mod tests {
         );
     }
     #[test]
+    fn frozen_retrieval_errors_are_staged_without_extra_requests() {
+        let fixture: Value = serde_json::from_str(FIXTURE).unwrap();
+        for case in fixture["retrievalFailures"].as_array().unwrap() {
+            let expected_calls = case["expectedCalls"].as_array().unwrap();
+            let failed_url = expected_calls.last().unwrap().as_str().unwrap();
+            let mut calls = Vec::new();
+            let error = published_kernel_with(|url, _| {
+                calls.push(url.to_owned());
+                if url == failed_url {
+                    if case["trigger"] != "http" {
+                        return Err(transport());
+                    }
+                    return Ok(KernelResponse {
+                        status: u16::try_from(case["httpStatus"].as_u64().unwrap()).unwrap(),
+                        location: None,
+                        bytes: Vec::new(),
+                    });
+                }
+                let response = &fixture["responses"][url];
+                Ok(KernelResponse {
+                    status: u16::try_from(response["status"].as_u64().unwrap()).unwrap(),
+                    location: response["location"].as_str().map(str::to_owned),
+                    bytes: response["text"].as_str().unwrap().as_bytes().to_vec(),
+                })
+            })
+            .unwrap_err();
+            assert_eq!(
+                serde_json::to_value(error).unwrap(),
+                case["error"],
+                "{}",
+                case["id"]
+            );
+            assert_eq!(json!(calls), case["expectedCalls"], "{}", case["id"]);
+        }
+    }
+    #[test]
+    fn retrieval_observation_factory_is_closed() {
+        for (stage, status) in [
+            ("other", None),
+            ("kernel", Some(200)),
+            ("kernel", Some(99)),
+            ("kernel", Some(600)),
+            ("entry", Some(302)),
+        ] {
+            assert_eq!(retrieval(stage, status).code, ErrorCode::ImageInvalid);
+        }
+    }
+    #[test]
+    fn interruption_size_and_entry_policy_failures_keep_their_classification() {
+        for code in [
+            ErrorCode::ImageTooLarge,
+            ErrorCode::Cancelled,
+            ErrorCode::StartupTimeout,
+        ] {
+            let original = RunnerError::catalog(code).with_detail("reason", "owned interruption");
+            let error = published_kernel_with(|_, _| Err(original.clone())).unwrap_err();
+            assert_eq!(error, original);
+        }
+        let unrelated = RunnerError::catalog(ErrorCode::HarnessFailed)
+            .with_detail("reason", "private-unrelated-cause");
+        let error = published_kernel_with(|_, _| Err(unrelated.clone())).unwrap_err();
+        assert_eq!(
+            serde_json::to_value(error).unwrap(),
+            serde_json::from_str::<Value>(FIXTURE).unwrap()["retrievalFailures"][0]["error"]
+        );
+        for status in [100, 200, 204, 302, 399] {
+            let error = published_kernel_with(|_, _| {
+                Ok(KernelResponse {
+                    status,
+                    location: None,
+                    bytes: Vec::new(),
+                })
+            })
+            .unwrap_err();
+            assert_eq!(error.code, ErrorCode::ImageInvalid);
+        }
+    }
+    #[test]
     fn rejects_changed_origin_metadata_content_and_size() {
         let fixture: Value = serde_json::from_str(FIXTURE).unwrap();
         let entry = "https://pkg.prose.md/kernel.md";
@@ -302,8 +437,16 @@ mod tests {
             (format!("{root}descriptor.json"), "status", json!(503)),
         ] {
             let mut mutated = fixture.clone();
-            mutated["responses"][url][field] = value;
-            assert!(run(&mutated).is_err());
+            mutated["responses"][url][field] = value.clone();
+            let error = run(&mutated).unwrap_err();
+            let expected = if field == "status" && value == json!(503) {
+                ErrorCode::KernelRetrievalFailed
+            } else if field == "text" && value.as_str().is_some_and(|text| text.len() > 32768) {
+                ErrorCode::ImageTooLarge
+            } else {
+                ErrorCode::ImageInvalid
+            };
+            assert_eq!(error.code, expected);
         }
     }
 }
