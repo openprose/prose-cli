@@ -720,7 +720,7 @@ def make_release_package_output(root: Path, *, platform_value: str = PLATFORM) -
     dependency_path = output / 'dependency-evidence.json'; dependency = json.loads(dependency_path.read_text())
     dependency['sources'].append({'path': 'harnesses/agents-sdk/requirements-build.txt', 'byteLength': 1, 'sha256': sdk['dependencyLockSha256']})
     dependency['inventories']['agentsSdkPython'] = {
-        'lockfileVersion': 1, 'scopeBasis': 'hash-locked-four-platform-wheel-candidates',
+        'scopeBasis': 'hash-locked-four-platform-wheel-candidates',
         'packages': [{'name': 'fixture', 'version': '1.0.0', 'source': 'pypi:wheel-sha256:' + 'e'*64,
                       'scopes': ['frozen-sdk-build'], 'integrity': {'status': 'declared', 'algorithm': 'sha256', 'digest': 'e'*64}}]}
     dependency_path.write_text(json.dumps(dependency))
@@ -791,6 +791,71 @@ def rewrite_tar(path: Path, mutate) -> None:
                 members.append((info.name, b"", info.linkname))
     mutate(members)
     write_tar(path, members)
+
+
+class PythonSdkDependencyValidationTests(unittest.TestCase):
+    @staticmethod
+    def generated_report():
+        script = ROOT / "cli/ci/dependency_evidence.py"
+        spec = importlib.util.spec_from_file_location("sdk_generated_dependency_evidence", script)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module.build_report(ROOT)
+
+    def test_original_generated_sdk_inventory_is_admitted_without_rewriting(self):
+        report = self.generated_report()
+        before = copy.deepcopy(report)
+        BENCHMARK.validate_dependency_evidence(report)
+        self.assertEqual(report, before)
+        # Exercise the lifecycle's separate source/hash/SBOM verifier, without a build.
+        script = ROOT / "cli/ci/package_local.py"
+        spec = importlib.util.spec_from_file_location("sdk_dependency_package_local", script)
+        packager = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(packager)
+        encoded, independently_verified = packager.dependency_evidence()
+        self.assertEqual(json.loads(encoded), report)
+        self.assertEqual(independently_verified, report)
+        BENCHMARK.validate_dependency_evidence(independently_verified)
+        inventory = report["inventories"]["agentsSdkPython"]
+        self.assertEqual(set(inventory), {"scopeBasis", "packages"})
+        versions = {package["version"] for package in inventory["packages"]}
+        self.assertTrue({"3.20", "26.3", "3.0", "2026.8"}.issubset(versions))
+
+    def test_python_evidence_remains_closed_and_hash_bound(self):
+        report = self.generated_report()
+        for poison in ("lock-version", "scope-basis", "version", "source", "digest", "scopes", "integrity", "order", "duplicate"):
+            with self.subTest(poison=poison):
+                value = copy.deepcopy(report)
+                inventory = value["inventories"]["agentsSdkPython"]
+                package = inventory["packages"][0]
+                if poison == "lock-version":
+                    inventory["lockfileVersion"] = 1
+                elif poison == "scope-basis":
+                    inventory["scopeBasis"] = "unverified"
+                elif poison == "version":
+                    package["version"] = "3..20"
+                elif poison == "source":
+                    package["source"] = "pypi:wheel-sha256:" + "0" * 64
+                elif poison == "digest":
+                    package["integrity"]["digest"] = "0" * 63
+                elif poison == "scopes":
+                    package["scopes"] = ["runtime"]
+                elif poison == "integrity":
+                    package["integrity"] = {"status": "not-applicable", "reason": "missing"}
+                elif poison == "order":
+                    inventory["packages"].reverse()
+                else:
+                    inventory["packages"].append(copy.deepcopy(package))
+                with self.assertRaises(BENCHMARK.BenchmarkError):
+                    BENCHMARK.validate_dependency_evidence(value)
+
+    def test_python_versions_do_not_weaken_cargo_or_bun_semver(self):
+        for inventory_name in ("bun", "cargo", "windowsProcessHostCargo"):
+            with self.subTest(inventory=inventory_name):
+                value = dependency_fixture()
+                value["inventories"][inventory_name]["packages"][0]["version"] = "3.20"
+                with self.assertRaises(BENCHMARK.BenchmarkError):
+                    BENCHMARK.validate_dependency_evidence(value)
 
 
 class InstalledPackageBenchmarkTests(unittest.TestCase):

@@ -32,6 +32,16 @@ NAME_RE = re.compile(r"^[A-Za-z0-9_@./-]+$")
 CRATE_NAME_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 VERSION_RE = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$")
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+# Exact pinned Python releases use PEP 440 release segments, not npm/Cargo SemVer.
+# Epochs are excluded by the hash-locked requirements token grammar.
+PYTHON_VERSION_RE = re.compile(
+    r"v?[0-9]+(?:\.[0-9]+)*"
+    r"(?:[-_.]?(?:a|b|c|rc|alpha|beta|pre|preview)[-_.]?[0-9]*)?"
+    r"(?:(?:-[0-9]+)|(?:[-_.]?(?:post|rev|r)[-_.]?[0-9]*))?"
+    r"(?:[-_.]?dev[-_.]?[0-9]*)?"
+    r"(?:\+[a-z0-9]+(?:[-_.][a-z0-9]+)*)?",
+    re.IGNORECASE | re.ASCII,
+)
 
 
 class EvidenceError(Exception):
@@ -873,6 +883,8 @@ def build_report(root: Path) -> dict[str, Any]:
             if match is None:
                 fail("SOURCE_MALFORMED", "SDK Python requirements must be exact and hash locked")
             name, version, hashes = match.groups()
+            if len(version) > 128 or PYTHON_VERSION_RE.fullmatch(version) is None:
+                fail("SOURCE_MALFORMED", "SDK Python requirement version must be an exact pinned Python release")
             name = name.lower().replace("_", "-")
             if name in names:
                 fail("SOURCE_DUPLICATE", "duplicate SDK Python requirement")
@@ -884,6 +896,7 @@ def build_report(root: Path) -> dict[str, Any]:
                                  "integrity": {"status": "declared", "algorithm": "sha256", "digest": digest}})
         if not packages:
             fail("SOURCE_MALFORMED", "SDK Python requirements are empty")
+        packages.sort(key=lambda package: (package["name"], package["version"], package["source"]))
         python_inventory = {"scopeBasis": "hash-locked-four-platform-wheel-candidates", "packages": packages}
         python_sources = [(python_lock, lock_bytes)]
     source_values = [

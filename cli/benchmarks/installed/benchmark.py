@@ -48,6 +48,16 @@ MAX_INSTALLED_TREE_FILE_BYTES = 256 * 1024 * 1024
 MAX_INSTALLED_TREE_BYTES = 768 * 1024 * 1024
 MAX_INSTALLED_TREE_PATH_BYTES = 4_096
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+# Exact pinned Python releases use PEP 440 release segments, not npm/Cargo SemVer.
+# Epochs are excluded by the hash-locked requirements token grammar.
+PYTHON_VERSION_RE = re.compile(
+    r"v?[0-9]+(?:\.[0-9]+)*"
+    r"(?:[-_.]?(?:a|b|c|rc|alpha|beta|pre|preview)[-_.]?[0-9]*)?"
+    r"(?:(?:-[0-9]+)|(?:[-_.]?(?:post|rev|r)[-_.]?[0-9]*))?"
+    r"(?:[-_.]?dev[-_.]?[0-9]*)?"
+    r"(?:\+[a-z0-9]+(?:[-_.][a-z0-9]+)*)?",
+    re.IGNORECASE | re.ASCII,
+)
 SEMVER_RE = re.compile(
     r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)"
     r"(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?"
@@ -776,7 +786,7 @@ def validate_dependency_evidence(value: Any) -> dict[str, Any]:
         ),
     }
     if "agentsSdkPython" in inventories:
-        inventory_shapes["agentsSdkPython"] = ({"lockfileVersion", "scopeBasis", "packages"}, None, None, 1,
+        inventory_shapes["agentsSdkPython"] = ({"scopeBasis", "packages"}, None, None, None,
                                              "hash-locked-four-platform-wheel-candidates")
     allowed_scopes = {"runtime", "development", "build", "workspace", "component", "frozen-sdk-build"}
     for inventory_name, (
@@ -789,8 +799,13 @@ def validate_dependency_evidence(value: Any) -> dict[str, Any]:
         inventory = require_object(inventories.get(inventory_name), inventory_name)
         require_exact_keys(inventory, keys, f"dependency inventory {inventory_name}")
         if (
-            inventory.get("lockfileVersion") != expected_lock_version
-            or isinstance(inventory.get("lockfileVersion"), bool)
+            (
+                expected_lock_version is not None
+                and (
+                    inventory.get("lockfileVersion") != expected_lock_version
+                    or isinstance(inventory.get("lockfileVersion"), bool)
+                )
+            )
             or inventory.get("scopeBasis") != expected_scope_basis
         ):
             fail(
@@ -823,10 +838,15 @@ def validate_dependency_evidence(value: Any) -> dict[str, Any]:
                 package.get("version"), "dependency package version"
             )
             source = require_string(package.get("source"), "dependency package source")
+            python_package = inventory_name == "agentsSdkPython"
+            valid_version = (
+                len(version) <= 128 and PYTHON_VERSION_RE.fullmatch(version) is not None
+                if python_package else is_exact_semver(version)
+            )
             if (
                 DEPENDENCY_NAME_RE.fullmatch(name) is None
                 or ".." in name
-                or not is_exact_semver(version)
+                or not valid_version
                 or len(source) > 1024
                 or any(ord(character) < 0x20 for character in source)
             ):
@@ -873,6 +893,13 @@ def validate_dependency_evidence(value: Any) -> dict[str, Any]:
                 fail(
                     "EVIDENCE_MALFORMED", f"unsupported integrity status for {identity}"
                 )
+            if python_package and (
+                scopes != ["frozen-sdk-build"]
+                or integrity.get("status") != "declared"
+                or integrity.get("algorithm") != "sha256"
+                or source != "pypi:wheel-sha256:" + integrity.get("digest", "")
+            ):
+                fail("EVIDENCE_MALFORMED", "SDK Python wheel provenance differs")
         if identities != sorted(identities):
             fail("EVIDENCE_MALFORMED", f"packages must be sorted for {inventory_name}")
 
