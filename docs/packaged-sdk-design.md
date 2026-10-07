@@ -111,3 +111,10 @@ The runner owns fixed recovery actions from the shared SDK oracle, for both huma
 and JSON output. Unknown/missing reasons stay execution failures. Never forward
 arbitrary native messages or infer request completion, usage or billing from a
 setup classification; preserve valid observations already received.
+
+
+### Homebrew preservation of packaged payloads
+
+The native Homebrew rehearsal uses the public Formula `preserve_rpath` convention to retain the SDK libraries' relative dylib identities and `skip_clean` scoped to `bin/prose`, `bin/prose-agents-sdk` and `bin/prose-agents-sdk-runtime`. Homebrew continues its other linkage checks. The complete signed SDK tree must retain its declared bytes, modes and directories through installation; neither a cleanup exclusion nor relative-ID preservation alone establishes that custody. Real install, genuine upgrade, collision refusal and cold helper probes remain qualification gates. The formula keeps the executable and its SDK helper/support tree as canonical keg siblings.
+
+The Linux freezer verifier reads the final `binaries` field in the pinned PyInstaller Analysis TOC. Its input binary list is a distinct record and cannot establish final selection. Exactly one final libgcc destination must bind to the pinned supplier path and bytes; complete TOC provenance and downstream archive, ELF, origin and symbol-closure checks remain required.

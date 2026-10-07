@@ -177,12 +177,56 @@ class NativeInventoryTests(unittest.TestCase):
             root = Path(temp); supplier = root / 'libgcc_s.so.1'; supplier.write_bytes(elf())
             ambient = root / 'ambient'; ambient.write_bytes(elf(symbol='other'))
             toc = root / 'Analysis-00.toc'
-            toc.write_text(repr(([], [('libgcc_s.so.1', str(supplier), 'BINARY')])))
+            row = ('libgcc_s.so.1', str(supplier), 'BINARY')
+            def fixture(rows):
+                # Pinned twenty-field envelope, with distinct explicit input
+                # and final output fields. Native bytes remain synthetic.
+                value = [[] for _ in range(20)]
+                value[4] = {}; value[7] = False; value[8] = {}; value[9] = 0
+                value[10] = [row]; value[12] = 'synthetic Python version'
+                value[15] = rows
+                return tuple(value)
+            toc.write_text(repr(fixture([row])))
             self.assertEqual(native.verify_analysis_toc(toc, supplier), native.sha(toc.read_bytes()))
-            for rows in ([], [('libgcc_s.so.1', str(ambient), 'BINARY')],
-                         [('libgcc_s.so.1', str(supplier), 'BINARY')] * 2):
-                toc.write_text(repr(([], rows)))
-                with self.assertRaises(ValueError): native.verify_analysis_toc(toc, supplier)
+            original_digest = native.sha(toc.read_bytes())
+            value = list(fixture([row])); value[0] = [('irrelevant', 'input detail', 'not final')]
+            toc.write_text(repr(tuple(value)))
+            self.assertEqual(native.verify_analysis_toc(toc, supplier), native.sha(toc.read_bytes()))
+            self.assertNotEqual(original_digest, native.sha(toc.read_bytes()))
+            value[10] = []
+            toc.write_text(repr(tuple(value)))
+            self.assertEqual(native.verify_analysis_toc(toc, supplier), native.sha(toc.read_bytes()))
+            for rows in ([], [('libgcc_s.so.1', str(ambient), 'BINARY')], [row] * 2,
+                         [('nested/libgcc_s.so.1', str(supplier), 'BINARY')],
+                         [row, ('nested/libgcc_s.so.1', str(supplier), 'BINARY')],
+                         [('libgcc_s.so.1', str(supplier), 'EXTENSION')]):
+                with self.subTest(rows=rows):
+                    toc.write_text(repr(fixture(rows)))
+                    with self.assertRaises(ValueError): native.verify_analysis_toc(toc, supplier)
+            # The correct bytes under a different canonical name are still
+            # ambient; recursive input discovery cannot rescue final output.
+            ambient.write_bytes(supplier.read_bytes())
+            toc.write_text(repr(fixture([('libgcc_s.so.1', str(ambient), 'BINARY')])))
+            with self.assertRaises(ValueError): native.verify_analysis_toc(toc, supplier)
+
+    def test_analysis_final_binary_shape_is_closed_without_recursive_fallback(self):
+        row = ('libgcc_s.so.1', '/synthetic/supplier.so.1', 'BINARY')
+        def fixture(rows):
+            value = [[] for _ in range(20)]; value[10] = [row]; value[15] = rows
+            return tuple(value)
+        good = fixture([row, ('extension.so', '/synthetic/extension.so', 'EXTENSION'),
+                             ('alias.so', 'extension.so', 'SYMLINK')])
+        self.assertEqual(native._analysis_final_binaries(good), good[15])
+        for value in (list(good), good[:19], good + ([],), ([], [row]),
+                      fixture((row,)), fixture(None), fixture([list(row)]), fixture([[row]]),
+                      fixture([('libgcc_s.so.1', 1, 'BINARY')]), fixture([('x.so', '', 'BINARY')]),
+                      fixture([('/absolute.so', 'source', 'BINARY')]),
+                      fixture([('../escape.so', 'source', 'BINARY')]),
+                      fixture([('.', 'source', 'BINARY')]),
+                      fixture([('x.so', 'source\n', 'BINARY')]),
+                      fixture([('x.so', 'x' * 4097, 'BINARY')]),
+                      fixture([('x.so', 'source', 'DATA')]), fixture([row] * (native.MAX_FILES + 1))):
+            with self.subTest(value=value), self.assertRaises(ValueError): native._analysis_final_binaries(value)
 
     def test_valid_v3_encoded_full_archive_input_both_architectures(self):
         for target in ('linux-x64-gnu', 'linux-arm64-gnu'):

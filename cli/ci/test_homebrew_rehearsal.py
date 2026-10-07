@@ -54,6 +54,7 @@ class ArchiveAdmissionTests(unittest.TestCase):
         self.manifest['agentsSdk'] = sdk
         with self.assertRaises(ValueError):
             self.select()
+
         for item in self.manifest['artifacts']:
             path = self.package / item['path']
             package.tar_gz(path, [('package/prose', item['implementation'].encode(), 0o755),
@@ -64,6 +65,22 @@ class ArchiveAdmissionTests(unittest.TestCase):
         self.manifest['agentsSdk']['sha256'] = '0' * 64
         with self.assertRaises(ValueError):
             self.select()
+
+    def test_prebuilt_formula_preserves_only_the_immutable_product_paths(self):
+        for implementation in ('bun', 'rust'):
+            rendered = rehearsal.formula('0.15.0-rc.4', implementation,
+                                         self.package / f'{implementation}.tar.gz', 'a' * 64)
+            declarations = [line.strip() for line in rendered.splitlines()]
+            self.assertEqual(declarations.count('preserve_rpath'), 1)
+            self.assertEqual([line for line in declarations if line.startswith('skip_clean ')], [
+                'skip_clean "bin/prose", "bin/prose-agents-sdk", "bin/prose-agents-sdk-runtime"'])
+            self.assertNotIn(':all', rendered)
+            self.assertNotIn('HOMEBREW_', rendered)
+            self.assertNotIn('fix_dynamic_linkage', rendered)
+            self.assertNotIn('codesign', rendered)
+            self.assertIn('bin.install "prose"', rendered)
+            self.assertIn('bin.install "prose-agents-sdk" if File.exist?("prose-agents-sdk")', rendered)
+            self.assertIn('bin.install "prose-agents-sdk-runtime" if File.directory?("prose-agents-sdk-runtime")', rendered)
 
     def test_changed_bytes_and_size_are_rejected(self):
         with (self.package / 'bun.tar.gz').open('ab') as stream:
@@ -696,6 +713,55 @@ class NativeExerciseTests(unittest.TestCase):
             return result
         with patch.object(self, 'execute', side_effect=mutate_support), self.assertRaises(ValueError):
             self.exercise(previous=False)
+        self.assertFalse((self.output / 'homebrew-rehearsal.json').exists())
+
+    def test_cleaner_style_support_mode_change_fails_before_helper_probe(self):
+        original = self.execute
+        changed = []
+        def change_mode(argv, **kwargs):
+            result = original(argv, **kwargs)
+            if argv[:2] == ['brew', 'install']:
+                name = next(name for name, (_, mode) in self.sdk_table['files'].items()
+                            if name.startswith('prose-agents-sdk-runtime/') and mode == 0o644)
+                path = self.active.resolve().parent / name
+                before = path.read_bytes()
+                self.assertEqual(path.stat().st_mode & 0o777, 0o644)
+                path.chmod(0o444)
+                self.assertEqual(path.read_bytes(), before)
+                changed.append(name)
+            return result
+        with patch.object(self, 'execute', side_effect=change_mode), self.assertRaises(ValueError):
+            self.exercise(previous=False)
+        self.assertEqual(len(changed), 1)
+        self.assertFalse(any(Path(argv[0]).name == 'prose-agents-sdk' for argv, _ in self.calls))
+        self.assertFalse((self.output / 'homebrew-rehearsal.json').exists())
+
+    def test_pruned_declared_empty_support_directory_fails_before_helper_probe(self):
+        name = 'prose-agents-sdk-runtime/declared-empty-data'
+        self.sdk_table['directories'][name] = 0o755
+        receipt = json.loads(self.sdk_table['files']['agents-sdk-build.json'][0])
+        receipt['payload']['entries'].append({'path': name, 'type': 'directory', 'mode': 0o755})
+        receipt['payload']['entries'].sort(key=lambda row: row['path'])
+        encoded = json.dumps(receipt).encode()
+        self.sdk_table['files']['agents-sdk-build.json'] = (encoded, 0o644)
+        self.manifest['agentsSdk']['receiptSha256'] = hashlib.sha256(encoded).hexdigest()
+        self.verified['sdkBuild'] = receipt
+        original = self.execute
+        pruned = []
+        def prune_empty(argv, **kwargs):
+            result = original(argv, **kwargs)
+            if argv[:2] == ['brew', 'install']:
+                import sdk_native_inventory
+                view = sdk_native_inventory.read_macos_payload(
+                    self.active.resolve().parent, receipt['payload'], 'arm64')
+                self.assertIn(name, view['directories'])
+                (self.active.resolve().parent / name).rmdir()
+                pruned.append(name)
+            return result
+        with patch.object(self, 'execute', side_effect=prune_empty), self.assertRaises(ValueError):
+            self.exercise(previous=False)
+        self.assertEqual(pruned, [name])
+        self.assertFalse(any(Path(argv[0]).name == 'prose-agents-sdk' for argv, _ in self.calls))
         self.assertFalse((self.output / 'homebrew-rehearsal.json').exists())
 
     def test_lingering_support_after_all_version_uninstall_is_refused(self):

@@ -246,19 +246,33 @@ def inspect_tree(root):
             'libraries': rows, 'modelCalls': 0}
 
 
+def _analysis_final_binaries(value):
+    # PyInstaller 6.22.3 Analysis._GUTS / Target._save_guts serialize twenty
+    # fields: input binaries at 10 and normalized final binaries at 15.
+    # https://github.com/pyinstaller/pyinstaller/blob/v6.22.3/PyInstaller/building/build_main.py
+    require(type(value) is tuple and len(value) == 20, 'Unsupported PyInstaller analysis TOC shape')
+    rows = value[15]
+    require(type(rows) is list and len(rows) <= MAX_FILES, 'Unsupported PyInstaller final binaries shape')
+    for row in rows:
+        require(type(row) is tuple and len(row) == 3
+                and all(isinstance(text, str) and 0 < len(text.encode('utf-8')) <= 4096
+                        and all(ord(character) >= 32 and ord(character) != 127 for character in text)
+                        for text in row), 'Invalid PyInstaller final binary row')
+        safe_path(row[0])
+        require(row[0] != '.' and row[2] in ('BINARY', 'EXTENSION', 'SYMLINK'),
+                'Invalid PyInstaller final binary destination or type')
+    return rows
+
+
 def verify_analysis_toc(path, supplier):
     data = read_file(path, MAX_METADATA)
     try: value = ast.literal_eval(data.decode('utf-8'))
     except (ValueError, SyntaxError, RecursionError) as error: raise ValueError('Invalid PyInstaller analysis TOC') from error
-    found = []
-    def visit(node, depth=0):
-        require(depth <= 64, 'PyInstaller TOC nesting exceeds bound')
-        if isinstance(node, (list, tuple)):
-            if len(node) == 3 and node[0] == 'libgcc_s.so.1' and node[2] == 'BINARY': found.append(node)
-            else:
-                for child in node: visit(child, depth + 1)
-    visit(value)
+    rows = _analysis_final_binaries(value)
+    found = [row for row in rows if PurePosixPath(row[0]).name == 'libgcc_s.so.1']
     require(len(found) == 1, 'PyInstaller must select exactly one libgcc binary')
+    require(found[0][0] == 'libgcc_s.so.1' and found[0][2] == 'BINARY',
+            'PyInstaller libgcc destination or type differs')
     require(Path(found[0][1]).resolve() == Path(supplier).resolve() and sha(read_file(found[0][1])) == sha(read_file(supplier)),
             'PyInstaller selected an ambient libgcc binary')
     return sha(data)

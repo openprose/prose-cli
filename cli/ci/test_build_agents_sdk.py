@@ -186,7 +186,14 @@ sys.modules['sdk_tool_selftest'] = selftest
                     self.assertEqual((cwd / 'sdk_native_inventory.py').read_bytes(), Path(sdk.native.__file__).read_bytes())
                     (cwd / 'dist').mkdir(); (cwd / 'dist' / sdk.NAME).write_bytes(b'nonexecuted fixture helper')
                     work = cwd / 'work' / sdk.NAME; work.mkdir(parents=True)
-                    (work / 'Analysis-00.toc').write_text(repr(([], [('libgcc_s.so.1', str(supplier), 'BINARY')])))
+                    # Pinned Analysis._GUTS distinguishes explicit input from
+                    # final binaries; neither occurrence is a duplicate output.
+                    analysis = [[] for _ in range(20)]
+                    analysis[4] = {}; analysis[7] = False; analysis[8] = {}; analysis[9] = 0
+                    analysis[12] = 'synthetic Python version'
+                    analysis[10] = [('libgcc_s.so.1', str(supplier), 'BINARY')]
+                    analysis[15] = [('libgcc_s.so.1', str(supplier), 'BINARY')]
+                    (work / 'Analysis-00.toc').write_text(repr(tuple(analysis)))
                     log.write_text('simulated freeze')
                 elif '--packaged-self-test' in command:
                     log.write_text(json.dumps({'schema':'openprose.sdk-packaged-self-test/1','openaiAgents':'0.22.2','openai':'3.13.0','certificates':True,'modelCalls':0}))

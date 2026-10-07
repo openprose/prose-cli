@@ -132,6 +132,8 @@ def formula(version: str, implementation: str, archive: Path, sha256: str) -> st
         '  desc "Development-only Prose packaging rehearsal"',
         '  homepage "https://prose.md"', f'  version "{version}"', '  license "MIT"',
         f'  url "{archive.as_uri()}"', f'  sha256 "{sha256}"', '',
+        '  preserve_rpath',
+        '  skip_clean "bin/prose", "bin/prose-agents-sdk", "bin/prose-agents-sdk-runtime"', '',
         '  def install', '    bin.install "prose"',
         '    bin.install "prose-agents-sdk" if File.exist?("prose-agents-sdk")',
         '    bin.install "prose-agents-sdk-runtime" if File.directory?("prose-agents-sdk-runtime")',
