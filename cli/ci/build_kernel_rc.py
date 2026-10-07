@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 import os
+import platform
 from pathlib import Path, PurePosixPath
 import re
 import shutil
@@ -127,7 +128,26 @@ def verified_artifacts(package):
     return manifest
 
 
-def build(version, output, *, agents_sdk_python=None):
+def build_sdk(output, *, epoch, env, logs, agents_sdk_python=None, linux_python_archive=None):
+    sdk_output = output / 'agents-sdk'
+    if sys.platform.startswith('linux'):
+        require(linux_python_archive is not None, 'Linux SDK construction requires the pinned full Python archive')
+        targets = {'x86_64': 'linux-x64-gnu', 'aarch64': 'linux-arm64-gnu'}
+        require(platform.machine() in targets, 'Unsupported native Linux SDK architecture')
+        from build_agents_sdk_linux import build as build_linux
+        stage = output / 'agents-sdk-native'
+        build_linux(ROOT, stage, targets[platform.machine()], linux_python_archive, epoch=int(epoch))
+        sdk_output.mkdir()
+        for name in ('prose-agents-sdk', 'agents-sdk-build.json', 'AGENTS-SDK-NOTICES.txt'):
+            shutil.copy2(stage / 'frozen' / name, sdk_output / name)
+    else:
+        require(sys.platform == 'darwin', 'SDK construction requires a supported native release host')
+        command([agents_sdk_python or sys.executable, ROOT / 'cli/ci/build_agents_sdk.py', '--out', sdk_output,
+                 '--source-date-epoch', epoch], env=env, cwd=ROOT, log=logs / 'build-sdk.log')
+    return sdk_output
+
+
+def build(version, output, *, agents_sdk_python=None, linux_python_archive=None):
     require(RC.fullmatch(version) is not None, 'Use an exact X.Y.Z-rc.N version')
     require(not output.exists() and not output.is_symlink(), 'Output must be fresh')
     revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
@@ -140,9 +160,8 @@ def build(version, output, *, agents_sdk_python=None):
     env.update(OPENPROSE_BUILD_COMMIT=revision, OPENPROSE_BUILD_VERSION=version,
                OPENPROSE_REQUIRE_RELEASE_IMAGE='1', CARGO_TARGET_DIR=str(output / 'cargo-target'))
     binaries = output / 'binaries'; binaries.mkdir()
-    sdk_output = output / 'agents-sdk'
-    command([agents_sdk_python or sys.executable, ROOT / 'cli/ci/build_agents_sdk.py', '--out', sdk_output,
-             '--source-date-epoch', epoch], env=env, cwd=ROOT, log=logs / 'build-sdk.log')
+    sdk_output = build_sdk(output, epoch=epoch, env=env, logs=logs,
+                           agents_sdk_python=agents_sdk_python, linux_python_archive=linux_python_archive)
     command(['bun', '--no-env-file', 'scripts/image-bundle.ts', 'build', '--require-release-eligible',
              '--outfile', binaries / 'prose-bun'], env=env, cwd=ROOT / 'cli/bun', log=logs / 'build-bun.log')
     command(['cargo', 'build', '--manifest-path', ROOT / 'cli/rust/Cargo.toml', '--release', '--locked',
@@ -209,8 +228,10 @@ if __name__ == '__main__':
     parser.add_argument('--version', required=True)
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--agents-sdk-python', type=Path, help='Separate hash-locked SDK build interpreter (defaults to current interpreter)')
+    parser.add_argument('--agents-sdk-linux-python-archive', type=Path, help='Exact pinned full shared Python archive for native Linux construction')
     args = parser.parse_args()
     try:
-        print(json.dumps(build(args.version, args.out.absolute(), agents_sdk_python=args.agents_sdk_python), sort_keys=True))
+        print(json.dumps(build(args.version, args.out.absolute(), agents_sdk_python=args.agents_sdk_python,
+                               linux_python_archive=args.agents_sdk_linux_python_archive), sort_keys=True))
     except (ValueError, OSError, subprocess.SubprocessError) as error:
         parser.exit(2, str(error) + '\n')

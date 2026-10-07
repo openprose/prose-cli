@@ -131,5 +131,38 @@ class KernelRCSdkExtractionTests(unittest.TestCase):
             self.assertTrue(os.access(executable.parent / 'prose-agents-sdk', os.X_OK))
 
 
+class NativeSdkRoutingTests(unittest.TestCase):
+    def test_linux_requires_pin_and_never_uses_host_python(self):
+        with tempfile.TemporaryDirectory() as d, patch.object(rc.sys, 'platform', 'linux'), patch.object(rc, 'command') as command:
+            root = Path(d)
+            with self.assertRaisesRegex(ValueError, 'pinned full Python'):
+                rc.build_sdk(root, epoch='0', env={}, logs=root, agents_sdk_python=Path('/ambient/python'))
+            command.assert_not_called()
+            self.assertFalse((root / 'agents-sdk').exists())
+
+    def test_native_linux_uses_driver_and_exact_frozen_trio(self):
+        import build_agents_sdk_linux as driver
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            def frozen(source, stage, target, archive, *, epoch):
+                self.assertEqual((source, target, archive, epoch), (rc.ROOT, 'linux-arm64-gnu', root / 'pinned.tar.zst', 123))
+                (stage / 'frozen').mkdir(parents=True)
+                for name in ('prose-agents-sdk', 'agents-sdk-build.json', 'AGENTS-SDK-NOTICES.txt'):
+                    (stage / 'frozen' / name).write_bytes(name.encode())
+            with patch.object(rc.sys, 'platform', 'linux'), patch.object(rc.platform, 'machine', return_value='aarch64'), patch.object(driver, 'build', side_effect=frozen), patch.object(rc, 'command') as command:
+                actual = rc.build_sdk(root, epoch='123', env={}, logs=root, linux_python_archive=root / 'pinned.tar.zst')
+                command.assert_not_called()
+            self.assertEqual(len(list(actual.iterdir())), 3)
+            for p in actual.iterdir():
+                self.assertEqual(p.read_bytes(), p.name.encode())
+
+    def test_macos_keeps_separate_pinned_interpreter(self):
+        with tempfile.TemporaryDirectory() as d, patch.object(rc.sys, 'platform', 'darwin'), patch.object(rc, 'command') as command:
+            root = Path(d)
+            rc.build_sdk(root, epoch='123', env={'PATH':'/bin'}, logs=root, agents_sdk_python=Path('/selected/python'))
+            self.assertEqual(command.call_args.args[0][0], Path('/selected/python'))
+            self.assertEqual(command.call_args.args[0][-1], '123')
+
+
 if __name__ == '__main__':
     unittest.main()
