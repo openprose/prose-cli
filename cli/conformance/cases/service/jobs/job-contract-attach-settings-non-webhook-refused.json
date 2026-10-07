@@ -1,8 +1,8 @@
 {
-  "id": "job-contract-attach-model-refused",
+  "id": "job-contract-attach-settings-non-webhook-refused",
   "feature": "jobs",
   "operation": "job.contract.attach",
-  "description": "--model applies to webhook jobs only; for another job type it is refused before the binding is sent.",
+  "description": "Run settings apply to webhook jobs only; for another job type they are refused before the binding is sent.",
   "argv": [
     "--output",
     "json",
@@ -12,8 +12,8 @@
     "attach",
     "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10",
     "exowner1/jobs-example@0123456789abcdef",
-    "--model",
-    "model-luna",
+    "--reasoning-effort",
+    "high",
     "--yes"
   ],
   "fixture": {

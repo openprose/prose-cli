@@ -1,0 +1,187 @@
+{
+  "id": "job-contract-attach-webhook-preview-quote",
+  "feature": "jobs",
+  "operation": "job.contract.attach",
+  "description": "The attach plan quotes the binding as it will run: the program, the job's type, and the merged model, reasoning effort, environment and repository.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "job",
+    "contract",
+    "attach",
+    "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10",
+    "exowner1/jobs-example@0123456789abcdef",
+    "--reasoning-effort",
+    "high",
+    "--preview"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/triggers/3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10",
+        "status": 200,
+        "body": {
+          "trigger": {
+            "id": "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10",
+            "type": "webhook",
+            "name": null,
+            "internalRef": "opaque-1",
+            "url": null,
+            "intervalSeconds": null,
+            "mode": null,
+            "repositoryId": null,
+            "repositoryFullName": null,
+            "repositoryBranch": null,
+            "contextRepositoryId": null,
+            "contextRepositoryFullName": null,
+            "contextRepositoryBranch": null,
+            "createdAt": 1790212421024,
+            "adopted": false
+          },
+          "status": {
+            "configured": true,
+            "active": true,
+            "receiver": {
+              "profile": "openprose"
+            },
+            "receiverSecretConfigured": false,
+            "reply": null,
+            "replySecretConfigured": false,
+            "replies": [],
+            "replyDeliveries": [],
+            "deliveryMode": "test",
+            "secretRotatedAt": 1790212422203,
+            "lastEventAt": null,
+            "lastRunId": null,
+            "lastError": null,
+            "counts": {
+              "pending": 0,
+              "pending_funds": 0,
+              "claimed": 0,
+              "completed": 0,
+              "failed": 0,
+              "billing_pending": 0,
+              "ambiguous": 0
+            }
+          },
+          "endpoint": "/webhooks/triggers/3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10"
+        },
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/triggers/3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10/contracts",
+        "status": 200,
+        "body": {
+          "contracts": [
+            {
+              "program_ref": "exowner1/jobs-example@0123456789abcdef",
+              "owner": "exowner1",
+              "slug": "jobs-example",
+              "rev_id": "0123456789abcdef",
+              "content": "# private program text",
+              "is_platform_default": false,
+              "enabled": true,
+              "bound_at": 1789501241012,
+              "inputs": {
+                "channel": "C0123",
+                "cost_center": "ops"
+              },
+              "model": "model-luna",
+              "effective_model": "model-luna",
+              "reasoning_effort": "low",
+              "repositories": [
+                {
+                  "url": "https://github.com/exowner1/app",
+                  "branch": "main"
+                }
+              ],
+              "output": null,
+              "environment": "builtin",
+              "files": [
+                {
+                  "name": "notes.md",
+                  "size": 12,
+                  "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+                }
+              ]
+            }
+          ],
+          "max_contracts": 5
+        },
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/run/quote",
+        "query": {
+          "program_ref": "exowner1/jobs-example@0123456789abcdef",
+          "model": "model-luna",
+          "reasoning_effort": "high",
+          "environment": "builtin",
+          "repositories": "1",
+          "job_type": "webhook"
+        },
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          }
+        },
+        "status": 200,
+        "body": {
+          "hold": {
+            "hold_usd": "0.06",
+            "ttl_seconds": 900
+          },
+          "pricing_policy_id": "pricing-policy.sha256.f114eadc02b7550e58f12c49996382b04f867cb774ac295506806f599ef1e3cd",
+          "note": "Unused hold is released when the run settles."
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "job.contracts",
+      "operation": "job.contract.attach",
+      "problem": null,
+      "result": {
+        "plannedRequest": {
+          "bodyBytes": 145,
+          "bodySha256": "97307806f7b891a027187d7b273f988fa92dfa22189a6e8e93ff19465a914457",
+          "description": "Attach a pinned program to a job.",
+          "effect": "write",
+          "method": "POST",
+          "operation": "job.contract.attach",
+          "quote": {
+            "hold": {
+              "hold_cents": 6,
+              "hold_usd": "0.06",
+              "ttl_seconds": 900
+            }
+          },
+          "summary": {
+            "programRef": "exowner1/jobs-example@0123456789abcdef",
+            "reasoning_effort": "high"
+          }
+        },
+        "preview": true
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "stderr": {
+    "text": ""
+  }
+}

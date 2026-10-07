@@ -74,21 +74,21 @@
             "mutation": false,
             "options": [
               {
-                "description": "Run a saved program; a bare SLUG is your own program. @REV is a rev_id, or @N (@revN) for revision N of your own program; without @REV the service prices the latest revision. The service prices this program, including its own run settings and declared tools.",
+                "description": "Run a saved program; a bare SLUG is your own program. @REV is a rev_id, or @N (@revN) for revision N of your own program; without @REV the service prices the latest revision.",
                 "name": "--from",
                 "repeatable": false,
                 "required": false,
                 "value": "[OWNER/]SLUG[@REV]"
               },
               {
-                "description": "Program input; @FILE reads UTF-8 text of at most 1 MiB. Accepted so a quote names the same command as `cli run submit`; the hold does not depend on it.",
+                "description": "Program input; @FILE reads UTF-8 text of at most 1 MiB. Accepted as `cli run submit` takes it; not sent.",
                 "name": "--input",
                 "repeatable": true,
                 "required": false,
                 "value": "KEY=VALUE|KEY=@FILE"
               },
               {
-                "description": "JSON object of string inputs. Accepted so a quote names the same command as `cli run submit`; the hold does not depend on it.",
+                "description": "JSON object of string inputs. Accepted as `cli run submit` takes it; not sent.",
                 "name": "--inputs-file",
                 "repeatable": false,
                 "required": false,
@@ -126,7 +126,7 @@
               },
               {
                 "default": "the service's default runtime",
-                "description": "Runtime offered by the service. Accepted so a quote names the same command as `cli run submit`; the hold does not depend on it.",
+                "description": "Runtime offered by the service. Accepted as `cli run submit` takes it; not sent.",
                 "name": "--runtime",
                 "repeatable": false,
                 "required": false,
@@ -153,7 +153,7 @@
               "stream": false
             },
             "preview": false,
-            "summary": "Report the hold a run reserves: money set aside from the wallet while the run is live. It is not the price. The environment is checked first.\nThe hold depends on the model, reasoning effort, environment, declared tools and bound repositories, and what the run does not use is released when it settles. With FILE or --from the service prices that program, including its own run settings and declared tools; --model, --reasoning-effort, --environment, --repo and --commit-output override them. `basis` names where each value came from (request, program or default). A run's price is known only after it settles (`cli run show RUN_ID`, price_cents). The program, inputs and options `cli run submit` takes are accepted, so you can quote the exact command you will submit."
+            "summary": "Report the hold a run reserves: money set aside from the wallet while the run is live. It is not the price. The environment is checked first.\nThe hold depends on the model, reasoning effort, environment, declared tools and bound repositories; what the run does not use is released when it settles. With FILE or --from the service prices that program, including its own run settings and declared tools; the run-setting options override them. `basis` names where each value came from (request, program or a default). A run's price is known only after it settles (`cli run show RUN_ID`, price_cents). It takes what `cli run submit` takes, so you can quote the exact command you will submit."
           },
           {
             "arguments": [

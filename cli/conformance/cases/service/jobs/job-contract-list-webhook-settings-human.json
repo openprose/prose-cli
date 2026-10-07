@@ -1,11 +1,9 @@
 {
-  "id": "job-contract-list",
+  "id": "job-contract-list-webhook-settings-human",
   "feature": "jobs",
   "operation": "job.contract.list",
-  "description": "Contracts project to the public snake_case contract fields (program_ref, program_slug, enabled, model); content is dropped.",
+  "description": "Human contract list adds a settings line per binding; input values are never printed.",
   "argv": [
-    "--output",
-    "json",
     "cli",
     "job",
     "contract",
@@ -35,9 +33,31 @@
               "enabled": true,
               "bound_at": 1789501241012,
               "inputs": {
-                "channel": "C0123"
+                "channel": "C0123",
+                "cost_center": "ops",
+                "limit": 3
               },
-              "model": "model-luna"
+              "model": "model-luna",
+              "effective_model": "model-luna",
+              "reasoning_effort": "high",
+              "repositories": [
+                {
+                  "url": "https://github.com/exowner1/app",
+                  "branch": "main"
+                }
+              ],
+              "output": {
+                "type": "commit",
+                "repository": "https://github.com/exowner1/app"
+              },
+              "environment": "linux",
+              "files": [
+                {
+                  "name": "notes.md",
+                  "size": 12,
+                  "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                }
+              ]
             }
           ],
           "max_contracts": 5
@@ -50,32 +70,7 @@
   },
   "exitCode": 0,
   "stdout": {
-    "json": {
-      "interaction": "job.contracts",
-      "operation": "job.contract.list",
-      "problem": null,
-      "result": {
-        "contracts": [
-          {
-            "bound_at": 1789501241012,
-            "bound_at_iso": "2026-09-15T19:40:41.012Z",
-            "enabled": true,
-            "is_platform_default": false,
-            "model": "model-luna",
-            "program_ref": "exowner1/slack-hello@97ddf3a447f534a7",
-            "program_slug": "slack-hello",
-            "rev_id": "97ddf3a447f534a7",
-            "run_configuration": {
-              "inputs": {
-                "channel": "C0123"
-              }
-            }
-          }
-        ],
-        "max_contracts": 5
-      },
-      "schema": "openprose.service-operation/1"
-    }
+    "text": "exowner1/slack-hello@97ddf3a447f534a7 enabled=true model=model-luna\n  settings: reasoning effort high; repository https://github.com/exowner1/app@main; commit output https://github.com/exowner1/app; inputs channel, cost_center, limit; files notes.md\n"
   },
   "forbid": [
     "private program text"

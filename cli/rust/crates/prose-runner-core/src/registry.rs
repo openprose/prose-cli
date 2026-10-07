@@ -174,7 +174,7 @@ fn reference_matches(receipt: &Value, organization: &str, package: &str, version
         && receipt["reference"]["package"] == package
         && receipt["reference"]["version"] == version
 }
-fn base64(bytes: &[u8]) -> String {
+pub(crate) fn base64(bytes: &[u8]) -> String {
     const ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let mut output = String::with_capacity(bytes.len().div_ceil(3) * 4);
     for part in bytes.chunks(3) {

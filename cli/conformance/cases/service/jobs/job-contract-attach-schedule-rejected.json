@@ -22,6 +22,18 @@
     "storeAvailable": true,
     "exchanges": [
       {
+        "method": "GET",
+        "path": "/triggers/7b2e4d19-6a3c-4e85-b1f0-9c4d8e2a6b73/contracts",
+        "status": 200,
+        "body": {
+          "contracts": [],
+          "max_contracts": 5
+        },
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        }
+      },
+      {
         "method": "POST",
         "path": "/triggers/7b2e4d19-6a3c-4e85-b1f0-9c4d8e2a6b73/contracts",
         "status": 405,
@@ -55,5 +67,8 @@
       "result": null,
       "schema": "openprose.service-operation/1"
     }
+  },
+  "stderr": {
+    "text": ""
   }
 }

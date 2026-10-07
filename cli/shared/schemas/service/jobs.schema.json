@@ -56,6 +56,38 @@
         },
         "run_configuration": {
           "$ref": "#/$defs/runConfiguration"
+        },
+        "effective_model": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "common.schema.json#/$defs/modelId"
+            }
+          ]
+        },
+        "rev_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{16}$"
+        },
+        "bound_at": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "bound_at_iso": {
+          "description": "`bound_at` as an RFC 3339 UTC time.",
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "common.schema.json#/$defs/timestamp"
+            }
+          ]
+        },
+        "is_platform_default": {
+          "type": "boolean"
         }
       }
     },
@@ -982,6 +1014,33 @@
                   "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
                 }
               ]
+            }
+          }
+        },
+        "stored_files": {
+          "description": "Files stored on a webhook binding, by metadata only; their content is never shown.",
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "size"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "maxLength": 256,
+                "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+              },
+              "size": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "sha256": {
+                "$ref": "common.schema.json#/$defs/sha256"
+              }
             }
           }
         }
