@@ -60,6 +60,40 @@ class DriverControls(unittest.TestCase):
   self.assertIn('--network=bridge',d.container_command(r,'freezer',Path('/source'),Path('/job'),'prepare.sh',network='bridge'))
   with self.assertRaises(ValueError):d.container_command(r,'freezer',Path('/source'),Path('/job'),'freeze.sh',network='host')
 
+ def test_both_runtime_targets_use_bounded_executable_tmpfs_without_widening_isolation(self):
+  import verify_agents_sdk_linux as runtime
+  for target,row in runtime.load_lock()['platforms'].items():
+   with self.subTest(target=target):
+    c=d.container_command(row,'runtime',Path('/source-owned'),Path('/job-owned'),'version.sh',owner='a'*32)
+    self.assertEqual(c[c.index('--tmpfs')+1],'/tmp:rw,exec,nosuid,nodev,size=536870912')
+    self.assertEqual(c.count('--tmpfs'),1);self.assertEqual(c.count('--mount'),2)
+    for option in ('--network=none','--read-only','--pull=never','--rm','--cap-drop=ALL','--security-opt=no-new-privileges'):
+     self.assertIn(option,c)
+    self.assertEqual(c[c.index('--user')+1],str(d.os.getuid())+':'+str(d.os.getgid()))
+    self.assertEqual(c[c.index('--platform')+1],row['dockerPlatform'])
+    self.assertIn('type=bind,src=/source-owned,dst=/source,readonly',c)
+    self.assertIn('type=bind,src=/job-owned,dst=/job',c)
+    self.assertIn('TMPDIR=/tmp',c);self.assertIn('--name',c)
+    self.assertIn(d.OWNER_LABEL+'='+'a'*32,c)
+    self.assertEqual(c[-4:],[row['runtime']['image'],'-euo','pipefail','/job/version.sh'])
+    self.assertNotIn('--privileged',c);self.assertNotIn('--cap-add',c);self.assertNotIn('--env-file',c)
+  self.assertEqual(runtime.PROBES,(('version','--version',5),('imports','--packaged-self-test',30),('tools','--packaged-tool-self-test',30),('libraries','--packaged-library-test',30)))
+ def test_unknown_roles_and_runtime_network_refuse_before_owner_or_command_formation(self):
+  row=d.load_lock()['platforms']['linux-x64-gnu']
+  for role,network in [('unknown','none'),('', 'none'),(None,'none'),([], 'none'),(True,'none'),('runtime','bridge'),('runtime','host')]:
+   with self.subTest(role=role,network=network),patch.object(d.uuid,'uuid4',side_effect=AssertionError('Must refuse before ownership')):
+    with self.assertRaises(ValueError):d.container_command(row,role,Path('/source'),Path('/job'),'version.sh',network=network)
+ def test_both_preparation_roles_retain_original_tmpfs_arguments(self):
+  for target,row in d.load_lock()['platforms'].items():
+   for role,script,network in [('supplier','supplier.sh','none'),('freezer','prepare.sh','bridge'),('freezer','freeze.sh','none')]:
+    with self.subTest(target=target,role=role,script=script):
+     c=d.container_command(row,role,Path('/source-owned'),Path('/job-owned'),script,network=network,owner='a'*32)
+     self.assertEqual(c[c.index('--tmpfs')+1],'/tmp:rw,nosuid,nodev,size=536870912')
+     self.assertIn('--network='+network,c);self.assertIn('TMPDIR=/tmp',c)
+     self.assertEqual(c.count('--tmpfs'),1);self.assertEqual(c.count('--mount'),2)
+     self.assertNotIn('/tmp:rw,exec,nosuid,nodev,size=536870912',c)
+
+
 
 
 class RealOrchestratorControls(unittest.TestCase):

@@ -161,7 +161,11 @@ def validate_image(info,row,key):
 
 
 def container_command(row, image_key, source, output, script, *, network='none', owner=None):
+    require(isinstance(image_key,str) and image_key in ('supplier','freezer','runtime'),
+            'Closed container image role required')
     require(network in ('none','bridge'),'Closed network mode')
+    require(image_key != 'runtime' or network == 'none', 'Runtime network must be none')
+    tmpfs = '/tmp:rw,exec,nosuid,nodev,size=536870912' if image_key == 'runtime' else '/tmp:rw,nosuid,nodev,size=536870912'
     owner=owner or uuid.uuid4().hex
     require(re.fullmatch('[0-9a-f]{32}',owner), 'Invalid container owner')
     return ['docker','--config',str(output/'docker-config'),'run','--rm','--pull=never',
@@ -169,7 +173,7 @@ def container_command(row, image_key, source, output, script, *, network='none',
             '--label',OWNER_LABEL+'='+owner,
             '--platform',row['dockerPlatform'],'--network='+network,'--read-only',
             '--cap-drop=ALL','--security-opt=no-new-privileges','--user',str(os.getuid())+':'+str(os.getgid()),
-            '--tmpfs','/tmp:rw,nosuid,nodev,size=536870912',
+            '--tmpfs',tmpfs,
             '--mount','type=bind,src='+str(source)+',dst=/source,readonly',
             '--mount','type=bind,src='+str(output)+',dst=/job',
             '--env','HOME=/job/home','--env','TMPDIR=/tmp','--env','PYTHONNOUSERSITE=1',
