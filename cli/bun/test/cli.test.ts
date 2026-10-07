@@ -67,7 +67,7 @@ function fixture(overrides: Partial<CliDependencies> = {}) {
 }
 
 function operationFixture() {
-  const cwd = process.cwd();
+  const cwd = resolve(import.meta.dir, "..");
   const userConfigPath = join(cwd, "config", "openprose", "cli.toml");
   const io = fixture({
     env: {
@@ -90,7 +90,18 @@ function expectedConfiguration(cwd: string, userConfigPath: string) {
     if(typeof value === "string")return value.replaceAll("/workspace/config/openprose/cli.toml",userConfigPath).replaceAll("/workspace",cwd);
     return value;
   };
-  return replace(configurationFixture);
+  const report = replace(configurationFixture) as JsonRecord;
+  // This fixture starts in cli/bun; its known Git boundary is the repository
+  // root, so discovery must report all three considered project locations.
+  const repositoryRoot = resolve(import.meta.dir, "../../..");
+  expect(cwd).toBe(join(repositoryRoot, "cli", "bun"));
+  report.locations = [
+    ...(report.locations as JsonRecord[]).filter((location) => location.role !== "project"),
+    ...[cwd, join(repositoryRoot, "cli"), repositoryRoot].map((directory) => ({
+      role: "project", path: join(directory, ".prose", "cli.toml"), present: false, selected: false,
+    })),
+  ];
+  return report;
 }
 
 describe("CLI behavior", () => {
