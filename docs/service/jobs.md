@@ -103,6 +103,44 @@ printf '%s' '{"type":"webhook","delivery_mode":"test","name":"my-hook"}' \
   results also carry `endpoint_url`, the absolute URL to configure in the
   sender (the service origin + `endpoint`).
 
+## Sending events to a webhook
+
+The sender POSTs JSON (`Content-Type: application/json`, at most 256 KiB) to
+`endpoint_url`. A webhook created without `receiver` checks two headers:
+
+- `X-OpenProse-Delivery`: a new id for each event matching
+  `[A-Za-z0-9][A-Za-z0-9._:-]{0,199}`. A retry reuses the id and the exact body.
+- `X-OpenProse-Signature`: `sha256=` followed by the lowercase hex
+  HMAC-SHA256 of `deliveryId + "\n" + rawBody`, keyed with the UTF-8
+  `signing_secret`. Sign the bytes you send; do not reserialize the body.
+
+```sh
+sig=$(printf '%s\n%s' "$DELIVERY_ID" "$BODY" | openssl dgst -sha256 -hmac "$SIGNING_SECRET" | sed 's/^.* //')
+curl -X POST "$ENDPOINT_URL" -H 'Content-Type: application/json' \
+  -H "X-OpenProse-Delivery: $DELIVERY_ID" -H "X-OpenProse-Signature: sha256=$sig" \
+  --data-binary "$BODY"
+```
+
+| Response | Meaning |
+| --- | --- |
+| `202 {"accepted":true,"duplicate":false}` | Accepted. This acknowledges receipt, not run completion. |
+| `202` with `"test_only":true` | Test mode: recorded, no run started. Test mode does not deduplicate: a repeated id is recorded again. |
+| `202` with `"duplicate":true` | Live mode: a retry of a delivery already accepted. |
+| `400` | Missing or malformed `X-OpenProse-Delivery`, or a body that is not valid UTF-8 JSON. |
+| `401` | Wrong signature. `job deliveries` records it as `rejected` with reason `invalid_signature`. |
+| `409` | Live mode: a reused delivery id with a different body, or no contract attached. Don't retry it unchanged. `"reason":"configuration_changed"` means the webhook changed during the request; retry it. |
+| `413` | Body over 256 KiB. |
+
+Retry only network failures, `429` and `5xx`, with backoff, keeping the id
+and body. `job deliveries JOB_ID` shows what arrived. The job's
+`last_event_at` records live deliveries only, so it stays empty in test mode.
+A webhook can be live only with a contract: create it with `program_ref`, or
+run `job contract attach` before `job update` sets `"delivery_mode":"live"`.
+Otherwise the service answers `SERVICE_REQUEST_REJECTED` ("Runs stay
+disabled. Connect a contract to this webhook first.").
+`openssl -hmac` puts the secret in the process arguments; on a shared host,
+sign with a library instead.
+
 ## Reading jobs
 
 `job list` returns `{jobs, max_jobs, job_limit, types}` (each type
