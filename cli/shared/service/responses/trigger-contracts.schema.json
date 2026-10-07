@@ -13,11 +13,62 @@
       "items": {
         "type": "object",
         "required": [
-          "programRef"
+          "program_ref"
         ],
         "properties": {
-          "programRef": {
+          "program_ref": {
             "type": "string"
+          },
+          "rev_id": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "bound_at": {
+            "type": "integer"
+          },
+          "is_platform_default": {
+            "type": "boolean"
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "effective_model": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reasoning_effort": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "inputs": {
+            "type": "object"
+          },
+          "repositories": {
+            "type": "array"
+          },
+          "output": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "environment": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "files": {
+            "type": "array"
           }
         }
       }

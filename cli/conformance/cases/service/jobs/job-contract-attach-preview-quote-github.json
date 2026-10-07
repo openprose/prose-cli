@@ -1,8 +1,8 @@
 {
-  "id": "job-contract-attach-model-refused",
+  "id": "job-contract-attach-preview-quote-github",
   "feature": "jobs",
   "operation": "job.contract.attach",
-  "description": "--model applies to webhook jobs only; for another job type it is refused before the binding is sent.",
+  "description": "A GitHub event job always binds its repository, so the attach plan's quote sends repositories=1.",
   "argv": [
     "--output",
     "json",
@@ -12,9 +12,7 @@
     "attach",
     "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10",
     "exowner1/jobs-example@0123456789abcdef",
-    "--model",
-    "model-luna",
-    "--yes"
+    "--preview"
   ],
   "fixture": {
     "environment": "production",
@@ -30,7 +28,7 @@
         "body": {
           "trigger": {
             "id": "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10",
-            "type": "email",
+            "type": "github-pull-request-opened",
             "name": null,
             "internalRef": "opaque-1",
             "url": null,
@@ -76,38 +74,71 @@
         "requestHeaders": {
           "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
         }
+      },
+      {
+        "method": "GET",
+        "path": "/triggers/3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10/contracts",
+        "status": 200,
+        "body": {
+          "contracts": [],
+          "max_contracts": 5
+        },
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/run/quote",
+        "query": {
+          "program_ref": "exowner1/jobs-example@0123456789abcdef",
+          "repositories": "1",
+          "job_type": "github-pull-request-opened"
+        },
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          }
+        },
+        "status": 200,
+        "body": {
+          "hold": {
+            "hold_usd": "0.06",
+            "ttl_seconds": 900
+          },
+          "pricing_policy_id": "pricing-policy.sha256.f114eadc02b7550e58f12c49996382b04f867cb774ac295506806f599ef1e3cd",
+          "note": "Unused hold is released when the run settles."
+        }
       }
     ]
   },
-  "exitCode": 2,
+  "exitCode": 0,
   "stdout": {
     "json": {
       "interaction": "job.contracts",
       "operation": "job.contract.attach",
-      "problem": {
-        "action": "Attach without those options: `prose --output json cli job contract attach 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10 exowner1/jobs-example@0123456789abcdef --yes`.",
-        "boundary": "invocation",
-        "code": "INVOCATION_INVALID",
-        "details": {
-          "reason": "job 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10 is a email job; run settings (--model, --reasoning-effort, --repo, --commit-output, --input, --inputs-file, --environment, --file, --replace and the --clear options) apply to webhook jobs only",
-          "suggestedArgv": [
-            "--output",
-            "json",
-            "cli",
-            "job",
-            "contract",
-            "attach",
-            "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10",
-            "exowner1/jobs-example@0123456789abcdef",
-            "--yes"
-          ]
+      "problem": null,
+      "result": {
+        "plannedRequest": {
+          "bodyBytes": 56,
+          "bodySha256": "14df8de6bc74931c03dd47b4e7ffe9ae69caa0a9b478a7dd0c20be6db0470695",
+          "description": "Attach a pinned program to a job.",
+          "effect": "write",
+          "method": "POST",
+          "operation": "job.contract.attach",
+          "quote": {
+            "hold": {
+              "hold_cents": 6,
+              "hold_usd": "0.06",
+              "ttl_seconds": 900
+            }
+          },
+          "summary": {
+            "programRef": "exowner1/jobs-example@0123456789abcdef"
+          }
         },
-        "exitCode": 2,
-        "message": "That command isn't quite right.",
-        "retryable": false,
-        "schema": "openprose.runner-error/1"
+        "preview": true
       },
-      "result": null,
       "schema": "openprose.service-operation/1"
     }
   },

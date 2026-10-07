@@ -254,17 +254,19 @@ export class Context {
 
   /**
    * The advisory GET /run/quote hold for a plan (`index` is the operation's
-   * quote request): {hold}, or undefined when the quote fails, so a failed
-   * quote never hides the plan. The service's price policy reference stays
-   * internal.
+   * quote request, sent with `environment` or else the given `query`):
+   * {hold}, or undefined when the quote fails, so a failed quote never hides
+   * the plan. The service's price policy reference stays internal.
    */
-  async advisoryQuote(index: number, environment?: string): Promise<JsonObject | undefined> {
+  async advisoryQuote(index: number, environment?: string, query: Array<[string, string]> = []): Promise<JsonObject | undefined> {
     const request: Request = { ...requestFor(this.operation, index, "/run/quote"), class: "control" };
     if (environment !== undefined) request.query.push(["environment", environment]);
+    request.query.push(...query);
     let body: JsonObject;
     try { body = jsonObject(await this.send(request)); }
     catch (caught) {
-      if (caught instanceof RunnerFailure) return undefined;
+      // Advisory: only an interrupt stops here.
+      if (caught instanceof RunnerFailure && caught.code !== "CANCELLED") return undefined;
       throw caught;
     }
     const hold = body.hold;

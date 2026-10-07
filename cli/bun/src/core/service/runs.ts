@@ -861,13 +861,18 @@ function errorEnd(follow: Follow): RunnerFailure {
 // ---------------------------------------------------------------------------
 // run submit
 
-interface Repository { owner: string; name: string; branch?: string }
+export interface Repository { owner: string; name: string; branch?: string }
 
-const repositoryUrl = (repository: Repository): string => `https://github.com/${repository.owner}/${repository.name}`;
-const sameRepository = (left: Repository, right: Repository): boolean =>
+export const repositoryUrl = (repository: Repository): string => `https://github.com/${repository.owner}/${repository.name}`;
+export const sameRepository = (left: Repository, right: Repository): boolean =>
   left.owner.toLowerCase() === right.owner.toLowerCase() && left.name.toLowerCase() === right.name.toLowerCase();
 
-function parseRepository(option: string, value: string): Repository {
+/** A --commit-output that is not a repository the runs read (shared with `job contract attach`). */
+export function commitNotRead(commit: Repository): RunnerFailure {
+  return invocationFailure(`--commit-output ${commit.owner}/${commit.name} must also be given as --repo ${commit.owner}/${commit.name}[@BRANCH]; the service commits only to a context repository`);
+}
+
+export function parseRepository(option: string, value: string): Repository {
   const error = () => invocationFailure(`${option} ${quoteText(value)} must be OWNER/NAME or OWNER/NAME@BRANCH (a GitHub repository)`);
   const at = value.indexOf("@");
   const name = at >= 0 ? value.slice(0, at) : value;
@@ -880,12 +885,30 @@ function parseRepository(option: string, value: string): Repository {
   return branch === undefined ? { owner, name: repo } : { owner, name: repo, branch };
 }
 
-function validInputKey(key: string): boolean {
+export function validInputKey(key: string): boolean {
   const length = Array.from(key).length;
   return length >= 1 && length <= 128 && !/[\u0000-\u001f\u007f]/u.test(key);
 }
 
-async function parseInputs(context: Context): Promise<Map<string, string>> {
+/** The --model value, checked as a model id (shared with `job contract attach`). */
+export function modelOption(context: Context): string | undefined {
+  const model = context.option("--model");
+  if (model !== undefined && !validModel(model)) throw invocationFailure(`--model ${quoteText(model)} is not a model id; list them with \`${command(context, "model list")}\``);
+  return model;
+}
+
+/** An --environment or --runtime value, checked as a lowercase id (shared with `job contract attach`). */
+export function tokenOption(context: Context, option: string, kind: string): string | undefined {
+  const value = context.option(option);
+  if (value !== undefined && !validToken(value)) throw invocationFailure(`${option} ${quoteText(value)} is not ${kind} id (lowercase letters, digits, _ and -)`);
+  return value;
+}
+
+/**
+ * `--inputs-file` then each `--input KEY=VALUE|KEY=@FILE` (an --input wins
+ * over the file's key); shared with `job contract attach`.
+ */
+export async function parseInputs(context: Context): Promise<Map<string, string>> {
   const inputs = new Map<string, string>();
   const file = context.option("--inputs-file");
   if (file !== undefined) {
@@ -996,17 +1019,11 @@ interface RunOptions {
 }
 
 function runOptions(context: Context): RunOptions {
-  const model = context.option("--model");
-  if (model !== undefined && !validModel(model)) throw invocationFailure(`--model ${quoteText(model)} is not a model id; list them with \`${command(context, "model list")}\``);
+  const model = modelOption(context);
   const effort = context.option("--reasoning-effort");
   if (effort !== undefined && !validEffort(effort)) throw invocationFailure(`--reasoning-effort ${quoteText(effort)} must be lowercase letters (for example low, medium or high)`);
-  const environment = context.option("--environment");
-  const runtime = context.option("--runtime");
-  for (const [option, kind, value] of [["--environment", "an environment", environment], ["--runtime", "a runtime", runtime]] as const) {
-    if (value !== undefined && !validToken(value)) {
-      throw invocationFailure(`${option} ${quoteText(value)} is not ${kind} id (lowercase letters, digits, _ and -)`);
-    }
-  }
+  const environment = tokenOption(context, "--environment", "an environment");
+  const runtime = tokenOption(context, "--runtime", "a runtime");
   const repositories: Repository[] = [];
   for (const value of context.optionValues("--repo")) {
     const repository = parseRepository("--repo", value);
@@ -1015,9 +1032,7 @@ function runOptions(context: Context): RunOptions {
   }
   const commitValue = context.option("--commit-output");
   const commit = commitValue === undefined ? undefined : parseRepository("--commit-output", commitValue);
-  if (commit !== undefined && !repositories.some((repository) => sameRepository(repository, commit))) {
-    throw invocationFailure(`--commit-output ${commit.owner}/${commit.name} must also be given as --repo ${commit.owner}/${commit.name}[@BRANCH]; the service commits only to a context repository`);
-  }
+  if (commit !== undefined && !repositories.some((repository) => sameRepository(repository, commit))) throw commitNotRead(commit);
   return { model, effort, environment, runtime, repositories, commit };
 }
 
@@ -1190,12 +1205,13 @@ async function submit(context: Context): Promise<Json> {
     // The plan's quote prices exactly this submission: the same body bytes
     // and the `POST /run` query without the live session.
     const quoteRequest: Request = { ...requestFor(context.operation, 1, "/run/quote"), class: "control", query: [...submission.extraQuery], body: submission.body };
-    // The quote is advisory: a failed quote never hides the plan.
+    // The quote is advisory: a failed quote never hides the plan; only an
+    // interrupt stops here.
     try {
       const { hold } = quoteFields(jsonObject(await context.send(quoteRequest)));
       planned.quote = { hold };
     } catch (caught) {
-      if (!(caught instanceof RunnerFailure)) throw caught;
+      if (!(caught instanceof RunnerFailure) || caught.code === "CANCELLED") throw caught;
     }
     const gate = context.gate(planned);
     if (gate.kind === "preview") return gate.result;

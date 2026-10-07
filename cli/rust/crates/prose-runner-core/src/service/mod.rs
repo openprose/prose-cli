@@ -4402,22 +4402,35 @@ impl Context<'_> {
 
     /// The advisory `GET /run/quote` hold for a plan (`index` is the
     /// operation's quote request): `{hold}`, or `None` when the quote fails,
-    /// so a failed quote never hides the plan. The service's price policy
-    /// reference stays internal.
-    pub fn advisory_quote(&mut self, index: usize, environment: Option<&str>) -> Option<Value> {
+    /// so a failed quote never hides the plan; an interrupt (`CANCELLED`)
+    /// still stops the command. The service's price policy reference stays
+    /// internal.
+    pub fn advisory_quote(
+        &mut self,
+        index: usize,
+        environment: Option<&str>,
+    ) -> Result<Option<Value>, RunnerError> {
         let mut request = http::Request::from_manifest(self.operation, index, "/run/quote")
             .class(http::TransportClass::Control);
         if let Some(environment) = environment {
             request = request.query("environment", environment.to_owned());
         }
-        let body = self.send(&request).ok()?.json_object().ok()?;
-        let hold = body.get("hold")?;
-        let hold_usd = hold["hold_usd"].as_str()?;
-        let hold_cents = render::usd_cents(hold_usd)?;
-        let ttl = hold["ttl_seconds"].as_u64()?;
-        Some(json!({
-            "hold": {"hold_usd": hold_usd, "hold_cents": hold_cents, "ttl_seconds": ttl},
-        }))
+        let response = match self.send(&request) {
+            Ok(response) => response,
+            Err(error) if error.code == ErrorCode::Cancelled => return Err(error),
+            Err(_) => return Ok(None),
+        };
+        let hold = || {
+            let body = response.json_object().ok()?;
+            let hold = body.get("hold")?;
+            let hold_usd = hold["hold_usd"].as_str()?;
+            let hold_cents = render::usd_cents(hold_usd)?;
+            let ttl = hold["ttl_seconds"].as_u64()?;
+            Some(json!({
+                "hold": {"hold_usd": hold_usd, "hold_cents": hold_cents, "ttl_seconds": ttl},
+            }))
+        };
+        Ok(hold())
     }
 
     /// The confirmation gate: `--preview` returns the plan as the result,

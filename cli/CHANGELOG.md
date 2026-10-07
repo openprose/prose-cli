@@ -35,6 +35,22 @@ a candidate do not establish public availability or authorize publication.
 - `job create` webhook specs accept `model`, `reasoning_effort`,
   `repository_url`, `repository_branch` and `output` for the connected
   contract (the service requires `program_ref` with them).
+- `job contract attach` sets a webhook job's run settings: `--model`,
+  `--reasoning-effort`, `--repo`, `--commit-output`, `--input` /
+  `--inputs-file`, `--environment`, `--file`, `--clear-repo`,
+  `--clear-commit-output`, `--clear-input`, `--clear-files` and `--replace`.
+  Its plan quotes the hold for the binding as it will run. Re-attaching a
+  bound program changes only the options given instead of resetting its
+  settings. `--model` is no longer refused. The options are refused for other
+  job types.
+- An interrupt during a plan's advisory quote (`run submit`, `program draft`,
+  `program save`, `job contract attach`) now stops the command instead of being
+  swallowed.
+- `run quote --help` is reworded more briefly to keep `cli service operations`
+  within its size budget.
+- `job contract list` reports each binding's saved settings
+  (`run_configuration`), `effective_model`, `rev_id`, `bound_at` and
+  `is_platform_default`.
 
 ## [0.15.0-rc.2] — 2026-10-02
 

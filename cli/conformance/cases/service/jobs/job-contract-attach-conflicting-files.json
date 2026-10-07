@@ -1,8 +1,8 @@
 {
-  "id": "job-contract-attach-numeric-rev",
+  "id": "job-contract-attach-conflicting-files",
   "feature": "jobs",
   "operation": "job.contract.attach",
-  "description": "A numeric @N is refused with the `program show ... --json` command that prints the rev_id as `ref`.",
+  "description": "--file and --clear-files together are refused before any request.",
   "argv": [
     "--output",
     "json",
@@ -11,7 +11,10 @@
     "contract",
     "attach",
     "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10",
-    "exowner1/jobs-example@1",
+    "exowner1/jobs-example@0123456789abcdef",
+    "--file",
+    "notes.md",
+    "--clear-files",
     "--yes"
   ],
   "fixture": {
@@ -32,7 +35,7 @@
         "boundary": "invocation",
         "code": "INVOCATION_INVALID",
         "details": {
-          "reason": "program reference \"exowner1/jobs-example@1\" names revision 1 by number; a contract pins the 16-hex-digit rev_id, which `prose --output json cli program show exowner1/jobs-example@1 --json` prints as `ref`",
+          "reason": "--file and --clear-files cannot be combined: --file replaces the stored files, --clear-files removes them",
           "suggestedArgv": [
             "--output",
             "json",
@@ -52,10 +55,13 @@
       "schema": "openprose.service-operation/1"
     }
   },
-  "forbid": [
-    "rr_test_0123456789abcdef0123456789abcdef"
-  ],
   "stderr": {
     "text": ""
-  }
+  },
+  "files": [
+    {
+      "path": "notes.md",
+      "content": "Reply in the house style.\n"
+    }
+  ]
 }

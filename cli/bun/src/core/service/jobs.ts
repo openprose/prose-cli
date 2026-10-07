@@ -24,7 +24,16 @@
 //   stderr warning without the secret. Both results, and `job show` when the
 //   service's endpoint is the secret-free job-id webhook path, carry the
 //   absolute `endpoint_url` built from the environment origin.
-// - `job contract attach|detach` take a pinned `OWNER/SLUG@REV`.
+// - `job contract attach|detach` take a pinned `OWNER/SLUG@REV`. Attach
+//   options set a webhook binding's run settings (other job types are
+//   refused after reading the job). The job's listed contracts are always
+//   read first, so a re-attach keeps a bound program's saved settings: a
+//   service that lists `environment` merges a same-ref re-bind itself and is
+//   sent only the changes; otherwise the saved settings are merged here. A
+//   plan (--preview, or no --yes) also reads the job and carries an advisory
+//   quote for the binding as it will run.
+// - `job contract list` adds each binding's saved settings as
+//   `run_configuration`, never the program text or file content.
 //
 // Mirrors cli/rust/crates/prose-runner-core/src/service/jobs.rs.
 import { failure, invocationFailure } from "../errors";
@@ -35,7 +44,8 @@ import { encodeSegment, holdQuery, jsonObject, parseJson, requestFor, type Reque
 import type { Context } from "./index";
 import { didYouMean, type Environment, type Json, type JsonObject } from "./manifest";
 import { parseOwnAllowed, parseProgramRef, pinned, resolveToRun, validSlug } from "./program-ref";
-import { absoluteUrl, addIso, canonicalJson, isoMs, nextLine, usdCents, validText } from "./render";
+import { absoluteUrl, addIso, argvText, canonicalJson, isoMs, nextLine, usdCents, validText } from "./render";
+import { commitNotRead, modelOption, parseInputs, parseRepository, repositoryUrl, sameRepository, tokenOption, validInputKey, type Repository } from "./runs";
 
 /** Largest job spec or configuration file. */
 export const SPEC_MAX_BYTES = 65_536;
@@ -55,8 +65,8 @@ export async function execute(context: Context): Promise<Json> {
     case "job.deliveries": return await deliveries(context);
     case "job.rotate-secret": return await rotateSecret(context);
     case "job.contract.list": return await contractList(context);
-    case "job.contract.attach": return await contractChange(context, true);
-    case "job.contract.detach": return await contractChange(context, false);
+    case "job.contract.attach": return await contractAttach(context);
+    case "job.contract.detach": return await contractDetach(context);
     default: return await context.notImplemented();
   }
 }
@@ -322,6 +332,7 @@ const isUuid = (text: string): boolean => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-
 const isRunId = (text: string): boolean => /^run_[A-Za-z0-9_-]{1,128}$/u.test(text);
 const isModelId = (text: string): boolean => /^[a-z0-9][a-z0-9.-]{0,63}$/u.test(text);
 const isHex64 = (text: string): boolean => /^[0-9a-f]{64}$/u.test(text);
+const isRevId = (text: string): boolean => /^[0-9a-f]{16}$/u.test(text);
 function isProgramRef(text: string): boolean {
   if (text.length > 200) return false;
   try { parseProgramRef(text, true); return true; } catch { return false; }
@@ -329,7 +340,7 @@ function isProgramRef(text: string): boolean {
 
 type Kind =
   | { text: number } | { prose: number }
-  | "integer" | "epochMs" | "bool" | "uuid" | "runId" | "modelId" | "programRef" | "slug" | "hex64";
+  | "integer" | "epochMs" | "bool" | "uuid" | "runId" | "modelId" | "programRef" | "slug" | "hex64" | "revId";
 
 function scalar(value: Json | undefined, kind: Kind, field: string): Json {
   const text = (): string => {
@@ -365,6 +376,7 @@ function scalar(value: Json | undefined, kind: Kind, field: string): Json {
     case "programRef": return check(isProgramRef(text()));
     case "slug": return check(validSlug(text()));
     case "hex64": return check(isHex64(text()));
+    case "revId": return check(isRevId(text()));
   }
 }
 
@@ -395,6 +407,23 @@ function array(value: Json | undefined, max: number, field: string): Json[] {
 
 // ------------------------------------------------------------- projections
 
+const byUtf8 = (left: string, right: string): number => Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8"));
+const costNamed = (name: string): boolean => /[Cc][Oo][Ss][Tt]/u.test(name);
+
+/**
+ * Money rule: no output property name may match /cost/i. An input so named is
+ * a user key, not a money field, and `job configure` replaces every input, so
+ * it is kept losslessly as a {name, value} entry of `input_entries` instead of
+ * being dropped. Entries are ordered by UTF-8 bytes, as the Rust product's
+ * sorted map. `input_entries` is omitted when there are none.
+ */
+function splitInputs(inputs: Record<string, string>): JsonObject {
+  const target: JsonObject = { inputs: Object.fromEntries(Object.entries(inputs).filter(([name]) => !costNamed(name))) };
+  const entries = Object.entries(inputs).filter(([name]) => costNamed(name)).sort(([a], [b]) => byUtf8(a, b));
+  if (entries.length > 0) target.input_entries = entries.map(([name, value]) => ({ name, value }));
+  return target;
+}
+
 function projectRunConfiguration(value: Json, field: string): JsonObject {
   const source = object(value, field);
   const target: JsonObject = {};
@@ -402,16 +431,7 @@ function projectRunConfiguration(value: Json, field: string): JsonObject {
   if (Object.hasOwn(source, "inputs")) {
     const inputs = object(source.inputs, `${field}.inputs`);
     if (Object.keys(inputs).length > 100 || Object.values(inputs).some((item) => typeof item !== "string")) throw protocol(`${field}.inputs`);
-    // Money rule: no output property name may match /cost/i. An input
-    // so named is a user key, not a money field, and `job configure` replaces
-    // every input, so it is kept losslessly as a {name, value} entry of
-    // `input_entries` instead of being dropped. Entries are ordered
-    // by UTF-8 bytes, as the Rust product's sorted map.
-    const costNamed = (name: string): boolean => /[Cc][Oo][Ss][Tt]/u.test(name);
-    target.inputs = Object.fromEntries(Object.entries(inputs).filter(([name]) => !costNamed(name)));
-    const entries = Object.entries(inputs).filter(([name]) => costNamed(name))
-      .sort(([a], [b]) => Buffer.compare(Buffer.from(a, "utf8"), Buffer.from(b, "utf8")));
-    if (entries.length > 0) target.input_entries = entries.map(([name, value]) => ({ name, value }));
+    Object.assign(target, splitInputs(inputs as Record<string, string>));
   }
   if (Object.hasOwn(source, "files")) {
     const name = `${field}.files`;
@@ -862,20 +882,83 @@ async function rotateSecret(context: Context): Promise<Json> {
 async function contractList(context: Context): Promise<Json> {
   const id = jobId(context);
   const body = await getJson(context, 0, `/triggers/${encodeSegment(id)}/contracts`);
-  // The contract route names differ from the job record's; both project to
-  // the same public contract fields.
-  const contracts = array(body.contracts ?? null, 16, "contracts").map((contract) => {
-    const source = object(contract, "contracts");
-    const renamed: JsonObject = {};
-    for (const [from, to] of [["program_ref", "programRef"], ["slug", "programSlug"], ["enabled", "enabled"], ["model", "model"]] as const) {
-      if (Object.hasOwn(source, from)) renamed[to] = source[from]!;
-    }
-    return projectContract(renamed, "contracts");
-  });
+  const contracts = array(body.contracts ?? null, 16, "contracts").map(projectListedContract);
   const result: JsonObject = { contracts };
   if (Object.hasOwn(body, "max_contracts")) result.max_contracts = scalar(body.max_contracts, "epochMs", "max_contracts");
   context.human = humanContracts(result);
   return result;
+}
+
+/**
+ * One contract of the contract route, whose names differ from the job
+ * record's: the public contract fields plus its saved run settings as
+ * `run_configuration`. The program text and file content are never projected.
+ */
+function projectListedContract(value: Json, index: number): JsonObject {
+  const field = "contracts";
+  const source = object(value, field);
+  const target: JsonObject = {};
+  copy(target, source, field, [
+    ["program_ref", "programRef", false], ["enabled", "bool", false], ["model", "modelId", true],
+    ["effective_model", "modelId", true], ["rev_id", "revId", false], ["bound_at", "epochMs", false],
+    ["is_platform_default", "bool", false],
+  ]);
+  if (!Object.hasOwn(target, "program_ref")) throw protocol(`${field}.program_ref`);
+  if (Object.hasOwn(source, "slug")) target.program_slug = scalar(source.slug, "slug", `${field}.slug`);
+  addIso(target, ["bound_at"]);
+  const run = listedRunConfiguration(source, field, index);
+  if (Object.keys(run).length > 0) target.run_configuration = run;
+  return target;
+}
+
+/** A listed binding's saved settings in the public `run_configuration` names; absent and null settings are left out. */
+function listedRunConfiguration(source: JsonObject, field: string, index: number): JsonObject {
+  const present = (name: string): boolean => Object.hasOwn(source, name) && source[name] !== null;
+  const target: JsonObject = {};
+  if (present("reasoning_effort")) target.reasoning_effort = scalar(source.reasoning_effort, { text: 32 }, `${field}.reasoning_effort`);
+  if (present("inputs")) {
+    const name = `${field}.inputs`;
+    const inputs = object(source.inputs, name);
+    if (Object.keys(inputs).length > 100) throw protocol(name);
+    // A string is kept as it is; another JSON scalar is carried as its JSON text.
+    const texts: Record<string, string> = {};
+    for (const [key, item] of Object.entries(inputs)) {
+      if (item !== null && typeof item === "object") throw protocol(`${field}[${index}].inputs.${key}`);
+      texts[key] = typeof item === "string" ? item : canonicalJson(item);
+    }
+    const split = splitInputs(texts);
+    if (Object.keys(split.inputs as JsonObject).length === 0) delete split.inputs;
+    Object.assign(target, split);
+  }
+  if (present("repositories")) {
+    const name = `${field}.repositories`;
+    const repositories = array(source.repositories, 16, name).map((repository) => {
+      const item: JsonObject = {};
+      copy(item, object(repository, name), name, [["url", { text: 2048 }, false], ["branch", { text: 256 }, true]]);
+      if (!Object.hasOwn(item, "url")) throw protocol(name);
+      return item;
+    });
+    if (repositories.length > 0) target.context_repositories = repositories;
+  }
+  if (present("environment")) target.environment = scalar(source.environment, { text: 64 }, `${field}.environment`);
+  if (present("files")) {
+    const name = `${field}.files`;
+    const files = array(source.files, 64, name).map((file) => {
+      const item: JsonObject = {};
+      copy(item, object(file, name), name, [["name", { text: 256 }, false], ["size", "epochMs", false], ["sha256", "hex64", false]]);
+      if (!Object.hasOwn(item, "name") || !Object.hasOwn(item, "size")) throw protocol(name);
+      return item;
+    });
+    if (files.length > 0) target.stored_files = files;
+  }
+  if (present("output")) {
+    const name = `${field}.output`;
+    const item: JsonObject = {};
+    copy(item, object(source.output, name), name, [["type", { text: 32 }, false], ["repository", { text: 2048 }, false], ["branch", { text: 256 }, true]]);
+    if (!Object.hasOwn(item, "type") || !Object.hasOwn(item, "repository")) throw protocol(name);
+    target.output = item;
+  }
+  return target;
 }
 
 /**
@@ -895,26 +978,380 @@ function unpinnedReason(context: Context, value: string): string {
   return `program reference ${quoted(value)} must be pinned as OWNER/SLUG@REV (the 16-hex-digit rev_id); \`${show}\` prints the latest as \`ref\``;
 }
 
-async function contractChange(context: Context, attach: boolean): Promise<Json> {
+/** The pinned OWNER/SLUG@REV of `option` (the positional argument when undefined). */
+function pinnedValue(context: Context, value: string, option?: string): string {
+  try { return pinned(parseProgramRef(value, true)) ?? ""; }
+  catch { throw invocationFailure(`${option === undefined ? "" : `${option}: `}${unpinnedReason(context, value)}`); }
+}
+
+async function contractDetach(context: Context): Promise<Json> {
   const id = jobId(context);
-  const value = context.argument("OWNER/SLUG@REV") ?? "";
-  let reference: string;
-  try { reference = pinned(parseProgramRef(value, true)) ?? ""; }
-  catch { throw invocationFailure(unpinnedReason(context, value)); }
-  if (attach && context.option("--model") !== undefined) {
-    throw invocationFailure("the service does not accept --model when attaching a contract; attached contracts run on the service's default job model (see `cli job contract list`)");
-  }
-  const body = attach ? new TextEncoder().encode(canonicalJson({ program_ref: reference })) : undefined;
-  const path = attach
-    ? `/triggers/${encodeSegment(id)}/contracts`
-    : `/triggers/${encodeSegment(id)}/contracts/${encodeSegment(reference)}`;
-  const gate = context.gate(context.planned(0, path, [], body));
+  const reference = pinnedValue(context, context.argument("OWNER/SLUG@REV") ?? "");
+  const path = `/triggers/${encodeSegment(id)}/contracts/${encodeSegment(reference)}`;
+  const gate = context.gate(context.planned(0, path));
   if (gate.kind === "preview") return gate.result;
-  const request: Request = { ...requestFor(context.operation, 0, path), ...(body === undefined ? {} : { body }) };
-  const response = jsonObject(await context.send(request));
-  const key = attach ? "bound" : "unbound";
-  if (response[key] !== reference) throw protocol(key);
-  context.human = `${attach ? "Attached" : "Detached"} ${humanSafeScalar(reference)} ${attach ? "to" : "from"} job ${humanSafeScalar(id)}.\n`
+  const response = jsonObject(await context.send(requestFor(context.operation, 0, path)));
+  if (response.unbound !== reference) throw protocol("unbound");
+  context.human = `Detached ${humanSafeScalar(reference)} from job ${humanSafeScalar(id)}.\n`
+    + `List the job's contracts with \`cli job contract list ${humanSafeScalar(id)}\`.\n`;
+  return { contracts: [{ program_ref: reference }] };
+}
+
+/** The `job contract attach` options that change a webhook binding's settings (with --replace, they need a webhook job). */
+const BINDING_OPTIONS = [
+  "--model", "--reasoning-effort", "--repo", "--commit-output", "--clear-repo", "--clear-commit-output",
+  "--input", "--inputs-file", "--clear-input", "--environment", "--file", "--clear-files", "--replace",
+] as const;
+const BINDING_FLAGS = new Set(["--clear-repo", "--clear-commit-output", "--clear-files"]);
+/** Stored binding files: at most 20, 5 MiB each and 10 MiB in total. */
+const MAX_BINDING_FILES = 20;
+const MAX_BINDING_FILE_BYTES = 5 << 20;
+const MAX_BINDING_FILES_BYTES = 10 << 20;
+
+/** The settings options of one `job contract attach`, checked locally. */
+interface Binding {
+  model?: string;
+  effort?: string;
+  repo?: Repository;
+  commit?: Repository;
+  clearRepo: boolean;
+  clearCommit: boolean;
+  /** --file NAME -> base64 content (replaces the stored set), or undefined. */
+  files?: JsonObject;
+  clearFiles: boolean;
+  inputs: Map<string, string>;
+  clearInputs: string[];
+  environment?: string;
+  replace?: string;
+  /** Any option above was given. */
+  any: boolean;
+}
+
+/**
+ * Reads and checks the settings options before any request: conflicting
+ * options, and a --commit-output that is not the --repo given, are
+ * INVOCATION_INVALID.
+ */
+async function bindingOptions(context: Context): Promise<Binding> {
+  const given = (name: string): boolean => (BINDING_FLAGS.has(name) ? context.flag(name) : context.optionValues(name).length > 0);
+  const clearRepo = context.flag("--clear-repo");
+  const clearCommit = context.flag("--clear-commit-output");
+  if (given("--repo") && clearRepo) throw invocationFailure("--repo and --clear-repo cannot be combined: --repo replaces the saved repository, --clear-repo removes it");
+  if (given("--commit-output") && clearRepo) throw invocationFailure("--commit-output and --clear-repo cannot be combined: --commit-output sets the commit output, --clear-repo removes it");
+  if (given("--commit-output") && clearCommit) throw invocationFailure("--commit-output and --clear-commit-output cannot be combined: --commit-output sets the commit output, --clear-commit-output removes it");
+  const clearFiles = context.flag("--clear-files");
+  if (given("--file") && clearFiles) throw invocationFailure("--file and --clear-files cannot be combined: --file replaces the stored files, --clear-files removes them");
+  const clearInputs: string[] = [];
+  for (const key of context.optionValues("--clear-input")) {
+    if (!validInputKey(key)) throw invocationFailure(`--clear-input ${quoteText(key)} must be an input name of 1 to 128 characters without control characters`);
+    if (!clearInputs.includes(key)) clearInputs.push(key);
+  }
+  for (const raw of context.optionValues("--input")) {
+    const key = raw.includes("=") ? raw.slice(0, raw.indexOf("=")) : raw;
+    if (clearInputs.includes(key)) throw invocationFailure(`--input ${quoteText(key)} and --clear-input ${quoteText(key)} cannot be combined: --input sets the input, --clear-input removes it`);
+  }
+  const replaceValue = context.option("--replace");
+  const repoValue = context.option("--repo");
+  const commitValue = context.option("--commit-output");
+  const binding: Binding = {
+    clearRepo, clearCommit, clearInputs, clearFiles,
+    inputs: await parseInputs(context),
+    any: BINDING_OPTIONS.some(given),
+  };
+  const model = modelOption(context);
+  if (model !== undefined) binding.model = model;
+  const effort = context.option("--reasoning-effort");
+  if (effort !== undefined) binding.effort = effort;
+  if (repoValue !== undefined) binding.repo = parseRepository("--repo", repoValue);
+  if (commitValue !== undefined) binding.commit = parseRepository("--commit-output", commitValue);
+  const environment = tokenOption(context, "--environment", "an environment");
+  if (environment !== undefined) binding.environment = environment;
+  if (replaceValue !== undefined) binding.replace = pinnedValue(context, replaceValue, "--replace");
+  const files = await bindingFiles(context);
+  if (files !== undefined) binding.files = files;
+  if (binding.commit !== undefined && binding.repo !== undefined && !sameRepository(binding.commit, binding.repo)) {
+    throw commitNotRead(binding.commit);
+  }
+  return binding;
+}
+
+/**
+ * The last component of a `/`-separated path, as a file name: trailing `/`
+ * and `.` components are skipped, and a path ending in `..` (or only `.`)
+ * has none (empty).
+ */
+function baseName(path: string): string {
+  const parts = path.split("/").filter((part, index) => part !== "" && (part !== "." || index === 0));
+  const last = parts[parts.length - 1] ?? "";
+  return last === "." || last === ".." ? "" : last;
+}
+
+/**
+ * The `--file [NAME=]PATH` files as NAME -> base64 of their UTF-8 content
+ * (NAME defaults to PATH's last segment), or undefined when none is given.
+ */
+async function bindingFiles(context: Context): Promise<JsonObject | undefined> {
+  const values = context.optionValues("--file");
+  if (values.length === 0) return undefined;
+  if (values.length > MAX_BINDING_FILES) throw invocationFailure(`--file was given ${values.length} times; a binding stores at most ${MAX_BINDING_FILES} files`);
+  const files: JsonObject = {};
+  let total = 0;
+  for (const raw of values) {
+    const equals = raw.indexOf("=");
+    const path = equals >= 0 ? raw.slice(equals + 1) : raw;
+    const name = equals >= 0 ? raw.slice(0, equals) : baseName(path);
+    if (!validText(name, 256) || name.includes("/") || name.includes("\\")) {
+      throw invocationFailure(`--file ${quoteText(raw)}: the file name must be 1 to 256 characters without /, \\ or control characters; give it as NAME=PATH`);
+    }
+    const bytes = await readSource(context.cwd, path, MAX_BINDING_FILE_BYTES, "--file");
+    try { new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes); }
+    catch { throw invocationFailure(`--file ${quoteText(path)} is not UTF-8 text`); }
+    total += bytes.length;
+    if (total > MAX_BINDING_FILES_BYTES) throw invocationFailure(`the --file files hold more than ${MAX_BINDING_FILES_BYTES} bytes together; a binding stores at most that much`);
+    if (Object.hasOwn(files, name)) throw invocationFailure(`--file name ${quoteText(name)} was given more than once; name each file uniquely with NAME=PATH`);
+    files[name] = Buffer.from(bytes).toString("base64");
+  }
+  return files;
+}
+
+/** Whether two repository URLs name the same repository (GitHub names ignore case). */
+const sameUrl = (left: string, right: string): boolean => left.toLowerCase() === right.toLowerCase();
+
+/** The commit output of `--commit-output`, committing to `url` (the repository the runs read). */
+function commitOutput(commit: Repository, url: string): JsonObject {
+  return commit.branch === undefined ? { type: "commit", repository: url } : { type: "commit", repository: url, branch: commit.branch };
+}
+
+/** A bound contract's saved settings as the service listed them; a wrong shape is SERVICE_PROTOCOL_INVALID. */
+interface Saved {
+  /** The binding has stored files (their content is never listed). */
+  files?: boolean;
+  model?: string;
+  effort?: string;
+  environment?: string;
+  repository?: { url: string; branch?: string };
+  output?: JsonObject;
+  inputs: JsonObject;
+}
+
+function savedSettings(contract: JsonObject): Saved {
+  const field = "contracts";
+  const text = (name: string, max: number): string | undefined =>
+    contract[name] === null || contract[name] === undefined ? undefined : scalar(contract[name], { text: max }, `${field}.${name}`) as string;
+  const saved: Saved = { inputs: {} };
+  const model = contract.model === null || contract.model === undefined ? undefined : scalar(contract.model, "modelId", `${field}.model`) as string;
+  if (model !== undefined) saved.model = model;
+  const effort = text("reasoning_effort", 32);
+  if (effort !== undefined) saved.effort = effort;
+  const environment = text("environment", 64);
+  if (environment !== undefined) saved.environment = environment;
+  saved.files = Array.isArray(contract.files) && contract.files.length > 0;
+  if (contract.repositories !== null && contract.repositories !== undefined) {
+    const first = array(contract.repositories, 16, `${field}.repositories`)[0];
+    if (first !== undefined) {
+      const item: JsonObject = {};
+      copy(item, object(first, `${field}.repositories`), `${field}.repositories`, [["url", { text: 2048 }, false], ["branch", { text: 256 }, true]]);
+      if (typeof item.url !== "string") throw protocol(`${field}.repositories`);
+      saved.repository = typeof item.branch === "string" ? { url: item.url, branch: item.branch } : { url: item.url };
+    }
+  }
+  if (contract.output !== null && contract.output !== undefined) {
+    const output = object(contract.output, `${field}.output`);
+    if (typeof output.repository !== "string") throw protocol(`${field}.output`);
+    saved.output = output;
+  }
+  // Inputs are kept as returned: a non-string value is sent back unchanged.
+  if (contract.inputs !== null && contract.inputs !== undefined) saved.inputs = { ...object(contract.inputs, `${field}.inputs`) };
+  return saved;
+}
+
+/** `argv` without the settings options and their values (the suggestion for a job that is not a webhook). */
+function withoutBindingOptions(argv: readonly string[]): string[] {
+  return withoutOptions(argv, BINDING_OPTIONS, BINDING_FLAGS);
+}
+
+/** `argv` without `options` (with their values) and `flags`, up to any `--`. */
+function withoutOptions(argv: readonly string[], options: readonly string[], flags: ReadonlySet<string>): string[] {
+  const kept: string[] = [];
+  for (let index = 0; index < argv.length; index += 1) {
+    const token = argv[index]!;
+    if (token === "--") { kept.push(...argv.slice(index)); break; }
+    const name = token.includes("=") ? token.slice(0, token.indexOf("=")) : token;
+    if (!options.includes(name)) { kept.push(token); continue; }
+    if (name === token && !flags.has(name)) index += 1;
+  }
+  return kept;
+}
+
+/**
+ * The POST body of `job contract attach` from the job's listed contracts.
+ * A re-bind of the same ref on a merging service sends only what the options
+ * change (clears as JSON nulls); otherwise the saved settings of the bound
+ * ref (or of the --replace target) are merged here and sent in full. An
+ * unbound ref sends only the options given.
+ */
+/** The settings the runs of a binding use after an attach, as the plan quote prices them. */
+interface Effective { model?: string; effort?: string; environment?: string; repository: boolean }
+
+function attachBody(reference: string, binding: Binding, contracts: JsonObject[]): { body: JsonObject; note: string | undefined; effective: Effective } {
+  const base = contracts.find((contract) => contract.program_ref === (binding.replace ?? reference));
+  const saved = base === undefined ? undefined : savedSettings(base);
+  // A service that lists environment (and file metadata) merges a re-bind itself.
+  const merging = contracts.some((contract) => Object.hasOwn(contract, "environment"));
+  const repoUrl = binding.repo === undefined ? undefined : repositoryUrl(binding.repo);
+  // The repository the runs read after this change.
+  const effectiveUrl = repoUrl ?? (binding.clearRepo ? undefined : saved?.repository?.url);
+  if (binding.commit !== undefined && (effectiveUrl === undefined || !sameUrl(effectiveUrl, repositoryUrl(binding.commit)))) {
+    throw commitNotRead(binding.commit);
+  }
+  // A new repository drops a saved output that commits elsewhere.
+  const outputElsewhere = repoUrl !== undefined && typeof saved?.output?.repository === "string" && !sameUrl(saved.output.repository, repoUrl);
+  const mergedInputs = (): JsonObject => {
+    const inputs: JsonObject = { ...(saved?.inputs ?? {}) };
+    for (const [key, value] of binding.inputs) inputs[key] = value;
+    for (const key of binding.clearInputs) delete inputs[key];
+    return inputs;
+  };
+  const body: JsonObject = { program_ref: reference };
+  // A --replace of the attached ref itself is an ordinary re-attach.
+  const moved = binding.replace !== undefined && binding.replace !== reference;
+  if (saved !== undefined && merging && !moved) {
+    body.replace_program_ref = reference;
+    if (binding.model !== undefined) body.model = binding.model;
+    if (binding.effort !== undefined) body.reasoning_effort = binding.effort;
+    if (binding.repo !== undefined) {
+      body.repository_url = repoUrl!;
+      body.repository_branch = binding.repo.branch ?? null;
+      if (outputElsewhere) body.output = null;
+    }
+    if (binding.clearRepo) Object.assign(body, { repository_url: null, repository_branch: null, output: null });
+    if (binding.clearCommit) body.output = null;
+    if (binding.commit !== undefined) body.output = commitOutput(binding.commit, effectiveUrl!);
+    if (binding.inputs.size > 0 || binding.clearInputs.length > 0) body.inputs = mergedInputs();
+    if (binding.environment !== undefined) body.environment = binding.environment;
+    if (binding.files !== undefined) body.files = binding.files;
+    if (binding.clearFiles) body.files = null;
+    // The service keeps what is not sent: the saved settings, with the options over them.
+    const effective: Effective = { repository: effectiveUrl !== undefined };
+    const model = binding.model ?? saved.model;
+    if (model !== undefined) effective.model = model;
+    const effort = binding.effort ?? saved.effort;
+    if (effort !== undefined) effective.effort = effort;
+    const environment = binding.environment ?? saved.environment;
+    if (environment !== undefined) effective.environment = environment;
+    return { body, note: undefined, effective };
+  }
+  const model = binding.model ?? saved?.model;
+  if (model !== undefined) body.model = model;
+  const effort = binding.effort ?? saved?.effort;
+  if (effort !== undefined) body.reasoning_effort = effort;
+  const repository = binding.repo !== undefined
+    ? (binding.repo.branch === undefined ? { url: repoUrl! } : { url: repoUrl!, branch: binding.repo.branch })
+    : (binding.clearRepo ? undefined : saved?.repository);
+  if (repository !== undefined) {
+    body.repository_url = repository.url;
+    if (repository.branch !== undefined) body.repository_branch = repository.branch;
+  }
+  const output = binding.commit !== undefined ? commitOutput(binding.commit, effectiveUrl!)
+    : (binding.clearRepo || binding.clearCommit || outputElsewhere ? undefined : saved?.output);
+  if (output !== undefined) body.output = output;
+  const inputs = mergedInputs();
+  if (Object.keys(inputs).length > 0) body.inputs = inputs;
+  // A move to another revision is a full replace: the saved environment is
+  // carried too (an older service lists none).
+  const environment = binding.environment ?? (moved ? saved?.environment : undefined);
+  if (environment !== undefined) body.environment = environment;
+  if (binding.files !== undefined) body.files = binding.files;
+  // Clearing files of an unbound program changes nothing.
+  else if (binding.clearFiles && saved !== undefined) body.files = null;
+  if (binding.replace !== undefined) body.replace_program_ref = binding.replace;
+  const effective: Effective = { repository: repository !== undefined };
+  if (model !== undefined) effective.model = model;
+  if (effort !== undefined) effective.effort = effort;
+  if (environment !== undefined) effective.environment = environment;
+  // An older service lists neither stored files nor environment, so a
+  // client-merged re-bind cannot carry them; stored file content is never
+  // listed, so a move cannot carry the files either.
+  let note: string | undefined;
+  if (saved !== undefined && !merging) note = DROPPED_NOTE;
+  else if (moved && saved?.files === true && binding.files === undefined && !binding.clearFiles) note = FILES_NOTE;
+  return { body, note, effective };
+}
+
+/** Job types that always bind a repository, so their runs are quoted with one. */
+const REPOSITORY_JOB_TYPES = ["github-issue-opened", "github-pull-request-opened", "github-release-published"];
+
+const DROPPED_NOTE = "note: this service does not report stored files or environment; re-attaching may drop them\n";
+const FILES_NOTE = "note: stored files are not carried to the new revision; pass --file to attach them\n";
+
+async function contractAttach(context: Context): Promise<Json> {
+  const id = jobId(context);
+  const reference = pinnedValue(context, context.argument("OWNER/SLUG@REV") ?? "");
+  const binding = await bindingOptions(context);
+  const jobPath = `/triggers/${encodeSegment(id)}`;
+  const path = `${jobPath}/contracts`;
+  // Settings apply to webhook jobs only, and a plan's quote prices the
+  // job's type: read the job first.
+  const plan = context.invocation.preview || !context.invocation.yes;
+  let live = false;
+  let jobType: string | undefined;
+  if (binding.any || plan) {
+    const detail = projectDetail(await getJson(context, 0, jobPath), false, context.environment);
+    const kind = (detail.job as JsonObject).type;
+    if (typeof kind === "string") jobType = kind;
+    if (binding.any && kind !== "webhook") {
+      const error = invocationFailure(`job ${id} is a ${humanSafeScalar(typeof kind === "string" ? kind : "")} job; run settings (--model, --reasoning-effort, --repo, --commit-output, --input, --inputs-file, --environment, --file, --replace and the --clear options) apply to webhook jobs only`);
+      throw context.corrected(error, "Attach without those options: `{command}`", withoutBindingOptions(context.invocation.argv));
+    }
+    live = (detail.status as JsonObject | undefined)?.delivery_mode === "live";
+  }
+  // The listed contracts keep a bound program's saved settings.
+  const listed = array((await getJson(context, 1, path)).contracts ?? null, 16, "contracts").map((contract) => object(contract, "contracts"));
+  // The listing must be valid as `job contract list` reads it.
+  listed.forEach(projectListedContract);
+  // --replace onto another program that is already bound would reset that
+  // binding's settings.
+  const replaced = binding.replace;
+  if (replaced !== undefined && replaced !== reference && listed.some((contract) => contract.program_ref === reference)) {
+    const error = invocationFailure(`${reference} is already bound to job ${humanSafeScalar(id)}; --replace would reset its settings. Change it in place without --replace, or detach ${replaced} first`);
+    throw context.corrected(error, "Change it in place without --replace: `{command}`", withoutOptions(context.invocation.argv, ["--replace"], new Set()));
+  }
+  const { body, note, effective } = attachBody(reference, binding, listed);
+  const bytes = new TextEncoder().encode(canonicalJson(body));
+  const planned = context.planned(2, path, [], bytes);
+  if (plan) {
+    // Advisory: a failed quote leaves the plan without one.
+    const query: Array<[string, string]> = [["program_ref", reference], ...holdQuery({
+      model: effective.model, reasoningEffort: effective.effort, environment: effective.environment,
+      repositoriesBound: effective.repository || (jobType !== undefined && REPOSITORY_JOB_TYPES.includes(jobType)),
+    })];
+    if (jobType !== undefined) query.push(["job_type", jobType]);
+    const quoted = await context.advisoryQuote(3, undefined, query);
+    if (quoted !== undefined) planned.quote = quoted;
+  }
+  const gate = context.gate(planned);
+  if (gate.kind === "preview") return gate.result;
+  let response: JsonObject;
+  try { response = jsonObject(await context.send({ ...requestFor(context.operation, 2, path), body: bytes })); }
+  catch (caught) {
+    // A live webhook may refuse binding changes: switching it to test delivery first allows them.
+    const message = caught instanceof RunnerFailure ? caught.details?.serviceMessage : undefined;
+    if (live && caught instanceof RunnerFailure && caught.code === "SERVICE_REQUEST_REJECTED" && typeof message === "string" && /immutable/iu.test(message)) {
+      const argv = context.followUpArgv(["job", "update", id, "--spec-file", "-", "--yes"]);
+      const stdin = canonicalJson({ delivery_mode: "test" });
+      throw new RunnerFailure({
+        code: caught.code, boundary: caught.boundary, message: caught.message, exitCode: caught.exitCode, retryable: caught.retryable,
+        action: `${caught.action} The job delivers live; to change its binding, switch it to test delivery first: \`${argvText(argv)}\` with details.suggestedStdin on standard input.`,
+        details: { ...(caught.details ?? {}), suggestedArgv: argv, suggestedStdin: `${stdin}\n` },
+      });
+    }
+    throw caught;
+  }
+  if (response.bound !== reference) throw protocol("bound");
+  if (note !== undefined && context.mode === "human") context.err(note);
+  const settings = settingsLine(body);
+  context.human = `Attached ${humanSafeScalar(reference)} to job ${humanSafeScalar(id)}.\n`
+    + (settings === undefined ? "" : `  settings: ${settings}\n`)
     + `List the job's contracts with \`cli job contract list ${humanSafeScalar(id)}\`.\n`;
   return { contracts: [{ program_ref: reference }] };
 }
@@ -1018,9 +1455,49 @@ function humanDeliveries(result: JsonObject): string {
 function humanContracts(result: JsonObject): string {
   const contracts = result.contracts as JsonObject[];
   if (contracts.length === 0) return "No contracts.\n";
-  return contracts.map((contract) =>
-    `${textOrDash(contract.program_ref)} enabled=${typeof contract.enabled === "boolean" ? String(contract.enabled) : "-"} model=${textOrDash(contract.model)}\n`,
-  ).join("");
+  return contracts.map((contract) => {
+    const line = `${textOrDash(contract.program_ref)} enabled=${typeof contract.enabled === "boolean" ? String(contract.enabled) : "-"} model=${textOrDash(contract.model)}\n`;
+    const run = isObject(contract.run_configuration) ? contract.run_configuration : undefined;
+    if (run === undefined) return line;
+    const repository = Array.isArray(run.context_repositories) && isObject(run.context_repositories[0]) ? run.context_repositories[0] : undefined;
+    const names = [
+      ...(isObject(run.inputs) ? Object.keys(run.inputs) : []),
+      ...(Array.isArray(run.input_entries) ? run.input_entries.map((entry) => (isObject(entry) && typeof entry.name === "string" ? entry.name : "")) : []),
+    ];
+    const settings = settingsText({
+      effort: run.reasoning_effort, repository: repository?.url, branch: repository?.branch,
+      output: isObject(run.output) ? run.output : undefined, inputs: names,
+      files: Array.isArray(run.stored_files) ? run.stored_files.map((file) => (isObject(file) && typeof file.name === "string" ? file.name : "")) : [],
+    });
+    return settings === undefined ? line : `${line}  settings: ${settings}\n`;
+  }).join("");
+}
+
+/** The human `settings:` text of an attach request body (clears, sent as null, are not shown). */
+function settingsLine(body: JsonObject): string | undefined {
+  return settingsText({
+    effort: body.reasoning_effort, repository: body.repository_url, branch: body.repository_branch,
+    output: isObject(body.output) ? body.output : undefined, inputs: isObject(body.inputs) ? Object.keys(body.inputs) : [],
+    files: isObject(body.files) ? Object.keys(body.files) : [],
+  });
+}
+
+/**
+ * `reasoning effort E; repository URL@BRANCH; commit output URL; inputs k1,
+ * k2; files n1, n2` with only the parts present; input values and file
+ * content are never shown.
+ */
+function settingsText(parts: { effort: Json | undefined; repository: Json | undefined; branch: Json | undefined; output: JsonObject | undefined; inputs: string[]; files: string[] }): string | undefined {
+  const at = (url: Json | undefined, branch: Json | undefined): string => `${humanSafeScalar(String(url))}${typeof branch === "string" ? `@${humanSafeScalar(branch)}` : ""}`;
+  const shown: string[] = [];
+  if (typeof parts.effort === "string") shown.push(`reasoning effort ${humanSafeScalar(parts.effort)}`);
+  if (typeof parts.repository === "string") shown.push(`repository ${at(parts.repository, parts.branch)}`);
+  if (typeof parts.output?.repository === "string") shown.push(`commit output ${humanSafeScalar(parts.output.repository)}`);
+  const names = parts.inputs.filter((name) => name !== "").sort(byUtf8);
+  if (names.length > 0) shown.push(`inputs ${names.map(humanSafeScalar).join(", ")}`);
+  const files = parts.files.filter((name) => name !== "").sort(byUtf8);
+  if (files.length > 0) shown.push(`files ${files.map(humanSafeScalar).join(", ")}`);
+  return shown.length === 0 ? undefined : shown.join("; ");
 }
 
 /**

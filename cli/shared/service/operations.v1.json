@@ -1955,7 +1955,7 @@
       ],
       "contract": "service/1",
       "feature": "runs",
-      "summary": "Report the hold a run reserves: money set aside from the wallet while the run is live. It is not the price. The environment is checked first.\nThe hold depends on the model, reasoning effort, environment, declared tools and bound repositories, and what the run does not use is released when it settles. With FILE or --from the service prices that program, including its own run settings and declared tools; --model, --reasoning-effort, --environment, --repo and --commit-output override them. `basis` names where each value came from (request, program or default). A run's price is known only after it settles (`cli run show RUN_ID`, price_cents). The program, inputs and options `cli run submit` takes are accepted, so you can quote the exact command you will submit.",
+      "summary": "Report the hold a run reserves: money set aside from the wallet while the run is live. It is not the price. The environment is checked first.\nThe hold depends on the model, reasoning effort, environment, declared tools and bound repositories; what the run does not use is released when it settles. With FILE or --from the service prices that program, including its own run settings and declared tools; the run-setting options override them. `basis` names where each value came from (request, program or a default). A run's price is known only after it settles (`cli run show RUN_ID`, price_cents). It takes what `cli run submit` takes, so you can quote the exact command you will submit.",
       "interaction": "run.quote",
       "interactions": [
         "health.read",
@@ -1974,21 +1974,21 @@
         {
           "name": "--from",
           "value": "[OWNER/]SLUG[@REV]",
-          "description": "Run a saved program; a bare SLUG is your own program. @REV is a rev_id, or @N (@revN) for revision N of your own program; without @REV the service prices the latest revision. The service prices this program, including its own run settings and declared tools.",
+          "description": "Run a saved program; a bare SLUG is your own program. @REV is a rev_id, or @N (@revN) for revision N of your own program; without @REV the service prices the latest revision.",
           "repeatable": false,
           "required": false
         },
         {
           "name": "--input",
           "value": "KEY=VALUE|KEY=@FILE",
-          "description": "Program input; @FILE reads UTF-8 text of at most 1 MiB. Accepted so a quote names the same command as `cli run submit`; the hold does not depend on it.",
+          "description": "Program input; @FILE reads UTF-8 text of at most 1 MiB. Accepted as `cli run submit` takes it; not sent.",
           "repeatable": true,
           "required": false
         },
         {
           "name": "--inputs-file",
           "value": "FILE",
-          "description": "JSON object of string inputs. Accepted so a quote names the same command as `cli run submit`; the hold does not depend on it.",
+          "description": "JSON object of string inputs. Accepted as `cli run submit` takes it; not sent.",
           "repeatable": false,
           "required": false
         },
@@ -2025,7 +2025,7 @@
         {
           "name": "--runtime",
           "value": "RUNTIME",
-          "description": "Runtime offered by the service. Accepted so a quote names the same command as `cli run submit`; the hold does not depend on it.",
+          "description": "Runtime offered by the service. Accepted as `cli run submit` takes it; not sent.",
           "default": "the service's default runtime",
           "repeatable": false,
           "required": false
@@ -5565,10 +5565,12 @@
       ],
       "contract": "service/1",
       "feature": "jobs",
-      "summary": "Attach a pinned program to a job.",
+      "summary": "Attach a pinned program to a job. The options set a webhook job's run settings; re-attaching a bound program changes only those given.",
       "interaction": "job.contracts",
       "interactions": [
-        "job.contracts"
+        "job.contracts",
+        "job.read",
+        "run.quote"
       ],
       "arguments": [
         {
@@ -5588,12 +5590,131 @@
         {
           "name": "--model",
           "value": "MODEL",
-          "description": "Hosted model for runs of this program.",
+          "description": "Hosted model for its runs.",
+          "repeatable": false,
+          "required": false
+        },
+        {
+          "name": "--reasoning-effort",
+          "value": "EFFORT",
+          "description": "Reasoning effort for its runs.",
+          "repeatable": false,
+          "required": false,
+          "choices": [
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ]
+        },
+        {
+          "name": "--repo",
+          "value": "OWNER/NAME[@BRANCH]",
+          "description": "Repository its runs read as context.",
+          "repeatable": false,
+          "required": false
+        },
+        {
+          "name": "--commit-output",
+          "value": "OWNER/NAME[@BRANCH]",
+          "description": "Repository receiving each run's commit; the context repository.",
+          "repeatable": false,
+          "required": false
+        },
+        {
+          "name": "--clear-repo",
+          "value": null,
+          "description": "Remove the saved repository and commit output.",
+          "repeatable": false,
+          "required": false
+        },
+        {
+          "name": "--clear-commit-output",
+          "value": null,
+          "description": "Remove the saved commit output.",
+          "repeatable": false,
+          "required": false
+        },
+        {
+          "name": "--input",
+          "value": "KEY=VALUE|KEY=@FILE",
+          "description": "Program input; @FILE reads a file. Overrides saved inputs.",
+          "repeatable": true,
+          "required": false
+        },
+        {
+          "name": "--inputs-file",
+          "value": "FILE",
+          "description": "JSON object of string inputs.",
+          "repeatable": false,
+          "required": false
+        },
+        {
+          "name": "--clear-input",
+          "value": "KEY",
+          "description": "Remove a saved input.",
+          "repeatable": true,
+          "required": false
+        },
+        {
+          "name": "--file",
+          "value": "[NAME=]PATH",
+          "description": "UTF-8 file for its runs; replaces all stored files.",
+          "repeatable": true,
+          "required": false
+        },
+        {
+          "name": "--clear-files",
+          "value": null,
+          "description": "Remove the stored files.",
+          "repeatable": false,
+          "required": false
+        },
+        {
+          "name": "--environment",
+          "value": "ENV",
+          "description": "Where its runs execute.",
+          "repeatable": false,
+          "required": false
+        },
+        {
+          "name": "--replace",
+          "value": "OWNER/SLUG@REV",
+          "description": "Bound revision this replaces, keeping its settings.",
           "repeatable": false,
           "required": false
         }
       ],
       "requests": [
+        {
+          "interaction": "job.read",
+          "method": "GET",
+          "path": "/triggers/{id}",
+          "auth": "bearer",
+          "body": null,
+          "when": "a webhook option, --replace, or a plan (no --yes)",
+          "catalogRoute": {
+            "method": "GET",
+            "path": "/triggers/{id}",
+            "auth": "api_key"
+          },
+          "response": "trigger-detail"
+        },
+        {
+          "interaction": "job.contracts",
+          "method": "GET",
+          "path": "/triggers/{id}/contracts",
+          "auth": "bearer",
+          "body": null,
+          "when": "always",
+          "catalogRoute": {
+            "method": "GET",
+            "path": "/triggers/{id}/contracts",
+            "auth": "api_key"
+          },
+          "response": "trigger-contracts"
+        },
         {
           "interaction": "job.contracts",
           "method": "POST",
@@ -5607,6 +5728,28 @@
             "auth": "api_key"
           },
           "response": null
+        },
+        {
+          "interaction": "run.quote",
+          "method": "GET",
+          "path": "/run/quote",
+          "query": {
+            "program_ref": "{program_ref}",
+            "model": "{model}",
+            "reasoning_effort": "{reasoning_effort}",
+            "environment": "{environment}",
+            "repositories": "1",
+            "job_type": "{job_type}"
+          },
+          "auth": "bearer",
+          "body": null,
+          "when": "confirmation",
+          "catalogRoute": {
+            "method": "GET",
+            "path": "/run/quote",
+            "auth": "api_key_or_session_token"
+          },
+          "response": "run-quote"
         }
       ],
       "effect": "write",
@@ -5650,7 +5793,8 @@
         }
       ],
       "examples": [
-        "prose cli job contract attach 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10 exowner1/hello@0123456789abcdef --yes"
+        "prose cli job contract attach 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10 exowner1/hello@0123456789abcdef --yes",
+        "prose cli job contract attach 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10 exowner1/hello@0123456789abcdef --repo exowner1/app@main --reasoning-effort medium --yes"
       ]
     },
     {

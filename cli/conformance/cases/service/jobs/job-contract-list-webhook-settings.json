@@ -1,0 +1,135 @@
+{
+  "id": "job-contract-list-webhook-settings",
+  "feature": "jobs",
+  "operation": "job.contract.list",
+  "description": "`job contract list` reports each binding's saved settings: effective model, revision, bind time, reasoning effort, inputs (money-rule names in input_entries), the context repository, commit output, environment and stored file metadata; never the program text or file content.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "job",
+    "contract",
+    "list",
+    "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/triggers/3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10/contracts",
+        "status": 200,
+        "body": {
+          "contracts": [
+            {
+              "program_ref": "exowner1/slack-hello@97ddf3a447f534a7",
+              "owner": "exowner1",
+              "slug": "slack-hello",
+              "rev_id": "97ddf3a447f534a7",
+              "content": "# private program text",
+              "is_platform_default": false,
+              "enabled": true,
+              "bound_at": 1789501241012,
+              "inputs": {
+                "channel": "C0123",
+                "cost_center": "ops",
+                "limit": 3
+              },
+              "model": "model-luna",
+              "effective_model": "model-luna",
+              "reasoning_effort": "high",
+              "repositories": [
+                {
+                  "url": "https://github.com/exowner1/app",
+                  "branch": "main"
+                }
+              ],
+              "output": {
+                "type": "commit",
+                "repository": "https://github.com/exowner1/app"
+              },
+              "environment": "linux",
+              "files": [
+                {
+                  "name": "notes.md",
+                  "size": 12,
+                  "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                }
+              ]
+            }
+          ],
+          "max_contracts": 5
+        },
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "job.contracts",
+      "operation": "job.contract.list",
+      "problem": null,
+      "result": {
+        "contracts": [
+          {
+            "bound_at": 1789501241012,
+            "bound_at_iso": "2026-09-15T19:40:41.012Z",
+            "effective_model": "model-luna",
+            "enabled": true,
+            "is_platform_default": false,
+            "model": "model-luna",
+            "program_ref": "exowner1/slack-hello@97ddf3a447f534a7",
+            "program_slug": "slack-hello",
+            "rev_id": "97ddf3a447f534a7",
+            "run_configuration": {
+              "context_repositories": [
+                {
+                  "branch": "main",
+                  "url": "https://github.com/exowner1/app"
+                }
+              ],
+              "environment": "linux",
+              "input_entries": [
+                {
+                  "name": "cost_center",
+                  "value": "ops"
+                }
+              ],
+              "inputs": {
+                "channel": "C0123",
+                "limit": "3"
+              },
+              "output": {
+                "repository": "https://github.com/exowner1/app",
+                "type": "commit"
+              },
+              "reasoning_effort": "high",
+              "stored_files": [
+                {
+                  "name": "notes.md",
+                  "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                  "size": 12
+                }
+              ]
+            }
+          }
+        ],
+        "max_contracts": 5
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "private program text"
+  ],
+  "stderr": {
+    "text": ""
+  }
+}
