@@ -1045,6 +1045,8 @@ IMP-098 measured full-target Clippy repair: root owns `cli/rust/crates/prose-cli
 
 ## IMP-098 genuine installed upgrade qualification
 
+Root additionally owns `cli/ci/npm_alias_install.py` narrowly to return the exact loopback registry URL already used for checksum-bound cache priming. The installed qualification runner must reuse that offline cache identity for actual npx execution; no publication, credential, network or package-selection behavior changes are authorized by this extension.
+
 `/root/conformance_plumbing` owns new exact paths `cli/ci/fetch_previous_release.py` and `cli/ci/test_fetch_previous_release.py` for fresh bounded downloads of the fixed pinned published RC3 manifest and exactly four native upgrade inputs. Preserve untouched bytes, reject unsafe paths/symlinks/tampering, use fixed HTTPS publication origin and checksum-bound receipts. Focused fake-download tests only; no real downloads, Git, heavy builds, credentials or paid calls by the agent. Root additionally owns `cli/ci/test_build_kernel_rc.py`, `cli/ci/check_workflows.py`, and `cli/ci/test_check_workflows.py` narrowly for integrating mandatory installed qualification and retaining native evidence.
 
 `/root/config_assessment` owns exact paths `cli/ci/homebrew_rehearsal.py` and `cli/ci/test_homebrew_rehearsal.py` for genuine pinned published 0.15.0-rc.3 to verified local newer candidate upgrades, both selected implementations, installed SDK default/helper discovery, and isolated configuration preservation through upgrade/uninstall. Reuse established tap upgrade sequencing; retain no-replacement safety and strict candidate/prior custody. No Homebrew mutation, heavy builds, Git, credentials or provider calls by the agent.

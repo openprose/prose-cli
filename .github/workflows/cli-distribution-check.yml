@@ -109,6 +109,8 @@ jobs:
           python3 -m unittest discover -s cli/ci -p test_sign_macos.py
           python3 -m unittest discover -s cli/ci -p test_build_agents_sdk.py
           python3 -m unittest discover -s cli/ci -p test_build_kernel_rc.py
+          python3 -m unittest discover -s cli/ci -p test_fetch_previous_release.py
+          python3 -m unittest discover -s cli/ci -p test_qualify_installed_sdk.py
           python3 -m unittest cli.ci.test_package_local.PackagedSdkArtifactTests
           python3 -m unittest discover -s cli/ci -p test_dependency_evidence.py
           python3 -m unittest discover -s cli/ci -p test_check_workflows.py
@@ -119,8 +121,22 @@ jobs:
         # This RC version is an unpublished construction fixture. Live model
         # qualification and reviewed publication remain separate gates.
         env:
-          RC_VERSION: '0.15.0-rc.1'
+          RC_VERSION: '0.15.0-rc.4'
         run: python3 cli/ci/build_kernel_rc.py --version "$RC_VERSION" --out "$RUNNER_TEMP/kernel-rc" --agents-sdk-python "$RUNNER_TEMP/agents-sdk-python/bin/python3"
+      - name: Fetch pinned genuine previous release inputs
+        env:
+          UPGRADE_PLATFORM: ${{ matrix.os == 'ubuntu-22.04' && 'linux-x64-gnu' || matrix.os == 'ubuntu-22.04-arm' && 'linux-arm64-gnu' || matrix.os == 'macos-15-intel' && 'darwin-x64' || 'darwin-arm64' }}
+        run: python3 cli/ci/fetch_previous_release.py --platform "$UPGRADE_PLATFORM" --out "$RUNNER_TEMP/previous-rc3"
+      - name: Qualify actual SDK installations and genuine upgrades
+        env:
+          RC_VERSION: '0.15.0-rc.4'
+          EXPECTED_SOURCE: ${{ github.sha }}
+        run: |
+          python3 cli/ci/qualify_installed_sdk.py \
+            --candidate-root "$RUNNER_TEMP/kernel-rc" --source "$EXPECTED_SOURCE" --version "$RC_VERSION" \
+            --previous-release "$RUNNER_TEMP/previous-rc3" \
+            --node "$(command -v node)" --npm "$(command -v npm)" \
+            --out "$RUNNER_TEMP/kernel-rc/installed-qualification"
       - name: Test Homebrew candidate archive admission
         run: python3 -m unittest discover -s cli/ci -p test_homebrew_rehearsal.py
       - uses: Homebrew/actions/setup-homebrew@dc7099b3e807f1e2ecc61f3ecabc840eedd5586a
@@ -131,12 +147,13 @@ jobs:
           --output "$RUNNER_TEMP/cli-homebrew-rehearsal"
       - name: Rehearse Homebrew against the production SDK archives
         env:
-          RC_VERSION: '0.15.0-rc.1'
+          RC_VERSION: '0.15.0-rc.4'
           EXPECTED_SOURCE: ${{ github.sha }}
         run: |
           "$RUNNER_TEMP/distribution-python/bin/python3" cli/ci/homebrew_rehearsal.py \
             --kernel-rc "$RUNNER_TEMP/kernel-rc" \
             --expected-source "$EXPECTED_SOURCE" --expected-version "$RC_VERSION" \
+            --previous-release "$RUNNER_TEMP/previous-rc3" \
             --output "$RUNNER_TEMP/kernel-rc/homebrew"
       - name: Retain rehearsal evidence
         if: always()
@@ -151,5 +168,7 @@ jobs:
             ${{ runner.temp }}/kernel-rc/logs
             ${{ runner.temp }}/kernel-rc/build-report.json
             ${{ runner.temp }}/kernel-rc/homebrew
+            ${{ runner.temp }}/kernel-rc/installed-qualification
+            ${{ runner.temp }}/previous-rc3
           retention-days: 14
           if-no-files-found: warn

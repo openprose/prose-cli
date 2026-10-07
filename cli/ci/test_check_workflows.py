@@ -204,6 +204,34 @@ class CurrentWorkflowPolicyTest(unittest.TestCase):
             self.changed(name, lambda w, j, i=index, a=argument: j["steps"][i].update(
                          run=j["steps"][i]["run"].replace(a, "--wrong-argument")))
 
+    def test_genuine_installed_upgrade_gates_cannot_be_bypassed(self):
+        for name in ("cli-distribution-check.yml", "cli-kernel-rc.yml"):
+            steps = self.workflows[name]["jobs"][JOBS[name]]["steps"]
+            for label in ("Fetch pinned genuine previous release inputs",
+                          "Qualify actual SDK installations and genuine upgrades"):
+                index = next(i for i, step in enumerate(steps) if step.get("name") == label)
+                self.changed(name, lambda w, j, i=index: j["steps"].pop(i))
+                self.changed(name, lambda w, j, i=index: j["steps"][i].update({"if": "false"}))
+                self.changed(name, lambda w, j, i=index: j["steps"][i].update(run="echo skipped"))
+            installed = next(i for i, step in enumerate(steps)
+                             if step.get("name") == "Qualify actual SDK installations and genuine upgrades")
+            for key in ("EXPECTED_SOURCE", "RC_VERSION"):
+                self.changed(name, lambda w, j, i=installed, k=key:
+                             j["steps"][i]["env"].update({k: "unreviewed"}))
+            for argument in ("--candidate-root", "--source", "--version", "--previous-release", "--node", "--npm"):
+                self.changed(name, lambda w, j, i=installed, a=argument:
+                             j["steps"][i].update(run=j["steps"][i]["run"].replace(a, "--wrong-argument")))
+            label = ("Rehearse Homebrew against these exact release archives" if name == "cli-kernel-rc.yml"
+                     else "Rehearse Homebrew against the production SDK archives")
+            homebrew = next(i for i, step in enumerate(steps) if step.get("name") == label)
+            self.changed(name, lambda w, j, i=homebrew:
+                         j["steps"][i].update(run=j["steps"][i]["run"].replace("--previous-release", "--wrong-argument")))
+            retention = next(i for i, step in enumerate(steps)
+                             if step.get("uses", "").startswith("actions/upload-artifact@"))
+            for path in ("${{ runner.temp }}/kernel-rc/installed-qualification", "${{ runner.temp }}/previous-rc3"):
+                self.changed(name, lambda w, j, i=retention, p=path:
+                             j["steps"][i]["with"].update(path=j["steps"][i]["with"]["path"].replace(p, "omitted")))
+
     def test_locked_dependency_guards_and_required_commands(self):
         for name in JOBS:
             if name == "cli-publish.yml":

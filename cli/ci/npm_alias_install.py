@@ -50,6 +50,6 @@ def install(meta, platform, prefix, *, env, cwd, command, log):
     offline_env = dict(cache_env, npm_config_offline='true')
     command(['npm', 'install', '--global', '--prefix', prefix, '--offline', '--ignore-scripts', '--no-audit',
              '--no-fund', meta], env=offline_env, cwd=cwd, log=log, timeout=120)
-    return {'registryScope': 'loopback-only', 'cacheRequests': requests,
+    return {'registryScope': 'loopback-only', 'registryUrl': registry, 'cacheRequests': requests,
             'installation': 'offline-original-root-tarball', 'platformVersion': version,
             'platformSha256': hashlib.sha256(payload).hexdigest()}

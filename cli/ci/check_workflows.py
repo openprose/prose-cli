@@ -333,15 +333,16 @@ def audit_workflow(name: str, text: str) -> list[str]:
             sdk_homebrew = by_name["Rehearse Homebrew against the production SDK archives"]
             require(sdk_build.get("if") is None and sdk_homebrew.get("if") is None,
                     "production SDK installations must be qualified unconditionally")
-            require(sdk_build.get("env") == {"RC_VERSION": "0.15.0-rc.1"}
+            require(sdk_build.get("env") == {"RC_VERSION": "0.15.0-rc.4"}
                     and sdk_build.get("run") ==
                     'python3 cli/ci/build_kernel_rc.py --version "$RC_VERSION" --out "$RUNNER_TEMP/kernel-rc" --agents-sdk-python "$RUNNER_TEMP/agents-sdk-python/bin/python3"',
                     "production SDK must use the native source-bound RC builder")
-            require(sdk_homebrew.get("env") == {"RC_VERSION": "0.15.0-rc.1", "EXPECTED_SOURCE": "${{ github.sha }}"}
+            require(sdk_homebrew.get("env") == {"RC_VERSION": "0.15.0-rc.4", "EXPECTED_SOURCE": "${{ github.sha }}"}
                     and sdk_homebrew.get("run") ==
                     '"$RUNNER_TEMP/distribution-python/bin/python3" cli/ci/homebrew_rehearsal.py \\\n'
                     '  --kernel-rc "$RUNNER_TEMP/kernel-rc" \\\n'
                     '  --expected-source "$EXPECTED_SOURCE" --expected-version "$RC_VERSION" \\\n'
+                    '  --previous-release "$RUNNER_TEMP/previous-rc3" \\\n'
                     '  --output "$RUNNER_TEMP/kernel-rc/homebrew"\n',
                     "production Homebrew must bind current source and exact SDK archives")
             retention = next(step for step in steps if step.get("uses", "").startswith("actions/upload-artifact@"))
@@ -355,6 +356,34 @@ def audit_workflow(name: str, text: str) -> list[str]:
                     "freeze/install SDK before exact archive Homebrew checks and retention")
         if name in ("cli-distribution-check.yml", "cli-kernel-rc.yml"):
             kernel_rc = name == "cli-kernel-rc.yml"
+            previous = by_name["Fetch pinned genuine previous release inputs"]
+            installed = by_name["Qualify actual SDK installations and genuine upgrades"]
+            production_build = by_name["Build and verify fresh standalone and npm installations" if kernel_rc
+                                       else "Build and verify production SDK standalone and npm installations"]
+            production_homebrew = by_name["Rehearse Homebrew against these exact release archives" if kernel_rc
+                                          else "Rehearse Homebrew against the production SDK archives"]
+            require(previous.get("if") is None and installed.get("if") is None,
+                    "genuine installed upgrade qualification must be unconditional")
+            platform = ("${{ matrix.platform }}${{ runner.os == 'Linux' && '-gnu' || '' }}" if kernel_rc
+                        else "${{ matrix.os == 'ubuntu-22.04' && 'linux-x64-gnu' || matrix.os == 'ubuntu-22.04-arm' && 'linux-arm64-gnu' || matrix.os == 'macos-15-intel' && 'darwin-x64' || 'darwin-arm64' }}")
+            require(previous.get("env") == {"UPGRADE_PLATFORM": platform}
+                    and previous.get("run") ==
+                    'python3 cli/ci/fetch_previous_release.py --platform "$UPGRADE_PLATFORM" --out "$RUNNER_TEMP/previous-rc3"',
+                    "prior upgrade inputs must use the fixed native published release")
+            version = "${{ inputs.version || '0.15.0-rc.4' }}" if kernel_rc else "0.15.0-rc.4"
+            require(installed.get("env") == {"RC_VERSION": version, "EXPECTED_SOURCE": "${{ github.sha }}"}
+                    and installed.get("run") ==
+                    'python3 cli/ci/qualify_installed_sdk.py \\\n'
+                    '  --candidate-root "$RUNNER_TEMP/kernel-rc" --source "$EXPECTED_SOURCE" --version "$RC_VERSION" \\\n'
+                    '  --previous-release "$RUNNER_TEMP/previous-rc3" \\\n'
+                    '  --node "$(command -v node)" --npm "$(command -v npm)" \\\n'
+                    '  --out "$RUNNER_TEMP/kernel-rc/installed-qualification"\n',
+                    "installed qualification must bind exact source, version and genuine prior bytes")
+            require(steps.index(previous) < steps.index(installed)
+                    and steps.index(production_build) < steps.index(installed) < steps.index(production_homebrew),
+                    "qualify current native installations before genuine Homebrew upgrades")
+            require('--previous-release "$RUNNER_TEMP/previous-rc3"' in production_homebrew.get("run", ""),
+                    "production Homebrew must exercise a genuine prior-version upgrade")
             label = ("Rehearse Homebrew against these exact release archives" if kernel_rc
                      else "Rehearse Homebrew against this build's verified native archives")
             homebrew = by_name[label]
@@ -368,7 +397,7 @@ def audit_workflow(name: str, text: str) -> list[str]:
             if kernel_rc:
                 fragments += ['--kernel-rc "$RUNNER_TEMP/kernel-rc"', '--expected-source "$EXPECTED_SOURCE"',
                               '--expected-version "$RC_VERSION"', '--output "$RUNNER_TEMP/kernel-rc/homebrew"']
-                require(homebrew.get("env") == {"RC_VERSION": "${{ inputs.version || '0.15.0-rc.1' }}",
+                require(homebrew.get("env") == {"RC_VERSION": "${{ inputs.version || '0.15.0-rc.4' }}",
                                                "EXPECTED_SOURCE": "${{ github.sha }}"},
                         "exact release Homebrew admission must bind workflow source/version")
                 evidence_path = "${{ runner.temp }}/kernel-rc/homebrew"
@@ -379,6 +408,9 @@ def audit_workflow(name: str, text: str) -> list[str]:
                     "Homebrew admission must use pinned Python and verified archive custody")
             require(evidence_path in retention.get("with", {}).get("path", "").splitlines(),
                     "retain Homebrew custody and cleanup results")
+            require(all(path in retention.get("with", {}).get("path", "").splitlines() for path in
+                        ("${{ runner.temp }}/kernel-rc/installed-qualification", "${{ runner.temp }}/previous-rc3")),
+                    "retain exact prior upgrade inputs and installed qualification evidence")
         require(
             any(
                 step.get("uses", "").startswith("actions/upload-artifact@")
