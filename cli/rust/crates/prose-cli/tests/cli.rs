@@ -4525,7 +4525,14 @@ fn compiled_commit_identity_is_exact_in_success_failure_and_stream_results() {
 
     let failure = prose(
         temp.path(),
-        &["--output", "json", "run", "fixture.prose.md"],
+        &[
+            "--harness",
+            "openprose",
+            "--output",
+            "json",
+            "run",
+            "fixture.prose.md",
+        ],
     );
     assert_eq!(failure.status.code(), Some(10));
     assert_eq!(json_stdout(&failure)["runner"]["commit"], expected);

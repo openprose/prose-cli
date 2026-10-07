@@ -1045,6 +1045,8 @@ IMP-098 measured full-target Clippy repair: root owns `cli/rust/crates/prose-cli
 
 ## IMP-098 genuine installed upgrade qualification
 
+IMP-098 measured full-admission Rust identity reconciliation: root owns only `compiled_commit_identity_is_exact_in_success_failure_and_stream_results` in `cli/rust/crates/prose-cli/tests/cli.rs` to select the existing hosted failure explicitly. Full admission 2 passed 82 CLI tests and failed this runner-result commit assertion because the new SDK missing-key preflight returns its reviewed bare error. Preserve every commit/build/stream assertion; shared SDK credential cases remain exact. No product behavior or schema change.
+
 IMP-098 measured full-admission oracle reconciliation: `/root/conformance_plumbing` owns `cli/shared/fixtures/adapters/generate.py` and `cli/shared/fixtures/adapters/bin/adapter_probe.py` narrowly to make generated SDK scenario bytes and executable provider-free probe agree with the already reviewed SDK observation records. Full admission 1 failed only the generated-fixture drift and exact SDK probe comparisons at this gate. Preserve the existing scenario observations, exact oracle tests, raw usage/model identity controls, other adapter output and launch/canary/privacy checks. No product changes, Git, heavy builds or providers; root retains scenario expectations and the oracle test.
 
 Root additionally owns `cli/ci/npm_alias_install.py` narrowly to return the exact loopback registry URL already used for checksum-bound cache priming. The installed qualification runner must reuse that offline cache identity for actual npx execution; no publication, credential, network or package-selection behavior changes are authorized by this extension.
