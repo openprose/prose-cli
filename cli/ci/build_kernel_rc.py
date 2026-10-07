@@ -288,7 +288,7 @@ def build(version, output, *, agents_sdk_python=None, linux_python_archive=None)
                                   command=command, log=logs / 'npm-install.log', sdk_manifest=manifest)
     (logs / 'npm-alias-install.json').write_text(json.dumps(alias_install, sort_keys=True) + '\n')
     node = shutil.which('node', path=env.get('PATH')); require(node, 'Node is required for npm launcher')
-    installed_helpers = [prefix / 'lib/node_modules/@openprose' / ('prose-cli-' + manifest['platform']) / 'bin/prose-agents-sdk']
+    installed_helpers = [prefix / 'lib/node_modules/@openprose/prose-cli/node_modules/@openprose' / ('prose-cli-' + manifest['platform']) / 'bin/prose-agents-sdk']
     require(installed_helpers[0].is_file() and not installed_helpers[0].is_symlink(),
             'npm installation requires one package-owned SDK helper')
     sdk_before = installed_sdk_identity(installed_helpers[0].parent, manifest)
