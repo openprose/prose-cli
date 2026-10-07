@@ -111,9 +111,11 @@ def environment(output, ambient):
     env = {k: ambient[k] for k in ('PATH', 'DEVELOPER_DIR', 'SDKROOT', 'SYSTEMROOT') if k in ambient}
     home = output / 'home'; home.mkdir()
     tmp = output / 'tmp'; tmp.mkdir()
+    # PyInstaller may leave this cache unused on Linux; cleanup still owns it.
+    cache = output / 'pyinstaller-cache'; cache.mkdir()
     env.update(HOME=str(home), TMPDIR=str(tmp), LANG='C.UTF-8', PYTHONHASHSEED='0',
                PYTHONNOUSERSITE='1', PYTHONDONTWRITEBYTECODE='1', SOURCE_DATE_EPOCH='0',
-               PYINSTALLER_CONFIG_DIR=str(output / 'pyinstaller-cache'))
+               PYINSTALLER_CONFIG_DIR=str(cache))
     return env
 
 

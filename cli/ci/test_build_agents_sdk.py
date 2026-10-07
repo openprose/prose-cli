@@ -37,6 +37,42 @@ class BuildSdkTests(unittest.TestCase):
             self.assertNotIn('LD_LIBRARY_PATH', env)
             self.assertEqual(env['HOME'], str(Path(temp) / 'home'))
 
+    def test_build_environment_owns_fresh_cache_even_when_freezer_never_uses_it(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            ambient_cache = root / 'ambient-cache'; ambient_cache.mkdir()
+            marker = ambient_cache / 'preserve'; marker.write_bytes(b'ambient')
+            for name in ('first', 'second'):
+                output = root / name; output.mkdir()
+                env = sdk.environment(output, {'PATH': '/usr/bin:/bin',
+                    'PYINSTALLER_CONFIG_DIR': str(ambient_cache), 'OPENAI_API_KEY': 'fixture-secret'})
+                cache = output / 'pyinstaller-cache'
+                self.assertEqual(str(cache), env['PYINSTALLER_CONFIG_DIR'])
+                self.assertTrue(cache.is_dir())
+                self.assertFalse(cache.is_symlink())
+                self.assertEqual([], list(cache.iterdir()))
+                self.assertNotIn('OPENAI_API_KEY', env)
+                # The production cleanup remains strict even if PyInstaller wrote nothing.
+                sdk.shutil.rmtree(cache)
+                self.assertFalse(cache.exists())
+                with self.assertRaises(FileNotFoundError):
+                    sdk.shutil.rmtree(cache)
+            self.assertEqual(b'ambient', marker.read_bytes())
+
+    def test_build_environment_refuses_preexisting_cache_directory_or_symlink(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            foreign = root / 'foreign'; foreign.mkdir()
+            marker = foreign / 'preserve'; marker.write_bytes(b'foreign')
+            for kind in ('directory', 'symlink'):
+                output = root / kind; output.mkdir()
+                cache = output / 'pyinstaller-cache'
+                if kind == 'directory': cache.mkdir()
+                else: cache.symlink_to(foreign, target_is_directory=True)
+                with self.subTest(kind=kind), self.assertRaises(FileExistsError):
+                    sdk.environment(output, {'PATH': '/usr/bin:/bin'})
+            self.assertEqual(b'foreign', marker.read_bytes())
+
     def test_release_builder_rejects_wrong_python_before_writing(self):
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp) / 'out'
