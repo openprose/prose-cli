@@ -4824,8 +4824,6 @@ process.stdout.write(JSON.stringify({ spawned, stderr, exitCode: fakeProcess.exi
         self.assertFalse(manifest["externalGates"]["authorityValidatedByPackager"])
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 class PackagedSdkArtifactTests(unittest.TestCase):
     def test_release_requires_packaged_helper_before_other_work(self):
@@ -4866,3 +4864,7 @@ class PackagedSdkArtifactTests(unittest.TestCase):
                     self.assertTrue(member.isfile())
                     self.assertEqual(member.mode, mode)
                     self.assertEqual(source.extractfile(member).read(), data)
+
+
+if __name__ == "__main__":
+    unittest.main()

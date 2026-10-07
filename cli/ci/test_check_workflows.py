@@ -393,8 +393,6 @@ class CurrentWorkflowPolicyTest(unittest.TestCase):
         self.changed(name, lambda w, j: j["steps"].reverse())
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class HomebrewActionAdmissionTest(unittest.TestCase):
@@ -405,3 +403,7 @@ class HomebrewActionAdmissionTest(unittest.TestCase):
         self.assertEqual([], audit_workflow("cli-distribution-check.yml", text))
         for replacement in ("Homebrew/actions/setup-homebrew@main", "Homebrew/actions/setup-homebrew@" + "0" * 40):
             self.assertTrue(audit_workflow("cli-distribution-check.yml", text.replace(reviewed, replacement)))
+
+
+if __name__ == "__main__":
+    unittest.main()

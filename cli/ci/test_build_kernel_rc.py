@@ -110,8 +110,6 @@ class KernelRCBuildTests(unittest.TestCase):
                 rc.verified_artifacts(root)
 
 
-if __name__ == '__main__':
-    unittest.main()
 
 class KernelRCSdkExtractionTests(unittest.TestCase):
     archive = KernelRCBuildTests.archive
@@ -131,3 +129,7 @@ class KernelRCSdkExtractionTests(unittest.TestCase):
             executable = rc.extract_binary(archive, root / 'install/prose', require_sdk=True)
             self.assertEqual({p.name for p in executable.parent.iterdir()}, set(names))
             self.assertTrue(os.access(executable.parent / 'prose-agents-sdk', os.X_OK))
+
+
+if __name__ == '__main__':
+    unittest.main()
