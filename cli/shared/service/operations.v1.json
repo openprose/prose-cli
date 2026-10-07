@@ -4656,7 +4656,8 @@
             "model": "{model}",
             "reasoning_effort": "{reasoning_effort}",
             "environment": "{environment}",
-            "repositories": "1"
+            "repositories": "1",
+            "job_type": "{job_type}"
           },
           "auth": "none",
           "body": null,

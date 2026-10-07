@@ -1147,13 +1147,18 @@ fn quote(context: &mut Context<'_>, spec: &Map<String, Value>) -> Result<Value, 
     };
     let repositories_bound =
         text("repository_url").is_some() || text("context_repository_url").is_some();
-    let request = super::runs::hold_query(
+    let mut request = super::runs::hold_query(
         Request::from_manifest(context.operation, 0, "/run/quote"),
         text("model"),
         text("reasoning_effort"),
         text("environment"),
         repositories_bound,
     );
+    // The job's type lets the service price the model a job of that type
+    // runs on when the spec names none.
+    if let Some(job_type) = text("type") {
+        request = request.query("job_type", job_type.to_owned());
+    }
     let body = context.send(&request)?.json_object()?;
     let hold = object(body.get("hold").unwrap_or(&Value::Null), "quote.hold")?;
     let hold_usd = hold

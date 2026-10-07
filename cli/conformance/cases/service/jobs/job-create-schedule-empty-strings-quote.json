@@ -2,7 +2,7 @@
   "id": "job-create-schedule-empty-strings-quote",
   "feature": "jobs",
   "operation": "job.create",
-  "description": "Empty spec strings are not hold options: a schedule with an empty model, reasoning_effort, environment and repository_url quotes with no parameters.",
+  "description": "Empty spec strings are not hold options: a schedule with an empty model, environment and repository_url quotes with no parameters.",
   "argv": [
     "--output",
     "json",
@@ -29,6 +29,9 @@
       {
         "method": "GET",
         "path": "/run/quote",
+        "query": {
+          "job_type": "schedule"
+        },
         "status": 200,
         "body": {
           "hold": {

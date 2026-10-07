@@ -73,7 +73,12 @@ printf '%s' '{"type":"webhook","delivery_mode":"test","name":"my-hook"}' \
   `GET /run/quote` with the spec's `model`, `reasoning_effort` and
   `environment`, and `repositories=1` when it names a `repository_url` or
   `context_repository_url`; the program's own run settings and declared tools
-  are not included). With `--yes` no quote is read. A webhook with no
+  are not included), plus `job_type` (the spec's `type`) so the service can
+  price the model a job of that type runs on when the spec names none. A
+  service that does not read `job_type` prices its default run model instead,
+  which can differ from the default job model of a webhook or email job; give
+  `model` in the spec for an exact hold there.
+  With `--yes` no quote is read. A webhook with no
   `program_ref` starts no runs: its plan has effect `write`, no quote is read
   and no hold is shown.
 - `prose cli job create --help` prints minimal schedule and webhook specs and

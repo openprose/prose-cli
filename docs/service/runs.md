@@ -4,7 +4,7 @@
 
 | Command | What it does | `--yes` |
 | --- | --- | --- |
-| `cli run quote [--environment ENV]` | The wallet hold a run reserves while live (price-free: holds only). `ENV` must be advertised by `/health`. | no |
+| `cli run quote [--model MODEL] [--reasoning-effort EFFORT] [--environment ENV] [--repo OWNER/NAME[@BRANCH]]...` | The wallet hold a run reserves while live (price-free: holds only), for the options given. `ENV` must be advertised by `/health`. | no |
 | `cli run submit FILE\|- \| --from OWNER/SLUG[@REV] [options]` | Submit and stream until the run finishes, `--detach`, the `--wait` deadline, or an interrupt. | **yes** |
 | `cli run watch RUN_ID [--after N] [--wait DUR] [--session UUID]` | Replay events after sequence `N`, then follow live. Without a live session on this machine, report an ended run's outcome from its record. | no |
 | `cli run input RUN_ID TEXT [--id UUID] [--session UUID]` | Queue an instruction for a live run. A run that already ended is refused (`SERVICE_WRITE_CONFLICT`, not retryable), from any machine. | **yes** |

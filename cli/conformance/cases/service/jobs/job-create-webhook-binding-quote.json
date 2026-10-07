@@ -32,7 +32,8 @@
         "query": {
           "model": "model-sol",
           "reasoning_effort": "high",
-          "repositories": "1"
+          "repositories": "1",
+          "job_type": "webhook"
         },
         "requestHeaders": {
           "Authorization": {

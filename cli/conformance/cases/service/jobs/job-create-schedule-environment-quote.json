@@ -31,7 +31,8 @@
         "path": "/run/quote",
         "query": {
           "environment": "linux",
-          "repositories": "1"
+          "repositories": "1",
+          "job_type": "schedule"
         },
         "status": 200,
         "body": {

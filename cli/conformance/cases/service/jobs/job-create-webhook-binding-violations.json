@@ -1,0 +1,67 @@
+{
+  "id": "job-create-webhook-binding-violations",
+  "feature": "jobs",
+  "operation": "job.create",
+  "description": "A webhook spec's binding keys are checked locally: an unknown reasoning_effort, a non-object output and an unknown key are reported at once, and the accepted keys include the binding keys.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "job",
+    "create",
+    "--spec-file",
+    "spec.json",
+    "--preview"
+  ],
+  "files": [
+    {
+      "path": "spec.json",
+      "content": "{\"type\": \"webhook\", \"name\": \"hook\", \"delivery_mode\": \"test\", \"program_ref\": \"exowner1/jobs-example@0123456789abcdef\", \"reasoning_effort\": \"extreme\", \"output\": \"yes\", \"colour\": \"red\"}"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "job.deploy",
+      "operation": "job.create",
+      "problem": {
+        "action": "Correct the value named in Detail; `prose --output json cli job create --help` shows the accepted syntax.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "3 problems in --spec-file \"spec.json\": (1) unknown key colour in a webhook job spec (accepted: delivery_mode, environment, files, inputs, model, name, output, program_ref, reasoning_effort, receiver, receiver_secret, reply, reply_secret, repository_branch, repository_url, type) (2) output must be an object (3) reasoning_effort must be one of minimal, low, medium, high, xhigh",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "job",
+            "create",
+            "--help"
+          ],
+          "violations": [
+            "unknown key colour in a webhook job spec (accepted: delivery_mode, environment, files, inputs, model, name, output, program_ref, reasoning_effort, receiver, receiver_secret, reply, reply_secret, repository_branch, repository_url, type)",
+            "output must be an object",
+            "reasoning_effort must be one of minimal, low, medium, high, xhigh"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "stderr": {
+    "text": ""
+  }
+}

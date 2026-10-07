@@ -596,7 +596,7 @@ function specString(spec: JsonObject, key: string): string | undefined {
  * those the spec gives); the price policy reference stays internal.
  */
 async function quote(context: Context, spec: JsonObject): Promise<JsonObject> {
-  const repository = (key: string): boolean => (specString(spec, key) ?? "").length > 0;
+  const repository = (key: string): boolean => specString(spec, key) !== undefined;
   const request = requestFor(context.operation, 0, "/run/quote");
   request.query.push(...holdQuery({
     model: specString(spec, "model"),
@@ -604,6 +604,10 @@ async function quote(context: Context, spec: JsonObject): Promise<JsonObject> {
     environment: specString(spec, "environment"),
     repositoriesBound: repository("repository_url") || repository("context_repository_url"),
   }));
+  // The job's type lets the service price the model a job of that type runs
+  // on when the spec names none.
+  const jobType = specString(spec, "type");
+  if (jobType !== undefined) request.query.push(["job_type", jobType]);
   const body = jsonObject(await context.send(request));
   const hold = object(body.hold ?? null, "quote.hold");
   const holdUsd = hold.hold_usd;
