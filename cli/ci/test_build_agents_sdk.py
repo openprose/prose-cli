@@ -149,3 +149,73 @@ sys.modules['sdk_tool_selftest'] = selftest
                 with self.assertRaisesRegex(ValueError, 'Developer ID'):
                     sdk.build(Path(temp) / 'out', codesign_identity=identity)
                 self.assertFalse((Path(temp) / 'out').exists())
+
+    def test_linux_hooks_are_paired_platform_scoped_and_required_before_output(self):
+        with tempfile.TemporaryDirectory() as temp:
+            for host, supplier, origin, reason in (('darwin', Path('/fixture'), Path('/origin'), 'Linux-only'),
+                    ('linux', None, None, 'requires explicit'), ('linux', Path('/fixture'), None, 'supplied together')):
+                with self.subTest(host=host, reason=reason), mock.patch.object(sdk.sys, 'platform', host), \
+                        mock.patch.object(sdk.platform, 'python_version', return_value='3.10.20'), \
+                        mock.patch.object(sdk.platform, 'machine', return_value='x86_64'):
+                    output = Path(temp) / 'out'
+                    with self.assertRaisesRegex(ValueError, reason):
+                        sdk.build(output, linux_libgcc=supplier, linux_native_origin=origin)
+                    self.assertFalse(output.exists())
+
+    def test_linux_build_binds_toc_archive_extracted_bytes_and_source_snapshot(self):
+        from test_sdk_native_inventory import input_fixture
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            value, origin_path, supplier, source = input_fixture(root)
+            for relative in sdk.native.SOURCE_PATHS:
+                (source / relative).write_bytes((sdk.ROOT / relative).read_bytes())
+            value['sourceSnapshot']['sources'] = {name: sdk.digest(source / name) for name in sdk.native.SOURCE_PATHS}
+            origin_path.write_text(json.dumps(value))
+            rows = [sdk.native.elf_record('libgcc_s.so.1', supplier.read_bytes())]
+            report = {'schema': 'openprose.sdk-packaged-libraries/1', 'elfCount': 1,
+                      'requiredGlibcMaximum': '2.17', 'libraries': rows, 'modelCalls': 0}
+            executed = []
+            def simulated_run(command, *, env, cwd, log, timeout=900):
+                executed.append((command, timeout))
+                self.assertNotIn('OPENAI_API_KEY', env)
+                if '-m' in command:
+                    self.assertIn('--add-binary', command)
+                    index = command.index('--add-binary')
+                    self.assertEqual(command[index + 1], str(supplier) + sdk.os.pathsep + '.')
+                    self.assertEqual((cwd / 'sdk_native_inventory.py').read_bytes(), Path(sdk.native.__file__).read_bytes())
+                    (cwd / 'dist').mkdir(); (cwd / 'dist' / sdk.NAME).write_bytes(b'nonexecuted fixture helper')
+                    work = cwd / 'work' / sdk.NAME; work.mkdir(parents=True)
+                    (work / 'Analysis-00.toc').write_text(repr(([], [('libgcc_s.so.1', str(supplier), 'BINARY')])))
+                    log.write_text('simulated freeze')
+                elif '--packaged-self-test' in command:
+                    log.write_text(json.dumps({'schema':'openprose.sdk-packaged-self-test/1','openaiAgents':'0.22.2','openai':'3.13.0','certificates':True,'modelCalls':0}))
+                elif '--packaged-tool-self-test' in command:
+                    log.write_text(json.dumps({'schema':'openprose.sdk-packaged-tools-self-test/1','shellEffects':True,'boundedOutput':True,'shellCancellation':True,'mockedPublicRetrieval':True,'incompleteHttpRejected':True,'modelCalls':0,'networkUsed':False}))
+                elif '--version' in command: log.write_text('prose-agents-sdk 0.1.0\n')
+                elif '--packaged-library-test' in command: log.write_text(json.dumps(report))
+                else: self.fail('Unexpected simulated command')
+            with mock.patch.object(sdk.sys, 'platform', 'linux'), \
+                    mock.patch.object(sdk.platform, 'machine', return_value='x86_64'), \
+                    mock.patch.object(sdk.platform, 'python_version', return_value='3.10.20'), \
+                    mock.patch.object(sdk, 'ROOT', source), mock.patch.object(sdk, 'SOURCE', source / 'harnesses/agents-sdk/run.py'), \
+                    mock.patch.object(sdk, 'LOCK', source / 'harnesses/agents-sdk/requirements-build.txt'), \
+                    mock.patch.object(sdk, 'lock_packages', return_value=[]), \
+                    mock.patch.object(sdk, 'installed_inventory', return_value=b'fixture notices'), \
+                    mock.patch.object(sdk.metadata, 'version', return_value='6.22.3'), \
+                    mock.patch.object(sdk, 'inspect_archive', return_value=rows), \
+                    mock.patch.object(sdk, 'run', side_effect=simulated_run), \
+                    mock.patch.object(sdk.shutil, 'disk_usage', return_value=mock.Mock(free=1024**3)):
+                output = root / 'out'
+                receipt = sdk.build(output, linux_libgcc=supplier, linux_native_origin=origin_path)
+                self.assertEqual(receipt['linuxBuildInputSha256'], sdk.digest(origin_path))
+                self.assertEqual(receipt['linuxBuildSourceSnapshot'], value['sourceSnapshot'])
+                self.assertTrue(receipt['nativeDependencies']['symbolClosureVerified'])
+                self.assertEqual(receipt['nativeDependencies']['libraries'][0]['origin'], 'supplier')
+                self.assertIn(b'GCC RUNTIME LIBRARY EXCEPTION', (output / sdk.NOTICES).read_bytes())
+                self.assertIn(b'gcc-8.5.0-fixture.src.rpm', (output / sdk.NOTICES).read_bytes())
+                self.assertFalse((output / 'work').exists())
+                self.assertEqual([timeout for command, timeout in executed if '--version' in command], [5])
+                report['libraries'] = []
+                with self.assertRaisesRegex(ValueError, 'membership differs'):
+                    sdk.build(root / 'mismatch', linux_libgcc=supplier, linux_native_origin=origin_path)
+                self.assertFalse((root / 'mismatch' / sdk.RECEIPT).exists())

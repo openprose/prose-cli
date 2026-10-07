@@ -13,6 +13,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import sdk_native_inventory as native
 
 ROOT = Path(__file__).resolve().parents[2]
 LOCK = ROOT / 'harnesses/agents-sdk/requirements-build.txt'
@@ -35,16 +36,8 @@ ENTRY_SOURCE = (
     ' import sdk_tool_selftest\n'
     ' sdk_tool_selftest.main()\n'
     "elif '--packaged-library-test' in sys.argv:\n"
-    ' import json, pathlib, re\n'
-    ' versions=[]; count=0\n'
-    " for path in pathlib.Path(sys._MEIPASS).rglob('*'):\n"
-    '  if path.is_file() and not path.is_symlink() and path.stat().st_size<=268435456:\n'
-    "   with path.open('rb') as stream:\n"
-    "    if stream.read(4)!=b'\\x7fELF': continue\n"
-    '    data=stream.read()\n'
-    '   count+=1\n'
-    "   versions.extend(tuple(int(x) for x in v.split(b'.')) for v in re.findall(rb'GLIBC_([0-9]+\\.[0-9]+(?:\\.[0-9]+)?)',data))\n"
-    " print(json.dumps({'schema':'openprose.sdk-packaged-libraries/1','elfCount':count,'requiredGlibcMaximum':'.'.join(str(x) for x in max(versions)) if versions else None,'modelCalls':0},sort_keys=True))\n"
+    ' import json, sdk_native_inventory\n'
+    ' print(json.dumps(sdk_native_inventory.inspect_tree(sys._MEIPASS),sort_keys=True))\n'
     'else:\n'
     ' import runpy\n'
     " runpy.run_module('prose_sdk_runtime',run_name='__main__')\n"
@@ -174,11 +167,38 @@ def run(command, *, env, cwd, log, timeout=900):
     require(completed.returncode == 0, 'SDK build command failed; inspect ' + str(log))
 
 
-def build(output, *, epoch=0, codesign_identity=None):
+def inspect_archive(helper):
+    from PyInstaller.archive.readers import CArchiveReader
+    native.read_file(helper)
+    archive = CArchiveReader(str(helper)); rows = []; total_bytes = 0
+    for name, entry in sorted(archive.toc.items()):
+        native.safe_path(name)
+        if entry[-1] != 'b': continue
+        native.require(type(entry[2]) is int and 0 <= entry[2] <= native.MAX_BYTES, 'Oversized native archive declaration')
+        total_bytes += entry[2]
+        native.require(total_bytes <= 768 * 1024 * 1024, 'Native archive extraction exceeds bound')
+        data = archive.extract(name)
+        native.require(len(data) == entry[2], 'Native archive size declaration mismatch')
+        native.require(len(data) <= native.MAX_BYTES, 'Oversized frozen archive member')
+        if data[:4] == b'\x7fELF': rows.append(native.elf_record(name, data))
+        native.require(len(rows) <= native.MAX_FILES, 'Too many native archive members')
+    return rows
+
+
+def build(output, *, epoch=0, codesign_identity=None, linux_libgcc=None, linux_native_origin=None):
     require(platform.python_version() == '3.10.20', 'SDK release builder requires Python 3.10.20')
     require(sys.platform in ('darwin', 'linux') and platform.machine() in ('arm64', 'aarch64', 'x86_64'), 'SDK builder requires native supported POSIX host')
     if codesign_identity is not None:
         require(sys.platform == 'darwin' and re.fullmatch(r'Developer ID Application: [^\r\n]+ \([A-Z0-9]{10}\)', codesign_identity), 'SDK signing requires a macOS Developer ID Application identity')
+    require((linux_libgcc is None) == (linux_native_origin is None), 'Linux native hooks must be supplied together')
+    require(sys.platform == 'linux' or linux_libgcc is None, 'Linux native hooks are Linux-only')
+    require(sys.platform != 'linux' or linux_libgcc is not None, 'Linux build requires explicit libgcc supplier and native origin')
+    native_input = None
+    if linux_libgcc is not None:
+        target = 'linux-arm64-gnu' if platform.machine() == 'aarch64' else 'linux-x64-gnu'
+        native_input, native_input_sha, supplier_texts = native.validate_input(linux_native_origin, linux_libgcc, ROOT, target)
+        supplier_row = native.elf_record('libgcc_s.so.1', native.read_file(linux_libgcc))
+        require(supplier_row['machine'] == (183 if target == 'linux-arm64-gnu' else 62), 'Supplier machine differs from target')
     require(not output.exists() and not output.is_symlink(), 'SDK output must be fresh')
     require(epoch >= 0, 'Source date epoch must be non-negative')
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -186,6 +206,15 @@ def build(output, *, epoch=0, codesign_identity=None):
             'SDK freeze requires at least 512 MiB free scratch space')
     packages = lock_packages()
     notices = installed_inventory(packages)
+    if native_input is not None:
+        origin = native_input['libgcc']
+        supplier_header = json.dumps({'package': origin['package'], 'library': origin['library'], 'image': native_input['images']['supplier']}, sort_keys=True)
+        python_origin, _ = native.python_origin(native_input)
+        texts = ['Actual libgcc supplier provenance: ' + supplier_header, *supplier_texts,
+                 'Full Python native provenance: ' + json.dumps(python_origin, sort_keys=True)]
+        python_root = Path(native_input['pythonDistribution']['root'])
+        texts += [native.read_file(python_root / row['path'], 1024 * 1024).decode('utf-8') for row in python_origin['licenses']]
+        notices += ('\n' + '\n'.join(texts) + '\n').encode('utf-8')
     output.mkdir(parents=True)
     env = environment(output, os.environ); env['SOURCE_DATE_EPOCH'] = str(epoch)
     (output / NOTICES).write_bytes(notices)
@@ -197,12 +226,21 @@ def build(output, *, epoch=0, codesign_identity=None):
     # Snapshot the concurrently maintained runtime before freezing. Receipt binds exact bytes.
     source_copy = output / 'prose_sdk_runtime.py'; source_copy.write_bytes(SOURCE.read_bytes())
     source_sha = digest(source_copy)
+    native_source = Path(native.__file__)
+    (output / 'sdk_native_inventory.py').write_bytes(native.read_file(native_source))
+    if native_input is not None:
+        require(source_sha == native_input['sourceSnapshot']['sources']['harnesses/agents-sdk/run.py'] and
+                digest(output / 'sdk_native_inventory.py') == native_input['sourceSnapshot']['sources']['cli/ci/sdk_native_inventory.py'],
+                'Frozen source copies differ from bound source snapshot')
     args = [sys.executable, '-m', 'PyInstaller', '--clean', '--noconfirm', '--onefile', '--noupx',
             '--name', NAME, '--distpath', output / 'dist', '--workpath', output / 'work',
             '--specpath', output, '--paths', output, '--hidden-import', 'prose_sdk_runtime',
             '--collect-all', 'agents', '--collect-all', 'openai', '--collect-all', 'certifi',
             '--copy-metadata', 'openai-agents', '--copy-metadata', 'openai',
             '--add-data', str(output / NOTICES) + os.pathsep + '.', entry]
+    args.extend(['--hidden-import', 'sdk_native_inventory'])
+    if native_input is not None:
+        args.extend(['--add-binary', str(linux_libgcc) + os.pathsep + '.'])
     if codesign_identity is not None:
         args.extend(['--codesign-identity', codesign_identity])
     for package in packages:
@@ -210,6 +248,17 @@ def build(output, *, epoch=0, codesign_identity=None):
     run(args, env=env, cwd=output, log=output / 'freeze.log')
     helper = output / NAME; shutil.copyfile(output / 'dist' / NAME, helper); helper.chmod(0o755)
     require(0 < helper.stat().st_size <= MAX_BYTES, 'Frozen SDK helper exceeds size limit')
+    native_dependencies = None
+    if native_input is not None:
+        toc_sha = native.verify_analysis_toc(output / 'work' / NAME / 'Analysis-00.toc', linux_libgcc)
+        archive_rows = inspect_archive(helper)
+        native.verify_closure(archive_rows, target)
+        origin_rows, origins = native.assign_origins(archive_rows, native_input, packages, metadata.distribution)
+        native_dependencies = {'libraries': origin_rows, 'symbolClosureVerified': True,
+            'libgccSelection': {'path': 'libgcc_s.so.1', 'sha256': supplier_row['sha256'],
+                               'byteLength': supplier_row['byteLength'], 'analysisTocSha256': toc_sha},
+            'origins': origins}
+        native.validate_native_dependencies(native_dependencies, target)
     # Disposable build caches duplicate the frozen payload and need not accompany receipts.
     for directory in ('dist', 'work', 'pyinstaller-cache'):
         shutil.rmtree(output / directory)
@@ -230,6 +279,7 @@ def build(output, *, epoch=0, codesign_identity=None):
         linux_libraries = json.loads((output / 'libraries.json').read_text())
         require(linux_libraries.get('elfCount', 0) > 0 and linux_libraries.get('requiredGlibcMaximum') is not None,
                 'Missing frozen Linux library inspection')
+        require(linux_libraries.get('libraries') == archive_rows, 'Frozen extracted native membership differs from archive')
         maximum = tuple(int(x) for x in linux_libraries['requiredGlibcMaximum'].split('.'))
         require(maximum <= (2, 34), 'Frozen SDK libraries require glibc newer than 2.34')
     if sys.platform == 'darwin':
@@ -245,6 +295,14 @@ def build(output, *, epoch=0, codesign_identity=None):
                'toolSelfTest': tool_self_test,
                'linuxLibraries': linux_libraries, 'pythonExecutableSha256': digest(Path(sys.executable).resolve()),
                'authority': 'local-build-and-imports-only', 'publicationAuthorized': False}
+    if native_input is not None:
+        final_input, final_sha, _ = native.validate_input(linux_native_origin, linux_libgcc, ROOT, target)
+        final_rows, final_origins = native.assign_origins(archive_rows, final_input, packages, metadata.distribution)
+        require(final_rows == origin_rows and final_origins == origins, 'Native origin/license bytes changed during build')
+        require(final_input == native_input and final_sha == native_input_sha, 'Native input changed during build')
+        receipt.update(linuxBuildInputSha256=native_input_sha,
+                       linuxBuildSourceSnapshot=native_input['sourceSnapshot'], nativeDependencies=native_dependencies)
+        native.validate_linux_receipt(receipt)
     (output / RECEIPT).write_text(json.dumps(receipt, indent=2, sort_keys=True) + '\n')
     return receipt
 
@@ -254,8 +312,11 @@ if __name__ == '__main__':
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--codesign-identity', help='macOS Developer ID identity for every embedded binary; requires prepared signing keychain')
     parser.add_argument('--source-date-epoch', type=int, default=0)
+    parser.add_argument('--linux-libgcc', type=Path, help='Digest-verified same-architecture libgcc supplier')
+    parser.add_argument('--linux-native-origin', type=Path, help='Owned Linux native-input provenance record')
     args = parser.parse_args()
     try:
-        print(json.dumps(build(args.out.absolute(), epoch=args.source_date_epoch, codesign_identity=args.codesign_identity), sort_keys=True))
+        print(json.dumps(build(args.out.absolute(), epoch=args.source_date_epoch, codesign_identity=args.codesign_identity,
+                               linux_libgcc=args.linux_libgcc, linux_native_origin=args.linux_native_origin), sort_keys=True))
     except (ValueError, OSError, subprocess.SubprocessError, metadata.PackageNotFoundError) as error:
         parser.exit(2, str(error) + '\n')
