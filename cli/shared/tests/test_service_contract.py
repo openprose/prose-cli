@@ -878,7 +878,7 @@ class ServiceContractTest(unittest.TestCase):
         for operation_id in ("service.status", "run.quote", "run.list", "run.show", "wallet.balance", "org.list", "job.contract.list"):
             self.assertFalse(self.operations[operation_id]["confirm"], operation_id)
         submit = self.operations["run.submit"]
-        post = next(r for r in submit["requests"] if r["method"] == "POST")
+        post = next(r for r in submit["requests"] if r["method"] == "POST" and r["path"] == "/run")
         # Always live; placement and repository intent are optional query
         # templates because the service reads them from the query.
         self.assertEqual({"live": "1", "session": "{session}", "environment": "{environment}", "runtime": "{runtime}",
@@ -1043,6 +1043,15 @@ class ServiceContractTest(unittest.TestCase):
         with self.assertRaises(sync.SyncError):
             sync.validate_export((json.dumps(dict(upstream, schema="openprose.service-operations/1"),
                                              indent=2) + "\n").encode())
+        # The service's public projection (/2) has no principals table; it
+        # projects to the same bytes, and a non-public principal is refused.
+        public = {key: value for key, value in upstream.items() if key != "principals"}
+        public["schema"] = "openprose.example-interactions/2"
+        self.assertEqual(data, sync.project(sync.validate_export((json.dumps(public, indent=2) + "\n").encode()),
+                                            self.manifest))
+        public["interactions"][0] = dict(public["interactions"][0], principal="not-public")
+        with self.assertRaises(sync.SyncError):
+            sync.validate_export((json.dumps(public, indent=2) + "\n").encode())
         # An export missing a public field is refused.
         missing = json.loads(data)
         del missing["interactions"][0]["agent"]

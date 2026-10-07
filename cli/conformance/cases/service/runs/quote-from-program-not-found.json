@@ -1,0 +1,97 @@
+{
+  "id": "quote-from-program-not-found",
+  "feature": "runs",
+  "operation": "run.quote",
+  "description": "A program the caller cannot read is 404 program_not_found: SERVICE_RESOURCE_NOT_FOUND, exit 10.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "quote",
+    "--from",
+    "exowner1/missing"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/health",
+        "status": 200,
+        "body": {
+          "status": "ok",
+          "environments": {
+            "default": "builtin",
+            "available": [
+              "builtin",
+              "linux"
+            ]
+          },
+          "models": [
+            "model-luna",
+            "model-sol"
+          ],
+          "default_model": "model-luna",
+          "version": "9.9.9-extra",
+          "capabilities": {
+            "web:search": {
+              "available": true,
+              "tool": "web_search"
+            }
+          }
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/run/quote",
+        "query": {
+          "program_ref": "exowner1/missing"
+        },
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          }
+        },
+        "status": 404,
+        "body": {
+          "error": "Program not found.",
+          "code": "program_not_found"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "run.quote",
+      "operation": "run.quote",
+      "problem": {
+        "action": "Check the identifier, then retry.",
+        "boundary": "hosted-service",
+        "code": "SERVICE_RESOURCE_NOT_FOUND",
+        "details": {
+          "serviceCode": "program_not_found",
+          "serviceStatus": 404
+        },
+        "exitCode": 10,
+        "message": "The requested OpenProse service resource was not found.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "9.9.9-extra",
+    "web_search"
+  ],
+  "stderr": {
+    "text": ""
+  }
+}

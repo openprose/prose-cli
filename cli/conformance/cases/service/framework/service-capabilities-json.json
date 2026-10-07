@@ -203,7 +203,7 @@
             "--json"
           ],
           "schema": "openprose.service-operations/1",
-          "sha256": "c3aef4f39d4fa26f6af3334e311806c5aedca0cb9934c47c325678467454edd5"
+          "sha256": "87e68b5f8f2e0125f7f6afc548a2d888bdd9c645261c59935fd4e3e7dc388bbb"
         },
         "nouns": {
           "auth": [
@@ -442,7 +442,7 @@
               "prose cli run quote hello.prose.md --input topic=cats --json"
             ],
             "id": "run.quote",
-            "summary": "Report the hold a run reserves: money set aside from the wallet while the run is live. It is not the price. The environment is checked first.\nThe hold depends on the model, reasoning effort, environment, declared tools and bound repositories, and what the run does not use is released when it settles. The quote sends only the --model, --reasoning-effort, --environment, --repo and --commit-output you give. It does not read the program, so a program that sets its own model, effort or environment, or declares tools, can hold a different amount. A run's price is known only after it settles (`cli run show RUN_ID`, price_cents). The program, inputs and options `cli run submit` takes are accepted, so you can quote the exact command you will submit."
+            "summary": "Report the hold a run reserves: money set aside from the wallet while the run is live. It is not the price. The environment is checked first.\nThe hold depends on the model, reasoning effort, environment, declared tools and bound repositories, and what the run does not use is released when it settles. With FILE or --from the service prices that program, including its own run settings and declared tools; --model, --reasoning-effort, --environment, --repo and --commit-output override them. `basis` names where each value came from (request, program or default). A run's price is known only after it settles (`cli run show RUN_ID`, price_cents). The program, inputs and options `cli run submit` takes are accepted, so you can quote the exact command you will submit."
           },
           {
             "command": [

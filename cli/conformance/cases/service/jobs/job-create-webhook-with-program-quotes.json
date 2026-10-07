@@ -30,11 +30,12 @@
         "method": "GET",
         "path": "/run/quote",
         "query": {
+          "program_ref": "exowner1/jobs-example@0123456789abcdef",
           "job_type": "webhook"
         },
         "requestHeaders": {
           "Authorization": {
-            "present": false
+            "present": true
           }
         },
         "status": 200,

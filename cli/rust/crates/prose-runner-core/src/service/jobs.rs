@@ -1106,7 +1106,8 @@ fn create(context: &mut Context<'_>) -> Result<Value, RunnerError> {
     {
         let mut reference = program_ref::parse_own_allowed_with(&given, true)?;
         if reference.pinned().is_none() || reference.owner.is_empty() {
-            let pinned = program_ref::resolve_to_run(context, &mut reference, 2, 3, None, false)?;
+            let pinned =
+                program_ref::resolve_to_run(context, &mut reference, 2, Some(3), None, false)?;
             if pinned != given {
                 spec.insert("program_ref".into(), json!(pinned));
                 body = canonical(&Value::Object(spec.clone())).into_bytes();
@@ -1134,11 +1135,12 @@ fn create(context: &mut Context<'_>) -> Result<Value, RunnerError> {
     Ok(result)
 }
 
-/// The anonymous `GET /run/quote` hold for the confirmation plan. It sends
-/// the hold options the spec gives (`model`, `reasoning_effort`,
-/// `environment`, and `repositories=1` for a `repository_url` or
-/// `context_repository_url`), never defaults; the program is not read, so its
-/// declared tools are not sent. The price policy reference stays internal.
+/// The `GET /run/quote` hold for the confirmation plan, sent with the key.
+/// It names the pinned `program_ref` the job stores, so the service prices
+/// that program with its own run settings and declared tools, and sends the
+/// hold options the spec gives (`model`, `reasoning_effort`, `environment`,
+/// and `repositories=1` for a `repository_url` or `context_repository_url`)
+/// as overrides, never defaults. The price policy reference stays internal.
 fn quote(context: &mut Context<'_>, spec: &Map<String, Value>) -> Result<Value, RunnerError> {
     let text = |key: &str| {
         spec.get(key)
@@ -1147,8 +1149,12 @@ fn quote(context: &mut Context<'_>, spec: &Map<String, Value>) -> Result<Value, 
     };
     let repositories_bound =
         text("repository_url").is_some() || text("context_repository_url").is_some();
+    let mut request = Request::from_manifest(context.operation, 0, "/run/quote");
+    if let Some(program) = text("program_ref") {
+        request = request.query("program_ref", program.to_owned());
+    }
     let mut request = super::runs::hold_query(
-        Request::from_manifest(context.operation, 0, "/run/quote"),
+        request,
         text("model"),
         text("reasoning_effort"),
         text("environment"),

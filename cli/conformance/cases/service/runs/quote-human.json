@@ -64,7 +64,7 @@
   },
   "exitCode": 0,
   "stdout": {
-    "text": "Environment: builtin\nHold: $1.02, set aside from the wallet while a run is live; not its price. Released within 900 s when unused\nDepends on: model, reasoning effort, environment, declared tools and repositories; quoted from the options given, without the program's own run settings or declared tools\nPrice: known only after a run settles; read it with `prose cli run show RUN_ID`\nNote: Unused hold is released when the run settles.\n"
+    "text": "Environment: builtin\nHold: $1.02, set aside from the wallet while a run is live; not its price. Released within 900 s when unused\nDepends on: model, reasoning effort, environment, declared tools and repositories; quoted for the program and options given\nPrice: known only after a run settles; read it with `prose cli run show RUN_ID`\nNote: Unused hold is released when the run settles.\n"
   },
   "stderr": {
     "text": ""

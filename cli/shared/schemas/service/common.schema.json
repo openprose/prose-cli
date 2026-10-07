@@ -281,6 +281,137 @@
           "minimum": 0
         }
       }
+    },
+    "quoteBasis": {
+      "description": "Where each hold input came from: the request, the program's own run settings or declared tools, or the service default.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "model",
+        "reasoning_effort",
+        "environment",
+        "tools",
+        "repositories"
+      ],
+      "properties": {
+        "model": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "value",
+            "source"
+          ],
+          "properties": {
+            "value": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+            },
+            "source": {
+              "enum": [
+                "request",
+                "program",
+                "default"
+              ]
+            }
+          }
+        },
+        "reasoning_effort": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "value",
+            "source"
+          ],
+          "properties": {
+            "value": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+            },
+            "source": {
+              "enum": [
+                "request",
+                "program",
+                "default"
+              ]
+            }
+          }
+        },
+        "environment": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "value",
+            "source"
+          ],
+          "properties": {
+            "value": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+            },
+            "source": {
+              "enum": [
+                "request",
+                "program",
+                "default"
+              ]
+            }
+          }
+        },
+        "tools": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "value",
+            "source"
+          ],
+          "properties": {
+            "value": {
+              "type": "array",
+              "maxItems": 16,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+              }
+            },
+            "source": {
+              "enum": [
+                "request",
+                "program",
+                "default"
+              ]
+            }
+          }
+        },
+        "repositories": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "value",
+            "source"
+          ],
+          "properties": {
+            "value": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "source": {
+              "enum": [
+                "request",
+                "program",
+                "default"
+              ]
+            }
+          }
+        }
+      }
     }
   }
 }

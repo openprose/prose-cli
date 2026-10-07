@@ -591,13 +591,17 @@ function specString(spec: JsonObject, key: string): string | undefined {
 }
 
 /**
- * The anonymous GET /run/quote hold for the confirmation plan, quoted from the
- * spec's model, reasoning effort, environment and bound repositories (only
- * those the spec gives); the price policy reference stays internal.
+ * The GET /run/quote hold for the confirmation plan, quoted for the pinned
+ * program the job stores (so the service applies its run settings and
+ * declared tools) and the spec's model, reasoning effort, environment and
+ * bound repositories (only those the spec gives); the price policy reference
+ * stays internal.
  */
 async function quote(context: Context, spec: JsonObject): Promise<JsonObject> {
   const repository = (key: string): boolean => specString(spec, key) !== undefined;
   const request = requestFor(context.operation, 0, "/run/quote");
+  const programRef = specString(spec, "program_ref");
+  if (programRef !== undefined) request.query.push(["program_ref", programRef]);
   request.query.push(...holdQuery({
     model: specString(spec, "model"),
     reasoningEffort: specString(spec, "reasoning_effort"),

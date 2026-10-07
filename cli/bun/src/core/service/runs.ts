@@ -235,11 +235,30 @@ function quoteFields(body: JsonObject): { hold: JsonObject } {
 }
 
 async function quote(context: Context): Promise<Json> {
+  const file = context.argument("FILE");
+  const from = context.option("--from");
+  checkProgramSource(file, from, false);
   const requested = context.option("--environment");
   if (requested !== undefined && !validToken(requested)) {
     throw invocationFailure(`--environment ${quoteText(requested)} is not an environment id (lowercase letters, digits, _ and -)`);
   }
+  // With FILE the quote posts the fields `run submit` would send, checked the
+  // same way; inputs are accepted but never sent (the hold does not depend
+  // on them).
+  let posted: { body: Uint8Array; query: Array<[string, string]> } | undefined;
+  if (file !== undefined) {
+    const options = runOptions(context);
+    const body: JsonObject = { content: await readProgram(context, file) };
+    const query = runFields(options, body);
+    posted = { body: new TextEncoder().encode(canonicalJson(body)), query };
+  }
+  // `--from` names a saved program; its syntax (and `@N`) is checked here,
+  // before any request.
+  const reference: ProgramRef | undefined = from === undefined ? undefined : parseOwnAllowed(from, true);
   const health = jsonObject(await context.send(requestFor(context.operation, 0, "/health")));
+  // With FILE, an environment or runtime the service does not offer is
+  // refused as `run submit` refuses it, from this same /health.
+  if (posted !== undefined) checkOfferedIn(context, health, requested, context.option("--runtime"));
   const environments = health.environments;
   const list = field(environments, "available");
   if (!Array.isArray(list) || list.some((item) => typeof item !== "string")) throw protocol("service status environments.available is missing or malformed");
@@ -255,15 +274,31 @@ async function quote(context: Context): Promise<Json> {
     if (fallback === undefined || !validText(fallback, 64)) throw protocol("service status environments.default is missing or malformed");
     environment = fallback;
   }
-  // The hold depends on these options; only those given are sent. The
-  // program, inputs and runtime are accepted but never sent.
-  const request = requestFor(context.operation, 1, "/run/quote");
-  request.query.push(...holdQuery({
-    model: context.option("--model"),
-    reasoningEffort: context.option("--reasoning-effort"),
-    environment: requested,
-    repositoriesBound: context.optionValues("--repo").length > 0 || context.option("--commit-output") !== undefined,
-  }));
+  let request: Request;
+  if (posted !== undefined) {
+    // Request 3: the program as `POST /run` would receive it, with its query
+    // minus the live session; the key is sent when one is configured.
+    request = { ...requestFor(context.operation, 3, "/run/quote"), query: posted.query, body: posted.body, bearer: await context.credentialConfigured() };
+  } else {
+    // Request 1 (no program) or 2 (`--from`): only the hold options given are
+    // sent; with `--from` they override the program's own settings. An
+    // OWNER/SLUG[@REV] is sent as given (the service resolves the latest); a
+    // bare SLUG or `@N` is the caller's own program, pinned first through its
+    // revisions (request 4), as `run submit --from` pins it.
+    request = requestFor(context.operation, reference === undefined ? 1 : 2, "/run/quote");
+    if (reference !== undefined) {
+      const ref = reference.owner !== "" && reference.revNumber === undefined
+        ? from! : await resolveToRun(context, reference, 4, undefined, "--from", true);
+      request.query.push(["program_ref", ref]);
+      request.bearer = await context.credentialConfigured();
+    }
+    request.query.push(...holdQuery({
+      model: context.option("--model"),
+      reasoningEffort: context.option("--reasoning-effort"),
+      environment: requested,
+      repositoriesBound: context.optionValues("--repo").length > 0 || context.option("--commit-output") !== undefined,
+    }));
+  }
   const body = jsonObject(await context.send(request));
   const { hold } = quoteFields(body);
   let note = "";
@@ -271,21 +306,71 @@ async function quote(context: Context): Promise<Json> {
     if (typeof body.note !== "string") throw protocol("quote note is malformed");
     note = cleanLine(body.note, 512);
   }
+  const basis = body.basis === undefined || body.basis === null ? undefined : projectBasis(body.basis);
+  // The environment the service priced: the basis names it (the program's
+  // own setting may apply); an older service without one reports none.
+  if (basis !== undefined) environment = String((basis.environment as JsonObject).value);
   let text = `Environment: ${humanSafeScalar(environment)}\n`;
   text += `Hold: $${humanSafeScalar(String(hold.hold_usd))}, set aside from the wallet while a run is live; not its price. Released within ${String(hold.ttl_seconds)} s when unused\n`;
   text += `Depends on: ${HOLD_DEPENDS_ON}; ${HOLD_COVERAGE}\n`;
+  if (basis !== undefined) text += `Basis: ${basisLine(basis)}\n`;
   text += `Price: known only after a run settles; read it with \`${context.command("run show RUN_ID")}\`\n`;
   if (note.length > 0) text += `Note: ${humanSafeScalar(note)}\n`;
   context.human = text;
-  return { environment, hold, holdBasis: HOLD_BASIS, note };
+  const result: JsonObject = { environment, hold, holdBasis: HOLD_BASIS, note };
+  if (basis !== undefined) result.basis = basis;
+  return result;
 }
 
 /** What the hold depends on (the service prices the hold from these). */
 const HOLD_DEPENDS_ON = "model, reasoning effort, environment, declared tools and repositories";
-/** What a CLI quote covers: it never reads the program. */
-const HOLD_COVERAGE = "quoted from the options given, without the program's own run settings or declared tools";
+/** What a quote covers: the program (FILE or --from) and the options given. */
+const HOLD_COVERAGE = "quoted for the program and options given";
 /** `run quote` holdBasis: what the hold depends on; it is not a price estimate. */
-const HOLD_BASIS = `depends on ${HOLD_DEPENDS_ON}; ${HOLD_COVERAGE}; a run's price is known only after it settles`;
+const HOLD_BASIS = `depends on ${HOLD_DEPENDS_ON}; ${HOLD_COVERAGE} (basis names where each came from); a run's price is known only after it settles`;
+
+/** Where a quote's hold input came from. */
+const BASIS_SOURCES = ["request", "program", "default"];
+/** The quote basis keys, in output order. */
+const BASIS_KEYS = ["model", "reasoning_effort", "environment", "tools", "repositories"] as const;
+
+/** A basis text value: 1 to 64 characters without control characters. */
+const basisText = (value: Json | undefined): value is string => typeof value === "string" && validText(value, 64);
+
+/**
+ * The closed projection of a quote's `basis`: its five keys, each projected
+ * to exactly `{value, source}` (other keys are dropped). A missing or
+ * malformed entry is SERVICE_PROTOCOL_INVALID naming the first such key.
+ */
+function projectBasis(value: Json): JsonObject {
+  if (!isObject(value)) throw protocol("quote basis is malformed");
+  const out: JsonObject = {};
+  for (const key of BASIS_KEYS) {
+    const entry = value[key];
+    const item = field(entry, "value");
+    const source = field(entry, "source");
+    let valid: boolean;
+    if (key === "tools") valid = Array.isArray(item) && item.length <= 16 && item.every((tool) => basisText(tool));
+    else if (key === "repositories") valid = uint(item) !== undefined;
+    else valid = basisText(item);
+    if (!valid || typeof source !== "string" || !BASIS_SOURCES.includes(source)) throw protocol(`quote basis.${key} is missing or malformed`);
+    out[key] = { value: Array.isArray(item) ? [...item] : item!, source };
+  }
+  return out;
+}
+
+/** The human `Basis:` line: each value and where it came from. */
+function basisLine(basis: JsonObject): string {
+  const part = (label: string, key: string): string => {
+    const entry = basis[key] as JsonObject;
+    const value = entry.value;
+    const shown = Array.isArray(value)
+      ? (value.length === 0 ? "none" : value.map((tool) => humanSafeScalar(String(tool))).join(", "))
+      : humanSafeScalar(String(value));
+    return `${label} ${shown} (${String(entry.source)})`;
+  };
+  return [part("model", "model"), part("reasoning effort", "reasoning_effort"), part("environment", "environment"), part("tools", "tools"), part("repositories", "repositories")].join("; ");
+}
 
 // ---------------------------------------------------------------------------
 // Event projection (decision 5) and terminal mapping (decision 9).
@@ -884,25 +969,33 @@ const looksLikeUrl = (value: string): boolean => /^[A-Za-z][A-Za-z0-9+.-]*:\/\//
 
 interface Submission {
   body: Uint8Array;
+  /** The `POST /run` query after `live` and `session`; also the plan quote's query. */
   extraQuery: Array<[string, string]>;
   sourceSha256: string | null;
   session: string | undefined;
   waitMs: number;
-  /** The `GET /run/quote` query of the plan: the hold options given. */
-  quoteQuery: Array<[string, string]>;
 }
 
-async function prepareSubmission(context: Context): Promise<Submission> {
-  const file = context.argument("FILE");
-  const from = context.option("--from");
+/** FILE and --from are exclusive; a URL is not a program file. `required`: one of them must be given. */
+function checkProgramSource(file: string | undefined, from: string | undefined, required: boolean): void {
   if (file !== undefined && from !== undefined) throw invocationFailure("give either FILE or --from OWNER/SLUG[@REV], not both");
-  if (file === undefined && from === undefined) throw invocationFailure("missing program: give FILE, - for standard input, or --from OWNER/SLUG[@REV]");
+  if (required && file === undefined && from === undefined) throw invocationFailure("missing program: give FILE, - for standard input, or --from OWNER/SLUG[@REV]");
   if (file !== undefined && looksLikeUrl(file)) {
     throw invocationFailure(`URL sources are not supported (${quoteText(file)}); save the program to a file or run a saved program with --from OWNER/SLUG[@REV]`);
   }
-  const reference: ProgramRef | undefined = from === undefined ? undefined : parseOwnAllowed(from, true);
-  const session = sessionOption(context);
-  const waitMs = waitOption(context);
+}
+
+/** The run options `run submit` sends (and `run quote FILE` quotes), checked before any request. */
+interface RunOptions {
+  model: string | undefined;
+  effort: string | undefined;
+  environment: string | undefined;
+  runtime: string | undefined;
+  repositories: Repository[];
+  commit: Repository | undefined;
+}
+
+function runOptions(context: Context): RunOptions {
   const model = context.option("--model");
   if (model !== undefined && !validModel(model)) throw invocationFailure(`--model ${quoteText(model)} is not a model id; list them with \`${command(context, "model list")}\``);
   const effort = context.option("--reasoning-effort");
@@ -925,38 +1018,67 @@ async function prepareSubmission(context: Context): Promise<Submission> {
   if (commit !== undefined && !repositories.some((repository) => sameRepository(repository, commit))) {
     throw invocationFailure(`--commit-output ${commit.owner}/${commit.name} must also be given as --repo ${commit.owner}/${commit.name}[@BRANCH]; the service commits only to a context repository`);
   }
+  return { model, effort, environment, runtime, repositories, commit };
+}
+
+/**
+ * Adds the run options to a submission body (model, reasoning_effort,
+ * repositories, output) and returns the matching query: environment,
+ * runtime, repositories (the same canonical array as the body) and
+ * output_repository, each only when given.
+ */
+function runFields(options: RunOptions, body: JsonObject): Array<[string, string]> {
+  if (options.model !== undefined) body.model = options.model;
+  if (options.effort !== undefined) body.reasoning_effort = options.effort;
+  const repositoryValues: JsonObject[] = options.repositories.map((repository) => (repository.branch === undefined
+    ? { url: repositoryUrl(repository) } : { url: repositoryUrl(repository), branch: repository.branch }));
+  const query: Array<[string, string]> = [];
+  if (options.environment !== undefined) query.push(["environment", options.environment]);
+  if (options.runtime !== undefined) query.push(["runtime", options.runtime]);
+  if (repositoryValues.length > 0) {
+    query.push(["repositories", canonicalJson(repositoryValues)]);
+    body.repositories = repositoryValues;
+  }
+  const commit = options.commit;
+  if (commit !== undefined) {
+    body.output = commit.branch === undefined
+      ? { type: "commit", repository: repositoryUrl(commit) }
+      : { type: "commit", repository: repositoryUrl(commit), branch: commit.branch };
+    query.push(["output_repository", repositoryUrl(commit)]);
+  }
+  return query;
+}
+
+/** A program FILE (or - for standard input): at most 1 MiB of UTF-8 and not blank. */
+async function readProgram(context: Context, file: string): Promise<string> {
+  const programText = await readText(context.cwd, file, MAX_PROGRAM_BYTES, "program file");
+  if (programText.trim().length === 0) throw invocationFailure(`program file ${quoteText(file)} is empty`);
+  return programText;
+}
+
+async function prepareSubmission(context: Context): Promise<Submission> {
+  const file = context.argument("FILE");
+  const from = context.option("--from");
+  checkProgramSource(file, from, true);
+  const reference: ProgramRef | undefined = from === undefined ? undefined : parseOwnAllowed(from, true);
+  const session = sessionOption(context);
+  const waitMs = waitOption(context);
+  const options = runOptions(context);
   const inputs = await parseInputs(context);
   const body: JsonObject = {};
   let sourceSha256: string | null = null;
   if (file !== undefined) {
-    const programText = await readText(context.cwd, file, MAX_PROGRAM_BYTES, "program file");
-    if (programText.trim().length === 0) throw invocationFailure(`program file ${quoteText(file)} is empty`);
+    const programText = await readProgram(context, file);
     sourceSha256 = createHash("sha256").update(programText).digest("hex");
     body.content = programText;
     checkParameters(programText, inputs);
   }
   if (inputs.size > 0) body.inputs = Object.fromEntries(inputs);
-  if (model !== undefined) body.model = model;
-  if (effort !== undefined) body.reasoning_effort = effort;
-  const repositoryValues: JsonObject[] = repositories.map((repository) => (repository.branch === undefined
-    ? { url: repositoryUrl(repository) } : { url: repositoryUrl(repository), branch: repository.branch }));
-  const extraQuery: Array<[string, string]> = [];
-  if (environment !== undefined) extraQuery.push(["environment", environment]);
-  if (runtime !== undefined) extraQuery.push(["runtime", runtime]);
-  if (repositoryValues.length > 0) {
-    extraQuery.push(["repositories", canonicalJson(repositoryValues)]);
-    body.repositories = repositoryValues;
-  }
-  if (commit !== undefined) {
-    body.output = commit.branch === undefined
-      ? { type: "commit", repository: repositoryUrl(commit) }
-      : { type: "commit", repository: repositoryUrl(commit), branch: commit.branch };
-    extraQuery.push(["output_repository", repositoryUrl(commit)]);
-  }
+  const extraQuery = runFields(options, body);
   // An unknown model fails before confirmation (request 4).
   if (typeof body.model === "string") await context.checkModel(4, body.model);
   // So do an environment or runtime the service does not offer (GET /health).
-  await checkOffered(context, environment, runtime);
+  await checkOffered(context, options.environment, options.runtime);
   if (reference !== undefined) {
     // A bare `--from SLUG` is the caller's own program (manifest request 3).
     // A bare SLUG, `@N` and the caller's own pinned revisions resolve through
@@ -968,8 +1090,7 @@ async function prepareSubmission(context: Context): Promise<Submission> {
   if (bytes.length > MAX_BODY_BYTES) {
     throw invocationFailure(`the submission is ${bytes.length} bytes, above the ${MAX_BODY_BYTES}-byte limit; shrink the program or inputs`);
   }
-  const quoteQuery = holdQuery({ model, reasoningEffort: effort, environment, repositoriesBound: repositories.length > 0 || commit !== undefined });
-  return { body: bytes, extraQuery, sourceSha256, session, waitMs, quoteQuery };
+  return { body: bytes, extraQuery, sourceSha256, session, waitMs };
 }
 
 /**
@@ -987,6 +1108,11 @@ async function checkOffered(context: Context, environment: string | undefined, r
     if (caught instanceof RunnerFailure && caught.code !== "CANCELLED") return;
     throw caught;
   }
+  checkOfferedIn(context, health, environment, runtime);
+}
+
+/** `checkOffered` against a /health body already read; a list that is missing or empty checks nothing. */
+function checkOfferedIn(context: Context, health: JsonObject, environment: string | undefined, runtime: string | undefined): void {
   for (const [option, key, value] of [["--environment", "environments", environment], ["--runtime", "runtimes", runtime]] as const) {
     if (value === undefined) continue;
     const list = field(field(health, key), "available");
@@ -1061,8 +1187,9 @@ async function submit(context: Context): Promise<Json> {
   if (context.invocation.preview || !context.invocation.yes) {
     const query = submitQuery(submission.session ?? "{session}", submission.extraQuery);
     const planned = context.planned(2, "/run", query, submission.body);
-    const quoteRequest: Request = { ...requestFor(context.operation, 1, "/run/quote"), class: "control" };
-    quoteRequest.query.push(...submission.quoteQuery);
+    // The plan's quote prices exactly this submission: the same body bytes
+    // and the `POST /run` query without the live session.
+    const quoteRequest: Request = { ...requestFor(context.operation, 1, "/run/quote"), class: "control", query: [...submission.extraQuery], body: submission.body };
     // The quote is advisory: a failed quote never hides the plan.
     try {
       const { hold } = quoteFields(jsonObject(await context.send(quoteRequest)));
@@ -1444,7 +1571,7 @@ function endedResult(context: Context, runId: string, runStatus: string | null):
   return { runId, status: "already_ended", runStatus };
 }
 
-export const __test = { cleanLine, cleanText, terminalText, unrecognizedName, parseWait, parseAfter, projectEvent, projectTerminal, validRunId };
+export const __test = { cleanLine, cleanText, terminalText, unrecognizedName, parseWait, parseAfter, projectEvent, projectTerminal, validRunId, projectBasis, basisLine };
 
 /** A human `[agent]` message: line breaks stay line breaks, each continuation line indented under the tag (mirrors Rust `agent_message`). */
 function agentMessage(message: Json | undefined): string {

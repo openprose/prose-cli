@@ -50,17 +50,18 @@
         }
       },
       {
-        "method": "GET",
+        "method": "POST",
         "path": "/run/quote",
         "query": {
           "environment": "linux",
-          "repositories": "1"
+          "repositories": "[{\"url\":\"https://github.com/exowner1/context\"}]"
         },
         "requestHeaders": {
           "Authorization": {
-            "present": false
+            "present": true
           }
         },
+        "expectedSha256": "2e953120dee6861bc0f1f02c946096995fdc1ff0490834809a43a826938c9769",
         "status": 200,
         "body": {
           "hold": {
