@@ -403,5 +403,182 @@ class NativeOriginV2Controls(unittest.TestCase):
     d.validate_origin(x,root,row)
 
 
+class PythonTransportControls(unittest.TestCase):
+ def fixture(self,root):
+  (root/'home').mkdir();archive=root/'python-full.tar.zst';archive.write_bytes(b'pinned compressed fixture')
+  row=copy.deepcopy(d.load_lock()['platforms']['linux-x64-gnu'])
+  row['pythonArchive']['byteLength']=archive.stat().st_size;row['pythonArchive']['sha256']=d.sha(archive)
+  (root/'target.json').write_text(json.dumps(row))
+  return row
+ def child(self,root,code,timeout=2):
+  import sys,time
+  return d.stream_transport([sys.executable,'-c',code],root,time.monotonic()+timeout,lambda:None)
+ def descriptor(self,root,row):
+  x={'schema':'openprose.sdk-python-transport/1','archiveSha256':row['pythonArchive']['sha256'],
+     'archiveByteLength':row['pythonArchive']['byteLength'],'tarSha256':d.sha(root/'python-full.tar'),
+     'tarByteLength':(root/'python-full.tar').stat().st_size,
+     'decoder':{'path':'/fixture/zstd','sha256':'a'*64,'version':'fixture 1'}}
+  (root/'python-transport.json').write_text(json.dumps(x));return x
+ def test_real_binary_stdout_separate_from_stderr_and_no_ambient_keys(self):
+  with tempfile.TemporaryDirectory() as t,patch.dict(d.os.environ,{'OPENAI_API_KEY':'sentinel','GH_TOKEN':'sentinel'}):
+   root=Path(t).resolve();self.fixture(root)
+   self.child(root,'import os,sys;assert "OPENAI_API_KEY" not in os.environ and "GH_TOKEN" not in os.environ;sys.stdout.buffer.write(bytes(range(256)));sys.stderr.write("diagnostic")')
+   self.assertEqual((root/'python-full.tar').read_bytes(),bytes(range(256)))
+   self.assertEqual((root/'decode-python.log').read_text(),'diagnostic')
+ def test_aggregate_quota_includes_existing_bytes_before_chunk_write(self):
+  with tempfile.TemporaryDirectory() as t:
+   root=Path(t).resolve();self.fixture(root);(root/'existing').write_bytes(b'x'*100)
+   with patch.object(d,'MAX_RETAINED_BYTES',d.check_output(root)+32),self.assertRaisesRegex(ValueError,'byte limit'):
+    self.child(root,'import sys;sys.stdout.buffer.write(b"x"*64)')
+   self.assertEqual((root/'python-full.tar').stat().st_size,0)
+ def test_decoder_diagnostics_are_bounded(self):
+  with tempfile.TemporaryDirectory() as t:
+   root=Path(t).resolve();self.fixture(root)
+   with patch.object(d,'MAX_LOG_BYTES',32),self.assertRaisesRegex(ValueError,'diagnostic limit'):
+    self.child(root,'import sys;sys.stderr.write("x"*64)')
+   self.assertLessEqual((root/'decode-python.log').stat().st_size,32)
+ def test_partial_nonzero_decode_never_publishes_descriptor(self):
+  with tempfile.TemporaryDirectory() as t:
+   root=Path(t).resolve();self.fixture(root)
+   with self.assertRaisesRegex(ValueError,'decode-python.log'):
+    self.child(root,'import sys;sys.stdout.buffer.write(b"partial");sys.exit(2)')
+   self.assertEqual((root/'python-full.tar').read_bytes(),b'partial')
+   self.assertFalse((root/'python-transport.json').exists())
+ def test_timeout_kills_pipe_holding_descendant(self):
+  import time
+  with tempfile.TemporaryDirectory() as t:
+   root=Path(t).resolve();self.fixture(root);effect=root/'escaped'
+   child='import time,pathlib;time.sleep(.5);pathlib.Path('+repr(str(effect))+').write_text("escaped")'
+   code='import subprocess,sys,time;subprocess.Popen([sys.executable,"-c",'+repr(child)+']);time.sleep(20)'
+   with self.assertRaisesRegex(ValueError,'deadline'):self.child(root,code,.1)
+   time.sleep(.6);self.assertFalse(effect.exists())
+ def test_exited_parent_cleanup_keeps_primary_and_reports_secondary_failure(self):
+  import time
+  with tempfile.TemporaryDirectory() as t:
+   root=Path(t).resolve();self.fixture(root);effect=root/'escaped'
+   child='import time,pathlib;time.sleep(.5);pathlib.Path('+repr(str(effect))+').write_text("escaped")'
+   code='import subprocess,sys;subprocess.Popen([sys.executable,"-c",'+repr(child)+'])'
+   with self.assertRaisesRegex(ValueError,'deadline') as caught:self.child(root,code,.15)
+   time.sleep(.6);self.assertFalse(effect.exists())
+   # Darwin may refuse the final SIGKILL of an already-terminated orphan group.
+   # That is explicit unverified cleanup, never success or a replacement error.
+   if hasattr(caught.exception,'cleanup_failure'):
+    facts=json.loads((root/'decode-python-cleanup-error.json').read_text())
+    self.assertEqual(facts,caught.exception.cleanup_failure);self.assertFalse(facts['cleanupVerified'])
+    self.assertEqual(facts['primaryType'],'ValueError');self.assertIsInstance(facts['pid'],int)
+ def test_forced_cleanup_refusal_retains_primary_without_raw_process_data(self):
+  with tempfile.TemporaryDirectory() as t:
+   root=Path(t).resolve();self.fixture(root)
+   original=d.stop_process_tree
+   def refused(child):original(child);raise PermissionError(1,'sensitive fixture argv must not escape')
+   with patch.object(d,'stop_process_tree',side_effect=refused),self.assertRaisesRegex(ValueError,'deadline') as caught:
+    self.child(root,'import time;time.sleep(10)',.1)
+   facts=json.loads((root/'decode-python-cleanup-error.json').read_text())
+   self.assertEqual(facts['errno'],1);self.assertFalse(facts['cleanupVerified'])
+   self.assertNotIn('sensitive',json.dumps(facts));self.assertEqual(facts,caught.exception.cleanup_failure)
+ def test_source_audit_failure_stops_decode(self):
+  import time,sys
+  with tempfile.TemporaryDirectory() as t:
+   root=Path(t).resolve();self.fixture(root)
+   def audit():raise ValueError('changed source fixture')
+   with self.assertRaisesRegex(ValueError,'changed source'):
+    d.stream_transport([sys.executable,'-c','import time;time.sleep(10)'],root,time.monotonic()+2,audit)
+ def test_reserve_and_file_limits_are_not_bypassed(self):
+  for limit in ('reserve','file'):
+   with tempfile.TemporaryDirectory() as t:
+    root=Path(t).resolve();self.fixture(root)
+    if limit=='file':
+     with patch.object(d,'MAX_FILES',1),self.assertRaisesRegex(ValueError,'file limit'):self.child(root,'print("x")')
+    else:
+     with patch.object(d.shutil,'disk_usage') as disk,self.assertRaisesRegex(ValueError,'reserve'):
+      disk.return_value.free=1;self.child(root,'print("x")')
+ def test_fresh_tar_exclusive_and_empty_decode_refused(self):
+  with tempfile.TemporaryDirectory() as t:
+   root=Path(t).resolve();self.fixture(root)
+   with self.assertRaisesRegex(ValueError,'Empty decoded'):self.child(root,'pass')
+   with self.assertRaises(FileExistsError):self.child(root,'print("replacement")')
+ def test_actual_receiver_accepts_bytes_then_rejects_closed_schema_poisons(self):
+  with tempfile.TemporaryDirectory() as t:
+   root=Path(t).resolve();row=self.fixture(root);(root/'python-full.tar').write_bytes(b'plain fixture tar');good=self.descriptor(root,row)
+   self.assertEqual(d.validate_transport(root),good)
+   for key,value in [('schema','old'),('archiveSha256','b'*64),('archiveByteLength',True),('tarSha256','c'*64),('tarByteLength',True),('extra',0),('decoder',{'path':'relative','sha256':'a'*64,'version':'ok'})]:
+    x=copy.deepcopy(good);x[key]=value;(root/'python-transport.json').write_text(json.dumps(x))
+    with self.subTest(key=key),self.assertRaises(AssertionError):d.validate_transport(root)
+   (root/'python-transport.json').write_text(json.dumps(good))
+   for name in ('python-full.tar','python-full.tar.zst'):
+    old=(root/name).read_bytes();(root/name).write_bytes(old[::-1])
+    with self.subTest(name=name),self.assertRaisesRegex(AssertionError,'digest'):d.validate_transport(root)
+    (root/name).write_bytes(old)
+   (root/'python-full.tar').unlink();(root/'python-full.tar').symlink_to(root/'python-full.tar.zst')
+   with self.assertRaises(AssertionError):d.validate_transport(root)
+ def test_missing_decoder_has_no_fallback_or_container(self):
+  import time
+  with tempfile.TemporaryDirectory() as t:
+   root=Path(t).resolve();row=self.fixture(root)
+   with patch.object(d.shutil,'which',return_value=None),patch.object(d,'process') as proc,self.assertRaisesRegex(ValueError,'prerequisite missing'):
+    d.prepare_transport(root,row,time.monotonic()+2,lambda:None)
+   proc.assert_not_called();self.assertFalse((root/'python-full.tar').exists())
+ def test_decoder_identity_mutation_refuses_before_stream(self):
+  import time
+  with tempfile.TemporaryDirectory() as t:
+   root=Path(t).resolve();row=self.fixture(root);tool=root/'zstd';tool.write_bytes(b'tool original')
+   def probe(*args,**kwargs):tool.write_bytes(b'tool changed');return b'zstd fixture'
+   with patch.object(d.shutil,'which',return_value=str(tool)),patch.object(d,'process',side_effect=probe),patch.object(d,'stream_transport') as stream,self.assertRaisesRegex(ValueError,'identity changed'):
+    d.prepare_transport(root,row,time.monotonic()+2,lambda:None)
+   stream.assert_not_called()
+ def test_shared_deadline_and_exact_command_with_synthetic_transport(self):
+  import time
+  with tempfile.TemporaryDirectory() as t:
+   root=Path(t).resolve();row=self.fixture(root);tool=root/'zstd';tool.write_bytes(b'fixture tool');deadline=time.monotonic()+2
+   def stream(command,out,bound,audit):
+    self.assertEqual(bound,deadline);self.assertEqual(command,[str(tool),'--decompress','--stdout','--quiet','-M128MB',str(root/'python-full.tar.zst')])
+    (out/'python-full.tar').write_bytes(b'plain fixture');audit()
+   with patch.object(d.shutil,'which',return_value=str(tool)),patch.object(d,'process',return_value=b'zstd fixture') as probe,patch.object(d,'stream_transport',side_effect=stream):
+    x=d.prepare_transport(root,row,deadline,lambda:None)
+   self.assertEqual(d.validate_transport(root),x);self.assertLessEqual(probe.call_args.kwargs['timeout'],2)
+   # Receiver is literally the code executed by pinned container Python.
+   self.assertIn(d.TRANSPORT_PIN,d.PREPARE);self.assertIn('tar -xf /job/python-full.tar',d.PREPARE)
+   self.assertNotIn('tar --zstd',d.PREPARE)
+
+
+ def test_absolute_deadline_refuses_before_process_spawn(self):
+  import time,sys
+  with tempfile.TemporaryDirectory() as t:
+   root=Path(t).resolve();self.fixture(root)
+   with patch.object(d.subprocess,'Popen') as spawn,self.assertRaisesRegex(ValueError,'deadline'):
+    d.process([sys.executable,'-c','print("late")'],root,'late',deadline=time.monotonic()-1)
+   spawn.assert_not_called()
+ def test_preparation_orchestration_uses_one_deadline_and_checks_receiver_after(self):
+  import sys
+  for mutation in (None,'descriptor','deadline'):
+   with tempfile.TemporaryDirectory() as t:
+    root=Path(t).resolve();row=self.fixture(root);clock=[10.0];seen=[]
+    def transport(out,r,deadline,audit):
+     self.assertEqual(deadline,1210.0);clock[0]=40.0
+     (out/'python-full.tar').write_bytes(b'fixture plain');return self.descriptor(out,r)
+    def execute(command,label,**kwargs):
+     seen.append(kwargs['deadline']);self.assertEqual(label,'prepare')
+     if mutation=='descriptor':
+      x=json.loads((root/'python-transport.json').read_text());x['decoder']['version']='changed but syntactically valid'
+      (root/'python-transport.json').write_text(json.dumps(x))
+     if mutation=='deadline':clock[0]=1211.0
+    with patch.object(d,'prepare_transport',side_effect=transport),patch.object(d.time,'monotonic',side_effect=lambda:clock[0]):
+     if mutation:
+      with self.assertRaisesRegex(ValueError,'descriptor changed' if mutation=='descriptor' else 'deadline'):
+       d.prepare_python(root,row,['fixture'],lambda:None,execute)
+     else:d.prepare_python(root,row,['fixture'],lambda:None,execute)
+    self.assertEqual(seen,[1210.0])
+ def test_probe_source_change_is_rejected_before_decoder_spawn(self):
+  import time
+  with tempfile.TemporaryDirectory() as t:
+   root=Path(t).resolve();row=self.fixture(root);tool=root/'zstd';tool.write_bytes(b'tool');changed=[False]
+   def probe(*a,**kw):changed[0]=True;return b'zstd fixture'
+   def audit():
+    if changed[0]:raise ValueError('source changed during probe')
+   with patch.object(d.shutil,'which',return_value=str(tool)),patch.object(d,'process',side_effect=probe),patch.object(d,'stream_transport') as stream,self.assertRaisesRegex(ValueError,'source changed'):
+    d.prepare_transport(root,row,time.monotonic()+2,audit)
+   stream.assert_not_called()
+
+
 if __name__ == '__main__':
  unittest.main()

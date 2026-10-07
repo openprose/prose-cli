@@ -366,19 +366,38 @@ if __name__=='__main__':
   except Exception:pass
   sys.exit(1)
 '''
-PREPARE = r'''/opt/python/cp310-cp310/bin/python - <<'PIN'
-import hashlib,json,pathlib
-r=json.loads(pathlib.Path('/job/target.json').read_text())['pythonArchive']
-p=pathlib.Path('/job/python-full.tar.zst')
-assert p.is_file() and not p.is_symlink() and p.stat().st_size==r['byteLength']
-h=hashlib.sha256()
-with p.open('rb') as f:
- for b in iter(lambda:f.read(1048576),b''):h.update(b)
-assert h.hexdigest()==r['sha256'], 'Copied Python archive changed before tar'
-PIN
+TRANSPORT_PIN = r'''import hashlib,json,pathlib,re
+
+def verify_transport(root):
+ root=pathlib.Path(root)
+ def read(name,limit):
+  p=root/name
+  assert p.is_file() and not p.is_symlink() and p.stat().st_size<=limit, 'Transport metadata path invalid'
+  return json.loads(p.read_text())
+ r=read('target.json',65536)['pythonArchive']
+ x=read('python-transport.json',16384)
+ assert set(x)=={'schema','archiveSha256','archiveByteLength','tarSha256','tarByteLength','decoder'}
+ assert x['schema']=='openprose.sdk-python-transport/1'
+ assert x['archiveSha256']==r['sha256'] and type(x['archiveByteLength']) is int and x['archiveByteLength']==r['byteLength']
+ assert re.fullmatch('[0-9a-f]{64}',x['tarSha256']) and type(x['tarByteLength']) is int and 0<x['tarByteLength']<=4*1024**3
+ decoder=x['decoder']
+ assert set(decoder)=={'path','sha256','version'}
+ assert isinstance(decoder['path'],str) and decoder['path'].startswith('/') and len(decoder['path'])<=4096 and not any(ord(c)<32 for c in decoder['path'])
+ assert re.fullmatch('[0-9a-f]{64}',decoder['sha256'])
+ assert isinstance(decoder['version'],str) and 0<len(decoder['version'])<=4096 and not any(ord(c)<32 for c in decoder['version'])
+ for name,length,digest in [('python-full.tar.zst',r['byteLength'],r['sha256']),('python-full.tar',x['tarByteLength'],x['tarSha256'])]:
+  p=root/name
+  assert p.is_file() and not p.is_symlink() and p.stat().st_size==length, 'Transport byte length differs'
+  h=hashlib.sha256()
+  with p.open('rb') as f:
+   for chunk in iter(lambda:f.read(1048576),b''):h.update(chunk)
+  assert h.hexdigest()==digest, 'Transport digest differs'
+ return x
+'''
+PREPARE = "/opt/python/cp310-cp310/bin/python - <<'PIN'\n" + TRANSPORT_PIN + "\nverify_transport('/job')\nPIN\n" + r'''
 mkdir /job/python-full
 cd /job/python-full
-tar --zstd -xf /job/python-full.tar.zst
+tar -xf /job/python-full.tar
 /job/python-full/python/install/bin/python3 - <<'CHECK'
 import json,sys,pathlib
 x=json.loads(pathlib.Path('/job/python-full/python/PYTHON.json').read_text())
@@ -420,11 +439,28 @@ def stop_process_tree(process):
     try: os.killpg(process.pid,signal.SIGKILL)
     except ProcessLookupError: pass
 
-def process(command, output, label, *, timeout=1200, max_bytes=MAX_LOG_BYTES):
+def cleanup_failed_process(child, output, label, primary):
+    """Keep the primary failure when process-group cleanup itself is refused."""
+    try:stop_process_tree(child)
+    except Exception as cleanup:
+        facts={'schema':'openprose.sdk-process-cleanup-failure/1','pid':child.pid,
+               'primaryType':type(primary).__name__,'cleanupType':type(cleanup).__name__,
+               'errno':getattr(cleanup,'errno',None),'cleanupVerified':False}
+        primary.cleanup_failure=facts
+        try:
+            (output/(label+'-cleanup-error.json')).write_text(json.dumps(facts,sort_keys=True)+'\n')
+        except OSError:
+            # Attribute remains available even when the owned disk cannot retain diagnostics.
+            pass
+
+
+def process(command, output, label, *, timeout=1200, max_bytes=MAX_LOG_BYTES, deadline=None):
     env={'PATH':os.environ['PATH'],'HOME':str(output/'home'),'LANG':'C.UTF-8'}
+    deadline=min(time.monotonic()+timeout,deadline) if deadline is not None else time.monotonic()+timeout
+    require(time.monotonic()<deadline,'Process deadline exceeded: '+label)
     p=subprocess.Popen(command,env=env,stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,
                        stderr=subprocess.STDOUT,start_new_session=True)
-    deadline=time.monotonic()+timeout; total=0; next_audit=0
+    total=0; next_audit=0
     try:
         with (output/(label+'.log')).open('wb') as log, selectors.DefaultSelector() as events:
             events.register(p.stdout,selectors.EVENT_READ)
@@ -442,11 +478,96 @@ def process(command, output, label, *, timeout=1200, max_bytes=MAX_LOG_BYTES):
                     require(total<=max_bytes,'Process output limit exceeded: '+label)
             p.wait(timeout=max(.01,deadline-time.monotonic()))
             require(p.returncode==0,'Inspect retained '+label+'.log')
-    except BaseException:
-        stop_process_tree(p); raise
+    except BaseException as primary:
+        cleanup_failed_process(p,output,label,primary); raise
     finally:
         if p.stdout: p.stdout.close()
     return (output/(label+'.log')).read_bytes()
+
+def stream_transport(command, output, deadline, audit):
+    """Keep binary stdout separate from bounded diagnostics in fresh owned files."""
+    env={'PATH':os.environ['PATH'],'HOME':str(output/'home'),'LANG':'C.UTF-8'}
+    require(time.monotonic()<deadline,'Preparation deadline exceeded')
+    with (output/'python-full.tar').open('xb') as tar, (output/'decode-python.log').open('xb') as log:
+        p=subprocess.Popen(command,env=env,stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,
+                           stderr=subprocess.PIPE,start_new_session=True)
+        total=0; next_audit=0
+        try:
+            with selectors.DefaultSelector() as events:
+                events.register(p.stdout,selectors.EVENT_READ,'tar')
+                events.register(p.stderr,selectors.EVENT_READ,'log')
+                while events.get_map():
+                    require(time.monotonic()<deadline,'Preparation deadline exceeded')
+                    if time.monotonic()>=next_audit:
+                        audit();check_output(output)
+                        require(shutil.disk_usage(output).free>=512*1024**2,'Owned scratch reserve exhausted')
+                        next_audit=time.monotonic()+1
+                    for key,_ in events.select(min(.1,max(0,deadline-time.monotonic()))):
+                        data=os.read(key.fileobj.fileno(),65536)
+                        if not data: events.unregister(key.fileobj);continue
+                        # Flush both streams before aggregate accounting; never write a chunk
+                        # that would exceed the existing entire-job retained-byte quota.
+                        tar.flush();log.flush()
+                        require(check_output(output)+len(data)<=MAX_RETAINED_BYTES,'Owned output byte limit exceeded')
+                        if key.data=='tar':tar.write(data)
+                        else:
+                            total+=len(data)
+                            require(total<=MAX_LOG_BYTES,'Decoder diagnostic limit exceeded')
+                            log.write(data)
+                p.wait(timeout=max(.01,deadline-time.monotonic()))
+                require(p.returncode==0,'Inspect retained decode-python.log')
+                tar.flush();log.flush();audit();check_output(output)
+                require(time.monotonic()<deadline,'Preparation deadline exceeded')
+        except BaseException as primary:
+            cleanup_failed_process(p,output,'decode-python',primary);raise
+        finally:
+            p.stdout.close();p.stderr.close()
+    require((output/'python-full.tar').stat().st_size>0,'Empty decoded Python archive')
+
+
+def prepare_transport(output, row, deadline, audit):
+    audit();verify_archive(output/'python-full.tar.zst',row)
+    executable=shutil.which('zstd')
+    require(executable is not None,'Host zstd prerequisite missing')
+    executable=Path(executable).resolve()
+    require(executable.is_file() and executable.stat().st_size<=32*1024**2,'Host zstd prerequisite invalid')
+    identity=sha(executable)
+    remaining=deadline-time.monotonic();require(remaining>0,'Preparation deadline exceeded')
+    raw=process([str(executable),'--version'],output,'decoder-version',timeout=min(5,remaining),max_bytes=4096,deadline=deadline)
+    version=raw.decode('utf-8').strip()
+    require(version and len(version)<=4096 and not any(ord(c)<32 for c in version),'Host zstd version invalid')
+    require(sha(executable)==identity,'Host zstd identity changed')
+    audit();verify_archive(output/'python-full.tar.zst',row)
+    stream_transport([str(executable),'--decompress','--stdout','--quiet','-M128MB',str(output/'python-full.tar.zst')],output,deadline,audit)
+    audit();verify_archive(output/'python-full.tar.zst',row)
+    require(sha(executable)==identity,'Host zstd identity changed')
+    plain=checked_path(output/'python-full.tar')
+    descriptor={'schema':'openprose.sdk-python-transport/1','archiveSha256':row['pythonArchive']['sha256'],
+                'archiveByteLength':row['pythonArchive']['byteLength'],'tarSha256':sha(plain),
+                'tarByteLength':plain.stat().st_size,'decoder':{'path':str(executable),'sha256':identity,'version':version}}
+    require(time.monotonic()<deadline,'Preparation deadline exceeded')
+    encoded=json.dumps(descriptor,sort_keys=True)
+    require(check_output(output)+len(encoded.encode())<=MAX_RETAINED_BYTES,'Owned output byte limit exceeded')
+    require(sum(1 for _ in output.rglob('*'))<MAX_FILES,'Owned output file limit exceeded')
+    with (output/'python-transport.json').open('x') as f:f.write(encoded)
+    validate_transport(output);audit();check_output(output)
+    return descriptor
+
+
+def validate_transport(output):
+    namespace={};exec(TRANSPORT_PIN,namespace)
+    return namespace['verify_transport'](output)
+
+
+def prepare_python(output, row, command, audit, execute):
+    deadline=time.monotonic()+1200
+    transport=prepare_transport(output,row,deadline,audit)
+    require(validate_transport(output)==transport,'Python transport descriptor changed')
+    require(time.monotonic()<deadline,'Preparation deadline exceeded')
+    execute(command,'prepare',deadline=deadline)
+    require(validate_transport(output)==transport,'Python transport descriptor changed')
+    require(time.monotonic()<deadline,'Preparation deadline exceeded')
+
 
 def cleanup_owned(command, output, label):
     if '--name' not in command: return
@@ -463,8 +584,8 @@ def cleanup_owned(command, output, label):
         (output/(label+'-cleanup-error.txt')).write_text(type(e).__name__+': '+str(e)+'\n')
         # Preserve the original construction failure; never claim cleanup passed.
 
-def run(command, output, label, *, timeout=1200, max_bytes=MAX_LOG_BYTES):
-    try: return process(command,output,label,timeout=timeout,max_bytes=max_bytes)
+def run(command, output, label, *, timeout=1200, max_bytes=MAX_LOG_BYTES, deadline=None):
+    try: return process(command,output,label,timeout=timeout,max_bytes=max_bytes,deadline=deadline)
     except BaseException:
         cleanup_owned(command,output,label); raise
 
@@ -499,7 +620,7 @@ def build(source,output,target,archive,*,epoch=0):
             'driverSha256':snapshot['driverSha256'],'lockSha256':snapshot['lockSha256']}
     (output/'native-input.json').write_text(json.dumps(inputs,indent=2,sort_keys=True)+'\n')
     verify_archive(output/'python-full.tar.zst',r)
-    guarded(commands[1],'prepare')
+    prepare_python(output,r,commands[1],lambda:assert_stable(source,snapshot),guarded)
     metadata_path=output/'python-full/python/PYTHON.json'
     require(metadata_path.is_file() and metadata_path.stat().st_size<=8*1024*1024,'Retained full Python metadata required')
     provider=json.loads(metadata_path.read_text())
