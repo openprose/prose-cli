@@ -94,7 +94,9 @@ section and `nextCommands`:
 - **Prices only.** The balance keeps `*_cents` and `*_dollars` (never
   `*_nanos` or the customer id). Runs are `cli run list` summaries (price
   fields only). Jobs keep `id`, `type`, `name`, `nextFireAt`, `lastEventAt`,
-  `lastRunId` and `lastError`, with `total` and `max`. `health` keeps
+  `lastRunId` and `lastError`, with `total`, `max` (the account's maximum
+  when limited, else null) and `limit` (`{kind, max?}`, as in `job list`'s
+  `job_limit`). `health` keeps
   `status`, `default_model` and `models`.
 - **`nextCommands` from state.** Each entry is `{why, argv, env}`, with
   `argv` the words after `prose`, keeping the output mode:

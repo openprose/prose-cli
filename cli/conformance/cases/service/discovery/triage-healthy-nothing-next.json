@@ -180,7 +180,10 @@
         },
         "jobs": {
           "jobs": [],
-          "max": 5,
+          "limit": {
+            "kind": "unlimited"
+          },
+          "max": null,
           "problem": null,
           "total": 0
         },

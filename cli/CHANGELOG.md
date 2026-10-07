@@ -11,6 +11,17 @@ a candidate do not establish public availability or authorize publication.
 
 ## [Unreleased]
 
+### Hosted service
+
+- `job list` and `service triage` report the account's job limit from the
+  service's entitlement (`trigger_limit`) instead of the legacy free ceiling:
+  paid accounts show `Jobs: N (unlimited)` and `max_jobs` / `jobs.max` null, a
+  limited account shows its own `max`, and an unavailable entitlement says so.
+  `job_limit.limit` is replaced by `job_limit.max` (the field the service
+  sends), `job_limit.kind` is one of `limited`, `unlimited` or `unavailable`,
+  and triage gains `jobs.limit`. An older service without `trigger_limit` still reads as limited
+  at `max_triggers`.
+
 ## [0.15.0-rc.2] — 2026-10-02
 
 These are accumulated changes in the 0.15 candidate train; some capabilities

@@ -558,21 +558,51 @@ async function getJson(context: Context, index: number, path: string): Promise<J
   return jsonObject(await context.send(requestFor(context.operation, index, path)));
 }
 
-/** The projected jobs and job limit (`max_jobs`) of a job list body (shared with `cli service triage`). */
-export function projectJobs(body: JsonObject): { jobs: JsonObject[]; max: Json } {
+/**
+ * The account's job limit (`job_limit`) from a job list body. The service's
+ * `trigger_limit` is the account's entitlement: `limited` needs an integer
+ * `max` of at least 0, `unlimited` stands, and `unavailable` or any other kind
+ * is unavailable (never guessed). Without `trigger_limit` (an older service),
+ * an integer `max_triggers` is the limit, otherwise it is unavailable. When
+ * `trigger_limit` is present, the legacy `max_triggers` (the free ceiling, not
+ * this account's limit) is ignored.
+ */
+function projectJobLimit(body: JsonObject): JsonObject {
+  const source = body.trigger_limit;
+  if (source === undefined || source === null) {
+    const legacy = asInteger(body.max_triggers);
+    return legacy !== undefined && legacy >= 0 ? { kind: "limited", max: legacy } : { kind: "unavailable" };
+  }
+  const limit = object(source, "job_limit");
+  if (typeof limit.kind !== "string") throw protocol("job_limit.kind");
+  if (limit.kind === "limited") return { kind: "limited", max: scalar(limit.max ?? null, "epochMs", "job_limit.max") };
+  return limit.kind === "unlimited" ? { kind: "unlimited" } : { kind: "unavailable" };
+}
+
+/**
+ * The projected jobs, job limit (`job_limit`) and its maximum (`max_jobs`:
+ * the limit's `max` when limited, otherwise null) of a job list body (shared
+ * with `cli service triage`).
+ */
+export function projectJobs(body: JsonObject): { jobs: JsonObject[]; limit: JsonObject; max: Json } {
   const jobs = array(body.triggers ?? null, 1000, "jobs").map(projectJob);
-  const max = body.max_triggers === undefined || body.max_triggers === null ? null : scalar(body.max_triggers, "epochMs", "max_jobs");
-  return { jobs, max };
+  const limit = projectJobLimit(body);
+  return { jobs, limit, max: limit.kind === "limited" ? limit.max! : null };
+}
+
+/** The human `Jobs:` line of `job list` and `cli service triage`. */
+export function jobsLine(total: number, limit: Json | undefined): string {
+  const shape = limit !== null && typeof limit === "object" && !Array.isArray(limit) ? limit : {};
+  if (shape.kind === "limited" && typeof shape.max === "number") return `Jobs: ${total} of ${shape.max} allowed\n`;
+  if (shape.kind === "unlimited") return `Jobs: ${total} (unlimited)\n`;
+  return `Jobs: ${total} (limit unavailable; try again)\n`;
 }
 
 async function list(context: Context): Promise<Json> {
   const body = await getJson(context, 0, "/triggers");
-  const { jobs, max } = projectJobs(body);
-  const jobLimit: JsonObject = {};
-  copy(jobLimit, object(body.trigger_limit ?? null, "job_limit"), "job_limit", [["kind", { text: 64 }, false], ["limit", "epochMs", false]]);
-  if (!Object.hasOwn(jobLimit, "kind")) throw protocol("job_limit.kind");
+  const { jobs, limit, max } = projectJobs(body);
   const types = array(body.types ?? null, 64, "types").map(projectType);
-  const result: JsonObject = { jobs, max_jobs: max, job_limit: jobLimit, types };
+  const result: JsonObject = { jobs, max_jobs: max, job_limit: limit, types };
   context.human = humanList(result);
   return result;
 }
@@ -971,8 +1001,7 @@ function humanRotated(result: JsonObject, environment: Environment): string {
 
 function humanList(result: JsonObject): string {
   const jobs = result.jobs as JsonObject[];
-  const limit = typeof result.max_jobs === "number" ? ` of ${result.max_jobs} allowed` : "";
-  let text = `Jobs: ${jobs.length}${limit}\n`;
+  let text = jobsLine(jobs.length, result.job_limit);
   if (jobs.length === 0) text += "No jobs.\n";
   for (const job of jobs) {
     text += `${textOrDash(job.id)} ${textOrDash(job.type)} name=${textOrDash(job.name)} program=${textOrDash(job.program_ref)} interval=${textOrDash(job.interval_seconds)} next=${isoOrDash(job.next_fire_at)}\n`;
