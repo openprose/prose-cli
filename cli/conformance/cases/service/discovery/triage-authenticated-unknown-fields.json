@@ -389,7 +389,10 @@
               "type": "schedule"
             }
           ],
-          "max": 5,
+          "limit": {
+            "kind": "unlimited"
+          },
+          "max": null,
           "problem": null,
           "total": 1
         },

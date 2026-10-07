@@ -399,11 +399,11 @@ class ServiceContractTest(unittest.TestCase):
         self.assert_valid(self.result_ref("job.create"), {**show, "endpoint": "/webhooks/triggers/x", "endpoint_url": url, "signing_secret": "s"})
         self.assert_valid(self.result_ref("job.rotate-secret"), {"id": show["job"]["id"], "endpoint": "/webhooks/triggers/x", "endpoint_url": url, "signing_secret": "s"})
         self.assert_invalid(self.result_ref("job.show"), {**show, "endpoint_url": "http://example.invalid/webhooks/triggers/x"})
-        self.assert_valid(self.result_ref("job.list"), {"jobs": [show["job"]], "max_jobs": 5, "job_limit": {"kind": "unlimited"}, "types": []})
+        self.assert_valid(self.result_ref("job.list"), {"jobs": [show["job"]], "max_jobs": None, "job_limit": {"kind": "unlimited"}, "types": []})
         # Job output uses the user noun and snake_case; service internals never appear.
         for internal in ({"internalRef": "opaque-1"}, {"adopted": True}, {"context_repository_id": 7}, {"createdAt": 1}):
             self.assert_invalid(self.result_ref("job.list"), {"jobs": [{**show["job"], **internal}],
-                                                             "max_jobs": 5, "job_limit": {"kind": "unlimited"}, "types": []})
+                                                             "max_jobs": None, "job_limit": {"kind": "unlimited"}, "types": []})
         self.assert_invalid(self.result_ref("job.list"), {"triggers": [show["job"]], "max_triggers": 5,
                                                          "trigger_limit": {"kind": "unlimited"}, "types": []})
 

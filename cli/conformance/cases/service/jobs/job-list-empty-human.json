@@ -24,7 +24,7 @@
           "max_triggers": 5,
           "trigger_limit": {
             "kind": "limited",
-            "limit": 5
+            "max": 5
           },
           "types": [
             {

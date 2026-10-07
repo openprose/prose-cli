@@ -574,25 +574,11 @@
               "type": "integer",
               "minimum": 0
             }
-          ]
+          ],
+          "description": "The account's maximum number of jobs when limited; null when unlimited or unavailable."
         },
         "job_limit": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "kind"
-          ],
-          "properties": {
-            "kind": {
-              "type": "string",
-              "maxLength": 64,
-              "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
-            },
-            "limit": {
-              "type": "integer",
-              "minimum": 0
-            }
-          }
+          "$ref": "#/$defs/jobLimit"
         },
         "types": {
           "type": "array",
@@ -1000,6 +986,27 @@
           }
         }
       }
+    },
+    "jobLimit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "limited",
+            "unlimited",
+            "unavailable"
+          ]
+        },
+        "max": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "description": "The account's job limit from the service: limited (with max), unlimited, or unavailable (the entitlement lookup failed; retry). An older service without one is read as limited at its max_triggers."
     }
   }
 }

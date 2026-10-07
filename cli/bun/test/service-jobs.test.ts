@@ -5,7 +5,7 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runCli } from "../src/cli";
-import { asInteger, INTERVAL_MAX, INTERVAL_MIN, projectJob, SPEC_MAX_BYTES } from "../src/core/service/jobs";
+import { asInteger, INTERVAL_MAX, INTERVAL_MIN, jobsLine, projectJob, projectJobs, SPEC_MAX_BYTES } from "../src/core/service/jobs";
 import { RunnerFailure } from "../src/core/types";
 
 const KEY = "rr_test_0123456789abcdef0123456789abcdef";
@@ -51,6 +51,34 @@ describe("Service job projections", () => {
     expect(projectJob({ id: TID, type: "webhook", createdAt: 1, nextFireAt: null })).toMatchObject({ next_fire_at: null, next_fire_at_iso: null });
     expect(code(() => projectJob({ id: "x", type: "webhook", createdAt: 1 }))).toBe("SERVICE_PROTOCOL_INVALID");
     expect(code(() => projectJob({ id: TID, type: "webhook" }))).toBe("SERVICE_PROTOCOL_INVALID");
+  });
+
+  test("the job limit comes from trigger_limit, never the legacy max_triggers", () => {
+    const limit = (body: Record<string, unknown>) => {
+      const { limit, max } = projectJobs({ triggers: [], ...body } as never);
+      return { limit, max };
+    };
+    expect(limit({ max_triggers: 5, trigger_limit: { kind: "limited", max: 3, extra: 1 } })).toEqual({ limit: { kind: "limited", max: 3 }, max: 3 });
+    expect(limit({ max_triggers: 5, trigger_limit: { kind: "limited", max: 0 } })).toEqual({ limit: { kind: "limited", max: 0 }, max: 0 });
+    expect(limit({ max_triggers: 5, trigger_limit: { kind: "unlimited", max: 9 } })).toEqual({ limit: { kind: "unlimited" }, max: null });
+    expect(limit({ max_triggers: 5, trigger_limit: { kind: "unavailable" } })).toEqual({ limit: { kind: "unavailable" }, max: null });
+    // An unknown kind is not guessed.
+    expect(limit({ max_triggers: 5, trigger_limit: { kind: "metered", max: 7 } })).toEqual({ limit: { kind: "unavailable" }, max: null });
+    // An older service without trigger_limit: its max_triggers is the limit.
+    expect(limit({ max_triggers: 5 })).toEqual({ limit: { kind: "limited", max: 5 }, max: 5 });
+    expect(limit({ max_triggers: 5, trigger_limit: null })).toEqual({ limit: { kind: "limited", max: 5 }, max: 5 });
+    expect(limit({})).toEqual({ limit: { kind: "unavailable" }, max: null });
+    expect(limit({ max_triggers: "5" })).toEqual({ limit: { kind: "unavailable" }, max: null });
+    for (const bad of [
+      { kind: "limited" }, { kind: "limited", max: null }, { kind: "limited", max: -1 }, { kind: "limited", max: 1.5 }, { kind: "limited", max: "3" },
+      {}, { kind: 1 }, { kind: null }, "limited", [], 3,
+    ]) expect(code(() => projectJobs({ triggers: [], max_triggers: 5, trigger_limit: bad } as never))).toBe("SERVICE_PROTOCOL_INVALID");
+  });
+
+  test("the Jobs line names the limit's kind", () => {
+    expect(jobsLine(2, { kind: "limited", max: 3 })).toBe("Jobs: 2 of 3 allowed\n");
+    expect(jobsLine(2, { kind: "unlimited" })).toBe("Jobs: 2 (unlimited)\n");
+    expect(jobsLine(2, { kind: "unavailable" })).toBe("Jobs: 2 (limit unavailable; try again)\n");
   });
 });
 

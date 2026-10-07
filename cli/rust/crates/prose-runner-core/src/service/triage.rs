@@ -268,7 +268,7 @@ fn runs_section(context: &mut Context<'_>) -> Result<Map<String, Value>, RunnerE
 
 fn jobs_section(context: &mut Context<'_>) -> Result<Map<String, Value>, RunnerError> {
     let body = fetch(context, JOBS, "/triggers")?.json_object()?;
-    let (all, max) = jobs::project_jobs(&body)?;
+    let (all, limit) = jobs::project_jobs(&body)?;
     let shown = all
         .iter()
         .take(JOBS_SHOWN)
@@ -284,7 +284,8 @@ fn jobs_section(context: &mut Context<'_>) -> Result<Map<String, Value>, RunnerE
         .collect::<Vec<_>>();
     let mut fields = Map::new();
     fields.insert("total".into(), json!(all.len()));
-    fields.insert("max".into(), max);
+    fields.insert("max".into(), jobs::limit_max(&limit));
+    fields.insert("limit".into(), limit);
     fields.insert("jobs".into(), Value::Array(shown));
     Ok(fields)
 }
@@ -477,14 +478,8 @@ fn human(result: &Value) -> String {
         out.push_str("Jobs: skipped\n");
     } else if jobs["problem"].is_null() {
         let total = jobs["total"].as_u64().unwrap_or_default();
-        match jobs["max"].as_i64() {
-            Some(max) => {
-                let _ = writeln!(out, "Jobs: {total} of {max} allowed");
-            }
-            None => {
-                let _ = writeln!(out, "Jobs: {total}");
-            }
-        }
+        let total = usize::try_from(total).unwrap_or(usize::MAX);
+        out.push_str(&jobs::jobs_line(total, &jobs["limit"]));
         for job in jobs["jobs"].as_array().cloned().unwrap_or_default() {
             let name = job.get("name").map_or_else(|| "-".to_owned(), text);
             let _ = write!(
@@ -554,7 +549,8 @@ mod tests {
                        "low": true, "lowBelowCents": 500},
             "organization": {"problem": null, "default": {"slug": "o", "role": "admin"}},
             "runs": {"problem": null, "recent": vec![run; RECENT_RUNS], "live": ["run_1"]},
-            "jobs": {"problem": null, "total": 9, "max": 10, "jobs": vec![job; JOBS_SHOWN]},
+            "jobs": {"problem": null, "total": 9, "max": 10,
+                     "limit": {"kind": "limited", "max": 10}, "jobs": vec![job; JOBS_SHOWN]},
             "nextCommands": vec![command; LIVE_WATCH_MAX + 1 + FAILING_JOBS_MAX],
         });
         let text = human(&result);

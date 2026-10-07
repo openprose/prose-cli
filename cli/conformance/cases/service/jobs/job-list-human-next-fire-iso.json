@@ -103,6 +103,6 @@
   },
   "exitCode": 0,
   "stdout": {
-    "text": "Jobs: 2 of 5 allowed\n3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10 webhook name=test-slack program=exowner1/slack-hello@97ddf3a447f534a7 interval=- next=-\n7b2e4d19-6a3c-4e85-b1f0-9c4d8e2a6b73 schedule name=- program=- interval=86400 next=2026-09-24T12:31:09.281Z\nTypes: schedule\n"
+    "text": "Jobs: 2 (unlimited)\n3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10 webhook name=test-slack program=exowner1/slack-hello@97ddf3a447f534a7 interval=- next=-\n7b2e4d19-6a3c-4e85-b1f0-9c4d8e2a6b73 schedule name=- program=- interval=86400 next=2026-09-24T12:31:09.281Z\nTypes: schedule\n"
   }
 }
