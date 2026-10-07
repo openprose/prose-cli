@@ -2844,10 +2844,12 @@ process.stdout.write(JSON.stringify({ spawned, stderr, exitCode: fakeProcess.exi
                 report = json.loads(result.stdout)
                 self.assertEqual(report["schema"], schema)
                 if schema == "openprose.configuration-explanation/1":
-                    self.assertEqual(report["values"]["harness"]["value"], "openprose")
+                    self.assertEqual(report["values"]["harness"]["value"], "agents-sdk")
+                    self.assertEqual(report["values"]["model"]["value"], "gpt-6.1-sol")
+                    self.assertEqual(report["values"]["authProfile"]["value"], "openai-api-key")
                     self.assertFalse(report["values"]["color"]["value"])
                 if schema == "openprose.doctor-report/1":
-                    self.assertEqual(report["selectedHarness"], "openprose")
+                    self.assertEqual(report["selectedHarness"], "agents-sdk")
                     self.assertEqual(report["image"]["version"], image["imageVersion"])
                     self.assertEqual(
                         report["image"]["sha256"], image["aggregateSha256"]["sha256"]
@@ -2881,9 +2883,10 @@ process.stdout.write(JSON.stringify({ spawned, stderr, exitCode: fakeProcess.exi
             self.root / "npm-config-env",
         )
         self.assertEqual(explained.returncode, 0, explained.stderr)
-        self.assertEqual(
-            json.loads(explained.stdout)["values"]["harness"]["value"], "openprose"
-        )
+        values = json.loads(explained.stdout)["values"]
+        self.assertEqual(values["harness"]["value"], "agents-sdk")
+        self.assertEqual(values["model"]["value"], "gpt-6.1-sol")
+        self.assertEqual(values["authProfile"]["value"], "openai-api-key")
         self.assertNotIn("must-not-load", explained.stdout.decode("utf-8"))
         account = run_artifact(
             executable,
@@ -4272,8 +4275,36 @@ process.stdout.write(JSON.stringify({ spawned, stderr, exitCode: fakeProcess.exi
                 for item in component["properties"]
             )
         ]
-        # The Rust kernel HTTPS loader adds 51 locked dependencies.
-        self.assertEqual(len(dependency_components), 127 + 14 + 13)
+        # Include every hash-locked platform wheel candidate for the packaged SDK.
+        sdk_packages = dependency["inventories"]["agentsSdkPython"]["packages"]
+        self.assertEqual(len(sdk_packages), 67)
+        sdk_components = [component for component in dependency_components
+                          if component["group"] == "agents-sdk-python"]
+        self.assertEqual(len(sdk_components), 67)
+        for package in sdk_packages:
+            self.assertEqual(package["scopes"], ["frozen-sdk-build"])
+            self.assertEqual(package["integrity"]["status"], "declared")
+            self.assertEqual(package["integrity"]["algorithm"], "sha256")
+            digest = package["integrity"]["digest"]
+            self.assertRegex(digest, r"^[0-9a-f]{64}$")
+            self.assertEqual(package["source"], "pypi:wheel-sha256:" + digest)
+        actual_sdk_identities = set()
+        for component in sdk_components:
+            properties = {item["name"]: item["value"] for item in component["properties"]}
+            self.assertEqual(component["type"], "library")
+            self.assertEqual(properties["openprose:component"], "agents-sdk-python")
+            self.assertEqual(properties["openprose:scopes"], "frozen-sdk-build")
+            self.assertEqual(properties["openprose:integrity-status"], "declared")
+            self.assertEqual(len(component["hashes"]), 1)
+            self.assertEqual(component["hashes"][0]["alg"], "SHA-256")
+            actual_sdk_identities.add((component["name"], component["version"],
+                                       properties["openprose:source"], component["hashes"][0]["content"]))
+        self.assertEqual(
+            actual_sdk_identities,
+            {(package["name"], package["version"], package["source"], package["integrity"]["digest"])
+             for package in sdk_packages},
+        )
+        self.assertEqual(len(dependency_components), 127 + 14 + 13 + 67)
         self.assertEqual(
             len({component["bom-ref"] for component in dependency_components}),
             len(dependency_components),
@@ -4420,6 +4451,8 @@ process.stdout.write(JSON.stringify({ spawned, stderr, exitCode: fakeProcess.exi
                 str(self.rust_binary),
                 "--bun-binary",
                 str(self.bun_binary),
+                "--agents-sdk-build",
+                str(self.root / "uninspected-sdk"),
                 "--image-manifest",
                 str(IMAGE_MANIFEST),
                 "--out",
@@ -4454,6 +4487,8 @@ process.stdout.write(JSON.stringify({ spawned, stderr, exitCode: fakeProcess.exi
                 str(self.rust_binary),
                 "--bun-binary",
                 str(self.bun_binary),
+                "--agents-sdk-build",
+                str(self.root / "uninspected-sdk"),
                 "--image-manifest",
                 str(eligible),
                 *readelf_args(),
@@ -4470,6 +4505,8 @@ process.stdout.write(JSON.stringify({ spawned, stderr, exitCode: fakeProcess.exi
         self.assertIn("--canonical-profile", missing.stderr)
         self.assertIn("--release-evidence", missing.stderr)
         self.assertFalse((self.root / "release-missing-gates").exists())
+        # These intended early refusals must precede inspection of SDK input bytes.
+        self.assertFalse((self.root / "uninspected-sdk").exists())
 
     @unittest.skipIf(
         platform.system() == "Windows", "executable fixture uses a POSIX shebang"
