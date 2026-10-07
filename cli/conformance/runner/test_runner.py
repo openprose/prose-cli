@@ -180,9 +180,9 @@ class RunnerUnitTest(unittest.TestCase):
             case = json.loads((runner.CASES / f"adapters/{name}.json").read_text())
             for os_name, arch, incompatible in [
                 ("darwin", "arm64", set()),
-                ("darwin", "x86_64", {"prime", "omp", "claude", "agents-sdk"}),
-                ("linux", "aarch64", {"prime", "omp", "claude", "agents-sdk"}),
-                ("linux", "x86_64", {"prime", "claude", "agents-sdk"}),
+                ("darwin", "x86_64", {"prime", "omp", "claude"}),
+                ("linux", "aarch64", {"prime", "omp", "claude"}),
+                ("linux", "x86_64", {"prime", "claude"}),
             ]:
                 wanted = json.loads(json.dumps(case["expected"]))
                 for harness in wanted["resultMatches"]["harnesses"]:
@@ -194,6 +194,40 @@ class RunnerUnitTest(unittest.TestCase):
                 self.assertEqual("blocked", codex["availability"])
                 self.assertFalse(actual["startedHarness"])
 
+
+    def test_sdk_inventory_host_oracle_matches_four_platform_frozen_contracts(self):
+        host=json.loads((runner.CLI/'conformance/fixtures/adapter-host-expectations.json').read_text())
+        recipe=json.loads((runner.CLI/'shared/capabilities/adapters/recipes/agents-sdk-jsonl.v1.json').read_text())
+        production=json.loads((runner.CLI/'shared/fixtures/adapters/sdk-production.json').read_text())
+        supported=['darwin-arm64','darwin-x64','linux-arm64-gnu','linux-x64-gnu']
+        normalized=['darwin-arm64','darwin-x64','linux-arm64','linux-x64']
+        self.assertEqual(supported,recipe['support']['platforms'])
+        self.assertEqual(supported,production['discovery']['admissionPlatforms'])
+        self.assertEqual(supported,host['supportedPlatforms']['agents-sdk/jsonl'])
+        self.assertEqual(normalized,production['discovery']['platforms'])
+        self.assertEqual(normalized,host['admittedHosts']['agents-sdk/jsonl'])
+        for name in ('codex-doctor-probe-failed','codex-list-probe-failed'):
+            case=json.loads((runner.CASES/f'adapters/{name}.json').read_text())
+            original=json.loads(json.dumps(case))
+            for os_name,arch in [('darwin','arm64'),('darwin','x86_64'),('linux','aarch64'),('linux','x86_64')]:
+                with self.subTest(case=name,os=os_name,arch=arch):
+                    expected=runner.expected_for_host(case,os_name,arch)
+                    sdk=next(row for row in expected['resultMatches']['harnesses'] if row['id']=='agents-sdk')
+                    self.assertEqual(next(row for row in case['expected']['resultMatches']['harnesses'] if row['id']=='agents-sdk'),sdk)
+                    self.assertEqual('missing',sdk['availability'])
+            self.assertEqual(original,case)
+        self.assertEqual(100,len(list(runner.case_paths(7,set()))))
+
+    def test_inventory_host_oracle_preserves_complete_arrays_on_unsupported_hosts(self):
+        for name in ('codex-doctor-probe-failed','codex-list-probe-failed'):
+            case=json.loads((runner.CASES/f'adapters/{name}.json').read_text())
+            for os_name,arch in [('freebsd','x86_64'),('win32','AMD64'),('darwin','riscv64'),('linux','riscv64')]:
+                with self.subTest(case=name,os=os_name,arch=arch):
+                    wanted=json.loads(json.dumps(case['expected']))
+                    for harness in wanted['resultMatches']['harnesses']:
+                        if harness['runtime']=='installed-process': harness['availability']='incompatible'
+                    self.assertEqual(wanted,runner.expected_for_host(case,os_name,arch))
+                    self.assertFalse(wanted['startedHarness'])
 
     def test_host_oracle_rejects_unsupported_host_without_skipping_case(self):
         case = json.loads((runner.CASES / "adapters/claude-functional-alpha.json").read_text())
