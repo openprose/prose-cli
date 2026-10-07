@@ -16,7 +16,39 @@ spec = importlib.util.spec_from_file_location('harness', Path(__file__).with_nam
 harness = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(harness)
 
+GATED_DESCENDANT = '(touch ready; read release < effect-gate; touch late) & wait'
+
+@contextlib.contextmanager
+def descendant_gate(directory):
+    os.mkfifo(Path(directory, 'effect-gate'))
+    descriptor = os.open(Path(directory, 'effect-gate'), os.O_RDWR | os.O_NONBLOCK)
+    try:
+        yield descriptor
+    finally:
+        os.close(descriptor)
+
+async def descendant_ready(directory):
+    async def ready():
+        while not Path(directory, 'ready').exists():
+            await asyncio.sleep(.001)
+    await asyncio.wait_for(ready(), 1)
+
 class ShellTest(unittest.IsolatedAsyncioTestCase):
+    async def test_descendant_effect_gate_releases_without_cancellation(self):
+        with tempfile.TemporaryDirectory() as directory, descendant_gate(directory) as release:
+            task = asyncio.create_task(harness.shell(GATED_DESCENDANT, directory, 2, {'PATH': os.environ['PATH']}))
+            try:
+                await descendant_ready(directory)
+                self.assertFalse(Path(directory, 'late').exists())
+                os.write(release, b'go\n')
+                result = await asyncio.wait_for(task, 1)
+                self.assertEqual(result['exit_code'], 0)
+                self.assertTrue(Path(directory, 'late').exists())
+            finally:
+                if not task.done():
+                    task.cancel()
+                    await asyncio.gather(task, return_exceptions=True)
+
     async def test_read_write_and_exit_status(self):
         with tempfile.TemporaryDirectory() as directory:
             Path(directory, 'in.txt').write_text('a\nb\n')
@@ -40,14 +72,281 @@ class ShellTest(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(result['exit_code'], 0)
 
     async def test_cancellation_stops_delayed_descendant_effect(self):
-        with tempfile.TemporaryDirectory() as directory:
-            task = asyncio.create_task(harness.shell('(sleep 0.4; touch late) & wait', directory, 2, {'PATH': os.environ['PATH']}))
-            await asyncio.sleep(.05)
+        with tempfile.TemporaryDirectory() as directory, descendant_gate(directory) as release:
+            task = asyncio.create_task(harness.shell(GATED_DESCENDANT, directory, 2, {'PATH': os.environ['PATH']}))
+            try:
+                await descendant_ready(directory)
+                self.assertFalse(Path(directory, 'late').exists())
+                task.cancel()
+                with self.assertRaises(asyncio.CancelledError):
+                    await task
+            finally:
+                if not task.done():
+                    task.cancel()
+                    await asyncio.gather(task, return_exceptions=True)
+                # This owner is outside the killed group. A surviving ready
+                # descendant receives the release rather than relying on a timer.
+                os.write(release, b'go\n')
+            await asyncio.sleep(.5)
+            self.assertFalse(Path(directory, 'late').exists())
+
+class ShellOwnershipTest(unittest.IsolatedAsyncioTestCase):
+    class Process:
+        pid = 900001  # Every signal call in this class is mocked.
+        returncode = None
+        def __init__(self):
+            self.reading = asyncio.Event()
+            self.reaping = asyncio.Event()
+            self.reap_release = None
+            self.waits = 0
+            self.stdout = SimpleNamespace(read=self.read)
+            self.stderr = SimpleNamespace(read=self.read)
+        async def read(self, size):
+            self.reading.set()
+            await asyncio.Future()
+        async def wait(self):
+            self.waits += 1
+            self.reaping.set()
+            if self.reap_release is not None:
+                await self.reap_release.wait()
+            self.returncode = -9
+            return -9
+
+    async def test_cancel_pending_acquisition_retains_handle_and_reaps(self):
+        for cancel_before_start in (False, True):
+            with self.subTest(cancel_before_start=cancel_before_start):
+                created, release = asyncio.Event(), asyncio.Event()
+                process = self.Process()
+                async def spawn(*args, **kwargs):
+                    created.set()
+                    await release.wait()
+                    return process
+                with patch.object(harness.asyncio, 'create_subprocess_exec', spawn), patch.object(harness.os, 'killpg') as kill:
+                    task = asyncio.create_task(harness.shell('private-command', '.', 1, {}))
+                    if cancel_before_start:
+                        # Start shell so its retained acquisition exists, but
+                        # cancel before the acquisition coroutine is scheduled.
+                        await asyncio.sleep(0)
+                    else:
+                        await asyncio.wait_for(created.wait(), 1)
+                    task.cancel()
+                    await asyncio.wait_for(created.wait(), 1)
+                    task.cancel()
+                    await asyncio.sleep(0)
+                    self.assertFalse(task.done())
+                    release.set()
+                    with self.assertRaises(asyncio.CancelledError):
+                        await asyncio.wait_for(task, 1)
+                    kill.assert_called_once_with(process.pid, harness.signal.SIGKILL)
+                    self.assertEqual(process.waits, 1)
+
+    async def test_repeated_cancel_during_reap_does_not_abandon_cleanup(self):
+        process = self.Process()
+        process.reap_release = asyncio.Event()
+        with patch.object(harness.asyncio, 'create_subprocess_exec', AsyncMock(return_value=process)), patch.object(harness.os, 'killpg') as kill:
+            task = asyncio.create_task(harness.shell('ignored', '.', 1, {}))
+            await asyncio.wait_for(process.reading.wait(), 1)
+            task.cancel()
+            await asyncio.wait_for(process.reaping.wait(), 1)
+            task.cancel()
+            await asyncio.sleep(0)
+            self.assertFalse(task.done())
+            process.reap_release.set()
+            with self.assertRaises(asyncio.CancelledError):
+                await asyncio.wait_for(task, 1)
+            kill.assert_called_once()
+            self.assertEqual(process.waits, 1)
+
+    async def test_repeated_cancel_during_reader_settlement_does_not_skip_reap(self):
+        process = self.Process()
+        settling, release = asyncio.Event(), asyncio.Event()
+        async def read(size):
+            process.reading.set()
+            try:
+                await asyncio.Future()
+            except asyncio.CancelledError:
+                settling.set()
+                await release.wait()
+                raise
+        process.stdout = SimpleNamespace(read=read)
+        process.stderr = SimpleNamespace(read=read)
+        with patch.object(harness.asyncio, 'create_subprocess_exec', AsyncMock(return_value=process)), patch.object(harness.os, 'killpg') as kill:
+            task = asyncio.create_task(harness.shell('ignored', '.', 1, {}))
+            await asyncio.wait_for(process.reading.wait(), 1)
+            task.cancel()
+            await asyncio.wait_for(settling.wait(), 1)
+            task.cancel()
+            await asyncio.sleep(0)
+            self.assertFalse(task.done())
+            release.set()
+            with self.assertRaises(asyncio.CancelledError):
+                await asyncio.wait_for(task, 1)
+            kill.assert_called_once()
+            self.assertEqual(process.waits, 1)
+
+    async def test_cancel_before_shell_start_creates_no_process(self):
+        with patch.object(harness.asyncio, 'create_subprocess_exec', AsyncMock()) as spawn, patch.object(harness.os, 'killpg') as kill:
+            task = asyncio.create_task(harness.shell('ignored', '.', 1, {}))
             task.cancel()
             with self.assertRaises(asyncio.CancelledError):
                 await task
-            await asyncio.sleep(.5)
-            self.assertFalse(Path(directory, 'late').exists())
+            spawn.assert_not_called()
+            kill.assert_not_called()
+
+    async def test_acquisition_failure_and_late_failure_preserve_primary(self):
+        error = FileNotFoundError(2, 'private-path')
+        with patch.object(harness.asyncio, 'create_subprocess_exec', AsyncMock(side_effect=error)), patch.object(harness.os, 'killpg') as kill:
+            with self.assertRaises(FileNotFoundError) as caught:
+                await harness.shell('ignored', '.', 1, {})
+            self.assertIs(caught.exception, error)
+            kill.assert_not_called()
+            self.assertEqual(error._shell_cleanup_failures, [{'phase': 'acquire', 'errorType': 'FileNotFoundError', 'errno': 2}])
+        created, release = asyncio.Event(), asyncio.Event()
+        async def late(*args, **kwargs):
+            created.set()
+            await release.wait()
+            raise error
+        with patch.object(harness.asyncio, 'create_subprocess_exec', late), patch.object(harness.os, 'killpg') as kill:
+            task = asyncio.create_task(harness.shell('ignored', '.', 1, {}))
+            await asyncio.wait_for(created.wait(), 1)
+            task.cancel()
+            await asyncio.sleep(0)
+            release.set()
+            with self.assertRaises(asyncio.CancelledError) as caught:
+                await asyncio.wait_for(task, 1)
+            self.assertEqual(harness._shell_cleanup_details(caught.exception)['shellCleanupFailures'][0]['phase'], 'acquire')
+            kill.assert_not_called()
+
+    async def test_kill_failure_preserves_cancel_and_still_settles_and_reaps(self):
+        for error in (ProcessLookupError(3, 'private'), PermissionError(1, 'private'), OSError(5, 'private')):
+            process = self.Process()
+            with self.subTest(error=type(error).__name__), patch.object(harness.asyncio, 'create_subprocess_exec', AsyncMock(return_value=process)), patch.object(harness.os, 'killpg', side_effect=error):
+                task = asyncio.create_task(harness.shell('ignored', '.', 1, {}))
+                await asyncio.wait_for(process.reading.wait(), 1)
+                task.cancel()
+                with self.assertRaises(asyncio.CancelledError) as caught:
+                    await asyncio.wait_for(task, 1)
+                self.assertEqual(process.waits, 1)
+                details = harness._shell_cleanup_details(caught.exception)
+                if isinstance(error, ProcessLookupError):
+                    self.assertEqual(details, {})
+                else:
+                    self.assertEqual(details['shellCleanupFailures'], [{'phase': 'kill', 'errorType': type(error).__name__, 'errno': error.errno}])
+                    self.assertNotIn('private', json.dumps(details))
+
+    async def test_reader_and_reap_failures_are_bounded_safe_and_primary_survives(self):
+        process = self.Process()
+        secret = type('SecretCommandAndToken', (Exception,), {})('private-output')
+        process.stdout = SimpleNamespace(read=AsyncMock(side_effect=secret))
+        process.stderr = SimpleNamespace(read=AsyncMock(side_effect=secret))
+        process.wait = AsyncMock(side_effect=OSError(5, 'private-path'))
+        with patch.object(harness.asyncio, 'create_subprocess_exec', AsyncMock(return_value=process)), patch.object(harness.os, 'killpg') as kill:
+            with self.assertRaises(type(secret)) as caught:
+                await asyncio.wait_for(harness.shell('private-command', '.', 1, {}), 1)
+            self.assertIs(caught.exception, secret)
+            kill.assert_called_once()
+            process.wait.assert_awaited_once()
+            self.assertEqual(secret._shell_cleanup_failures, [
+                {'phase': 'readers', 'errorType': 'ExecutionError'},
+                {'phase': 'readers', 'errorType': 'ExecutionError'},
+                {'phase': 'reap', 'errorType': 'OSError', 'errno': 5}])
+            self.assertNotIn('private', json.dumps(harness._shell_cleanup_details(secret)))
+            self.assertNotIn('SecretCommandAndToken', json.dumps(harness._shell_cleanup_details(secret)))
+
+    async def test_timeout_preserves_primary_and_cleans_owned_process(self):
+        process = self.Process()
+        with patch.object(harness.asyncio, 'create_subprocess_exec', AsyncMock(return_value=process)), patch.object(harness.os, 'killpg', side_effect=PermissionError(1, 'private')):
+            with self.assertRaises(asyncio.TimeoutError) as caught:
+                await harness.shell('ignored', '.', .001, {})
+            self.assertEqual(process.waits, 1)
+            self.assertEqual(caught.exception._shell_cleanup_failures, [{'phase': 'kill', 'errorType': 'PermissionError', 'errno': 1}])
+
+    async def test_empty_and_invalid_output_preserves_result_and_draining(self):
+        process = self.Process()
+        process.stdout = SimpleNamespace(read=AsyncMock(side_effect=[b'\xffabcd', b'ef', b'']))
+        process.stderr = SimpleNamespace(read=AsyncMock(return_value=b''))
+        with patch.object(harness.asyncio, 'create_subprocess_exec', AsyncMock(return_value=process)), patch.object(harness.os, 'killpg') as kill:
+            result = await harness.shell('ignored', '.', 1, {}, output_limit=3)
+            self.assertEqual(result['stdout'], '\ufffdab')
+            self.assertTrue(result['stdout_truncated'])
+            self.assertEqual(result['stderr'], '')
+            self.assertFalse(result['stderr_truncated'])
+            self.assertEqual(process.stdout.read.await_count, 3)
+            kill.assert_not_called()
+
+    def test_cleanup_metadata_is_closed_bounded_and_context_safe(self):
+        class Hostile(Exception):
+            @property
+            def _shell_cleanup_failures(self):
+                raise AssertionError('private property must not execute')
+            @property
+            def __context__(self):
+                raise AssertionError('private property must not execute')
+            @property
+            def __cause__(self):
+                raise AssertionError('private property must not execute')
+        self.assertEqual(harness._shell_cleanup_details(Hostile()), {})
+        for row in ({'phase': 'private-command', 'errorType': 'OSError'},
+                    {'phase': 'kill', 'errorType': 'SecretToken'},
+                    {'phase': 'kill', 'errorType': 'OSError', 'errno': True},
+                    {'phase': 'kill', 'errorType': 'OSError', 'message': 'private'},
+                    {'phase': 'kill', 'errorType': 'OSError', 'errno': 1.0}):
+            error = RuntimeError('private-message')
+            error._shell_cleanup_failures = [row]
+            self.assertEqual(harness._shell_cleanup_details(error), {})
+        error._shell_cleanup_failures = [{'phase': 'readers', 'errorType': 'ExecutionError'}] * 3
+        self.assertEqual(harness._shell_cleanup_details(error), {})
+        error.__context__ = error
+        self.assertEqual(harness._shell_cleanup_details(error), {})
+        error._shell_cleanup_failures = [{'phase': 'kill', 'errorType': 'PermissionError', 'errno': 1}]
+        outer = asyncio.CancelledError()
+        outer.__context__ = error
+        self.assertEqual(harness._shell_cleanup_details(outer), {'shellCleanupFailures': error._shell_cleanup_failures})
+        for _ in range(8):
+            wrapper = asyncio.CancelledError()
+            wrapper.__context__ = outer
+            outer = wrapper
+        self.assertEqual(harness._shell_cleanup_details(outer), {})
+
+    def test_hostile_chain_truth_and_metadata_key_methods_are_not_executed(self):
+        class HostileCause(Exception):
+            def __bool__(self):
+                raise AssertionError('exception truth must not execute')
+        cause = HostileCause()
+        cause._shell_cleanup_failures = [{'phase': 'kill', 'errorType': 'PermissionError', 'errno': 1}]
+        outer = asyncio.CancelledError()
+        outer.__cause__ = cause
+        self.assertEqual(harness._shell_cleanup_details(outer), {'shellCleanupFailures': cause._shell_cleanup_failures})
+        class HostileKey:
+            armed = False
+            calls = 0
+            def __hash__(self):
+                if self.armed:
+                    self.calls += 1
+                    raise AssertionError('metadata key hash must not execute')
+                return hash('phase')
+            def __eq__(self, other):
+                if self.armed:
+                    self.calls += 1
+                    raise AssertionError('metadata key equality must not execute')
+                return False
+        key = HostileKey()
+        row = {key: 'private', 'errorType': 'OSError'}
+        key.armed = True
+        error = RuntimeError()
+        error._shell_cleanup_failures = [row]
+        self.assertEqual(harness._shell_cleanup_details(error), {})
+        self.assertEqual(key.calls, 0)
+
+    async def test_wait_for_cancel_wrapper_preserves_safe_cleanup_context(self):
+        primary = asyncio.CancelledError('private-command')
+        primary._shell_cleanup_failures = [{'phase': 'kill', 'errorType': 'PermissionError', 'errno': 1}]
+        async def cancelled():
+            raise primary
+        with self.assertRaises(asyncio.CancelledError) as caught:
+            await asyncio.wait_for(cancelled(), 1)
+        self.assertEqual(harness._shell_cleanup_details(caught.exception), {'shellCleanupFailures': primary._shell_cleanup_failures})
+        self.assertNotIn('private', json.dumps(harness._shell_cleanup_details(caught.exception)))
 
 class BudgetTest(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
@@ -245,23 +544,22 @@ class BudgetTest(unittest.IsolatedAsyncioTestCase):
             return Response.model_validate(dict(id=str(number),object='response',created_at=1,
                 model='fixture',output=[dict(type='function_call',id='call'+str(number),call_id='call'+str(number),name=name,arguments=json.dumps(arguments),status='completed')],parallel_tool_calls=False,tool_choice='auto',tools=[],status='completed',
                 usage=dict(input_tokens=3,output_tokens=2,total_tokens=5,input_tokens_details=dict(cached_tokens=0,cache_write_tokens=0),output_tokens_details=dict(reasoning_tokens=0))))
-        create=AsyncMock(side_effect=[response(1,'delegate',{'task':'explicit child only'}),response(2,'execute_shell',{'command':'(sleep 0.4; touch late) & wait'})])
+        create=AsyncMock(side_effect=[response(1,'delegate',{'task':'explicit child only'}),response(2,'execute_shell',{'command':GATED_DESCENDANT})])
         client=SimpleNamespace(responses=SimpleNamespace(create=create),base_url='https://api.openai.com/v1/',close=AsyncMock())
-        started=asyncio.Event()
-        actual_shell=harness.shell
-        async def tracked_shell(*args,**kwargs):
-            # Set after process creation has had a chance to settle; cancellation remains in actual shell.
-            task=asyncio.create_task(actual_shell(*args,**kwargs))
-            await asyncio.sleep(.03)
-            started.set()
-            return await task
-        with tempfile.TemporaryDirectory() as directory, patch.object(harness,'AsyncOpenAI',return_value=client), patch.object(harness,'shell',tracked_shell):
+        with tempfile.TemporaryDirectory() as directory, descendant_gate(directory) as release, patch.object(harness,'AsyncOpenAI',return_value=client):
             output=io.StringIO()
             with contextlib.redirect_stdout(output):
                 task=asyncio.create_task(harness.run(self.args(directory)))
-                await asyncio.wait_for(started.wait(),1)
-                task.cancel()
-                self.assertEqual(await asyncio.wait_for(task,1),1)
+                try:
+                    await descendant_ready(directory)
+                    self.assertFalse(Path(directory,'late').exists())
+                    task.cancel()
+                    self.assertEqual(await asyncio.wait_for(task,1),1)
+                finally:
+                    if not task.done():
+                        task.cancel()
+                        await asyncio.gather(task, return_exceptions=True)
+                    os.write(release, b'go\n')
             await asyncio.sleep(.5)
             self.assertFalse(Path(directory,'late').exists())
             records=[json.loads(line) for line in output.getvalue().splitlines()]
@@ -402,6 +700,41 @@ class BudgetTest(unittest.IsolatedAsyncioTestCase):
             with contextlib.redirect_stdout(output):
                 self.assertEqual(await harness.run(self.args(directory)), 1)
             self.assertEqual(json.loads(output.getvalue().splitlines()[-1])['error_type'], 'CancelledError')
+
+    async def test_shell_cleanup_failures_visible_in_native_errors_without_secrets(self):
+        for error in (asyncio.CancelledError('private-token'), RuntimeError('private-command')):
+            error._shell_cleanup_failures = [harness._shell_cleanup_failure('kill', PermissionError(1, 'private-path'))]
+            with tempfile.TemporaryDirectory() as directory, patch.object(harness.Runner, 'run', AsyncMock(side_effect=error)):
+                output = io.StringIO()
+                with contextlib.redirect_stdout(output):
+                    self.assertEqual(await harness.run(self.args(directory)), 1)
+                record = json.loads(output.getvalue().splitlines()[-1])
+                self.assertEqual(record['shellCleanupFailures'], [{'phase': 'kill', 'errorType': 'PermissionError', 'errno': 1}])
+                self.assertEqual(record['error_type'], 'CancelledError' if isinstance(error, asyncio.CancelledError) else 'ExecutionError')
+                if isinstance(error, asyncio.CancelledError):
+                    self.assertEqual(record['message'], 'Execution cancelled.')
+                self.assertNotIn('private', output.getvalue())
+                self.assertNotIn('groups terminated', output.getvalue())
+
+    async def test_shell_cleanup_failures_visible_in_existing_tool_results(self):
+        for error in (asyncio.TimeoutError('private-command'), OSError(5, 'private-path')):
+            error._shell_cleanup_failures = [harness._shell_cleanup_failure('reap', RuntimeError('private-token'))]
+            async def invoke(agent, *args, **kwargs):
+                tool = next(tool for tool in agent.tools if tool.name == 'execute_shell')
+                raw = await tool.on_invoke_tool(ToolContext(context=None, tool_name='execute_shell', tool_call_id='fixture', tool_arguments='{}'), '{"command":"fixture"}')
+                self.assertEqual(json.loads(raw)['shellCleanupFailures'], [{'phase': 'reap', 'errorType': 'RuntimeError'}])
+                return SimpleNamespace(final_output='done', context_wrapper=SimpleNamespace(usage=SimpleNamespace(requests=0,input_tokens=0,output_tokens=0,total_tokens=0)))
+            with tempfile.TemporaryDirectory() as directory, patch.object(harness.Runner, 'run', invoke), patch.object(harness, 'shell', AsyncMock(side_effect=error)):
+                output = io.StringIO()
+                with contextlib.redirect_stdout(output):
+                    self.assertEqual(await harness.run(self.args(directory)), 0)
+                records = [json.loads(line) for line in output.getvalue().splitlines()]
+                result = next(row['result'] for row in records if row['type'] == 'tool_result')
+                self.assertEqual(result['shellCleanupFailures'], [{'phase': 'reap', 'errorType': 'RuntimeError'}])
+                if isinstance(error, asyncio.TimeoutError):
+                    self.assertEqual(result['error'], 'shell command timed out')
+                self.assertNotIn('private', output.getvalue())
+                self.assertNotIn('process group terminated', output.getvalue())
 
     async def test_auth_and_model_failures_do_not_leak_bodies(self):
         for name in ('AuthenticationError', 'PermissionDeniedError', 'NotFoundError'):

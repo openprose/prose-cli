@@ -97,11 +97,15 @@ class BudgetExceeded(Exception):
 
 
 async def shell(command, cwd, timeout, env, output_limit=30000):
-    process = await asyncio.create_subprocess_exec(
+    # Retain ownership while subprocess creation connects its pipes. Cancellation
+    # of that constructor otherwise lets asyncio kill only the direct child.
+    acquisition = asyncio.create_task(asyncio.create_subprocess_exec(
         '/bin/bash', '-c', command, cwd=cwd, env=env,
         stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
         start_new_session=True,
-    )
+    ))
+    process = None
+    readers = []
     async def capture(stream):
         kept = bytearray()
         total = 0
@@ -111,27 +115,103 @@ async def shell(command, cwd, timeout, env, output_limit=30000):
                 return bytes(kept), total > output_limit
             total += len(chunk)
             kept.extend(chunk[:max(0, output_limit - len(kept))])
-    readers = [asyncio.create_task(capture(stream)) for stream in (process.stdout, process.stderr)]
     async def complete():
         captured = await asyncio.gather(*readers)
         await process.wait()
         return captured
     try:
+        process = await asyncio.shield(acquisition)
+        readers = [asyncio.create_task(capture(stream)) for stream in (process.stdout, process.stderr)]
         stdout, stderr = await asyncio.wait_for(complete(), timeout)
-    except BaseException:
-        try:
-            os.killpg(process.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
-        for reader in readers:
-            reader.cancel()
-        await asyncio.gather(*readers, return_exceptions=True)
-        await process.wait()
+    except BaseException as primary:
+        async def cleanup():
+            failures = []
+            owned = process
+            if owned is None:
+                try:
+                    owned = await acquisition
+                except BaseException as error:
+                    failures.append(_shell_cleanup_failure('acquire', error))
+            if owned is not None:
+                try:
+                    os.killpg(owned.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                except BaseException as error:
+                    failures.append(_shell_cleanup_failure('kill', error))
+            for reader in readers:
+                reader.cancel()
+            settled = await asyncio.gather(*readers, return_exceptions=True)
+            for error in settled:
+                if isinstance(error, BaseException) and not isinstance(error, asyncio.CancelledError):
+                    failures.append(_shell_cleanup_failure('readers', error))
+            if owned is not None:
+                try:
+                    await owned.wait()
+                except BaseException as error:
+                    failures.append(_shell_cleanup_failure('reap', error))
+            return failures
+        # Acquisition and exceptional reaping retain their existing placement
+        # outside the command-completion timeout. Shield is not a wall-time bound.
+        retained = asyncio.create_task(cleanup())
+        while not retained.done():
+            try:
+                await asyncio.shield(retained)
+            except asyncio.CancelledError:
+                continue
+        failures = retained.result()
+        if failures:
+            primary._shell_cleanup_failures = failures
         raise
     return {'exit_code': process.returncode,
             'stdout': stdout[0].decode(errors='replace'),
             'stderr': stderr[0].decode(errors='replace'),
             'stdout_truncated': stdout[1], 'stderr_truncated': stderr[1]}
+
+
+def _shell_cleanup_failure(phase, error):
+    allowed = (OSError, PermissionError, ProcessLookupError, FileNotFoundError,
+               BrokenPipeError, RuntimeError, ValueError, asyncio.TimeoutError,
+               asyncio.CancelledError)
+    result = {'phase': phase, 'errorType': type(error).__name__ if type(error) in allowed else 'ExecutionError'}
+    if type(error) in allowed and type(getattr(error, 'errno', None)) is int:
+        result['errno'] = error.errno
+    return result
+
+
+def _shell_cleanup_details(error):
+    # Python 3.10 wait_for may wrap CancelledError and leave its original on
+    # __context__. Only this closed private metadata is copied, never messages.
+    seen = set()
+    for _ in range(8):
+        if not isinstance(error, BaseException) or id(error) in seen:
+            break
+        seen.add(id(error))
+        # Use the built-in descriptors, rather than custom exception properties.
+        metadata = BaseException.__dict__['__dict__'].__get__(error)
+        failures = metadata.get('_shell_cleanup_failures')
+        if type(failures) is list and 0 < len(failures) <= 5:
+            counts = {'acquire': 0, 'kill': 0, 'readers': 0, 'reap': 0}
+            safe = []
+            for row in failures:
+                if (type(row) is not dict or any(type(key) is not str for key in row)
+                        or set(row) not in ({'phase', 'errorType'}, {'phase', 'errorType', 'errno'})
+                        or type(row['phase']) is not str or row['phase'] not in counts
+                        or type(row['errorType']) is not str or row['errorType'] not in (
+                            'OSError', 'PermissionError', 'ProcessLookupError', 'FileNotFoundError',
+                            'BrokenPipeError', 'RuntimeError', 'ValueError', 'TimeoutError',
+                            'CancelledError', 'ExecutionError')
+                        or ('errno' in row and type(row['errno']) is not int)):
+                    break
+                counts[row['phase']] += 1
+                if counts[row['phase']] > (2 if row['phase'] == 'readers' else 1):
+                    break
+                safe.append(dict(row))
+            else:
+                return {'shellCleanupFailures': safe}
+        cause = BaseException.__cause__.__get__(error)
+        error = cause if cause is not None else BaseException.__context__.__get__(error)
+    return {}
 
 
 async def retrieve_public(url, timeout, output_limit=60000):
@@ -295,10 +375,10 @@ async def run(args):
               'maxAggregateRequests': args.max_turns, 'maxAggregateHostedWebCalls': args.max_turns, 'maxAggregateFunctionTools': max_tools,
               'maxObservedTotalTokens': max_total_tokens, 'maxRequestInputBytes': max_input_bytes, 'maxChildren': 8, 'maxChildDepth': 1}
     observation = UsageObservation(args.max_turns, max_tools, max_total_tokens)
-    def fail(kind, message, setup_reason=None):
+    def fail(kind, message, setup_reason=None, cleanup_error=None):
         extra = {"setup_reason": setup_reason} if kind == "SetupError" and setup_reason in ("credential-or-permission", "model-unavailable", "local-input") else {}
         emit('error', error_type=kind, message=message, limits=limits,
-             usageObservation=observation.summary(), **extra)
+             usageObservation=observation.summary(), **extra, **_shell_cleanup_details(cleanup_error))
         return 1
     emit('start', model=args.model, cwd=args.cwd, limits=limits,
          permissions={'shell': 'host_os_permissions', 'filesystemSandbox': False,
@@ -334,10 +414,10 @@ async def run(args):
         emit('tool_call', name='execute_shell', command=command)
         try:
             result = await shell(command, cwd, min(args.tool_timeout, remaining()), tool_env)
-        except asyncio.TimeoutError:
-            result = {'error': 'shell timeout; process group terminated'}
-        except OSError:
-            result = {'error': 'shell could not start; check working directory and bash availability'}
+        except asyncio.TimeoutError as error:
+            result = {'error': 'shell command timed out', **_shell_cleanup_details(error)}
+        except OSError as error:
+            result = {'error': 'shell could not start; check working directory and bash availability', **_shell_cleanup_details(error)}
         emit('tool_result', name='execute_shell', result=result)
         return json.dumps(result)
     @function_tool(failure_error_function=None)
@@ -394,16 +474,16 @@ async def run(args):
             'output_tokens': usage['output_tokens'], 'total_tokens': usage['total_tokens']},
             usageObservation=observation.summary())
         return 0
-    except asyncio.CancelledError:
-        return fail('CancelledError', 'Execution cancelled; active tool process groups terminated.')
+    except asyncio.CancelledError as error:
+        return fail('CancelledError', 'Execution cancelled.', cleanup_error=error)
     except Exception as error:
         name = type(error).__name__
         if name in ('AuthenticationError', 'PermissionDeniedError'):
-            return fail('SetupError', 'OpenAI rejected the credential or account permissions. Check the API key and model access; no fallback was selected.', setup_reason='credential-or-permission')
+            return fail('SetupError', 'OpenAI rejected the credential or account permissions. Check the API key and model access; no fallback was selected.', setup_reason='credential-or-permission', cleanup_error=error)
         if name == 'NotFoundError':
-            return fail('SetupError', 'The configured OpenAI model is unavailable to this account. Check the model selection and account access; no fallback was selected.', setup_reason='model-unavailable')
+            return fail('SetupError', 'The configured OpenAI model is unavailable to this account. Check the model selection and account access; no fallback was selected.', setup_reason='model-unavailable', cleanup_error=error)
         safe = name if name in ('MaxTurnsExceeded', 'TimeoutError', 'BudgetExceeded') else 'ExecutionError'
-        return fail(safe, 'Execution stopped. Check configured limits, tool availability and OpenAI account access.')
+        return fail(safe, 'Execution stopped. Check configured limits, tool availability and OpenAI account access.', cleanup_error=error)
     finally:
         await client.close()
 
