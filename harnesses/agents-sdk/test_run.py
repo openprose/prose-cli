@@ -143,7 +143,28 @@ class BudgetTest(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(await harness.run(self.args(directory)), 1)
             runner.assert_not_called()
             self.assertIn('OPENAI_API_KEY', output.getvalue())
-            self.assertEqual(json.loads(output.getvalue())['error_type'], 'SetupError')
+            self.assertEqual(json.loads(output.getvalue().splitlines()[-1])['error_type'], 'SetupError')
+
+    async def test_local_setup_errors_start_before_failure_without_runner_or_client(self):
+        with tempfile.TemporaryDirectory() as directory:
+            oversized = Path(directory) / 'oversized-instructions'
+            oversized.write_bytes(b'x' * 257)
+            for instruction in (str(oversized), str(Path(directory) / 'absent-instructions')):
+                args = self.args(directory)
+                args.instructions = instruction
+                args.max_input_bytes = 256
+                output = io.StringIO()
+                with patch.object(harness.Runner, 'run', AsyncMock()) as runner, patch.object(harness, 'AsyncOpenAI') as client, contextlib.redirect_stdout(output):
+                    self.assertEqual(await harness.run(args), 1)
+                runner.assert_not_called()
+                client.assert_not_called()
+                records = [json.loads(line) for line in output.getvalue().splitlines()]
+                self.assertEqual([record['type'] for record in records], ['start', 'error'])
+                self.assertEqual(records[0]['cwd'], directory)
+                self.assertEqual(records[0]['limits'], records[1]['limits'])
+                self.assertEqual(records[1]['error_type'], 'SetupError')
+                self.assertEqual(records[1]['setup_reason'], 'local-input')
+                self.assertEqual(records[1]['usageObservation']['startedCallCount'], 0)
 
     async def test_children_are_fresh_and_aggregate_usage(self):
         calls = []
@@ -390,6 +411,7 @@ class BudgetTest(unittest.IsolatedAsyncioTestCase):
                     self.assertEqual(await harness.run(self.args(directory)), 1)
                 self.assertNotIn('credential-value', output.getvalue())
                 self.assertEqual(json.loads(output.getvalue().splitlines()[-1])['error_type'], 'SetupError')
+                self.assertEqual(json.loads(output.getvalue().splitlines()[-1])['setup_reason'], 'model-unavailable' if name == 'NotFoundError' else 'credential-or-permission')
 
 
 class RetrievalTest(unittest.IsolatedAsyncioTestCase):

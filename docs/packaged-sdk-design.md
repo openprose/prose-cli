@@ -97,3 +97,11 @@ unspecified Linux platform identities are not admitted. This
 frozen contract is acceptance intent; it does not itself establish native build,
 installed-route, live fulfillment or release qualification. The shared black-box
 cases and independent product controls must prove each behavior before release.
+
+Native `SetupError` reports carry only a closed `setup_reason`: credential-or-permission,
+model-unavailable or local-input. Outer failures retain `HARNESS_FAILED` and exit 22,
+with `nativeFailure.kind=setup` and `setupReason` only for a recognized reason.
+The runner owns fixed recovery actions from the shared SDK oracle, for both human
+and JSON output. Unknown/missing reasons stay execution failures. Never forward
+arbitrary native messages or infer request completion, usage or billing from a
+setup classification; preserve valid observations already received.

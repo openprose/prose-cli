@@ -295,27 +295,31 @@ async def run(args):
               'maxAggregateRequests': args.max_turns, 'maxAggregateHostedWebCalls': args.max_turns, 'maxAggregateFunctionTools': max_tools,
               'maxObservedTotalTokens': max_total_tokens, 'maxRequestInputBytes': max_input_bytes, 'maxChildren': 8, 'maxChildDepth': 1}
     observation = UsageObservation(args.max_turns, max_tools, max_total_tokens)
-    def fail(kind, message):
+    def fail(kind, message, setup_reason=None):
+        extra = {"setup_reason": setup_reason} if kind == "SetupError" and setup_reason in ("credential-or-permission", "model-unavailable", "local-input") else {}
         emit('error', error_type=kind, message=message, limits=limits,
-             usageObservation=observation.summary())
+             usageObservation=observation.summary(), **extra)
         return 1
+    emit('start', model=args.model, cwd=args.cwd, limits=limits,
+         permissions={'shell': 'host_os_permissions', 'filesystemSandbox': False,
+                      'networkSandbox': False, 'freshChildConversation': True})
     try:
         key = dotenv_values(args.env_file).get('OPENAI_API_KEY') if args.env_file else os.environ.get('OPENAI_API_KEY')
         if not isinstance(key, str) or not key.strip():
-            return fail('SetupError', 'Set OPENAI_API_KEY to an OpenAI API key, or configure the OpenAI API-key credential profile. No model request was sent.')
+            return fail('SetupError', 'Set OPENAI_API_KEY to an OpenAI API key, or configure the OpenAI API-key credential profile. No model request was sent.', setup_reason='credential-or-permission')
         cwd = str(Path(args.cwd).resolve(strict=True))
         if not Path(cwd).is_dir():
-            return fail('SetupError', 'The working directory must exist.')
+            return fail('SetupError', 'The working directory must exist.', setup_reason='local-input')
         instructions = 'You are a helpful coding agent. Use available tools to complete the user request.'
         if args.instructions:
             with Path(args.instructions).open('rb') as source:
                 raw = source.read(max_input_bytes + 1)
             if len(raw) > max_input_bytes:
-                return fail('SetupError', 'The instruction file exceeds the configured request input-byte budget.')
+                return fail('SetupError', 'The instruction file exceeds the configured request input-byte budget.', setup_reason='local-input')
             instructions += '\n\n' + raw.decode('utf-8')
         instructions += '\nYour working directory is: ' + cwd
     except (OSError, ValueError):
-        return fail('SetupError', 'Cannot read the working directory, instructions, or credential file. Check the supplied paths and permissions.')
+        return fail('SetupError', 'Cannot read the working directory, instructions, or credential file. Check the supplied paths and permissions.', setup_reason='local-input')
     deadline = start + args.timeout
     children = 0
     child_usage = []
@@ -380,9 +384,6 @@ async def run(args):
                 preserve_raw_usage=True, parallel_tool_calls=False,
                 retry=ModelRetrySettings(max_retries=0),
                 extra_args={'max_tool_calls': 1, 'service_tier': 'default'}))
-    emit('start', model=args.model, cwd=cwd, limits=limits,
-         permissions={'shell': 'host_os_permissions', 'filesystemSandbox': False,
-                      'networkSandbox': False, 'freshChildConversation': True})
     try:
         result = await asyncio.wait_for(Runner.run(make_agent(0), args.prompt,
             max_turns=args.max_turns, run_config=config, hooks=observation), remaining())
@@ -398,9 +399,9 @@ async def run(args):
     except Exception as error:
         name = type(error).__name__
         if name in ('AuthenticationError', 'PermissionDeniedError'):
-            return fail('SetupError', 'OpenAI rejected the credential or account permissions. Check the API key and model access; no fallback was selected.')
+            return fail('SetupError', 'OpenAI rejected the credential or account permissions. Check the API key and model access; no fallback was selected.', setup_reason='credential-or-permission')
         if name == 'NotFoundError':
-            return fail('SetupError', 'The configured OpenAI model is unavailable to this account. Check the model selection and account access; no fallback was selected.')
+            return fail('SetupError', 'The configured OpenAI model is unavailable to this account. Check the model selection and account access; no fallback was selected.', setup_reason='model-unavailable')
         safe = name if name in ('MaxTurnsExceeded', 'TimeoutError', 'BudgetExceeded') else 'ExecutionError'
         return fail(safe, 'Execution stopped. Check configured limits, tool availability and OpenAI account access.')
     finally:

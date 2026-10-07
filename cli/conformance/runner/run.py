@@ -1673,7 +1673,7 @@ def prepare_sdk_installation(product: Product, case: dict[str, Any], workspace: 
         identity['serviceTier']['requested'] = 'sdk-unrecognized-secret-sentinel'
         identity['serviceTier']['observed'].append('sdk-unrecognized-secret-sentinel')
     limits = {**oracle['nativeLimits'], **fixture.get('rawLimitsOverrides', {})}
-    setup = dict(scenario=fixture['scenario'],expectedHelper=str(helper.resolve()),model=oracle['defaults']['model'],limits=limits,usageObservation=usage,modelIdentity=identity,wireNumberLexemes=fixture.get('wireNumberLexemes', {}))
+    setup = dict(scenario=fixture['scenario'],expectedHelper=str(helper.resolve()),model=oracle['defaults']['model'],limits=limits,usageObservation=usage,modelIdentity=identity,wireNumberLexemes=fixture.get('wireNumberLexemes', {}),errorType=fixture.get('rawErrorType','ExecutionError'),setupReason=fixture.get('rawSetupReason'),errorMessage=fixture.get('rawMessage','safe fixture failure'))
     (workspace / '.sdk-compatibility-fixture.json').write_text(json.dumps(setup), encoding='utf-8')
     execution = Product(product.name, product.executable, product.runner_name,
                         execution_executable=target)

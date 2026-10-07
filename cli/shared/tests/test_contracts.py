@@ -129,8 +129,11 @@ class ContractsTest(unittest.TestCase):
         self.assert_valid('native-limits.schema.json',fixture['defaults'])
         self.assert_valid('native-limits.schema.json',fixture['override']['limits'])
         for case in fixture['errorCases']:
-            self.assert_valid('native-failure.schema.json',{'kind':case['kind'],'limits':fixture['defaults'],'elapsedSeconds':1.5})
-        for bad in [{'kind':'arbitrary'}, {'kind':'execution','message':'secret'}, {'kind':'timeout','elapsedSeconds':-1}]:
+            value={'kind':case['kind'],'limits':fixture['defaults'],'elapsedSeconds':1.5}
+            if 'setupReason' in case:
+                value['setupReason']=case['setupReason']
+            self.assert_valid('native-failure.schema.json',value)
+        for bad in [{'kind':'arbitrary'}, {'kind':'execution','message':'secret'}, {'kind':'timeout','elapsedSeconds':-1}, {'kind':'setup'}, {'kind':'setup','setupReason':'raw secret'}, {'kind':'execution','setupReason':'local-input'}]:
             self.assertTrue(list(self.validator('native-failure.schema.json').iter_errors(bad)))
 
     def test_sdk_production_limits_and_optional_observations_are_closed(self):
@@ -193,7 +196,7 @@ class ContractsTest(unittest.TestCase):
 
     def test_sdk_production_cases_are_frozen_and_provider_free(self):
         oracle = load_json(FIXTURES/'adapters/sdk-production.json')
-        identifiers = [f'adapters.sdk-production-{number:02}' for number in range(1,11)]
+        identifiers = [f'adapters.sdk-production-{number:02}' for number in range(1,18)]
         self.assertEqual(identifiers, [case['id'] for case in oracle['cases']])
         for control in oracle['cases']:
             case = load_json(CASES/'adapters'/f"{control['id'].split('.')[-1]}.json")
@@ -203,6 +206,26 @@ class ContractsTest(unittest.TestCase):
             self.assertEqual(not control['noStart'], case['expected']['startedHarness'])
             if 'OPENAI_API_KEY' in case['invocation']['environment']:
                 self.assertIn(case['invocation']['environment']['OPENAI_API_KEY'], ('  ','fixture-provider-free-openai-key'))
+        setup=oracle['setupFailure']
+        self.assertEqual('HARNESS_FAILED',setup['outerCode'])
+        self.assertEqual(22,setup['exitCode'])
+        self.assertFalse(setup['rawMessageForwarded'])
+        for number,reason in enumerate(setup['reasons'],11):
+            action=setup['reasons'][reason]
+            case=load_json(CASES/'adapters'/f'sdk-production-{number:02}.json')
+            self.assertEqual(action,case['expected']['errorAction'])
+            details=case['expected']['resultMatches']['error']['details']
+            self.assertEqual('setup',details['nativeFailure']['kind'])
+            self.assertEqual(reason,details['nativeFailure']['setupReason'])
+            for group in ('usageObservation','modelIdentity'):
+                self.assertEqual(case['expected']['resultMatches'][group],details[group])
+            human=load_json(CASES/'adapters'/f'sdk-production-{number+3:02}.json')
+            self.assertEqual(['run','input.prose.md'],human['invocation']['argv'])
+            self.assertEqual('empty',human['expected']['stdout']['kind'])
+            self.assertEqual(['HARNESS_FAILED','Action: '+action],human['expected']['stderr']['contains'])
+        unknown=load_json(CASES/'adapters/sdk-production-17.json')
+        self.assertEqual('execution',unknown['expected']['resultMatches']['error']['details']['nativeFailure']['kind'])
+        self.assertNotIn('setupReason',unknown['expected']['resultMatches']['error']['details']['nativeFailure'])
         recipe = load_json(SHARED/'capabilities/adapters/recipes/agents-sdk-jsonl.v1.json')
         self.assertEqual(oracle['discovery']['admissionPlatforms'], recipe['support']['platforms'])
         self.assertEqual(['darwin-arm64','darwin-x64','linux-arm64','linux-x64'], oracle['discovery']['platforms'])
@@ -224,6 +247,96 @@ class ContractsTest(unittest.TestCase):
             self.assert_valid('configuration-explanation.schema.json',config)
         config['values']['permissionMode']['value']='arbitrary'
         self.assertTrue(list(self.validator('configuration-explanation.schema.json').iter_errors(config)))
+
+    def test_service_word_corrections_preserve_exact_route_and_pure_follow_contract(self):
+        oracle=load_json(FIXTURES/'service-word-corrections.json')
+        self.assertEqual({'schema','rules','cases'},set(oracle))
+        self.assertEqual('openprose.service-word-corrections/1',oracle['schema'])
+        self.assertEqual(['--output','--no-color','--verbose'],oracle['rules']['prefixRetained'])
+        self.assertEqual('entrypoint-and-account-or-service-parser-only-no-execution-no-client-no-request',oracle['rules']['followValidation'])
+        self.assertEqual('lexical-only-no-stat-no-read-no-canonicalization',oracle['rules']['cwdFileJoin'])
+        self.assertEqual(17,len(oracle['cases']))
+        operations={record['id']:record for record in load_json(SHARED/'service/operations.v1.json')['operations']}
+        def workspace_paths(value):
+            return [word.replace('/work','{{WORKSPACE}}') for word in value]
+        for number,control in enumerate(oracle['cases'],1):
+            self.assertEqual(f'service-word-correction-{number:02}',control['id'])
+            self.assertEqual(control['argv'],control['originalArgvPreserved'])
+            if number==16:
+                self.assertEqual('original-parse-rejection',control['boundary'])
+                self.assertEqual({'code':'INVOCATION_INVALID','reason':'runner option --model was specified more than once'},control['rejectedOriginal'])
+                self.assertNotIn('follow',control)
+                self.assertNotIn('suggestedArgv',control)
+                continue
+            if number==8:
+                self.assertEqual('alias-only',control['boundary'])
+                self.assertEqual(['--harness','claude','--output','json','opaque-word','opaque task'],control['suggestedArgv'])
+                self.assertEqual('language',control['follow']['kind'])
+                continue
+            if number>8:
+                command=control['suggestedArgv'][control['suggestedArgv'].index('cli'):]
+                self.assertEqual(['cli','run','submit'],command[:3])
+                if number==9:
+                    self.assertEqual(['--output','json','cli','run','submit','--help'],control['suggestedArgv'])
+                    self.assertEqual('help',control['follow']['kind'])
+                    self.assertEqual(['cli','run','submit'],control['follow']['command'])
+                else:
+                    self.assertEqual('service',control['follow']['kind'])
+                    self.assertEqual('run.submit',control['follow']['operation'])
+                    self.assertEqual(1,command.count('--preview'))
+                    if number==10:
+                        self.assertEqual({},control['follow']['arguments'])
+                        self.assertEqual({'--from':['saved-program']},control['follow']['options'])
+                        self.assertEqual(['cli','run','submit','--from','saved-program','--preview'],command)
+                    elif number==11:
+                        self.assertEqual(['cli','run','submit','./space file.prose.md','--model','service-model','--preview'],command)
+                        self.assertEqual({'FILE':['./space file.prose.md']},control['follow']['arguments'])
+                        self.assertEqual({'--model':['service-model']},control['follow']['options'])
+                    elif number in (13,14,15):
+                        file='/work/input.prose.md' if number in (13,15) else 'input.prose.md'
+                        model={14:'newer-model',15:'chosen-model'}.get(number)
+                        self.assertEqual({'FILE':[file]},control['follow']['arguments'])
+                        self.assertEqual({'--model':[model]} if model else {},control['follow']['options'])
+                        self.assertEqual(['cli','run','submit',file]+(['--model',model] if model else [])+['--preview'],command)
+                        self.assertEqual(1 if model else 0,command.count('--model'))
+                    elif number==17:
+                        self.assertEqual(['cli','run','submit','--model','chosen-model','--preview','--','/work/input.prose.md'],command)
+                        self.assertEqual({'FILE':['/work/input.prose.md']},control['follow']['arguments'])
+                        self.assertEqual({'--model':['chosen-model']},control['follow']['options'])
+                        self.assertEqual(['prose','run','submit','--','input.prose.md'],control['languageArgv'])
+                        self.assertLess(command.index('--model'),command.index('--'))
+                        self.assertLess(command.index('--preview'),command.index('--'))
+                    elif number==12:
+                        self.assertEqual(['cli','run','submit','-','--preview'],command)
+                        self.assertEqual({'FILE':['-']},control['follow']['arguments'])
+                continue
+            case=load_json(CASES/'core'/f"{control['id']}.json")
+            self.assertEqual(workspace_paths(control['argv']),case['invocation']['argv'])
+            surface='problem' if control['boundary']=='syntax' else 'error'
+            expected=case['expected']['resultMatches'][surface]
+            self.assertEqual(workspace_paths(control['suggestedArgv']),expected['details']['suggestedArgv'])
+            self.assertEqual('INVOCATION_INVALID' if surface=='problem' else 'HOSTED_UNAVAILABLE',expected['code'])
+            self.assertEqual(2 if surface=='problem' else 10,case['expected']['exitCode'])
+            follow=control['follow']
+            if number==7:
+                # Organization listing belongs to the account entrypoint;
+                # parseService covers the hosted service cases above only.
+                self.assertEqual('account',follow['kind'])
+                self.assertEqual('org-list',follow['operation'])
+                self.assertEqual('org.list',follow['manifestOperation'])
+            else:
+                self.assertEqual('service',follow['kind'])
+            operation=operations[follow.get('manifestOperation',follow['operation'])]
+            command=['cli',*control['suggestedArgv'][control['suggestedArgv'].index('cli')+1:]]
+            self.assertEqual(operation['command'],command[:len(operation['command'])])
+            self.assertTrue(set(follow['arguments']).issubset({entry['name'] for entry in operation['arguments']}))
+            self.assertTrue(set(follow['options']).issubset({entry['name'] for entry in operation['options']}))
+            self.assertEqual([],follow['flags'])
+            if follow['preview']:
+                self.assertTrue(operation['preview'])
+                self.assertEqual(1,control['suggestedArgv'].count('--preview'))
+            if surface=='error':
+                self.assertEqual(['prose',*control['argv'][control['argv'].index('run'):]],control['languageArgv'])
 
     def test_every_schema_is_valid_draft_2020_12_and_has_unique_id(self) -> None:
         self.assertGreaterEqual(len(self.schemas), 10)
@@ -1009,6 +1122,9 @@ class ContractsTest(unittest.TestCase):
                     self.assertEqual(case["expected"]["exitCode"], frozen["exitCode"])
                     if case["id"] in {"adapters.sdk-production-02", "adapters.sdk-production-03"}:
                         self.assertEqual(case["expected"]["errorAction"], load_json(FIXTURES / "adapters/sdk-production.json")["credentialAbsence"]["action"])
+                    elif case["id"] in {"adapters.sdk-production-11", "adapters.sdk-production-12", "adapters.sdk-production-13"}:
+                        reason=case["expected"]["resultMatches"]["error"]["details"]["nativeFailure"]["setupReason"]
+                        self.assertEqual(case["expected"]["errorAction"], load_json(FIXTURES / "adapters/sdk-production.json")["setupFailure"]["reasons"][reason])
                     else:
                         self.assertEqual(case["expected"]["errorAction"], frozen["action"])
         ids = [case["id"] for case in cases]

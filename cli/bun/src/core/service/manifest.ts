@@ -1238,7 +1238,48 @@ function loneCommand(noun: string, verb: string | undefined): [string[], number]
  * language commands: the caller forwards them unless the hosted harness
  * would refuse.
  */
-function serviceWord(prefix: readonly string[], rest: readonly string[]): CliRedirect | undefined {
+function serviceDisplayPrefix(prefix:readonly string[]):string[]{
+  const output:string[]=[];
+  for(let at=0;at<prefix.length;at++){
+    const token=prefix[at]!;
+    if(token==="--output"){output.push(token,prefix[++at]!);}
+    else if(token.startsWith("--output=")||token==="--no-color"||token==="--verbose")output.push(token);
+    else if(!token.includes("=")&&prefix[at+1]!==undefined&&!prefix[at+1]!.startsWith("--"))at++;
+  }
+  return output;
+}
+function prefixValue(prefix:readonly string[],name:string):string|undefined {
+  let value:string|undefined;
+  for(let at=0;at<prefix.length;at++){if(prefix[at]===name)value=prefix[at+1];if(prefix[at]!.startsWith(name+"="))value=prefix[at]!.slice(name.length+1);}
+  return value;
+}
+function serviceRunCorrection(nativePrefix:readonly string[],argv:string[]):string[]{
+  const cli=argv.indexOf("cli");
+  if(cli<0||argv[cli+1]!=="run"||argv[cli+2]!=="submit")return argv;
+  const start=cli+3,tail=argv.slice(start),stop=tail.includes("--")?tail.indexOf("--"):tail.length;
+  if(tail.slice(0,stop).some(token=>token==="--help"||token==="-h"))return argv;
+  const operation=manifest.operations.find(item=>item.id==="run.submit");
+  const fileIndex=firstPositional(operation,tail),cwd=prefixValue(nativePrefix,"--cwd"),model=prefixValue(nativePrefix,"--model");
+  if(fileIndex!==undefined){
+    const file=tail[fileIndex]!;
+    // Keep stdin and lexical path components intact; no filesystem lookup.
+    if(cwd!==undefined&&file!=="-"&&!file.startsWith("/")&&!/^[A-Za-z]:[\\/]/.test(file))tail[fileIndex]=cwd+(cwd.endsWith("/")||cwd.endsWith("\\")?"":"/")+file;
+  }
+  if(model!==undefined&&!tail.slice(0,stop).some(token=>token==="--model"||token.startsWith("--model="))){
+    // A FILE beyond -- is positional-only; converted service options belong
+    // before that delimiter (and before an existing preview flag).
+    const preview=tail.slice(0,stop).indexOf("--preview");
+    const modelAt=fileIndex===undefined?0:fileIndex>=stop?(preview<0?stop:preview):fileIndex+1;
+    tail.splice(modelAt,0,"--model",model);
+  }
+  if(nativePrefix.includes("--dry-run")){
+    const separator=tail.includes("--")?tail.indexOf("--"):tail.length;
+    if(!tail.slice(0,separator).includes("--preview"))tail.splice(separator,0,"--preview");
+  }
+  return [...argv.slice(0,start),...tail];
+}
+function serviceWord(nativePrefix: readonly string[], rest: readonly string[]): CliRedirect | undefined {
+  const prefix=serviceDisplayPrefix(nativePrefix);
   const [noun, next] = rest;
   if (noun === undefined) return undefined;
   const positions = new Positions([...prefix, "cli", ...rest], rest);
@@ -1254,11 +1295,11 @@ function serviceWord(prefix: readonly string[], rest: readonly string[]): CliRed
     const action = words.length === 0 ? "Show the runner help: `{command}`" : `Show the help of \`cli ${words.join(" ")}\`: \`{command}\``;
     meant = { rejected: reject("", { kind: "argv", action, argv }), typed: 1 + words.length };
     operands = ["help"];
-  } else if (noun === "run" && next !== undefined && !next.startsWith("-")) {
+  } else if (noun === "run" && next !== undefined && (!next.startsWith("-")||next==="-")) {
     const tail = rest.slice(2);
     const stop = tail.includes("--") ? tail.indexOf("--") : tail.length;
     const head = tail.slice(0, stop);
-    const argv = [...prefix, "cli", "run", "submit", next, ...head, ...(head.includes("--preview") ? [] : ["--preview"]), ...tail.slice(stop)];
+    const argv = serviceRunCorrection(nativePrefix,[...prefix, "cli", "run", "submit", next, ...head, ...(head.includes("--preview") ? [] : ["--preview"]), ...tail.slice(stop)]);
     meant = { rejected: settle(reject("", { kind: "argv", action: "Use `cli run submit`, previewing the run first: `{command}`", argv })), typed: 2 };
     operands = [next];
   } else {
@@ -1383,12 +1424,20 @@ export function cliRedirect(args: readonly string[], index: number, globalKind: 
       // `prose list jobs`: a verb before its group is never a lone synonym.
       const verbBefore = verbFirst(rest, new Positions([...argv, "cli", ...rest], rest)) !== undefined;
       const found = verbBefore ? undefined : loneCommand(noun, verb);
-      if (found === undefined) return replaced.length === 0 ? serviceWord(argv, rest) : undefined;
+      if (found === undefined) {
+        if(replaced.length===0)return serviceWord(argv,rest);
+        const corrected=[...argv,...rest];
+        const command=invalidCommand(reject(reasons.join(" "),{kind:"argv",action:`Replace ${replaced.join(", ")}: \`{command}\``,argv:corrected}),rest);
+        return {argv:corrected,operands:[],command,language:true,hintOnly:true};
+      }
       language = isLanguageCommand(noun);
       [command, typed] = found;
       synonym = command.join(" ");
     }
+    const nativePrefix=[...argv];
+    argv.splice(0,argv.length,...serviceDisplayPrefix(argv));
     argv.push("cli", ...command, ...rest.slice(typed));
+    argv.splice(0,argv.length,...serviceRunCorrection(nativePrefix,argv));
     const kind = bareRun
       ? "alone runs nothing here: hosted runs are `prose cli run submit FILE`"
       : language ? LANGUAGE_WORD : synonym !== undefined ? "is not a command" : "is a service command";

@@ -3002,6 +3002,21 @@ fn render_installed_failure(
             }
         }
     }
+    if adapter == installed_adapters::InstalledAdapter::AgentsSdkJsonl
+        && error.code == ErrorCode::HarnessFailed
+    {
+        if let Some(action) = error
+            .details
+            .as_ref()
+            .and_then(|details| details.get("nativeFailure"))
+            .filter(|diagnostic| diagnostic.get("kind").and_then(Value::as_str) == Some("setup"))
+            .and_then(|diagnostic| diagnostic.get("setupReason"))
+            .and_then(Value::as_str)
+            .and_then(installed_adapters::sdk_setup_action)
+        {
+            action.clone_into(&mut error.action);
+        }
+    }
     let timestamp = clock.now_rfc3339();
     let invocation = installed_invocation(adapter, task, task_digest, invocation_id, config, image);
     let invocation_digest = sha256_hex(&serde_json::to_vec(&invocation).expect("invocation JSON"));

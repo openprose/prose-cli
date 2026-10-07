@@ -1,0 +1,53 @@
+{
+  "schema": "openprose.runner-case/1",
+  "id": "adapters.sdk-production-15",
+  "summary": "SDK setup recovery for model-unavailable in human output suppresses raw provider bodies.",
+  "phase": 7,
+  "tags": [
+    "adapter",
+    "agents-sdk",
+    "production",
+    "provider-free",
+    "differential"
+  ],
+  "platforms": [
+    "unix"
+  ],
+  "controls": {
+    "fixedInvocationId": "fixture-invocation-0001",
+    "fixedTimestamp": "2025-01-01T00:00:00Z",
+    "fixedMonotonicMs": 0,
+    "network": "denied",
+    "installedAdapter": {
+      "adapterId": "agents-sdk/jsonl",
+      "sdkScenario": "failure",
+      "sdkInstallation": "sibling"
+    }
+  },
+  "invocation": {
+    "argv": [
+      "run",
+      "input.prose.md"
+    ],
+    "cwd": "{{WORKSPACE}}",
+    "environment": {
+      "HOME": "{{WORKSPACE}}/home",
+      "XDG_CONFIG_HOME": "{{WORKSPACE}}/config",
+      "OPENAI_API_KEY": "fixture-provider-free-openai-key"
+    }
+  },
+  "expected": {
+    "exitCode": 22,
+    "stdout": {
+      "kind": "empty"
+    },
+    "stderr": {
+      "kind": "contains",
+      "contains": [
+        "HARNESS_FAILED",
+        "Action: Choose a model available to this OpenAI account or restore access to the configured model, then retry. No fallback was selected."
+      ]
+    },
+    "startedHarness": true
+  }
+}

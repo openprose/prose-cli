@@ -1,5 +1,5 @@
 import {PrimeDrain} from "./prime-drain";
-import {sdkNativeFailure} from "./sdk-limits";
+import {sdkNativeFailure,sdkSetupFailureAction} from "./sdk-limits";
 import {sdkObservations,type SdkObservations} from "./sdk-observation";
 import {hasFreshClaudeResult} from "./claude-shutdown";
 import { isDeepStrictEqual } from "node:util";
@@ -137,7 +137,14 @@ class AgentsSdkProtocol extends InstalledProtocol {
       return started;
     }
     if (!this.started) malformed("SDK event before start.");
-    if (record.type === "error") {this.sdkObservations={...this.sdkObservations,...sdkObservations(record,this.requestedModel)};throw failure("HARNESS_FAILED", {nativeFailure:sdkNativeFailure(record),...this.sdkObservations});}
+    if (record.type === "error") {
+      this.sdkObservations={...this.sdkObservations,...sdkObservations(record,this.requestedModel)};
+      const nativeFailure=sdkNativeFailure(record),problem=failure("HARNESS_FAILED",{nativeFailure,...this.sdkObservations});
+      const action=sdkSetupFailureAction(nativeFailure);
+      if(action===undefined)throw problem;
+      const {schema:_schema,...shape}=problem.toJSON();
+      throw new RunnerFailure({...shape,action});
+    }
     if (record.type === "tool_call" || record.type === "tool_result") {
       if (typeof record.name !== "string") malformed("SDK tool identity missing.");
       this.sdkObservations={...this.sdkObservations,...sdkObservations(record,this.requestedModel)};

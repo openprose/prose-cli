@@ -7526,6 +7526,21 @@ fn claude_correlated_shutdown_requires_closed_known_native_tasks() {
     }
 }
 
+pub(crate) fn sdk_setup_action(reason: &str) -> Option<&'static str> {
+    match reason {
+        "credential-or-permission" => Some(
+            "Check OPENAI_API_KEY and this account's permission to use the configured model, then retry. No fallback was selected.",
+        ),
+        "model-unavailable" => Some(
+            "Choose a model available to this OpenAI account or restore access to the configured model, then retry. No fallback was selected.",
+        ),
+        "local-input" => Some(
+            "Check the working directory, instruction and credential file paths, file permissions and configured input-byte limit, then retry.",
+        ),
+        _ => None,
+    }
+}
+
 pub(crate) fn sdk_native_failure(record: &Value) -> Value {
     let kind = match record.get("error_type").and_then(Value::as_str) {
         Some("MaxTurnsExceeded") => "max-turns",
@@ -7533,6 +7548,16 @@ pub(crate) fn sdk_native_failure(record: &Value) -> Value {
         _ => "execution",
     };
     let mut result = json!({"kind":kind});
+    if record.get("error_type").and_then(Value::as_str) == Some("SetupError") {
+        if let Some(reason) = record
+            .get("setup_reason")
+            .and_then(Value::as_str)
+            .filter(|reason| sdk_setup_action(reason).is_some())
+        {
+            result["kind"] = json!("setup");
+            result["setupReason"] = json!(reason);
+        }
+    }
     if let Some(n) = record
         .get("elapsed_seconds")
         .and_then(Value::as_f64)
@@ -7600,9 +7625,11 @@ mod sdk_budget_diagnostic_tests {
         ))
         .unwrap();
         for case in f["errorCases"].as_array().unwrap() {
-            let record = json!({"error_type":case["error_type"],"limits":f["defaults"],"elapsed_seconds":1.5});
+            let record = json!({"error_type":case["error_type"],"setup_reason":case["setup_reason"],"message":"sdk-provider-body-secret-sentinel","limits":f["defaults"],"elapsed_seconds":1.5});
             let d = sdk_native_failure(&record);
             assert_eq!(d["kind"], case["kind"]);
+            assert_eq!(d.get("setupReason"), case.get("setupReason"));
+            assert!(!d.to_string().contains("sdk-provider-body-secret-sentinel"));
             assert_eq!(d["limits"], f["defaults"]);
             assert_eq!(d["elapsedSeconds"], 1.5);
             assert!(!d.to_string().contains("Untrusted"));

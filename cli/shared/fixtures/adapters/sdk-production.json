@@ -312,6 +312,119 @@
           "limits"
         ]
       ]
+    },
+    {
+      "id": "adapters.sdk-production-11",
+      "scenario": "failure",
+      "installation": "sibling",
+      "userConfig": null,
+      "noProbe": false,
+      "noStart": false,
+      "outputAbsent": [
+        "sdk-provider-body-secret-sentinel"
+      ],
+      "wireNumberLexemes": {},
+      "rawErrorType": "SetupError",
+      "rawSetupReason": "credential-or-permission",
+      "rawMessage": "sdk-provider-body-secret-sentinel"
+    },
+    {
+      "id": "adapters.sdk-production-12",
+      "scenario": "failure",
+      "installation": "sibling",
+      "userConfig": null,
+      "noProbe": false,
+      "noStart": false,
+      "outputAbsent": [
+        "sdk-provider-body-secret-sentinel"
+      ],
+      "wireNumberLexemes": {},
+      "rawErrorType": "SetupError",
+      "rawSetupReason": "model-unavailable",
+      "rawMessage": "sdk-provider-body-secret-sentinel"
+    },
+    {
+      "id": "adapters.sdk-production-13",
+      "scenario": "failure",
+      "installation": "sibling",
+      "userConfig": null,
+      "noProbe": false,
+      "noStart": false,
+      "outputAbsent": [
+        "sdk-provider-body-secret-sentinel"
+      ],
+      "wireNumberLexemes": {},
+      "rawErrorType": "SetupError",
+      "rawSetupReason": "local-input",
+      "rawMessage": "sdk-provider-body-secret-sentinel"
+    },
+    {
+      "id": "adapters.sdk-production-14",
+      "scenario": "failure",
+      "installation": "sibling",
+      "userConfig": null,
+      "noProbe": false,
+      "noStart": false,
+      "outputAbsent": [
+        "sdk-provider-body-secret-sentinel"
+      ],
+      "wireNumberLexemes": {},
+      "rawErrorType": "SetupError",
+      "rawSetupReason": "credential-or-permission",
+      "rawMessage": "sdk-provider-body-secret-sentinel"
+    },
+    {
+      "id": "adapters.sdk-production-15",
+      "scenario": "failure",
+      "installation": "sibling",
+      "userConfig": null,
+      "noProbe": false,
+      "noStart": false,
+      "outputAbsent": [
+        "sdk-provider-body-secret-sentinel"
+      ],
+      "wireNumberLexemes": {},
+      "rawErrorType": "SetupError",
+      "rawSetupReason": "model-unavailable",
+      "rawMessage": "sdk-provider-body-secret-sentinel"
+    },
+    {
+      "id": "adapters.sdk-production-16",
+      "scenario": "failure",
+      "installation": "sibling",
+      "userConfig": null,
+      "noProbe": false,
+      "noStart": false,
+      "outputAbsent": [
+        "sdk-provider-body-secret-sentinel"
+      ],
+      "wireNumberLexemes": {},
+      "rawErrorType": "SetupError",
+      "rawSetupReason": "local-input",
+      "rawMessage": "sdk-provider-body-secret-sentinel"
+    },
+    {
+      "id": "adapters.sdk-production-17",
+      "scenario": "failure",
+      "installation": "sibling",
+      "userConfig": null,
+      "noProbe": false,
+      "noStart": false,
+      "outputAbsent": [
+        "sdk-provider-body-secret-sentinel"
+      ],
+      "wireNumberLexemes": {},
+      "rawErrorType": "SetupError",
+      "rawSetupReason": "sdk-provider-body-secret-sentinel",
+      "rawMessage": "sdk-provider-body-secret-sentinel",
+      "absentResultPaths": [
+        [
+          "error",
+          "details",
+          "nativeFailure",
+          "setupReason"
+        ]
+      ]
     }
   ],
   "rejectedModelIdentities": [
@@ -385,5 +498,17 @@
     "parse-file-environment-flag-layers",
     "validate-explicit-selection-target",
     "validate-contextual-model-and-auth"
-  ]
+  ],
+  "setupFailure": {
+    "nativeErrorType": "SetupError",
+    "reasons": {
+      "credential-or-permission": "Check OPENAI_API_KEY and this account's permission to use the configured model, then retry. No fallback was selected.",
+      "model-unavailable": "Choose a model available to this OpenAI account or restore access to the configured model, then retry. No fallback was selected.",
+      "local-input": "Check the working directory, instruction and credential file paths, file permissions and configured input-byte limit, then retry."
+    },
+    "outerCode": "HARNESS_FAILED",
+    "exitCode": 22,
+    "unknownReasonKind": "execution",
+    "rawMessageForwarded": false
+  }
 }

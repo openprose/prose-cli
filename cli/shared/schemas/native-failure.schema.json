@@ -11,7 +11,8 @@
       "enum": [
         "max-turns",
         "timeout",
-        "execution"
+        "execution",
+        "setup"
       ]
     },
     "elapsedSeconds": {
@@ -20,6 +21,36 @@
     },
     "limits": {
       "$ref": "native-limits.schema.json"
+    },
+    "setupReason": {
+      "enum": [
+        "credential-or-permission",
+        "model-unavailable",
+        "local-input"
+      ]
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "setup"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "setupReason"
+        ]
+      },
+      "else": {
+        "not": {
+          "required": [
+            "setupReason"
+          ]
+        }
+      }
+    }
+  ]
 }

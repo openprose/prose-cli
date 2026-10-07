@@ -63,6 +63,38 @@
     {
       "error_type": "Untrusted secret text",
       "kind": "execution"
+    },
+    {
+      "error_type": "SetupError",
+      "setup_reason": "credential-or-permission",
+      "kind": "setup",
+      "setupReason": "credential-or-permission"
+    },
+    {
+      "error_type": "SetupError",
+      "setup_reason": "model-unavailable",
+      "kind": "setup",
+      "setupReason": "model-unavailable"
+    },
+    {
+      "error_type": "SetupError",
+      "setup_reason": "local-input",
+      "kind": "setup",
+      "setupReason": "local-input"
+    },
+    {
+      "error_type": "SetupError",
+      "setup_reason": "unknown-provider-body",
+      "kind": "execution"
+    },
+    {
+      "error_type": "SetupError",
+      "kind": "execution"
+    },
+    {
+      "error_type": "ExecutionError",
+      "setup_reason": "local-input",
+      "kind": "execution"
     }
   ],
   "toolOverrides": [

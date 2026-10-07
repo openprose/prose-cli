@@ -10,8 +10,17 @@ export function nativeLimits(input:Selection):Record<string,number>|undefined {
  return {maxTurns:turns,timeoutSeconds:timeoutMs/1000,toolTimeoutSeconds:toolTimeoutMs/1000,maxOutputTokens:12000,maxAggregateRequests:turns,maxAggregateHostedWebCalls:turns,maxAggregateFunctionTools:80,maxObservedTotalTokens:500000,maxRequestInputBytes:256000,maxChildren:8,maxChildDepth:1};
 }
 export function nativeLimitsArgv(input:Selection):string[]{const limits=nativeLimits(input);if(!limits)return [];return [...(input.nativeMaxTurns===undefined?[]:["--max-turns",String(limits.maxTurns)]),...(input.nativeTimeout===undefined?[]:["--timeout",String(limits.timeoutSeconds)]),...(input.nativeToolTimeout===undefined?[]:["--tool-timeout",String(limits.toolTimeoutSeconds)])];}
+const setupActions:Record<string,string>={
+ "credential-or-permission":"Check OPENAI_API_KEY and this account's permission to use the configured model, then retry. No fallback was selected.",
+ "model-unavailable":"Choose a model available to this OpenAI account or restore access to the configured model, then retry. No fallback was selected.",
+ "local-input":"Check the working directory, instruction and credential file paths, file permissions and configured input-byte limit, then retry.",
+};
+export function sdkSetupFailureAction(nativeFailure:Record<string,unknown>):string|undefined {
+ return nativeFailure.kind==="setup"&&typeof nativeFailure.setupReason==="string"&&Object.hasOwn(setupActions,nativeFailure.setupReason)?setupActions[nativeFailure.setupReason]:undefined;
+}
 export function sdkNativeFailure(record:Record<string,unknown>):Record<string,unknown>{
  const output:Record<string,unknown>={kind:record.error_type==="MaxTurnsExceeded"?"max-turns":record.error_type==="TimeoutError"?"timeout":"execution"};
+ if(record.error_type==="SetupError"&&typeof record.setup_reason==="string"&&Object.hasOwn(setupActions,record.setup_reason)){output.kind="setup";output.setupReason=record.setup_reason;}
  const elapsed=record.elapsed_seconds;if(typeof elapsed==="number"&&Number.isFinite(elapsed)&&elapsed>=0)output.elapsedSeconds=elapsed;
  const limits=record.limits;
  if(limits!==null&&typeof limits==="object"&&!Array.isArray(limits)){

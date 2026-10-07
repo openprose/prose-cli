@@ -321,7 +321,10 @@ def sdk_main(argv: list[str]) -> int:
     common = dict(usageObservation=control['usageObservation'], modelIdentity=control['modelIdentity'])
     sdk_emit(dict(type='start', model=model, cwd=str(workspace), limits=control['limits']), control['wireNumberLexemes'])
     if control['scenario'] == 'failure':
-        sdk_emit(dict(type='error', error_type='ExecutionError', message='safe fixture failure', limits=control['limits'], **common), control['wireNumberLexemes'])
+        record = dict(type='error', error_type=control['errorType'], message=control['errorMessage'], limits=control['limits'], **common)
+        if control['setupReason'] is not None:
+            record['setup_reason'] = control['setupReason']
+        sdk_emit(record, control['wireNumberLexemes'])
         return 1
     sdk_emit(dict(type='final', output=terminal, usage={'requests':3,'input_tokens':9,'output_tokens':6,'total_tokens':15}, **common), control['wireNumberLexemes'])
     return 0

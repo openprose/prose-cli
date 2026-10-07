@@ -65,6 +65,21 @@ test("SDK final and failure retain observations while usage remains a separate u
   expect(nativeLimits({harness:"agents-sdk"})).toEqual(oracle.nativeLimits);expect(sdkNativeFailure({error_type:"ExecutionError",limits:oracle.nativeLimits})).toMatchObject({limits:oracle.nativeLimits});expect(sdkNativeFailure({limits:{...oracle.nativeLimits,maxChildDepth:2}})).not.toHaveProperty("limits");
   expect(()=>buildInstalledAdapterEnvironment({definition:installedAdapterDefinition("agents-sdk/jsonl"),ambient:{OPENAI_API_KEY:"  "},credentialGroup:"openai-api-key"})).toThrow();
 });
+test("SDK setup recovery admits only recognized native reasons and retains completed observations",()=>{
+  for(const setupReason of [...Object.keys(oracle.setupFailure.reasons),"unknown-provider-body",null,{},"toString"]){
+    const protocol=installedProtocol("agents-sdk/jsonl","0.1.0","fixture",null,true,"gpt-6.1-sol");
+    protocol.accept({type:"start",model:"gpt-6.1-sol",cwd:"/tmp"});
+    let caught:any;
+    try{protocol.accept({type:"error",error_type:"SetupError",setup_reason:setupReason,message:"sdk-provider-body-secret-sentinel",usageObservation:oracle.observation.failureUsage,modelIdentity:oracle.observation.modelIdentity,limits:oracle.nativeLimits});}catch(error){caught=error;}
+    expect(caught.code).toBe("HARNESS_FAILED");expect(caught.exitCode).toBe(22);
+    const recognized=typeof setupReason==="string"&&Object.hasOwn(oracle.setupFailure.reasons,setupReason);
+    expect(caught.details.nativeFailure).toEqual({kind:recognized?"setup":"execution",...(recognized?{setupReason}:{}),limits:oracle.nativeLimits});
+    if(recognized)expect(caught.action).toBe(oracle.setupFailure.reasons[setupReason as keyof typeof oracle.setupFailure.reasons]);
+    expect(caught.details.usageObservation).toEqual(oracle.observation.failureUsage);
+    expect(caught.details.modelIdentity).toEqual(oracle.observation.modelIdentity);
+    expect(JSON.stringify(caught.toJSON())).not.toContain("sdk-provider-body-secret-sentinel");
+  }
+});
 for(const scenario of ["success","failure","cancel"])test(`actual supervised SDK ${scenario} preserves completed observations`,async()=>{
   const root=await workspace(),helper=join(root,"prose-agents-sdk"),image=await verifyRuntimeImage(sentinelFixtureImage);
   const observation=scenario==="success"?oracle.observation.completedUsage:oracle.observation.failureUsage;

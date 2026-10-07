@@ -109,10 +109,10 @@ class RunnerUnitTest(unittest.TestCase):
         wanted = runner.expected_for_host(case, "linux", "aarch64")
         self.assertEqual("arm64", wanted["resultMatches"]["error"]["details"]["hostArchitecture"])
         self.assertTrue(runner.deep_subset({"terminal": {"classification": "success"}}, wanted["resultMatches"]))
-        self.assertEqual(86, len(list(runner.case_paths(7, set()))))
+        self.assertEqual(100, len(list(runner.case_paths(7, set()))))
 
     def test_sdk_installation_fixture_executes_canonical_clone_and_keeps_helper_off_path(self):
-        for number in range(1,11):
+        for number in range(1,18):
             case = json.loads((runner.CASES/'adapters'/f'sdk-production-{number:02}.json').read_text())
             with self.subTest(case=case['id']), tempfile.TemporaryDirectory() as temporary:
                 root = Path(temporary)
@@ -145,7 +145,7 @@ class RunnerUnitTest(unittest.TestCase):
 
     def test_sdk_fake_wire_is_provider_free_and_reuses_frozen_observations(self):
         oracle = json.loads((runner.CLI/'shared/fixtures/adapters/sdk-production.json').read_text())
-        for number in (4,5,6,9,10):
+        for number in (4,5,6,9,10,11,12,13,14,15,16,17):
             case = json.loads((runner.CASES/'adapters'/f'sdk-production-{number:02}.json').read_text())
             with self.subTest(case=case['id']), tempfile.TemporaryDirectory() as temporary:
                 root=Path(temporary); environment,workspace=runner.product_roots(root,'fixture')
@@ -155,15 +155,21 @@ class RunnerUnitTest(unittest.TestCase):
                 image=workspace/'instructions';image.write_bytes(b'OPENPROSE_SENTINEL_IMAGE_V1')
                 argv=[sys.executable,str(helper),'--cwd',str(workspace),'--instructions',str(image),'--model','gpt-6.1-sol','--prompt',json.dumps({'argv':['prose','run','input.prose.md']})]
                 result=runner.run_owned_process(argv,cwd=workspace,environment=runner.hermetic_environment(environment,{'PATH':str(poison)}),timeout_seconds=3)
-                self.assertEqual(1 if number in (5,9,10) else 0,result.exit_code,result.stderr)
+                self.assertEqual(1 if number in (5,9,10,11,12,13,14,15,16,17) else 0,result.exit_code,result.stderr)
                 records=[json.loads(line) for line in result.stdout.splitlines()]
                 self.assertEqual('start',records[0]['type'])
-                self.assertEqual('error' if number in (5,9,10) else 'final',records[-1]['type'])
+                self.assertEqual('error' if number in (5,9,10,11,12,13,14,15,16,17) else 'final',records[-1]['type'])
                 if number!=6:
-                    self.assertEqual(oracle['observation']['failureUsage' if number in (5,9,10) else 'completedUsage'],records[-1]['usageObservation'])
+                    self.assertEqual(oracle['observation']['failureUsage' if number in (5,9,10,11,12,13,14,15,16,17) else 'completedUsage'],records[-1]['usageObservation'])
                     self.assertEqual(oracle['observation']['modelIdentity'],records[-1]['modelIdentity'])
                 else:
                     self.assertEqual('sdk-unrecognized-secret-sentinel',records[-1]['usageObservation']['unknown'])
+                if number >= 11:
+                    control=next(row for row in oracle['cases'] if row['id']==case['id'])
+                    self.assertEqual('SetupError',records[-1]['error_type'])
+                    self.assertEqual(control['rawSetupReason'],records[-1]['setup_reason'])
+                    self.assertIn(b'sdk-provider-body-secret-sentinel',result.stdout)
+                    self.assertEqual([], result.stderr.splitlines())
                 if number == 5:
                     self.assertIn(b'"maxTurns":20.0', result.stdout)
                     self.assertIn(b'"maxOutputTokens":12000e0', result.stdout)
@@ -179,7 +185,7 @@ class RunnerUnitTest(unittest.TestCase):
                     other = 'maxChildDepth' if number == 9 else 'maxChildren'
                     self.assertEqual(oracle['nativeLimits'][other], records[-1]['limits'][other])
                 self.assertTrue((workspace/'.sdk-harness-started').is_file())
-                if number not in (5,9,10):
+                if number not in (5,9,10,11,12,13,14,15,16,17):
                     terminal=json.loads(records[-1]['output'])
                     self.assertEqual('OPENPROSE_SENTINEL_TERMINAL_V1',terminal['marker'])
 
@@ -197,6 +203,29 @@ class RunnerUnitTest(unittest.TestCase):
                 self.assertEqual([],runner.validate_sdk_effects(observation))
             observation.stdout=b'sdk-unrecognized-secret-sentinel'
             self.assertEqual(['SDK output exposed a forbidden raw-observation sentinel'],runner.validate_sdk_effects(observation))
+
+    def test_sdk_setup_human_actions_and_body_suppression_are_independent_guards(self):
+        for number in range(11,18):
+            case=json.loads((runner.CASES/'adapters'/f'sdk-production-{number:02}.json').read_text())
+            with self.subTest(case=case['id']),tempfile.TemporaryDirectory() as temporary:
+                root=Path(temporary);environment,workspace=runner.product_roots(root,'fixture');runner.isolate_workspace(workspace)
+                _,fixture,_=runner.prepare_sdk_installation(runner.Product('fixture',Path('/usr/bin/true')),case,workspace,environment)
+                observation=runner.Observation(runner.Product('fixture',Path('/usr/bin/true')),case,22,b'',b'',workspace=workspace,sdk_fixture=fixture)
+                self.assertEqual([],runner.validate_sdk_effects(observation))
+                for stream in ('stdout','stderr'):
+                    setattr(observation,stream,b'sdk-provider-body-secret-sentinel')
+                    self.assertIn('SDK output exposed a forbidden raw-observation sentinel',runner.validate_sdk_effects(observation))
+                    setattr(observation,stream,b'')
+                if 14<=number<=16:
+                    (workspace/'.sdk-harness-started').touch()
+                    observation.fake_observation=workspace/'.sdk-harness-started'
+                    observation.stderr=('\n'.join(case['expected']['stderr']['contains'])+'\n').encode()
+                    self.assertEqual([],runner.validate_output(observation,runner.ContractRegistry()))
+                    observation.stderr=b'HARNESS_FAILED\nAction: wrong\n'
+                    self.assertTrue(any('Action:' in error for error in runner.validate_output(observation,runner.ContractRegistry())))
+                if number==17:
+                    observation.parsed={'error':{'details':{'nativeFailure':{'kind':'execution','setupReason':'local-input'}}}}
+                    self.assertIn('SDK malformed result field was retained: $.error.details.nativeFailure.setupReason',runner.validate_sdk_effects(observation))
 
     def test_sdk_invalid_child_limits_require_nested_absence_even_if_null(self):
         for number in (9,10):
