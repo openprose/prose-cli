@@ -1724,6 +1724,40 @@ def validate_sdk_effects(observation: Observation) -> list[str]:
     return failures
 
 
+def expand_fixture_global_cwd(arguments: list[str], workspace: Path) -> list[str]:
+    # The shared configuration manifest owns option names. Only a runner cwd
+    # macro before the language freeze point is expanded; task bytes stay opaque.
+    schema=json.loads((CLI/'shared/schemas/configuration-explanation.schema.json').read_text('utf-8'))
+    keys=schema['properties']['values']['properties']
+    exceptions={'nativeAddDirs':'--native-add-dir','nativeAllowTools':'--native-allow-tool'}
+    values={'--cwd'}
+    for key in keys:
+        if key not in ('color','verbose'):
+            values.add(exceptions.get(key,'--'+re.sub(r'([A-Z])',lambda match:'-'+match.group(1).lower(),key)))
+    flags={'--no-color','--verbose','--dry-run'}
+    expanded=list(arguments)
+    index=0
+    while index<len(expanded):
+        token=expanded[index]
+        name,separator,value=token.partition('=')
+        if name in values:
+            if separator:
+                if name=='--cwd':
+                    expanded[index]=name+'='+value.replace('{{WORKSPACE}}',str(workspace.resolve()))
+                index+=1
+            else:
+                if index+1>=len(expanded):
+                    break
+                if name=='--cwd':
+                    expanded[index+1]=expanded[index+1].replace('{{WORKSPACE}}',str(workspace.resolve()))
+                index+=2
+        elif token in flags:
+            index+=1
+        else:
+            break
+    return expanded
+
+
 def execute(
     product: Product,
     case: dict[str, Any],
@@ -1805,7 +1839,7 @@ def execute(
     for name in case["controls"].get("omitEnvironment", []):
         environment.pop(name, None)
     completed = run_owned_process(
-        execution_product.execution_argv(case["invocation"]["argv"]),
+        execution_product.execution_argv(expand_fixture_global_cwd(case["invocation"]["argv"], canonical_workspace)),
         cwd=cwd,
         environment=environment,
         timeout_seconds=15,

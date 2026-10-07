@@ -3,7 +3,12 @@
   "id": "operations.harness-list-default",
   "summary": "Both products expose the same selected harness and ordered stable inventory.",
   "phase": 6,
-  "tags": ["cli", "harness", "agent-dx", "differential"],
+  "tags": [
+    "cli",
+    "harness",
+    "agent-dx",
+    "differential"
+  ],
   "controls": {
     "fixedInvocationId": "fixture-invocation-0001",
     "fixedTimestamp": "2025-01-01T00:00:00Z",
@@ -11,7 +16,13 @@
     "network": "denied"
   },
   "invocation": {
-    "argv": ["--output", "json", "cli", "harness", "list"],
+    "argv": [
+      "--output",
+      "json",
+      "cli",
+      "harness",
+      "list"
+    ],
     "cwd": "{{WORKSPACE}}",
     "environment": {
       "HOME": "{{WORKSPACE}}/home",
@@ -20,12 +31,17 @@
   },
   "expected": {
     "exitCode": 0,
-    "stdout": { "kind": "json", "schema": "openprose.harness-list/1" },
-    "stderr": { "kind": "empty" },
+    "stdout": {
+      "kind": "json",
+      "schema": "openprose.harness-list/1"
+    },
+    "stderr": {
+      "kind": "empty"
+    },
     "startedHarness": false,
     "resultMatches": {
       "schema": "openprose.harness-list/1",
-      "selected": "openprose"
+      "selected": "agents-sdk"
     }
   }
 }

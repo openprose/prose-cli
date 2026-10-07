@@ -644,6 +644,15 @@ fn prepare(
     ) {
         return prose_runner_core::runner::configuration_outcome(&config, mode);
     }
+    if config.harness.value == "agents-sdk"
+        && matches!(parsed.action, Action::Forward { .. })
+        && !parsed.globals.dry_run
+    {
+        let ambient = std::env::vars_os().collect::<Vec<_>>();
+        if let Err(error) = prose_runner_core::runner::sdk_credential_preflight(&config, &ambient) {
+            return error_outcome(error, mode, &clock, &ids);
+        }
+    }
     let image = match execution_image(&parsed, &config, cancellation) {
         Ok(image) => image,
         Err(error) => return error_outcome(error, mode, &clock, &ids),

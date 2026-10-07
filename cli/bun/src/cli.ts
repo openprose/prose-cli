@@ -4,7 +4,7 @@ import { runWeaveHost, writeHostBytes, stopHostOutput } from "./core/weave-host"
 import { PUBLISHED_KERNEL_STARTUP } from "./core/build";
 import { publishedKernel } from "./core/kernel-startup";
 import {nativeOutputLimits} from "./adapters/output-budget";
-import {nativeLimits} from "./adapters/sdk-limits";
+import {nativeLimits,sdkSetupFailureAction} from "./adapters/sdk-limits";
 import { nativeConfiguration } from "./adapters/native-profile";
 import { parseEntrypoint, inferOutputMode, isValueOption } from "./core/args";
 import { embeddedRuntimeImage } from "./assets/sentinel";
@@ -955,10 +955,7 @@ async function runInstalledProbeInvocation(
       transportTerminalObserved: true,
       fallbackAttempted: false,
     })
-    : failure(
-      outcome.process.error.code,
-      installedProcessFailureDetails(outcome.process, adapterId),
-    );
+    : installedProcessFailure(outcome.process,adapterId);
   if(outcome.sdkObservations!==undefined) {
     const {schema:_,...shape}=attemptedError.toJSON();
     attemptedError=new RunnerFailure({...shape,details:{...attemptedError.details,...outcome.sdkObservations}});
@@ -1197,10 +1194,7 @@ async function runInstalledInvocation(
   }
   let attemptedError = outcome.process.error === null
     ? null
-    : failure(
-      outcome.process.error.code,
-      installedProcessFailureDetails(outcome.process, readiness.adapterId),
-    );
+    : installedProcessFailure(outcome.process,readiness.adapterId);
   let terminalEnvelope: Record<string, unknown> | null = null;
   const nativeOutput = config.values.outputContract === "native";
   if (attemptedError === null && !nativeOutput) {
@@ -1335,6 +1329,16 @@ function processEvents(
     signal: outcome.signal,
   }));
   return records;
+}
+
+function installedProcessFailure(process:ProcessSupervisionResult,adapterId:InstalledAdapterId):RunnerFailure {
+  const problem=failure(process.error!.code,installedProcessFailureDetails(process,adapterId));
+  if(problem.code!=="HARNESS_FAILED"||adapterId!=="agents-sdk/jsonl")return problem;
+  const nativeFailure=problem.details?.nativeFailure;
+  const action=nativeFailure!==null&&typeof nativeFailure==="object"&&!Array.isArray(nativeFailure)?sdkSetupFailureAction(nativeFailure as Record<string,unknown>):undefined;
+  if(action===undefined)return problem;
+  const {schema:_schema,...shape}=problem.toJSON();
+  return new RunnerFailure({...shape,action});
 }
 
 export function installedProcessFailureDetails(

@@ -790,6 +790,21 @@ impl RunnerError {
 
     #[must_use]
     pub fn human_action(&self) -> String {
+        if self.code == ErrorCode::HarnessFailed {
+            if let Some(action) = self
+                .details
+                .as_ref()
+                .filter(|details| {
+                    details.get("adapterId").and_then(Value::as_str) == Some("agents-sdk/jsonl")
+                })
+                .and_then(|details| details.get("nativeFailure"))
+                .filter(|native| native.get("kind").and_then(Value::as_str) == Some("setup"))
+                .and_then(|native| native.get("setupReason").and_then(Value::as_str))
+                .and_then(crate::installed_adapters::sdk_setup_action)
+            {
+                return human_safe_scalar(action);
+            }
+        }
         let executable = human_runner_executable();
         let action = human_safe_scalar(&self.action);
         if executable == NON_COPYABLE_RUNNER_GUIDANCE {
@@ -892,6 +907,46 @@ pub fn run_failure_action(reason: &str) -> Option<&'static str> {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn sdk_setup_human_actions_are_fixed_and_keep_primary_error_guards() {
+        for reason in [
+            "credential-or-permission",
+            "model-unavailable",
+            "local-input",
+        ] {
+            let error = RunnerError::catalog(ErrorCode::HarnessFailed)
+                .with_detail("adapterId", "agents-sdk/jsonl")
+                .with_detail(
+                    "nativeFailure",
+                    serde_json::json!({"kind":"setup", "setupReason":reason}),
+                );
+            let action = crate::installed_adapters::sdk_setup_action(reason).unwrap();
+            assert_eq!(error.human_action(), action);
+            assert!(error.to_string().contains(&format!("\nAction: {action}")));
+            let mut primary = error.clone();
+            primary.code = ErrorCode::Cancelled;
+            assert_ne!(primary.human_action(), action);
+            let other = RunnerError::catalog(ErrorCode::HarnessFailed)
+                .with_detail("adapterId", "claude/print-stream-json")
+                .with_detail(
+                    "nativeFailure",
+                    serde_json::json!({"kind":"setup", "setupReason":reason}),
+                );
+            assert_ne!(other.human_action(), action);
+        }
+        let unknown = RunnerError::catalog(ErrorCode::HarnessFailed)
+            .with_detail("adapterId", "agents-sdk/jsonl")
+            .with_detail(
+                "nativeFailure",
+                serde_json::json!({"kind":"setup", "setupReason":"arbitrary-provider-message"}),
+            );
+        assert!(
+            !unknown
+                .human_action()
+                .contains("arbitrary-provider-message")
+        );
+    }
 
     #[test]
     fn quote_and_detail_match_the_shared_fixture() {

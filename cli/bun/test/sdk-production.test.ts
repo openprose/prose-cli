@@ -5,6 +5,7 @@ import {mkdtemp,mkdir,writeFile,readFile,realpath,rm,symlink} from "node:fs/prom
 import {join} from "node:path";
 import {tmpdir} from "node:os";
 import oracle from "../../shared/fixtures/adapters/sdk-production.json";
+import taxonomy from "../../shared/errors/taxonomy.v1.json";
 import {resolveInstalledExecutable} from "../src/adapters/executable";
 import {sdkObservations} from "../src/adapters/sdk-observation";
 import {installedProtocol} from "../src/adapters/protocols";
@@ -39,7 +40,14 @@ test("packaged SDK discovery follows the CLI symlink, relocates together and ref
 for(const key of [undefined,"","  "])test(`SDK missing/blank key ${JSON.stringify(key)} fails before helper resolution`,async()=>{
   const root=await workspace();let stdout="",stderr="";
   const exit=await runCli(["--output","json","run","input.prose.md"],{processCwd:root,env:{HOME:join(root,"home"),...(key===undefined?{}:{OPENAI_API_KEY:key})},clock:{now:()=>"2025-01-01T00:00:00Z",monotonicMs:()=>0},ids:{invocationId:()=>"fixture-invocation-0001"},writeStdout:text=>{stdout+=text;},writeStderr:text=>{stderr+=text;}});
-  expect(exit).toBe(10);expect(stderr).toBe("");expect(JSON.parse(stdout)).toMatchObject({code:"HARNESS_NEEDS_AUTH",details:{adapterId:"agents-sdk/jsonl",authProfile:"openai-api-key"}});expect(JSON.parse(stdout).action).toContain("OPENAI_API_KEY");
+  expect(exit).toBe(10);expect(stderr).toBe("");expect(JSON.parse(stdout)).toMatchObject({code:"HARNESS_NEEDS_AUTH",details:{adapterId:"agents-sdk/jsonl",authProfile:"openai-api-key",fallbackAttempted:false}});expect(JSON.parse(stdout).action).toContain("OPENAI_API_KEY");
+});
+test("default SDK doctor exposes the complete missing-key error with no fallback",async()=>{
+  const root=await workspace();let stdout="",stderr="";
+  const exit=await runCli(["--output","json","cli","doctor"],{platform:"darwin",arch:"arm64",processCwd:root,userConfigPath:join(root,"absent.toml"),env:{},imageBundle:sentinelFixtureImage,clock:{now:()=>"2025-01-01T00:00:00Z",monotonicMs:()=>0},ids:{invocationId:()=>"fixture-invocation-0001"},writeStdout:text=>{stdout+=text;},writeStderr:text=>{stderr+=text;}});
+  const definition=taxonomy.errors.find(item=>item.code==="HARNESS_NEEDS_AUTH")!;
+  expect(exit).toBe(10);expect(stderr).toBe("");
+  expect(JSON.parse(stdout).problems).toEqual([{schema:"openprose.runner-error/1",...definition,action:"Set OPENAI_API_KEY to an OpenAI API key in the process environment, then retry. No model request was sent.",details:{adapterId:"agents-sdk/jsonl",authProfile:"openai-api-key",fallbackAttempted:false}}]);
 });
 test("pure exact SDK defaults resolve without credentials or executable discovery",async()=>{
   const root=await workspace();let stdout="";
@@ -79,6 +87,17 @@ test("SDK setup recovery admits only recognized native reasons and retains compl
     expect(caught.details.modelIdentity).toEqual(oracle.observation.modelIdentity);
     expect(JSON.stringify(caught.toJSON())).not.toContain("sdk-provider-body-secret-sentinel");
   }
+});
+for(const [setupReason,action] of Object.entries(oracle.setupFailure.reasons))for(const output of ["json","human"] as const)test(`actual CLI SDK ${setupReason} recovery survives ${output} rendering`,async()=>{
+  const root=await workspace(),helper=join(root,"prose-agents-sdk");
+  const terminal={type:"error",error_type:"SetupError",setup_reason:setupReason,message:"sdk-provider-body-secret-sentinel",limits:oracle.nativeLimits,usageObservation:oracle.observation.failureUsage,modelIdentity:oracle.observation.modelIdentity};
+  await writeFile(helper,`#!/Users/mm/openprose/.scratch/imp-086-tools/bun-darwin-aarch64/bun\nconsole.log(JSON.stringify({type:'start',model:'gpt-6.1-sol',cwd:${JSON.stringify(root)}}));console.log(JSON.stringify(${JSON.stringify(terminal)}));process.exit(1);`,{mode:0o755});
+  let stdout="",stderr="";
+  const code=await runCli(["--output",output,"run","input.prose.md"],{platform:"darwin",arch:"arm64",processCwd:root,userConfigPath:join(root,"absent.toml"),env:{OPENAI_API_KEY:"fixture-key"},imageBundle:sentinelFixtureImage,installedAdapterProbe:{executable:helper,observationPath:join(root,"observation.json"),credentialGroup:"openai-api-key"},clock:{now:()=>"2025-01-01T00:00:00Z",monotonicMs:()=>0},ids:{invocationId:()=>"fixture-invocation-0001"},writeStdout:text=>{stdout+=text;},writeStderr:text=>{stderr+=text;}});
+  expect(code).toBe(22);expect(stdout+stderr).not.toContain("sdk-provider-body-secret-sentinel");
+  if(output==="json"){
+    const result=JSON.parse(stdout);expect(result.error).toMatchObject({code:"HARNESS_FAILED",action,details:{nativeFailure:{kind:"setup",setupReason},usageObservation:oracle.observation.failureUsage,modelIdentity:oracle.observation.modelIdentity}});expect(stderr).toBe("");
+  }else{expect(stdout).toBe("");expect(stderr).toContain(`Action: ${action}`);}
 });
 for(const scenario of ["success","failure","cancel"])test(`actual supervised SDK ${scenario} preserves completed observations`,async()=>{
   const root=await workspace(),helper=join(root,"prose-agents-sdk"),image=await verifyRuntimeImage(sentinelFixtureImage);

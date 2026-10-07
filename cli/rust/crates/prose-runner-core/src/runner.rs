@@ -773,6 +773,27 @@ fn supported_transports(harness: &str) -> Option<&'static [&'static str]> {
     }
 }
 
+/// Checks SDK credentials before image acquisition or native helper discovery.
+///
+/// # Errors
+///
+/// Returns the existing transport/configuration error for an invalid SDK route,
+/// or `HARNESS_NEEDS_AUTH` for a missing or blank API key. No process is started.
+pub fn sdk_credential_preflight(
+    config: &EffectiveConfig,
+    ambient: &[(std::ffi::OsString, std::ffi::OsString)],
+) -> Result<(), RunnerError> {
+    if config.harness.value != "agents-sdk" {
+        return Ok(());
+    }
+    validate_selected_transport(config)?;
+    let adapter = installed_adapters::InstalledAdapter::AgentsSdkJsonl;
+    let group = selected_auth_group(adapter, config)?;
+    installed_adapters::auth_readiness(adapter, &group, ambient)
+        .map(|_| ())
+        .map_err(|error| error.with_detail("fallbackAttempted", false))
+}
+
 fn validate_selected_transport(config: &EffectiveConfig) -> Result<(), RunnerError> {
     let Some(supported) = supported_transports(&config.harness.value) else {
         return Ok(());
@@ -4934,6 +4955,36 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn sdk_preflight_requires_nonblank_key_and_preserves_other_routes() {
+        let temp = TempDir::new().unwrap();
+        let mut config = installed_config(
+            temp.path(),
+            "agents-sdk",
+            "jsonl",
+            Some("gpt-6.1-sol"),
+            "openai-api-key",
+        );
+        for ambient in [Vec::new(), vec![("OPENAI_API_KEY".into(), "  ".into())]] {
+            let error = sdk_credential_preflight(&config, &ambient).unwrap_err();
+            assert_eq!(error.code, ErrorCode::HarnessNeedsAuth);
+            assert_eq!(error.details.as_ref().unwrap()["fallbackAttempted"], false);
+            assert_eq!(
+                error.action,
+                "Set OPENAI_API_KEY to an OpenAI API key in the process environment, then retry. No model request was sent."
+            );
+        }
+        assert!(
+            sdk_credential_preflight(
+                &config,
+                &[("OPENAI_API_KEY".into(), "fixture-no-provider-key".into())]
+            )
+            .is_ok()
+        );
+        config.harness.value = "claude".into();
+        assert!(sdk_credential_preflight(&config, &[]).is_ok());
     }
 
     #[test]

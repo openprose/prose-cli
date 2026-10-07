@@ -111,6 +111,23 @@ class RunnerUnitTest(unittest.TestCase):
         self.assertTrue(runner.deep_subset({"terminal": {"classification": "success"}}, wanted["resultMatches"]))
         self.assertEqual(100, len(list(runner.case_paths(7, set()))))
 
+    def test_global_cwd_macro_expansion_respects_arity_and_language_freeze(self):
+        workspace=Path('/fixture workspace')
+        token='{{WORKSPACE}}/sub'
+        for original,wanted in [
+            (['--output','json','--cwd',token,'run','--cwd',token],['--output','json','--cwd','/fixture workspace/sub','run','--cwd',token]),
+            (['--no-color','--cwd='+token,'--','--cwd',token],['--no-color','--cwd=/fixture workspace/sub','--','--cwd',token]),
+            (['--model','--cwd','run',token],['--model','--cwd','run',token]),
+            (['--unknown','--cwd',token],['--unknown','--cwd',token]),
+            (['--native-add-dir',token,'--verbose','--cwd',token],['--native-add-dir',token,'--verbose','--cwd','/fixture workspace/sub']),
+            (['--cwd'],['--cwd']),
+            (['--help','--cwd',token],['--help','--cwd',token]),
+        ]:
+            with self.subTest(original=original):
+                snapshot=list(original)
+                self.assertEqual(wanted,runner.expand_fixture_global_cwd(original,workspace))
+                self.assertEqual(snapshot,original)
+
     def test_sdk_installation_fixture_executes_canonical_clone_and_keeps_helper_off_path(self):
         for number in range(1,18):
             case = json.loads((runner.CASES/'adapters'/f'sdk-production-{number:02}.json').read_text())

@@ -33,6 +33,7 @@ export function buildInstalledAdapterEnvironment(input: AdapterEnvironmentInput)
     const error=failure("HARNESS_NEEDS_AUTH", {
       adapterId: input.definition.id,
       authProfile: input.credentialGroup,
+      ...(input.definition.id==="agents-sdk/jsonl"?{fallbackAttempted:false}:{}),
     });
     if(input.definition.id==="agents-sdk/jsonl") {
       const {schema:_,...shape}=error.toJSON();

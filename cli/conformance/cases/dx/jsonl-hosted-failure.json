@@ -3,7 +3,14 @@
   "id": "dx.jsonl-hosted-failure",
   "summary": "JSONL hosted refusal emits exactly one final failed terminal with the canonical actionable error.",
   "phase": 7,
-  "tags": ["jsonl", "hosted", "terminal", "error", "agent-dx", "differential"],
+  "tags": [
+    "jsonl",
+    "hosted",
+    "terminal",
+    "error",
+    "agent-dx",
+    "differential"
+  ],
   "controls": {
     "fixedInvocationId": "fixture-invocation-0001",
     "fixedTimestamp": "2025-01-01T00:00:00Z",
@@ -11,7 +18,14 @@
     "network": "denied"
   },
   "invocation": {
-    "argv": ["--output", "jsonl", "run", "fixture.prose.md"],
+    "argv": [
+      "--harness",
+      "openprose",
+      "--output",
+      "jsonl",
+      "run",
+      "fixture.prose.md"
+    ],
     "cwd": "{{WORKSPACE}}",
     "environment": {}
   },
@@ -19,10 +33,14 @@
     "exitCode": 10,
     "stdout": {
       "kind": "jsonl",
-      "eventTypes": ["runner.failed"],
+      "eventTypes": [
+        "runner.failed"
+      ],
       "terminalType": "runner.failed"
     },
-    "stderr": { "kind": "empty" },
+    "stderr": {
+      "kind": "empty"
+    },
     "startedHarness": false,
     "errorCode": "HOSTED_UNAVAILABLE",
     "errorAction": "To use the hosted service, run `cli run submit FILE --preview`; running programs on this machine needs a local harness (`cli harness list`)."

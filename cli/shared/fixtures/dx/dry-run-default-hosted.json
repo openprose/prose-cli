@@ -34,8 +34,8 @@
     },
     {
       "key": "harness",
-      "source": "default",
-      "location": "built-in",
+      "source": "flag",
+      "location": "--harness",
       "redacted": false
     },
     {
