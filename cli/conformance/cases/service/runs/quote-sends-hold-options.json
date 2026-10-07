@@ -1,16 +1,27 @@
 {
-  "id": "quote-linux-environment",
+  "id": "quote-sends-hold-options",
   "feature": "runs",
   "operation": "run.quote",
-  "description": "--environment is validated against /health and sent as the only query parameter.",
+  "description": "`run quote` sends the hold options it was given: --model, --reasoning-effort, --environment, and repositories=1 for any --repo or --commit-output. The program and inputs are never sent.",
   "argv": [
     "--output",
     "json",
     "cli",
     "run",
     "quote",
+    "p.prose.md",
+    "--input",
+    "topic=cats",
+    "--model",
+    "model-luna",
+    "--reasoning-effort",
+    "low",
     "--environment",
-    "linux"
+    "linux",
+    "--repo",
+    "exowner1/context",
+    "--commit-output",
+    "exowner1/context"
   ],
   "fixture": {
     "environment": "production",
@@ -49,6 +60,12 @@
       {
         "method": "GET",
         "path": "/run/quote",
+        "query": {
+          "model": "model-luna",
+          "reasoning_effort": "low",
+          "environment": "linux",
+          "repositories": "1"
+        },
         "requestHeaders": {
           "Authorization": {
             "present": false
@@ -62,9 +79,6 @@
           },
           "pricing_policy_id": "pricing-policy.sha256.f114eadc02b7550e58f12c49996382b04f867cb774ac295506806f599ef1e3cd",
           "note": "Unused hold is released when the run settles."
-        },
-        "query": {
-          "environment": "linux"
         }
       }
     ]

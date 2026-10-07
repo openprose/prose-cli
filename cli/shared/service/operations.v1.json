@@ -1954,7 +1954,7 @@
       ],
       "contract": "service/1",
       "feature": "runs",
-      "summary": "Report the hold a run reserves: money set aside from the wallet while the run is live. It is not the price. The environment is checked first.\nThe hold is flat, the same for every program and model, and what the run does not use is released when it settles. A run's price is known only after it settles (`cli run show RUN_ID`, price_cents). The program, inputs and model `cli run submit` takes are accepted, so you can quote the exact command you will submit.",
+      "summary": "Report the hold a run reserves: money set aside from the wallet while the run is live. It is not the price. The environment is checked first.\nThe hold depends on the model, reasoning effort, environment, declared tools and bound repositories, and what the run does not use is released when it settles. The quote sends only the --model, --reasoning-effort, --environment, --repo and --commit-output you give. It does not read the program, so a program that sets its own model, effort or environment, or declares tools, can hold a different amount. A run's price is known only after it settles (`cli run show RUN_ID`, price_cents). The program, inputs and options `cli run submit` takes are accepted, so you can quote the exact command you will submit.",
       "interaction": "run.quote",
       "interactions": [
         "health.read",
@@ -1963,7 +1963,7 @@
       "arguments": [
         {
           "name": "FILE",
-          "description": "Program file, or - for standard input, as `cli run submit` takes it. Accepted so a quote names the same command as `cli run submit`; the hold does not depend on it.",
+          "description": "Program file, or - for standard input, as `cli run submit` takes it. Accepted so a quote names the same command as `cli run submit`; the quote does not read the program, so the program's own run settings and declared tools are not included.",
           "required": false,
           "variadic": false
         }
@@ -1972,7 +1972,7 @@
         {
           "name": "--from",
           "value": "[OWNER/]SLUG[@REV]",
-          "description": "Run a saved program; a bare SLUG is your own program. @REV is a rev_id, or @N (@revN) for revision N of your own program; without @REV the latest revision is pinned. Accepted so a quote names the same command as `cli run submit`; the hold does not depend on it.",
+          "description": "Run a saved program; a bare SLUG is your own program. @REV is a rev_id, or @N (@revN) for revision N of your own program; without @REV the latest revision is pinned. Accepted so a quote names the same command as `cli run submit`; the quote does not read the program, so the program's own run settings and declared tools are not included.",
           "repeatable": false,
           "required": false
         },
@@ -1993,7 +1993,7 @@
         {
           "name": "--model",
           "value": "MODEL",
-          "description": "Hosted model id (see `cli model list`). Accepted so a quote names the same command as `cli run submit`; the hold does not depend on it.",
+          "description": "Hosted model id (see `cli model list`). Sent with the quote: the hold depends on it.",
           "default": "the service's default_model (`cli model list`)",
           "repeatable": false,
           "required": false
@@ -2001,7 +2001,7 @@
         {
           "name": "--reasoning-effort",
           "value": "EFFORT",
-          "description": "Reasoning effort supported by the model. Accepted so a quote names the same command as `cli run submit`; the hold does not depend on it.",
+          "description": "Reasoning effort supported by the model. Sent with the quote: the hold depends on it.",
           "repeatable": false,
           "required": false,
           "choices": [
@@ -2015,7 +2015,7 @@
         {
           "name": "--environment",
           "value": "ENV",
-          "description": "Execution environment offered by the service (for example builtin or linux).",
+          "description": "Execution environment offered by the service (for example builtin or linux). Sent with the quote: the hold depends on it.",
           "default": "the service's default environment",
           "repeatable": false,
           "required": false
@@ -2031,14 +2031,14 @@
         {
           "name": "--repo",
           "value": "OWNER/NAME[@BRANCH]",
-          "description": "Read-only repository context. Accepted so a quote names the same command as `cli run submit`; the hold does not depend on it.",
+          "description": "Read-only repository context. Any --repo or --commit-output sends repositories=1 with the quote: a bound repository adds to the hold.",
           "repeatable": true,
           "required": false
         },
         {
           "name": "--commit-output",
           "value": "OWNER/NAME[@BRANCH]",
-          "description": "Writable repository that receives the run's commit. Accepted so a quote names the same command as `cli run submit`; the hold does not depend on it.",
+          "description": "Writable repository that receives the run's commit. Any --repo or --commit-output sends repositories=1 with the quote: a bound repository adds to the hold.",
           "repeatable": false,
           "required": false
         }
@@ -2063,7 +2063,10 @@
           "method": "GET",
           "path": "/run/quote",
           "query": {
-            "environment": "{environment}"
+            "model": "{model}",
+            "reasoning_effort": "{reasoning_effort}",
+            "environment": "{environment}",
+            "repositories": "1"
           },
           "auth": "none",
           "body": null,
@@ -2256,7 +2259,10 @@
           "method": "GET",
           "path": "/run/quote",
           "query": {
-            "environment": "{environment}"
+            "model": "{model}",
+            "reasoning_effort": "{reasoning_effort}",
+            "environment": "{environment}",
+            "repositories": "1"
           },
           "auth": "none",
           "body": null,
@@ -4623,7 +4629,7 @@
       ],
       "contract": "service/1",
       "feature": "jobs",
-      "summary": "Create a job from a JSON spec. A job starts paid runs on its own, on a schedule or from webhook events, until it is deleted.\nSpec keys are snake_case. `type` is required; `cli job list` prints every type with its config_fields. Each type accepts the keys listed under this command's `spec` in `cli service operations --json`; every problem is reported at once.\n  Schedule: {\"type\":\"schedule\",\"program_ref\":\"OWNER/SLUG@REV\",\"interval_seconds\":86400}\n    interval_seconds 60 to 2678400 (86400 is once a day). The first run starts about one second after the job is created, then one every interval.\n    Cron expressions and a time of day are not supported.\n    Optional: model, reasoning_effort, environment, inputs (name -> string), files, repository_url, repository_branch, output.\n  Webhook: {\"type\":\"webhook\",\"name\":\"NAME\",\"delivery_mode\":\"test\"}\n    optional name, program_ref, receiver, receiver_secret, reply, reply_secret; delivery_mode test or live. Without program_ref it starts no runs: no hold, effect write.\nREV is the program's program.rev_id (printed by `cli program save` and `cli program show OWNER/SLUG`), not its commit_id.",
+      "summary": "Create a job from a JSON spec. A job starts paid runs on its own, on a schedule or from webhook events, until it is deleted.\nSpec keys are snake_case. `type` is required; `cli job list` prints every type with its config_fields. Each type accepts the keys listed under this command's `spec` in `cli service operations --json`; every problem is reported at once.\n  Schedule: {\"type\":\"schedule\",\"program_ref\":\"OWNER/SLUG@REV\",\"interval_seconds\":86400}\n    interval_seconds 60 to 2678400 (86400 is once a day). The first run starts about one second after the job is created, then one every interval.\n    Cron expressions and a time of day are not supported.\n    Optional: model, reasoning_effort, environment, inputs (name -> string), files, repository_url, repository_branch, output.\n  Webhook: {\"type\":\"webhook\",\"name\":\"NAME\",\"delivery_mode\":\"test\"}\n    optional name, program_ref, receiver, receiver_secret, reply, reply_secret; delivery_mode test or live; with program_ref also model, reasoning_effort, repository_url, repository_branch, output. Without program_ref it starts no runs: no hold, effect write.\nREV is the program's program.rev_id (printed by `cli program save` and `cli program show OWNER/SLUG`), not its commit_id.",
       "interaction": "job.deploy",
       "interactions": [
         "job.deploy",
@@ -4646,6 +4652,13 @@
           "interaction": "run.quote",
           "method": "GET",
           "path": "/run/quote",
+          "query": {
+            "model": "{model}",
+            "reasoning_effort": "{reasoning_effort}",
+            "environment": "{environment}",
+            "repositories": "1",
+            "job_type": "{job_type}"
+          },
           "auth": "none",
           "body": null,
           "when": "confirmation",
@@ -4782,7 +4795,20 @@
                 ]
               },
               "reply": "object",
-              "reply_secret": "text"
+              "reply_secret": "text",
+              "model": "text",
+              "reasoning_effort": {
+                "enum": [
+                  "minimal",
+                  "low",
+                  "medium",
+                  "high",
+                  "xhigh"
+                ]
+              },
+              "repository_url": "text",
+              "repository_branch": "text",
+              "output": "object"
             }
           },
           "email": {

@@ -787,7 +787,8 @@ fn draft(context: &mut Context<'_>) -> Result<Value, RunnerError> {
         .header("Accept", "text/event-stream");
     let mut planned = context.planned(0, "/write", &[], request.body.as_deref());
     if context.invocation.preview || !context.invocation.yes {
-        // A draft reserves the same flat hold as a run (request 2, advisory).
+        // A draft reserves a run's hold, quoted without options (request 2,
+        // advisory).
         if let Some(quote) = context.advisory_quote(2, None) {
             planned["quote"] = quote;
         }

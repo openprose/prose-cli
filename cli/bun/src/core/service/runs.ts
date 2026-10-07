@@ -18,7 +18,7 @@ import { failure, hostedRunFailed, invocationFailure } from "../errors";
 import { humanSafeMultiline, humanSafeScalar, quote as quoteText } from "../output";
 import { RunnerFailure } from "../types";
 import { readText, validRelativePath } from "./fs";
-import { encodeSegment, jsonObject, parseJson, requestFor, type Request, type Response } from "./http";
+import { encodeSegment, holdQuery, jsonObject, parseJson, requestFor, type Request, type Response } from "./http";
 import type { Context } from "./index";
 import { validSession, type JournalEntry } from "./journal";
 import { didYouMean, manifest, type Environment, type Json, type JsonObject } from "./manifest";
@@ -255,8 +255,15 @@ async function quote(context: Context): Promise<Json> {
     if (fallback === undefined || !validText(fallback, 64)) throw protocol("service status environments.default is missing or malformed");
     environment = fallback;
   }
+  // The hold depends on these options; only those given are sent. The
+  // program, inputs and runtime are accepted but never sent.
   const request = requestFor(context.operation, 1, "/run/quote");
-  if (requested !== undefined) request.query.push(["environment", requested]);
+  request.query.push(...holdQuery({
+    model: context.option("--model"),
+    reasoningEffort: context.option("--reasoning-effort"),
+    environment: requested,
+    repositoriesBound: context.optionValues("--repo").length > 0 || context.option("--commit-output") !== undefined,
+  }));
   const body = jsonObject(await context.send(request));
   const { hold } = quoteFields(body);
   let note = "";
@@ -265,15 +272,20 @@ async function quote(context: Context): Promise<Json> {
     note = cleanLine(body.note, 512);
   }
   let text = `Environment: ${humanSafeScalar(environment)}\n`;
-  text += `Hold: $${humanSafeScalar(String(hold.hold_usd))}, set aside from the wallet while a run is live; not its price. The same for every program and model; released within ${String(hold.ttl_seconds)} s when unused\n`;
+  text += `Hold: $${humanSafeScalar(String(hold.hold_usd))}, set aside from the wallet while a run is live; not its price. Released within ${String(hold.ttl_seconds)} s when unused\n`;
+  text += `Depends on: ${HOLD_DEPENDS_ON}; ${HOLD_COVERAGE}\n`;
   text += `Price: known only after a run settles; read it with \`${context.command("run show RUN_ID")}\`\n`;
   if (note.length > 0) text += `Note: ${humanSafeScalar(note)}\n`;
   context.human = text;
   return { environment, hold, holdBasis: HOLD_BASIS, note };
 }
 
-/** `run quote` holdBasis: the hold is not a price estimate. */
-const HOLD_BASIS = "flat hold, independent of program and model; a run's price is known only after it settles";
+/** What the hold depends on (the service prices the hold from these). */
+const HOLD_DEPENDS_ON = "model, reasoning effort, environment, declared tools and repositories";
+/** What a CLI quote covers: it never reads the program. */
+const HOLD_COVERAGE = "quoted from the options given, without the program's own run settings or declared tools";
+/** `run quote` holdBasis: what the hold depends on; it is not a price estimate. */
+const HOLD_BASIS = `depends on ${HOLD_DEPENDS_ON}; ${HOLD_COVERAGE}; a run's price is known only after it settles`;
 
 // ---------------------------------------------------------------------------
 // Event projection (decision 5) and terminal mapping (decision 9).
@@ -876,7 +888,8 @@ interface Submission {
   sourceSha256: string | null;
   session: string | undefined;
   waitMs: number;
-  environment: string | undefined;
+  /** The `GET /run/quote` query of the plan: the hold options given. */
+  quoteQuery: Array<[string, string]>;
 }
 
 async function prepareSubmission(context: Context): Promise<Submission> {
@@ -955,7 +968,8 @@ async function prepareSubmission(context: Context): Promise<Submission> {
   if (bytes.length > MAX_BODY_BYTES) {
     throw invocationFailure(`the submission is ${bytes.length} bytes, above the ${MAX_BODY_BYTES}-byte limit; shrink the program or inputs`);
   }
-  return { body: bytes, extraQuery, sourceSha256, session, waitMs, environment };
+  const quoteQuery = holdQuery({ model, reasoningEffort: effort, environment, repositoriesBound: repositories.length > 0 || commit !== undefined });
+  return { body: bytes, extraQuery, sourceSha256, session, waitMs, quoteQuery };
 }
 
 /**
@@ -1048,7 +1062,7 @@ async function submit(context: Context): Promise<Json> {
     const query = submitQuery(submission.session ?? "{session}", submission.extraQuery);
     const planned = context.planned(2, "/run", query, submission.body);
     const quoteRequest: Request = { ...requestFor(context.operation, 1, "/run/quote"), class: "control" };
-    if (submission.environment !== undefined) quoteRequest.query.push(["environment", submission.environment]);
+    quoteRequest.query.push(...submission.quoteQuery);
     // The quote is advisory: a failed quote never hides the plan.
     try {
       const { hold } = quoteFields(jsonObject(await context.send(quoteRequest)));

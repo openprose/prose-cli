@@ -238,7 +238,7 @@ function firstRunLine(planned: JsonObject): string | undefined {
   return `First run: about 1 second after the job is created, then every ${durationText(interval)}`;
 }
 
-/** The human hold line of a plan with a quote (The hold is flat, not an estimate of this run's price). */
+/** The human hold line of a plan with a quote (the hold is a reservation, not an estimate of this run's price). */
 function holdLine(planned: JsonObject): string | undefined {
   const hold = ((planned.quote as JsonObject | undefined)?.hold as JsonObject | undefined)?.hold_usd;
   return typeof hold === "string" ? `Hold: $${humanSafeScalar(hold)} (set aside from the wallet while the run is live; not its price)` : undefined;

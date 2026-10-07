@@ -1,16 +1,16 @@
 {
-  "id": "quote-linux-environment",
+  "id": "quote-commit-output-only",
   "feature": "runs",
   "operation": "run.quote",
-  "description": "--environment is validated against /health and sent as the only query parameter.",
+  "description": "`run quote --commit-output` alone sends repositories=1: a bound repository adds to the hold.",
   "argv": [
     "--output",
     "json",
     "cli",
     "run",
     "quote",
-    "--environment",
-    "linux"
+    "--commit-output",
+    "exowner1/context"
   ],
   "fixture": {
     "environment": "production",
@@ -49,6 +49,9 @@
       {
         "method": "GET",
         "path": "/run/quote",
+        "query": {
+          "repositories": "1"
+        },
         "requestHeaders": {
           "Authorization": {
             "present": false
@@ -62,9 +65,6 @@
           },
           "pricing_policy_id": "pricing-policy.sha256.f114eadc02b7550e58f12c49996382b04f867cb774ac295506806f599ef1e3cd",
           "note": "Unused hold is released when the run settles."
-        },
-        "query": {
-          "environment": "linux"
         }
       }
     ]
@@ -76,7 +76,7 @@
       "operation": "run.quote",
       "problem": null,
       "result": {
-        "environment": "linux",
+        "environment": "builtin",
         "hold": {
           "hold_cents": 102,
           "hold_usd": "1.02",
@@ -87,6 +87,9 @@
       },
       "schema": "openprose.service-operation/1"
     }
+  },
+  "stderr": {
+    "text": ""
   },
   "forbid": [
     "9.9.9-extra",

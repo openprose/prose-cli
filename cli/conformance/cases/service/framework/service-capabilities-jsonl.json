@@ -209,7 +209,7 @@
             "--json"
           ],
           "schema": "openprose.service-operations/1",
-          "sha256": "40813b94d3ec38153a3b012ec1eb187681e9791692f65490cff211b0c0b73f2c"
+          "sha256": "c3aef4f39d4fa26f6af3334e311806c5aedca0cb9934c47c325678467454edd5"
         },
         "nouns": {
           "auth": [
@@ -448,7 +448,7 @@
               "prose cli run quote hello.prose.md --input topic=cats --json"
             ],
             "id": "run.quote",
-            "summary": "Report the hold a run reserves: money set aside from the wallet while the run is live. It is not the price. The environment is checked first.\nThe hold is flat, the same for every program and model, and what the run does not use is released when it settles. A run's price is known only after it settles (`cli run show RUN_ID`, price_cents). The program, inputs and model `cli run submit` takes are accepted, so you can quote the exact command you will submit."
+            "summary": "Report the hold a run reserves: money set aside from the wallet while the run is live. It is not the price. The environment is checked first.\nThe hold depends on the model, reasoning effort, environment, declared tools and bound repositories, and what the run does not use is released when it settles. The quote sends only the --model, --reasoning-effort, --environment, --repo and --commit-output you give. It does not read the program, so a program that sets its own model, effort or environment, or declares tools, can hold a different amount. A run's price is known only after it settles (`cli run show RUN_ID`, price_cents). The program, inputs and options `cli run submit` takes are accepted, so you can quote the exact command you will submit."
           },
           {
             "command": [
@@ -768,7 +768,7 @@
               "prose cli job create --spec-file job.json --yes"
             ],
             "id": "job.create",
-            "summary": "Create a job from a JSON spec. A job starts paid runs on its own, on a schedule or from webhook events, until it is deleted.\nSpec keys are snake_case. `type` is required; `cli job list` prints every type with its config_fields. Each type accepts the keys listed under this command's `spec` in `cli service operations --json`; every problem is reported at once.\n  Schedule: {\"type\":\"schedule\",\"program_ref\":\"OWNER/SLUG@REV\",\"interval_seconds\":86400}\n    interval_seconds 60 to 2678400 (86400 is once a day). The first run starts about one second after the job is created, then one every interval.\n    Cron expressions and a time of day are not supported.\n    Optional: model, reasoning_effort, environment, inputs (name -> string), files, repository_url, repository_branch, output.\n  Webhook: {\"type\":\"webhook\",\"name\":\"NAME\",\"delivery_mode\":\"test\"}\n    optional name, program_ref, receiver, receiver_secret, reply, reply_secret; delivery_mode test or live. Without program_ref it starts no runs: no hold, effect write.\nREV is the program's program.rev_id (printed by `cli program save` and `cli program show OWNER/SLUG`), not its commit_id."
+            "summary": "Create a job from a JSON spec. A job starts paid runs on its own, on a schedule or from webhook events, until it is deleted.\nSpec keys are snake_case. `type` is required; `cli job list` prints every type with its config_fields. Each type accepts the keys listed under this command's `spec` in `cli service operations --json`; every problem is reported at once.\n  Schedule: {\"type\":\"schedule\",\"program_ref\":\"OWNER/SLUG@REV\",\"interval_seconds\":86400}\n    interval_seconds 60 to 2678400 (86400 is once a day). The first run starts about one second after the job is created, then one every interval.\n    Cron expressions and a time of day are not supported.\n    Optional: model, reasoning_effort, environment, inputs (name -> string), files, repository_url, repository_branch, output.\n  Webhook: {\"type\":\"webhook\",\"name\":\"NAME\",\"delivery_mode\":\"test\"}\n    optional name, program_ref, receiver, receiver_secret, reply, reply_secret; delivery_mode test or live; with program_ref also model, reasoning_effort, repository_url, repository_branch, output. Without program_ref it starts no runs: no hold, effect write.\nREV is the program's program.rev_id (printed by `cli program save` and `cli program show OWNER/SLUG`), not its commit_id."
           },
           {
             "command": [
