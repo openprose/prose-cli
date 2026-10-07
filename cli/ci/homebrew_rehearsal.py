@@ -72,6 +72,24 @@ def verify_previous_release(root: Path, platform: str, candidate_version: str) -
             'root': root.resolve(), 'archives': archives, 'binaryHashes': binary_hashes}
 
 
+def sdk_context(manifest: dict[str, Any], verified: dict[str, Any] | None = None) -> dict[str, Any] | None:
+    """Keep the explicit development placeholder distinct from a real SDK."""
+    if 'agentsSdk' in manifest:
+        try:
+            sdk = rehearse_release._sdk_release_identity(verified or {}, manifest)
+        except rehearse_release.RehearsalError as error:
+            raise ValueError(str(error)) from error
+    else:
+        if manifest.get('mode') in ('release', 'kernel-rc'):
+            raise ValueError('Production release lacks an SDK identity')
+        sdk = None
+    if sdk is None:
+        for context in (manifest, verified or {}):
+            if any(name in context for name in ('sdkBuild', 'sdkEvidence', 'sdkSourceCustody')):
+                raise ValueError('SDK-absent Homebrew context has SDK evidence')
+    return sdk
+
+
 def select_archives(package: Path) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
     if package.is_symlink() or not package.is_dir():
         raise ValueError('A regular verified package directory is required')
@@ -85,6 +103,7 @@ def select_archives(package: Path) -> tuple[dict[str, Any], dict[str, dict[str, 
         raise ValueError('Unsafe formula version')
     if manifest.get('platform') not in PLATFORMS:
         raise ValueError('Unsupported native platform')
+    sdk = sdk_context(manifest)
     selected = {}
     for item in manifest.get('artifacts', []):
         if item.get('kind') != 'standalone-archive':
@@ -104,7 +123,7 @@ def select_archives(package: Path) -> tuple[dict[str, Any], dict[str, dict[str, 
             raise ValueError('Invalid archive byte limit')
         if archive.stat().st_size != item['byteLength'] or hashlib.sha256(archive.read_bytes()).hexdigest() != item.get('sha256'):
             raise ValueError('Native archive identity mismatch')
-        if 'agentsSdk' in manifest:
+        if sdk is not None:
             table = pub.read_sdk_archive(archive, manifest)
             custody.validate_sdk_archive_table(manifest, table)
             cli_path = custody.sdk_archive_prefix(table) + 'prose'
@@ -117,6 +136,9 @@ def select_archives(package: Path) -> tuple[dict[str, Any], dict[str, dict[str, 
                     parts = Path(member.name).parts
                     if member.name.startswith('/') or '..' in parts or not (member.isfile() or member.isdir()):
                         raise ValueError('Unsafe archive member')
+                    if any(part in {'prose-agents-sdk', 'prose-agents-sdk-runtime',
+                                    'agents-sdk-build.json', 'AGENTS-SDK-NOTICES.txt'} for part in parts):
+                        raise ValueError('SDK-absent archive contains SDK members')
                 executables = [m for m in members if Path(m.name).name == 'prose' and m.isfile()]
                 if len(executables) != 1 or len(Path(executables[0].name).parts) != 2:
                     raise ValueError('Archive requires one prose executable under one package root')
@@ -315,6 +337,7 @@ def qualify_installed_sdk(active: Path, manifest: dict[str, Any], verified: dict
 
 def exercise(package: Path, manifest: dict[str, Any], archives: dict[str, Any], verified: dict[str, Any],
              output: Path, brew: str, *, previous: dict[str, Any] | None = None) -> dict[str, Any]:
+    sdk = sdk_context(manifest, verified)
     output.mkdir(exist_ok=False)
     output = output.resolve()
     env = {key: os.environ[key] for key in ('PATH', 'HOME', 'USER', 'LOGNAME', 'TMPDIR', 'DEVELOPER_DIR', 'SDKROOT') if key in os.environ}
@@ -348,10 +371,10 @@ def exercise(package: Path, manifest: dict[str, Any], archives: dict[str, Any], 
     if active.exists() or active.is_symlink():
         raise ValueError('Rehearsal refuses to overwrite an existing prose command')
     active_helper = prefix / 'bin/prose-agents-sdk'
-    if manifest.get('agentsSdk') and (active_helper.exists() or active_helper.is_symlink()):
+    if sdk is not None and (active_helper.exists() or active_helper.is_symlink()):
         raise ValueError('Rehearsal refuses to overwrite an existing SDK helper command')
     active_support = prefix / 'bin/prose-agents-sdk-runtime'
-    if manifest.get('agentsSdk') and (active_support.exists() or active_support.is_symlink()):
+    if sdk is not None and (active_support.exists() or active_support.is_symlink()):
         raise ValueError('Rehearsal refuses to overwrite an existing SDK support directory')
     tap = output / 'tap'
     (tap / 'Formula').mkdir(parents=True)
@@ -383,13 +406,13 @@ def exercise(package: Path, manifest: dict[str, Any], archives: dict[str, Any], 
             digest = hashlib.sha256(active.read_bytes()).hexdigest()
             if digest != verified['packageIdentity'][f'{implementation}BinarySha256']:
                 raise ValueError('Homebrew executable differs from the verified candidate')
-            if isinstance(manifest.get('agentsSdk'), dict):
+            if sdk is not None:
                 sdk_payload_checks.append(qualify_installed_sdk(active, manifest, verified, command, 'fresh-' + implementation))
             command(f'unlink-{implementation}', [brew, 'unlink', name])
         command('link-bun', [brew, 'link', f'{TAP}/prose-bun'])
         original = hashlib.sha256(active.read_bytes()).hexdigest()
         def sdk_link_identity():
-            if not manifest.get('agentsSdk'):
+            if sdk is None:
                 return None
             helper = active.resolve(strict=True).parent / 'prose-agents-sdk'
             if active_helper.resolve(strict=True) != helper or pub.digest(helper) != manifest['agentsSdk']['sha256']:
@@ -495,9 +518,9 @@ def exercise(package: Path, manifest: dict[str, Any], archives: dict[str, Any], 
         raise ValueError('The rehearsal packages did not uninstall cleanly')
     if active.exists() or active.is_symlink():
         raise ValueError('The rehearsal command did not uninstall cleanly')
-    if manifest.get('agentsSdk') and (active_helper.exists() or active_helper.is_symlink()):
+    if sdk is not None and (active_helper.exists() or active_helper.is_symlink()):
         raise ValueError('The rehearsal SDK helper command did not uninstall cleanly')
-    if manifest.get('agentsSdk') and (active_support.exists() or active_support.is_symlink()):
+    if sdk is not None and (active_support.exists() or active_support.is_symlink()):
         raise ValueError('The rehearsal SDK support directory did not uninstall cleanly')
     if previous:
         preserve('settings-after-final-cleanup')
@@ -510,7 +533,7 @@ def exercise(package: Path, manifest: dict[str, Any], archives: dict[str, Any], 
         receipt['sdkPayloadChecks'] = sdk_payload_checks
         receipt['sdkLinkConflictPreserved'] = True
     receipt['upgradeQualification'] = 'passed-genuine-upgrade-both-selections' if previous else 'not-requested-fresh-install-only'
-    receipt['kernelRetrieval'] = 'published-kernel-may-be-acquired-by-provider-free-dry-run' if manifest.get('agentsSdk') else 'not-measured'
+    receipt['kernelRetrieval'] = 'published-kernel-may-be-acquired-by-provider-free-dry-run' if sdk is not None else 'not-measured'
     if previous:
         receipt['previousRelease'] = {'version': previous['version'], 'manifestSha256': previous['manifestSha256'],
                                      'archives': list(previous['archives'].values())}

@@ -82,6 +82,48 @@ class ArchiveAdmissionTests(unittest.TestCase):
             self.assertIn('bin.install "prose-agents-sdk" if File.exist?("prose-agents-sdk")', rendered)
             self.assertIn('bin.install "prose-agents-sdk-runtime" if File.directory?("prose-agents-sdk-runtime")', rendered)
 
+    def development_sentinel(self):
+        return dict(self.manifest, mode='development', releaseEligible=False,
+                    publicationAuthorized=False, agentsSdk='not-packaged-development-fixture')
+
+    def test_development_placeholder_uses_ordinary_archives_without_sdk_decoder(self):
+        manifest = self.development_sentinel()
+        with patch.object(rehearsal.pub, 'read_sdk_archive', side_effect=AssertionError('No SDK decoder')):
+            observed, selected = self.select(manifest)
+        self.assertEqual(observed, manifest)
+        self.assertEqual(set(selected), {'bun', 'rust'})
+
+    def test_placeholder_authority_and_malformed_sdk_refuse_before_mutation(self):
+        good = self.development_sentinel()
+        poisons = [dict(good, mode=mode) for mode in ('release', 'kernel-rc', 'alpha')]
+        poisons += [dict(good, **{field: value}) for field in ('releaseEligible', 'publicationAuthorized')
+                    for value in (True, 0, None)]
+        poisons += [{k: v for k, v in good.items() if k != field}
+                    for field in ('releaseEligible', 'publicationAuthorized')]
+        poisons += [dict(good, agentsSdk=value) for value in ('unknown', None, [], False, {})]
+        poisons += [dict(self.manifest, mode=mode) for mode in ('release', 'kernel-rc')]
+        for manifest in poisons:
+            with self.subTest(manifest=manifest):
+                with self.assertRaises(ValueError): self.select(manifest)
+
+    def test_development_placeholder_manifest_sdk_claim_presence_refuses(self):
+        for field in ('sdkBuild', 'sdkEvidence', 'sdkSourceCustody'):
+            for value in (None, {}, False):
+                with self.subTest(field=field, value=value), self.assertRaises(ValueError):
+                    self.select(dict(self.development_sentinel(), **{field: value}))
+
+    def test_sdk_absent_archive_members_cannot_hide_behind_placeholder(self):
+        for name in ('prose-agents-sdk', 'prose-agents-sdk-runtime', 'agents-sdk-build.json', 'AGENTS-SDK-NOTICES.txt'):
+            path = self.package / 'bun.tar.gz'
+            with tarfile.open(path, 'w:gz') as archive:
+                for member_name in ('package/prose', 'package/nested/' + name):
+                    member = tarfile.TarInfo(member_name); member.size = 1
+                    archive.addfile(member, io.BytesIO(b'x'))
+            self.manifest['artifacts'][0].update(byteLength=path.stat().st_size,
+                sha256=hashlib.sha256(path.read_bytes()).hexdigest())
+            with self.subTest(name=name), self.assertRaisesRegex(ValueError, 'SDK-absent archive'):
+                self.select(self.development_sentinel())
+
     def test_changed_bytes_and_size_are_rejected(self):
         with (self.package / 'bun.tar.gz').open('ab') as stream:
             stream.write(b'changed')
@@ -214,6 +256,9 @@ class KernelRcAdmissionTests(unittest.TestCase):
                          'imageSource': 'published-on-run', 'releaseEligible': False, 'publicationAuthorized': False,
                          'buildProfiles': {i: {'profile': 'release', 'testSeamsEnabled': False} for i in ('bun', 'rust')},
                          'artifacts': []}
+        from test_kernel_rc_evidence import sdk_fixture
+        sdk, self.sdk_table = sdk_fixture('darwin-arm64')
+        self.manifest['agentsSdk'] = sdk
         for implementation in ('bun', 'rust'):
             self.archive(implementation + '.tar.gz', 'standalone-archive', implementation,
                          'darwin-arm64', 'package/prose', implementation.encode())
@@ -238,11 +283,13 @@ class KernelRcAdmissionTests(unittest.TestCase):
 
     def archive(self, filename, kind, implementation, platform, member_name, payload):
         path = self.root / 'package' / filename
-        with tarfile.open(path, 'w:gz') as archive:
-            member = tarfile.TarInfo(member_name)
-            member.mode = 0o755
-            member.size = len(payload)
-            archive.addfile(member, io.BytesIO(payload))
+        import package_local as package
+        prefix = str(Path(member_name).parent) + '/'
+        rows = [(member_name, payload, 0o755)]
+        if kind != 'npm-meta':
+            rows += [(prefix + name, data, mode) for name, (data, mode) in self.sdk_table['files'].items()]
+        package.tar_gz(path, rows, 0, sdk_table=self.sdk_table if kind != 'npm-meta' else None,
+                       sdk_prefix=prefix if kind != 'npm-meta' else '')
         item = {'kind': kind, 'implementation': implementation, 'platform': platform, 'path': filename,
                 'byteLength': path.stat().st_size, 'sha256': hashlib.sha256(path.read_bytes()).hexdigest()}
         self.manifest['artifacts'] = [a for a in self.manifest['artifacts'] if a['path'] != filename] + [item]
@@ -252,6 +299,22 @@ class KernelRcAdmissionTests(unittest.TestCase):
         for name, check in self.checks.items():
             (self.root / 'logs' / (name + '.json')).write_text(json.dumps(check))
         from test_kernel_rc_evidence import producer_command_log_fixture
+        from test_kernel_rc_evidence import sdk_producer_fixture
+        for relative in rehearsal.custody.SDK_PROBES:
+            (self.root / relative).write_text(json.dumps(rehearsal.custody.SDK_TOOL_TEST
+                if 'sdk-tools-' in relative else rehearsal.custody.SDK_IMPORT_TEST))
+        identities = {name: {'sha256': hashlib.sha256(data).hexdigest(), 'byteLength': len(data)}
+                      for name, (data, _) in self.sdk_table['files'].items()
+                      if name in rehearsal.custody.SDK_NAMES}
+        payload = json.loads(self.sdk_table['files']['agents-sdk-build.json'][0])['payload']
+        identities['supportTree'] = {'payload': payload,
+            'sha256': hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(',', ':')).encode()).hexdigest(),
+            'byteLength': payload['totalRegularBytes'], 'entryCount': len(payload['entries'])}
+        (self.root / rehearsal.custody.SDK_PAYLOAD_EVIDENCE).write_text(json.dumps([
+            {'surface': 'installed-' + runner, 'before': identities, 'after': identities}
+            for runner in ('bun', 'rust', 'npm')]))
+        for relative, encoded in sdk_producer_fixture(self.sdk_table).items():
+            (self.root / relative).write_bytes(encoded)
         for relative, encoded in producer_command_log_fixture(self.report).items():
             (self.root / relative).write_bytes(encoded)
         self.report['evidence'] = {str(path.relative_to(self.root)): {
@@ -473,7 +536,7 @@ class NativeExerciseTests(unittest.TestCase):
                 keg = self.prefix / 'Cellar' / implementation / version / 'bin'; keg.mkdir(parents=True, exist_ok=True)
                 binary = keg / 'prose'
                 binary.write_bytes((('new-' if version.endswith('.4') else 'old-') + implementation).encode())
-                if version.endswith('.4'):
+                if version.endswith('.4') and 'sdkBuild' in self.verified:
                     import sdk_native_inventory as native
                     view = self.sdk_table
                     files = {name: row for name, row in view['files'].items()
@@ -550,6 +613,34 @@ class NativeExerciseTests(unittest.TestCase):
         with patch.object(rehearsal.subprocess, 'run', side_effect=self.execute):
             return rehearsal.exercise(self.package, self.manifest, self.archives, self.verified,
                                       self.output, 'brew', previous=self.previous if previous else None)
+
+    def test_development_placeholder_completes_cli_only_failed_link_and_cleanup(self):
+        self.manifest.update(mode='development', releaseEligible=False, publicationAuthorized=False,
+                             agentsSdk='not-packaged-development-fixture')
+        before = copy.deepcopy(self.manifest)
+        self.verified.pop('sdkBuild'); self.verified['custodyKind'] = 'development-rehearsal'
+        with patch.object(rehearsal, 'qualify_installed_sdk', side_effect=AssertionError('No SDK probe')):
+            receipt = self.exercise(previous=False)
+        self.assertEqual(self.manifest, before)
+        self.assertEqual(receipt['kernelRetrieval'], 'not-measured')
+        self.assertNotIn('sdkPayloadChecks', receipt)
+        self.assertFalse(any(Path(argv[0]).name == 'prose-agents-sdk' for argv, _ in self.calls))
+        self.assertTrue(any(argv[:2] == ['brew', 'link'] for argv, _ in self.calls))
+        self.assertTrue(receipt['uninstallPassed'])
+        self.assertEqual(self.kegs, {})
+
+    def test_development_placeholder_rejects_sdk_claim_presence_before_output(self):
+        self.manifest.update(mode='development', releaseEligible=False, publicationAuthorized=False,
+                             agentsSdk='not-packaged-development-fixture')
+        self.verified.pop('sdkBuild')
+        for field in ('sdkBuild', 'sdkEvidence', 'sdkSourceCustody'):
+            for value in (None, {}, False):
+                self.verified[field] = value
+                with self.subTest(field=field, value=value), self.assertRaises(ValueError):
+                    self.exercise(previous=False)
+                self.assertFalse(self.output.exists())
+                self.assertEqual(self.calls, [])
+                del self.verified[field]
 
     def test_both_genuine_upgrades_preserve_selection_settings_and_scrub_credentials(self):
         with patch.dict(rehearsal.os.environ, {'OPENAI_API_KEY': 'ambient-secret', 'HTTPS_PROXY': 'ambient-proxy'}):

@@ -3,6 +3,7 @@ import base64
 import copy
 import hashlib
 import json
+import os
 from pathlib import Path
 import struct
 import sys
@@ -350,7 +351,7 @@ class NativeInventoryTests(unittest.TestCase):
 
     def test_wheel_native_and_license_members_are_checked_against_record(self):
         with tempfile.TemporaryDirectory() as temp:
-            root = Path(temp); paths = ['fixture.dist-info/RECORD', 'fixture.dist-info/LICENSE', 'extension.so']
+            root = Path(temp).resolve(); paths = ['fixture-1.0.dist-info/RECORD', 'fixture-1.0.dist-info/LICENSE', 'extension.so']
             files = []
             for name in paths:
                 path = root / name; path.parent.mkdir(exist_ok=True); path.write_bytes(elf(imported=True) if name.endswith('.so') else b'fixture license or RECORD')
@@ -358,7 +359,7 @@ class NativeInventoryTests(unittest.TestCase):
                 class Entry(str): pass
                 entry = Entry(name); entry.hash = SimpleNamespace(mode='sha256', value=digest); entry.size = path.stat().st_size
                 files.append(entry)
-            dist = SimpleNamespace(version='1.0', files=files, locate_file=lambda e: root / str(e))
+            dist = SimpleNamespace(version='1.0', metadata={'Name': 'fixture'}, files=files, locate_file=lambda e: root / str(e))
             package = {'name': 'fixture', 'version': '1.0', 'wheelSha256': ['a' * 64]}
             origins, owned = native.wheel_origins([package], lambda _: dist)
             self.assertEqual(origins[0]['wheelCandidateSha256s'], ['a' * 64])
@@ -671,6 +672,147 @@ class PythonMetadataErratumTests(unittest.TestCase):
                 {'licenses': ['Zlib'], 'license_paths': self.declaration()['licensePaths']}]
             metadata.write_text(json.dumps(info))
             with self.assertRaises(ValueError): native.python_origin(value)
+
+
+class OwningWheelRecordTests(unittest.TestCase):
+    # Mirrors the authenticated setuptools84 owning inventory: twelve vendored
+    # RECORD resources plus one direct owner, without importing wheel code.
+    vendors = ('autocommand-2.2.2', 'backports.tarfile-1.2.0', 'importlib_metadata-8.7.1',
+               'jaraco.text-4.0.0', 'jaraco_context-6.1.0', 'jaraco_functools-4.4.0',
+               'more_itertools-10.8.0', 'packaging-26.0', 'platformdirs-4.4.0',
+               'tomli-2.4.0', 'wheel-0.46.3', 'zipp-3.23.0')
+
+    def fixture(self, root, name='setuptools', directory='setuptools-84.0.0.dist-info'):
+        root = root.resolve()
+        names = [directory + '/RECORD', directory + '/LICENSE', 'extension.so'] + [
+            'setuptools/_vendor/' + vendor + '.dist-info/RECORD' for vendor in self.vendors]
+        class Entry(str): pass
+        files = []
+        for path in names:
+            data = elf(imported=True) if path.endswith('.so') else (b'license text' if path.endswith('/LICENSE') else b'vendor resource')
+            target = root / path; target.parent.mkdir(parents=True, exist_ok=True); target.write_bytes(data)
+            entry = Entry(path); entry.hash = SimpleNamespace(mode='sha256', value=base64.urlsafe_b64encode(hashlib.sha256(data).digest()).rstrip(b'=').decode()); entry.size = len(data); files.append(entry)
+        record_path = root / names[0]
+        record_path.write_bytes(('\n'.join(str(e) + ',' + ('sha256=' + e.hash.value if e != files[0] else '') + ',' + (str(e.size) if e != files[0] else '') for e in files) + '\r\n').encode())
+        dist = SimpleNamespace(metadata={'Name': name}, version='84.0.0', files=files, locate_file=lambda entry: root / str(entry))
+        package = {'name': name, 'version': '84.0.0', 'wheelSha256': ['a' * 64]}
+        return package, dist, record_path
+
+    def test_nested_vendor_inventory_keeps_exact_owner_bytes_and_native_license_guards(self):
+        with tempfile.TemporaryDirectory() as temp:
+            package, dist, record_path = self.fixture(Path(temp))
+            self.assertEqual(sum(str(e).endswith('.dist-info/RECORD') for e in dist.files), 13)
+            origins, owned = native.wheel_origins([package], lambda _: dist)
+            self.assertEqual(origins[0]['recordSha256'], native.sha(record_path.read_bytes()))
+            self.assertEqual(len(origins[0]['licenses']), 1)
+            self.assertEqual(owned[native.sha(elf(imported=True))], 'setuptools')
+            original = record_path.read_bytes(); record_path.write_bytes(original + b'\n')
+            self.assertNotEqual(native.wheel_origins([package], lambda _: dist)[0][0]['recordSha256'], origins[0]['recordSha256'])
+            vendor = Path(dist.locate_file(dist.files[3])); vendor.write_bytes(b'different nested RECORD')
+            self.assertEqual(native.wheel_origins([package], lambda _: dist)[0][0]['recordSha256'], native.sha(record_path.read_bytes()))
+
+    def test_missing_duplicate_and_foreign_owner_refuse_without_vendor_fallback(self):
+        for mutation in ('missing', 'duplicate', 'foreign-name', 'foreign-version'):
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as temp:
+                package, dist, _ = self.fixture(Path(temp))
+                if mutation == 'missing': dist.files = dist.files[1:]
+                elif mutation == 'duplicate': dist.files.append(dist.files[0])
+                else: dist.files[0] = ('foreign-84.0.0' if mutation == 'foreign-name' else 'setuptools-83.0.0') + '.dist-info/RECORD'
+                with self.assertRaisesRegex(ValueError, 'absent or ambiguous'): native.wheel_origins([package], lambda _: dist)
+
+    def test_metadata_name_and_exact_version_must_match_lock(self):
+        for field, value in [('name', 'foreign'), ('name', None), ('name', 'bad/name'), ('version', '83.0.0')]:
+            with self.subTest(field=field, value=value), tempfile.TemporaryDirectory() as temp:
+                package, dist, _ = self.fixture(Path(temp))
+                if field == 'name': dist.metadata['Name'] = value
+                else: dist.version = value
+                with self.assertRaises(ValueError): native.wheel_origins([package], lambda _: dist)
+
+    def test_documented_name_normalization_applies_to_lock_metadata_and_directory(self):
+        for directory in ('FOO_bar', 'foo.bar', 'foo-bar'):
+            with self.subTest(directory=directory), tempfile.TemporaryDirectory() as temp:
+                package, dist, _ = self.fixture(Path(temp), name='Foo-Bar', directory=directory + '-84.0.0.dist-info')
+                dist.metadata['Name'] = 'FOO_bar'
+                self.assertEqual(native.wheel_origins([package], lambda _: dist)[0][0]['name'], 'Foo-Bar')
+
+    def test_unsafe_record_paths_refuse(self):
+        for path in ('/setuptools-84.0.0.dist-info/RECORD', '../setuptools-84.0.0.dist-info/RECORD',
+                     './setuptools-84.0.0.dist-info/RECORD', 'C:setuptools-84.0.0.dist-info/RECORD',
+                     'setuptools-84.0.0.dist-info/\x00.dist-info/RECORD', 'setuptools\n-84.0.0.dist-info/RECORD',
+                     'setuptools\\-84.0.0.dist-info/RECORD'):
+            with self.subTest(path=path), tempfile.TemporaryDirectory() as temp:
+                package, dist, _ = self.fixture(Path(temp)); dist.files[0] = path
+                with self.assertRaises(ValueError): native.wheel_origins([package], lambda _: dist)
+
+    def test_owner_leaf_and_parent_aliases_refuse_even_with_identical_bytes(self):
+        for alias in ('leaf', 'parent'):
+            with self.subTest(alias=alias), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp).resolve(); package, dist, record_path = self.fixture(root)
+                if alias == 'leaf':
+                    original = root / 'original-record'; record_path.rename(original); record_path.symlink_to(original)
+                else:
+                    original = root / 'original-metadata'; record_path.parent.rename(original); record_path.parent.symlink_to(original, target_is_directory=True)
+                with self.assertRaises(ValueError): native.wheel_origins([package], lambda _: dist)
+
+    def test_native_and_license_bytes_hash_size_algorithm_and_origin_ambiguity_stay_strict(self):
+        for poison in ('native-bytes', 'license-bytes', 'size', 'algorithm', 'missing-hash', 'duplicate-native'):
+            with self.subTest(poison=poison), tempfile.TemporaryDirectory() as temp:
+                package, dist, _ = self.fixture(Path(temp)); entry = dist.files[2]
+                if poison == 'native-bytes': Path(dist.locate_file(entry)).write_bytes(elf(imported=True, symbol='changed'))
+                elif poison == 'license-bytes': Path(dist.locate_file(dist.files[1])).write_bytes(b'changed license')
+                elif poison == 'size': entry.size += 1
+                elif poison == 'algorithm': entry.hash.mode = 'md5'
+                elif poison == 'missing-hash': entry.hash = None
+                else: dist.files.append(entry)
+                with self.assertRaises(ValueError): native.wheel_origins([package], lambda _: dist)
+
+    def test_consistent_public_base_alias_and_relative_base_are_supported(self):
+        for layout in ('alias', 'relative'):
+            with self.subTest(layout=layout), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp).resolve(); package, dist, record_path = self.fixture(root)
+                if layout == 'alias':
+                    proxy = root / 'alias-root'; proxy.symlink_to(root, target_is_directory=True)
+                    dist.locate_file = lambda entry: proxy / str(entry)
+                    result = native.wheel_origins([package], lambda _: dist)
+                else:
+                    relative_base = Path(os.path.relpath(root))
+                    dist.locate_file = lambda entry: relative_base / str(entry)
+                    result = native.wheel_origins([package], lambda _: dist)
+                self.assertEqual(result[0][0]['recordSha256'], native.sha(record_path.read_bytes()))
+
+    def test_inconsistent_public_base_cannot_select_identical_foreign_record(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp).resolve(); package, dist, _ = self.fixture(root / 'owner')
+            _, _, other = self.fixture(root / 'other')
+            dist.locate_file = lambda entry: root / 'owner' if str(entry) == '' else root / 'other' / str(entry)
+            with self.assertRaisesRegex(ValueError, 'distribution base'):
+                native.wheel_origins([package], lambda _: dist)
+
+    def test_native_digest_cannot_claim_two_different_distributions(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp).resolve()
+            first, first_dist, _ = self.fixture(root / 'first')
+            second, second_dist, _ = self.fixture(root / 'second', name='other', directory='other-84.0.0.dist-info')
+            with self.assertRaisesRegex(ValueError, 'Ambiguous installed native wheel origin'):
+                native.wheel_origins([first, second], lambda name: first_dist if name == first['name'] else second_dist)
+
+    def test_missing_parent_and_relative_locator_fail_closed(self):
+        for location in ('absent', 'relative'):
+            with self.subTest(location=location), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp).resolve(); package, dist, _ = self.fixture(root)
+                dist.locate_file = lambda entry: (root / 'absent' / str(entry)) if location == 'absent' else Path(str(entry))
+                with self.assertRaisesRegex(ValueError, 'distribution base'):
+                    native.wheel_origins([package], lambda _: dist)
+
+    def test_nested_license_and_native_resources_remain_in_complete_inventory(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp).resolve(); package, dist, _ = self.fixture(root)
+            extra = copy.copy(dist.files[1]); extra = type(extra)('setuptools/_vendor/vendor-1.0.dist-info/LICENSE')
+            extra.hash = SimpleNamespace(mode='sha256', value=base64.urlsafe_b64encode(hashlib.sha256(b'vendor license').digest()).rstrip(b'=').decode()); extra.size = len(b'vendor license')
+            p = root / str(extra); p.parent.mkdir(parents=True); p.write_bytes(b'vendor license'); dist.files.append(extra)
+            self.assertEqual(len(native.wheel_origins([package], lambda _: dist)[0][0]['licenses']), 2)
+            p.write_bytes(b'bad vendor license')
+            with self.assertRaisesRegex(ValueError, 'wheel RECORD'): native.wheel_origins([package], lambda _: dist)
 
 
 if __name__ == '__main__':

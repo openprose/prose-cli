@@ -484,10 +484,42 @@ def wheel_origins(packages, distributions):
     for package in packages:
         dist = distributions(package['name'])
         require(dist.version == package['version'], 'Installed wheel differs from lock')
+        # Distribution.files is the complete owning RECORD inventory, including
+        # vendored distributions' metadata. Only the direct owner is authority:
+        # https://packaging.python.org/en/latest/specifications/recording-installed-packages/
+        def normalized_name(name):
+            require(isinstance(name, str) and len(name) <= 1024 and
+                    re.fullmatch(r'[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?', name),
+                    'Invalid wheel distribution name')
+            return re.sub(r'[-_.]+', '-', name).lower()
+        owner = normalized_name(package['name'])
+        require(normalized_name(dist.metadata.get('Name')) == owner,
+                'Installed wheel metadata name differs from lock')
         files = dist.files or []
-        record_files = [entry for entry in files if str(entry).endswith('.dist-info/RECORD')]
+        record_files = []
+        for entry in files:
+            name = str(entry)
+            if not name.endswith('.dist-info/RECORD'): continue
+            safe_path(name)
+            require(len(name.encode('utf-8')) <= 4096 and ':' not in name and
+                    not any(ord(char) < 32 or ord(char) == 127 for char in name),
+                    'Unsafe wheel RECORD path')
+            parts = PurePosixPath(name).parts
+            if len(parts) != 2: continue
+            stem = parts[0][:-len('.dist-info')]
+            distribution_name, separator, version = stem.rpartition('-')
+            if separator and normalized_name(distribution_name) == owner and version == package['version']:
+                record_files.append(entry)
         require(len(record_files) == 1, 'Wheel RECORD is absent or ambiguous')
-        record_bytes = read_file(dist.locate_file(record_files[0]), MAX_METADATA)
+        record_path = Path(dist.locate_file(record_files[0]))
+        try:
+            base = Path(dist.locate_file('')).resolve(strict=True)
+            canonical_owner = (not record_path.parent.is_symlink() and
+                               record_path.resolve(strict=True) == base / str(record_files[0]))
+        except (OSError, RuntimeError):
+            canonical_owner = False
+        require(canonical_owner, 'Wheel RECORD must belong to its distribution base')
+        record_bytes = read_file(record_path, MAX_METADATA)
         licenses = []
         for entry in files:
             path = Path(dist.locate_file(entry))
