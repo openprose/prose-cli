@@ -1957,6 +1957,19 @@ impl BindingOptions {
             || BINDING_FLAGS.iter().any(|flag| context.flag(flag))
     }
 
+    /// Whether an option changes a setting: any but `--allow-reset` and
+    /// `--replace` (a move to another revision is decided separately).
+    fn changes(context: &Context<'_>) -> bool {
+        BINDING_OPTIONS
+            .iter()
+            .filter(|option| **option != "--replace")
+            .any(|option| !context.invocation.option_values(option).is_empty())
+            || BINDING_FLAGS
+                .iter()
+                .filter(|flag| **flag != "--allow-reset")
+                .any(|flag| context.flag(flag))
+    }
+
     /// Checked in a fixed order shared by both ports: conflicts, then
     /// `--clear-input` names, inputs, values and finally `--file` reads.
     fn parse(context: &Context<'_>) -> Result<Self, RunnerError> {
@@ -2250,6 +2263,7 @@ fn contract_attach(context: &mut Context<'_>) -> Result<Value, RunnerError> {
     let id = job_id(context)?;
     let reference = contract_reference(context)?;
     let settings_given = BindingOptions::any(context);
+    let changes = BindingOptions::changes(context);
     let options = BindingOptions::parse(context)?;
     let plan = context.invocation.preview || !context.invocation.yes;
     // Request 0: the job's type. Settings apply to webhook jobs only, and a
@@ -2264,7 +2278,7 @@ fn contract_attach(context: &mut Context<'_>) -> Result<Value, RunnerError> {
     let webhook = kind == "webhook";
     if settings_given && !webhook {
         let error = invalid(format!(
-            "job {} is {} {} job; run settings (--model, --reasoning-effort, --repo, --commit-output, --input, --inputs-file, --environment, --file, --replace and the --clear options) apply to webhook jobs only",
+            "job {} is {} {} job; run settings (--model, --reasoning-effort, --repo, --commit-output, --input, --inputs-file, --environment, --file, --replace, --allow-reset and the --clear options) apply to webhook jobs only",
             human_safe_scalar(&id),
             article(kind),
             human_safe_scalar(kind)
@@ -2335,6 +2349,9 @@ fn contract_attach(context: &mut Context<'_>) -> Result<Value, RunnerError> {
             }
             AttachPath::Bare
         }
+        // Nothing changes (only --allow-reset or a same-ref --replace): the
+        // service keeps what it saved.
+        (Some(_), None) if merging && !changes => AttachPath::Bare,
         (Some(_), None) if merging => AttachPath::ServerMerge,
         (Some(saved), Some(replaced)) => {
             if !merging && !options.may_reset() {
