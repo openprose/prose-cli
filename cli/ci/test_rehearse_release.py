@@ -592,10 +592,10 @@ class ReleaseRehearsalTests(unittest.TestCase):
             self.assertIsInstance(benchmark.calls[0][4], float)
             mechanical = summary["bindings"]["mechanicalConformance"]
             self.assertEqual(7, mechanical["phase"])
-            self.assertEqual(76, len(mechanical["caseIds"]))
-            self.assertEqual(228, mechanical["candidateCaseValidations"])
-            self.assertEqual(152, mechanical["differentialValidations"])
-            self.assertEqual(380, mechanical["totalValidations"])
+            self.assertEqual(100, len(mechanical["caseIds"]))
+            self.assertEqual(300, mechanical["candidateCaseValidations"])
+            self.assertEqual(200, mechanical["differentialValidations"])
+            self.assertEqual(500, mechanical["totalValidations"])
             self.assertEqual(
                 rehearse_release.CONFORMANCE_CASES, len(mechanical["caseIds"])
             )
