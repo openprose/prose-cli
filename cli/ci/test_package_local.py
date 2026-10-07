@@ -2327,6 +2327,16 @@ process.stdout.write(JSON.stringify({ spawned, stderr, exitCode: fakeProcess.exi
                  'boundedOutput': True, 'shellCancellation': True, 'mockedPublicRetrieval': True,
                  'incompleteHttpRejected': True, 'modelCalls': 0, 'networkUsed': False}
         libraries = {"schema": "openprose.sdk-packaged-libraries/1", "elfCount": 1, "requiredGlibcMaximum": "2.34", "modelCalls": 0}
+        native_fields = None
+        if platform.system() == 'Linux':
+            from test_assemble_kernel_rc import linux_receipt_fixture
+            target = 'linux-arm64-gnu' if platform.machine() == 'aarch64' else 'linux-x64-gnu'
+            native_fields = linux_receipt_fixture(target)
+            libraries = native_fields['linuxLibraries']
+            snapshot = native_fields['linuxBuildSourceSnapshot']
+            snapshot['sources'] = {p: PACKAGE_LOCAL.sha256_file(ROOT / p) for p in snapshot['sources']}
+            snapshot['driverSha256'] = PACKAGE_LOCAL.sha256_file(ROOT / 'cli/ci/build_agents_sdk_linux.py')
+            snapshot['lockSha256'] = PACKAGE_LOCAL.sha256_file(ROOT / 'cli/ci/agents-sdk-linux-build.lock.json')
         c_source = directory / "fixture.c"
         c_source.write_text("#include <stdio.h>\n#include <string.h>\nint main(int argc,char **argv){if(argc!=2)return 2; if(strcmp(argv[1],\"--packaged-self-test\")==0) puts(" + json.dumps(json.dumps(expected)) + "); else if(strcmp(argv[1],\"--packaged-tool-self-test\")==0) puts(" + json.dumps(json.dumps(tools)) + "); else if(strcmp(argv[1],\"--packaged-library-test\")==0) puts(" + json.dumps(json.dumps(libraries)) + "); else if(strcmp(argv[1],\"--version\")==0) puts(\"prose-agents-sdk 0.1.0\"); else return 2; return 0;}")
         compiler = shutil.which("cc"); self.assertIsNotNone(compiler)
@@ -2343,6 +2353,9 @@ process.stdout.write(JSON.stringify({ spawned, stderr, exitCode: fakeProcess.exi
                   "notices": {"path": PACKAGE_LOCAL.SDK_NOTICES, "sha256": hashlib.sha256(notices).hexdigest(), "byteLength": len(notices)},
                   "selfTest": expected, "toolSelfTest": tools, "linuxLibraries": libraries if platform.system() == "Linux" else "not-applicable",
                   "authority": "hermetic-test-fixture-not-release-evidence"}
+        if native_fields is not None:
+            record.update(native_fields)
+            record['dependencies'] = [{'name': 'fixture', 'version': '1.0.0', 'wheelSha256': ['e' * 64]}]
         (directory / PACKAGE_LOCAL.SDK_RECEIPT).write_text(json.dumps(record))
         return directory
 
@@ -4901,6 +4914,37 @@ class PackagedSdkArtifactTests(unittest.TestCase):
                     self.assertTrue(member.isfile())
                     self.assertEqual(member.mode, mode)
                     self.assertEqual(source.extractfile(member).read(), data)
+
+    def test_linux_source_and_runtime_rows_are_independently_checked(self):
+        from test_assemble_kernel_rc import sdk_fixture
+        for poison in ('source', 'runtime', None):
+            with self.subTest(poison=poison), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory); sdk = root / 'sdk'; sdk.mkdir(); snapshots = root / 'snapshots'; snapshots.mkdir()
+                identity, members = sdk_fixture('linux-x64-gnu')
+                receipt = json.loads(next(data for name, data, mode in members if name == PACKAGE_LOCAL.SDK_RECEIPT))
+                receipt['sources'] = {path: PACKAGE_LOCAL.sha256_file(ROOT / path) for path in receipt['sources']}
+                snapshot = receipt['linuxBuildSourceSnapshot']
+                snapshot['sources'] = {path: PACKAGE_LOCAL.sha256_file(ROOT / path) for path in snapshot['sources']}
+                snapshot['driverSha256'] = PACKAGE_LOCAL.sha256_file(ROOT / 'cli/ci/build_agents_sdk_linux.py')
+                snapshot['lockSha256'] = PACKAGE_LOCAL.sha256_file(ROOT / 'cli/ci/agents-sdk-linux-build.lock.json')
+                if poison == 'source': snapshot['sources']['cli/ci/build_agents_sdk.py'] = 'b' * 64
+                for name, data, mode in members:
+                    (sdk / name).write_bytes(json.dumps(receipt).encode() if name == PACKAGE_LOCAL.SDK_RECEIPT else data)
+                    (sdk / name).chmod(mode)
+                def execute(argv, **kwargs):
+                    value = receipt[{'--packaged-self-test': 'selfTest', '--packaged-tool-self-test': 'toolSelfTest',
+                                     '--packaged-library-test': 'linuxLibraries'}[argv[-1]]]
+                    value = json.loads(json.dumps(value))
+                    if poison == 'runtime' and argv[-1] == '--packaged-library-test': value['libraries'][0]['sha256'] = 'b' * 64
+                    return subprocess.CompletedProcess(argv, 0, json.dumps(value).encode(), b'')
+                with mock.patch.object(PACKAGE_LOCAL, 'run_bounded', side_effect=execute) as run:
+                    if poison:
+                        with self.assertRaises(PACKAGE_LOCAL.PackageError):
+                            PACKAGE_LOCAL.snapshot_sdk(sdk, snapshots, 'linux-x64-gnu', 'kernel-rc', None)
+                        if poison == 'source': run.assert_not_called()
+                    else:
+                        payload, record = PACKAGE_LOCAL.snapshot_sdk(sdk, snapshots, 'linux-x64-gnu', 'kernel-rc', None)
+                        self.assertEqual(len(payload), 3); self.assertEqual(len(record), 12)
 
 
 if __name__ == "__main__":

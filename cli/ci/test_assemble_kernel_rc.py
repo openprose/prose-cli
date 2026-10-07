@@ -11,6 +11,27 @@ import publication as p
 import kernel_rc_evidence as custody
 
 
+def linux_receipt_fixture(platform='linux-x64-gnu'):
+    """Synthetic ELF/origin proof assembled locally; no native build/download claim."""
+    import sdk_native_inventory as native
+    from test_sdk_native_inventory import input_fixture, elf
+    with tempfile.TemporaryDirectory() as directory:
+        value, path, library, source = input_fixture(Path(directory), platform)
+        machine = 62 if platform == 'linux-x64-gnu' else 183
+        raw = native.elf_record('libgcc_s.so.1', elf(machine=machine))
+        rows, origins = native.assign_origins([raw], value, [], lambda _: None)
+        origins['wheels'] = [{'name': 'fixture', 'version': '1.0.0', 'wheelCandidateSha256s': ['e' * 64],
+                              'recordSha256': 'a' * 64, 'licenses': []}]
+        snapshot = value['sourceSnapshot']
+        snapshot['sources']['harnesses/agents-sdk/run.py'] = 'f' * 64
+        snapshot['sources']['harnesses/agents-sdk/requirements-build.txt'] = 'e' * 64
+        return {'linuxBuildInputSha256': native.sha(('synthetic-native-input-' + platform).encode()), 'linuxBuildSourceSnapshot': snapshot,
+                'nativeDependencies': {'libraries': rows, 'symbolClosureVerified': True, 'origins': origins,
+                    'libgccSelection': {**native.record('libgcc_s.so.1', library.read_bytes()), 'analysisTocSha256': 'a' * 64}},
+                'linuxLibraries': {'schema': 'openprose.sdk-packaged-libraries/1', 'elfCount': 1,
+                    'requiredGlibcMaximum': raw['maximumRequiredGlibc'], 'libraries': [raw], 'modelCalls': 0}}
+
+
 def sdk_fixture(platform):
     """Hermetic bytes with production-shaped custody; never executable release evidence."""
     helper = ('fixture-sdk-' + platform).encode(); notices = b'fixture-notices'
@@ -31,6 +52,8 @@ def sdk_fixture(platform):
                'modelCalls': 0, 'publicationAuthorized': False,
                'authority': 'hermetic-test-fixture-not-release-evidence',
                'linuxLibraries': {'requiredGlibcMaximum': '2.34'} if os_name == 'linux' else 'not-applicable'}
+    if os_name == 'linux':
+        receipt.update(linux_receipt_fixture(platform))
     encoded = json.dumps(receipt).encode(); sdk['receiptSha256'] = sha(encoded)
     return sdk, [('prose-agents-sdk', helper, 0o755), ('agents-sdk-build.json', encoded, 0o644),
                  ('AGENTS-SDK-NOTICES.txt', notices, 0o644)]
@@ -153,6 +176,66 @@ class AssemblyTests(unittest.TestCase):
         path.write_text(json.dumps(live))
         with self.assertRaisesRegex(ValueError, 'differs from release bytes'):
             a.assemble(self.roots, self.root/'changed-live', self.evidence, path)
+
+
+class NativeReceiptConsumerTests(unittest.TestCase):
+    def receipt(self, platform='linux-x64-gnu'):
+        sdk, members = sdk_fixture(platform)
+        return json.loads(next(data for name, data, mode in members if name == 'agents-sdk-build.json'))
+
+    def test_complete_native_projection_and_nonshipped_declarations(self):
+        receipt = self.receipt()
+        components = custody.sdk_native_sbom_components(receipt)
+        self.assertEqual([r['name'] for r in components], ['libgcc_s.so.1', 'libgcc'])
+        self.assertFalse(any('fixture' == r['name'] for r in components))
+        custody.validate_sdk_native_sbom(components, receipt)
+        self.assertEqual(custody.sdk_native_sbom_components(self.receipt('darwin-arm64')), [])
+
+    def test_receipt_omission_source_origin_and_runtime_poison(self):
+        import copy
+        mutations = [lambda r: r.pop('nativeDependencies'),
+                     lambda r: r['linuxBuildSourceSnapshot']['sources'].pop('cli/ci/sdk_native_inventory.py'),
+                     lambda r: r['sources'].update({'harnesses/agents-sdk/run.py': 'b' * 64}),
+                     lambda r: r['nativeDependencies']['libraries'][0].update(origin='wheel:missing'),
+                     lambda r: r['nativeDependencies']['origins']['supplier']['library'].update(sha256='b' * 64),
+                     lambda r: r['linuxLibraries'].update(elfCount=2)]
+        for mutate in mutations:
+            receipt = copy.deepcopy(self.receipt()); mutate(receipt)
+            with self.subTest(mutate=mutate), self.assertRaises((ValueError, KeyError, TypeError)):
+                custody.validate_sdk_native_receipt(receipt)
+        mac = self.receipt('darwin-arm64'); mac['nativeDependencies'] = {}
+        with self.assertRaises(ValueError): custody.validate_sdk_native_receipt(mac)
+
+    def test_python_and_wheel_origins_do_not_promote_declarations_or_candidates(self):
+        import copy
+        receipt = self.receipt(); native = receipt['nativeDependencies']
+        python = native['origins']['python']
+        python['declaredExtensionLicenses'] = [{'name': 'unshipped-extension', 'licenses': ['fixture'], 'licensePaths': ['LICENSE']}]
+        wheel = native['origins']['wheels'][0]
+        wheel['licenses'] = [{'path': 'fixture.dist-info/licenses/LICENSE', 'sha256': 'b' * 64, 'byteLength': 3}]
+        for path, origin, digest in [('libpython.so', 'python', 'c' * 64), ('fixture.so', 'wheel:fixture', 'd' * 64)]:
+            row = copy.deepcopy(native['libraries'][0]); row.update(path=path, origin=origin, sha256=digest)
+            native['libraries'].append(row)
+        native['libraries'].sort(key=lambda row: row['path'])
+        receipt['linuxLibraries']['libraries'] = [{key: value for key, value in row.items() if key != 'origin'} for row in native['libraries']]
+        receipt['linuxLibraries']['elfCount'] = 3
+        components = custody.sdk_native_sbom_components(receipt)
+        origins = [row for row in components if row['type'] == 'library']
+        self.assertEqual({row['name'] for row in origins}, {'CPython', 'libgcc', 'fixture'})
+        self.assertTrue(all('hashes' not in row for row in origins))
+        self.assertNotIn('unshipped-extension', json.dumps(components))
+        self.assertIn('wheelCandidateSha256s', json.dumps(components))
+
+    def test_sbom_omission_duplicate_substitution_and_license_poison(self):
+        import copy
+        receipt = self.receipt(); original = custody.sdk_native_sbom_components(receipt)
+        poisoned = [original[:-1], original + [original[0]], []]
+        changed = copy.deepcopy(original); changed[0]['hashes'][0]['content'] = 'b' * 64; poisoned.append(changed)
+        changed = copy.deepcopy(original); changed[-1]['properties'][-1]['value'] = '{}'; poisoned.append(changed)
+        for components in poisoned:
+            with self.subTest(components=components), self.assertRaises(ValueError):
+                custody.validate_sdk_native_sbom(components, receipt)
+        with self.assertRaises(ValueError): custody.validate_sdk_native_sbom(original)
 
 
 if __name__ == '__main__':

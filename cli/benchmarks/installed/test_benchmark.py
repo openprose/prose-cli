@@ -432,6 +432,16 @@ def refresh_evidence(output: Path) -> None:
         sbom_path = output / 'sbom.cdx.json'; sbom = json.loads(sbom_path.read_text())
         sbom['components'].append({'type': 'file', 'name': 'prose-agents-sdk',
                                    'hashes': [{'alg': 'SHA-256', 'content': sdk['sha256']}]})
+        import kernel_rc_evidence as custody
+        native_receipts = []
+        for artifact in release['artifacts']:
+            if artifact['kind'] == 'standalone-archive':
+                with tarfile.open(output / artifact['path']) as archive:
+                    native_receipts = [json.loads(archive.extractfile(m).read()) for m in archive.getmembers()
+                                       if m.name.endswith('/agents-sdk-build.json')]
+                break
+        if native_receipts:
+            sbom['components'].extend(custody.sdk_native_sbom_components(native_receipts[0]))
         sbom_path.write_text(json.dumps(sbom))
         provenance_path = output / 'provenance.json'; provenance = json.loads(provenance_path.read_text())
         definition = provenance['predicate']['buildDefinition']
@@ -2012,6 +2022,35 @@ class InstalledPackageBenchmarkTests(unittest.TestCase):
             with self.assertRaises(BENCHMARK.BenchmarkError) as rejected:
                 BENCHMARK.verify_package_output(packages, expected_platform=PLATFORM)
             self.assertEqual(rejected.exception.code, "IDENTITY_DIVERGENCE")
+
+
+class NativeSdkSbomCustodyTests(unittest.TestCase):
+    def test_artifact_native_sbom_poison_is_rejected_after_rehash(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = make_release_package_output(Path(directory), platform_value='linux-x64-gnu')
+            BENCHMARK.verify_package_output(output, expected_platform='linux-x64-gnu', purpose='release-invariants')
+            sbom_path = output / 'sbom.cdx.json'
+            original = json.loads(sbom_path.read_text())
+            native = [row for row in original['components'] if any(p.get('value') == 'packaged-sdk-native-file'
+                      for p in row.get('properties', []))]
+            self.assertEqual(len(native), 1)
+            for kind in ('omission', 'duplicate', 'license'):
+                sbom = copy.deepcopy(original)
+                if kind == 'omission': sbom['components'].remove(native[0])
+                elif kind == 'duplicate': sbom['components'].append(native[0])
+                else:
+                    origin = next(row for row in sbom['components'] if any(p.get('value') == 'packaged-sdk-native-origin'
+                                  for p in row.get('properties', [])))
+                    origin['properties'][-1]['value'] = '{}'
+                sbom_path.write_text(json.dumps(sbom))
+                # Rehash the altered artifact without regenerating its poisoned SBOM.
+                paths = sorted(path for path in output.iterdir() if path.name != 'SHA256SUMS')
+                (output / 'SHA256SUMS').write_text(
+                    ''.join(f'{digest(path.read_bytes())}  {path.name}\n' for path in paths), 'utf-8')
+                with self.subTest(kind=kind), self.assertRaises(BENCHMARK.BenchmarkError) as rejected:
+                    BENCHMARK.verify_package_output(output, expected_platform='linux-x64-gnu', purpose='release-invariants')
+                self.assertEqual(rejected.exception.code, 'IDENTITY_DIVERGENCE')
+                self.assertEqual(rejected.exception.message, 'Native SDK SBOM differs from bound receipt')
 
 
 if __name__ == "__main__":

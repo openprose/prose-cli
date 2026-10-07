@@ -24,6 +24,7 @@ import threading
 import time
 import uuid
 from typing import Any, Iterable
+import kernel_rc_evidence as sdk_custody
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -2471,6 +2472,15 @@ def snapshot_sdk(directory: Path, snapshots: Path, platform_identifier: str,
                         ("harnesses/agents-sdk/run.py", "harnesses/agents-sdk/requirements-build.txt")}
     if receipt.get("sources") != expected_sources:
         raise PackageError("SDK build sources differ from current package source")
+    try:
+        sdk_custody.validate_sdk_native_receipt(receipt)
+        if expected_os == 'linux':
+            snapshot = receipt['linuxBuildSourceSnapshot']
+            actual_sources = {path: sha256_file(ROOT / path) for path in snapshot['sources']}
+            if actual_sources != snapshot['sources'] or snapshot['driverSha256'] != sha256_file(ROOT / 'cli/ci/build_agents_sdk_linux.py') or snapshot['lockSha256'] != sha256_file(ROOT / 'cli/ci/agents-sdk-linux-build.lock.json'):
+                raise PackageError('SDK native build source snapshot differs from current source')
+    except (ValueError, KeyError, TypeError) as error:
+        raise PackageError('SDK native receipt differs: ' + str(error)) from error
     helper, length, digest = snapshot_binary(directory / SDK_NAME, snapshots / SDK_NAME, "Agents SDK")
     if receipt.get("helper") != {"path": SDK_NAME, "sha256": digest, "byteLength": length}:
         raise PackageError("SDK helper differs from build receipt")
@@ -2498,6 +2508,8 @@ def snapshot_sdk(directory: Path, snapshots: Path, platform_identifier: str,
     if tool_test.returncode != 0 or tool_test.stderr or strict_json_object(tool_test.stdout, "SDK tool self-test") != expected_tools or receipt.get('toolSelfTest') != expected_tools:
         raise PackageError("Packaged SDK tool self-test differs")
     if expected_os == "linux":
+        # The source-bound builder inspects the CArchive before recording it.
+        # Independently compare actual frozen extraction here without a freezer dependency.
         inspected = run_bounded([str(helper), "--packaged-library-test"], cwd=snapshots,
                                  environment=environment, timeout_seconds=30, label="packaged SDK libraries")
         if inspected.returncode != 0 or inspected.stderr:
@@ -2906,7 +2918,10 @@ def build(
                  "hashes": [{"alg": "SHA-256", "content": sdk_record["sha256"]}],
                  "properties": [{"name": "openprose:kind", "value": "packaged-agents-sdk-helper"}]}]
                if isinstance(sdk_record, dict) else [])
-            + dependency_sbom_components(dependency_report),
+            + dependency_sbom_components(dependency_report)
+            + (sdk_custody.sdk_native_sbom_components(
+                strict_json_object(next(data for name, data, _ in sdk_members if name == SDK_RECEIPT), 'SDK receipt'))
+               if sdk_members else []),
             "properties": [
                 {
                     "name": "openprose:dependency-inventory",

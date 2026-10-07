@@ -33,6 +33,65 @@ SDK_TOOL_TEST = {'schema': 'openprose.sdk-packaged-tools-self-test/1', 'shellEff
                  'boundedOutput': True, 'shellCancellation': True, 'mockedPublicRetrieval': True,
                  'incompleteHttpRejected': True, 'modelCalls': 0, 'networkUsed': False}
 
+LINUX_RECEIPT_KEYS = {'linuxBuildInputSha256', 'linuxBuildSourceSnapshot', 'nativeDependencies'}
+NATIVE_SBOM_KINDS = {'packaged-sdk-native-file', 'packaged-sdk-native-origin'}
+
+
+def validate_sdk_native_receipt(receipt):
+    """Pure artifact-consumer validation; never imports a freezer or executes payloads."""
+    if receipt.get('platform') == 'linux':
+        import sdk_native_inventory
+        return sdk_native_inventory.validate_linux_receipt(receipt)
+    require(not LINUX_RECEIPT_KEYS.intersection(receipt), 'Non-Linux receipt contains Linux native additions')
+    return None
+
+
+def sdk_native_sbom_components(receipt):
+    """Project shipped ELF bytes and their referenced origins, never lock candidates as downloads."""
+    import json
+    native = validate_sdk_native_receipt(receipt)
+    if native is None:
+        return []
+    canonical = lambda value: json.dumps(value, sort_keys=True, separators=(',', ':'))
+    components = []
+    references = set()
+    for row in native['libraries']:
+        references.add(row['origin'])
+        components.append({'type': 'file', 'bom-ref': 'openprose:sdk-native:file:' + row['sha256'] + ':' +
+                           hashlib.sha256(row['path'].encode()).hexdigest(), 'name': row['path'],
+                           'hashes': [{'alg': 'SHA-256', 'content': row['sha256']}],
+                           'properties': [{'name': 'openprose:kind', 'value': 'packaged-sdk-native-file'},
+                                          {'name': 'openprose:native-record', 'value': canonical(row)}]})
+    for reference in sorted(references):
+        if reference == 'supplier':
+            origin = native['origins']['supplier']; name = origin['package']['name']
+            version = origin['package']['version']
+        elif reference == 'python':
+            # Provider declarations describe the full distribution, not shipped extensions.
+            origin = {key: value for key, value in native['origins']['python'].items()
+                      if key != 'declaredExtensionLicenses'}
+            name = 'CPython'; version = receipt['python']
+        else:
+            origin = next(row for row in native['origins']['wheels'] if row['name'] == reference[6:])
+            name = origin['name']; version = origin['version']
+        components.append({'type': 'library', 'bom-ref': 'openprose:sdk-native:origin:' + reference,
+                           'name': name, 'version': version,
+                           'properties': [{'name': 'openprose:kind', 'value': 'packaged-sdk-native-origin'},
+                                          {'name': 'openprose:origin-reference', 'value': reference},
+                                          {'name': 'openprose:origin-evidence', 'value': canonical(origin)}]})
+    return components
+
+
+def validate_sdk_native_sbom(components, receipt=None):
+    """Require the complete, unique artifact-specific projection, including origin/license bindings."""
+    import json
+    observed = [row for row in components if isinstance(row, dict) and (str(row.get('bom-ref', '')).startswith('openprose:sdk-native:') or any(
+        isinstance(p, dict) and p.get('name') == 'openprose:kind' and p.get('value') in NATIVE_SBOM_KINDS
+        for p in row.get('properties', [])))]
+    expected = sdk_native_sbom_components(receipt) if receipt is not None else []
+    encode = lambda rows: sorted(json.dumps(row, sort_keys=True, separators=(',', ':')) for row in rows)
+    require(encode(observed) == encode(expected), 'Native SDK SBOM differs from bound receipt')
+
 
 def validate_sdk_members(manifest, members, prefix, platform):
     """Bind the frozen helper and its source/dependency receipt without executing it."""
@@ -87,11 +146,13 @@ def validate_sdk_members(manifest, members, prefix, platform):
                 'SDK dependency receipt is malformed')
         seen.add(package['name'])
     if os_name == 'linux':
+        validate_sdk_native_receipt(receipt)
         libraries = receipt.get('linuxLibraries', {})
         maximum = libraries.get('requiredGlibcMaximum') if isinstance(libraries, dict) else None
         require(isinstance(maximum, str) and re.fullmatch(r'[0-9]+\.[0-9]+(?:\.[0-9]+)?', maximum)
                 and tuple(map(int, maximum.split('.'))) + (0,) * (3 - len(maximum.split('.'))) <= (2, 34, 0), 'SDK Linux glibc floor differs')
     else:
+        validate_sdk_native_receipt(receipt)
         require(receipt.get('linuxLibraries') == 'not-applicable', 'SDK platform library receipt differs')
     return sdk
 

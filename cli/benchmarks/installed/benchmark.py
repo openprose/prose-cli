@@ -1288,7 +1288,7 @@ def verify_package_output(
         artifacts,
         dependency_digest,
     )
-    if release['mode'] == 'release':
+    if release['mode'] in ('release', 'kernel-rc'):
         import sys
         ci_path = str(Path(__file__).resolve().parents[2] / 'ci')
         if ci_path not in sys.path:
@@ -1318,6 +1318,30 @@ def verify_package_output(
         matches = [p for p in sbom['components'] if p.get('name') == 'prose-agents-sdk']
         if len(matches) != 1 or matches[0].get('hashes') != [{'alg': 'SHA-256', 'content': sdk['sha256']}]:
             fail('IDENTITY_DIVERGENCE', 'SBOM lacks exact frozen SDK helper binding')
+        native_receipts = []
+        for name, artifact in artifacts.items():
+            if artifact['kind'] not in ('standalone-archive', 'npm-platform'):
+                continue
+            members = decode_archive_members(encoded[name], name)
+            native_receipts.extend(json_no_duplicates(data, 'SDK receipt') for path, (data, mode) in members.items()
+                                   if path.endswith('/agents-sdk-build.json'))
+        try:
+            if len(native_receipts) != 3 or any(row != native_receipts[0] for row in native_receipts[1:]):
+                raise ValueError('SDK native receipts differ between payloads')
+            custody.validate_sdk_native_sbom(sbom['components'], native_receipts[0])
+        except (ValueError, KeyError, TypeError) as error:
+            fail('IDENTITY_DIVERGENCE', str(error))
+    else:
+        # Native components cannot appear without an artifact-bound production receipt.
+        import sys
+        ci_path = str(Path(__file__).resolve().parents[2] / 'ci')
+        if ci_path not in sys.path:
+            sys.path.insert(0, ci_path)
+        import kernel_rc_evidence as custody
+        try:
+            custody.validate_sdk_native_sbom(json_no_duplicates(encoded['sbom.cdx.json'], 'sbom.cdx.json')['components'])
+        except (ValueError, KeyError, TypeError) as error:
+            fail('IDENTITY_DIVERGENCE', str(error))
     return {
         "root": package_output,
         "purpose": purpose,
