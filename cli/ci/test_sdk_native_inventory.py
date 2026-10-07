@@ -58,10 +58,12 @@ def input_fixture(root, target='linux-x64-gnu'):
     metadata = python / 'PYTHON.json'; metadata.write_text(json.dumps(info))
     image = lambda floor: {'image': 'quay.io/pypa/manylinux_' + floor + '_' + arch + '@sha256:' + 'a' * 64,
                           'configSha256': 'b' * 64, 'metadataUrl': 'https://quay.io/fixture'}
-    origin = {'schema': 'openprose.sdk-native-origin/1',
+    origin = {'schema': 'openprose.sdk-native-origin/2',
               'package': {'name': 'libgcc', 'epoch': '0', 'version': '8.5.0', 'release': 'fixture', 'architecture': arch,
                           'sourceRpm': 'gcc-8.5.0-fixture.src.rpm', 'license': 'GPLv3+ and GPLv3+ with exceptions'},
-              'library': {**native.record('libgcc_s.so.1', library.read_bytes()), 'supplierPath': '/usr/lib64/libgcc_s-8.so.1', 'rpmFileDigestVerified': True},
+              'library': {**native.record('libgcc_s.so.1', library.read_bytes()), 'supplierPath': '/usr/lib64/libgcc_s-8.so.1', 'rpmFileDigestVerified': True,
+                          'rpmPayloadPath': '/lib64/libgcc_s-8.so.1', 'rpmFileDigestAlgorithm': 8,
+                          'rpmFileDigestSha256': native.sha(library.read_bytes())},
               'licenses': [{**native.record('license-0.txt', license_text), 'packagePath': '/usr/share/licenses/libgcc/COPYING'}]}
     # Canonical encoded URLs exactly match the approved v3 driver lock's full archive pins.
     version = '20260807'
@@ -157,6 +159,51 @@ class NativeInventoryTests(unittest.TestCase):
                 actual, digest, texts = native.validate_input(path, library, source, target)
                 self.assertEqual(actual, value); self.assertEqual(digest, native.sha(path.read_bytes()))
                 self.assertIn('GCC RUNTIME LIBRARY EXCEPTION', texts[0])
+
+    def test_origin_v2_aliases_and_closed_rpm_facts_in_inputs_and_receipts(self):
+        for target in ('linux-x64-gnu', 'linux-arm64-gnu'):
+            with self.subTest(target=target), tempfile.TemporaryDirectory() as temp:
+                value, path, library, source = input_fixture(Path(temp), target)
+                machine = 62 if target == 'linux-x64-gnu' else 183
+                rows, origins = native.assign_origins(
+                    [native.elf_record('libgcc_s.so.1', elf(machine=machine))], value, [], lambda _: None)
+                receipt = {'libraries': rows, 'symbolClosureVerified': True,
+                           'libgccSelection': {**native.record('libgcc_s.so.1', library.read_bytes()),
+                                               'analysisTocSha256': 'a' * 64}, 'origins': origins}
+                for parent in ('/lib64', '/usr/lib64'):
+                    actual = copy.deepcopy(value)
+                    actual['libgcc']['library']['rpmPayloadPath'] = parent + '/libgcc_s-8.so.1'
+                    path.write_text(json.dumps(actual))
+                    self.assertEqual(native.validate_input(path, library, source, target)[0], actual)
+                    portable = copy.deepcopy(receipt)
+                    portable['origins']['supplier']['library'] = actual['libgcc']['library']
+                    self.assertEqual(native.validate_native_dependencies(portable, target), portable)
+                mutations = [lambda o: o.update(schema='openprose.sdk-native-origin/1')]
+                for field in ('rpmPayloadPath', 'rpmFileDigestAlgorithm', 'rpmFileDigestSha256'):
+                    mutations.append(lambda o, field=field: o['library'].pop(field))
+                mutations.append(lambda o: o['library'].update(extra=True))
+                for algorithm in (True, '8', 1, 2, 9):
+                    mutations.append(lambda o, algorithm=algorithm: o['library'].update(rpmFileDigestAlgorithm=algorithm))
+                for digest in ('A' * 64, 'b' * 64, None):
+                    mutations.append(lambda o, digest=digest: o['library'].update(rpmFileDigestSha256=digest))
+                mutations.append(lambda o: o['library'].update(rpmFileDigestVerified=False))
+                for field in ('supplierPath', 'rpmPayloadPath'):
+                    bad_paths = ('libgcc_s-8.so.1', '/etc/libgcc_s-8.so.1',
+                                 '/usr/lib64/../lib64/libgcc_s-8.so.1', '/usr/lib64/./libgcc_s-8.so.1',
+                                 '/usr//lib64/libgcc_s-8.so.1', '/usr/lib64/nested/libgcc_s-8.so.1',
+                                 '/usr/lib64/libgcc_s-9.so.1' if field == 'rpmPayloadPath' else '/lib64/libgcc_s-8.so.1',
+                                 '/usr/lib64/libgcc_s-8.so.1\n', '/usr/lib64/not-libgcc.so.1',
+                                 '/usr/lib64/libgcc_s-8.so.1/', '/usr/lib64/' + 'x' * 1025,
+                                 '/usr/lib64/libgcc_s-8~.so.1')
+                    for bad in bad_paths:
+                        mutations.append(lambda o, field=field, bad=bad: o['library'].update({field: bad}))
+                for index, mutate in enumerate(mutations):
+                    with self.subTest(target=target, poison=index):
+                        poisoned = copy.deepcopy(value); mutate(poisoned['libgcc'])
+                        path.write_text(json.dumps(poisoned))
+                        with self.assertRaises(ValueError): native.validate_input(path, library, source, target)
+                        portable = copy.deepcopy(receipt); mutate(portable['origins']['supplier'])
+                        with self.assertRaises(ValueError): native.validate_native_dependencies(portable, target)
 
     def test_source_module_mutation_encoded_pin_architecture_and_closed_shapes(self):
         with tempfile.TemporaryDirectory() as temp:

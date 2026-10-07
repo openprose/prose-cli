@@ -260,6 +260,41 @@ def verify_analysis_toc(path, supplier):
     return sha(data)
 
 
+def validate_supplier_library(library):
+    """Validate portable /2 RPM facts; the supplier proves identity and ownership.
+
+    Directory aliases are recorded only after the pinned supplier process has
+    proved a unique regular RPM payload row sharing the canonical inode/device.
+    A portable receipt cannot itself repeat those original filesystem checks.
+    """
+    keys(library, ('path', 'sha256', 'byteLength', 'supplierPath', 'rpmFileDigestVerified',
+                   'rpmPayloadPath', 'rpmFileDigestAlgorithm', 'rpmFileDigestSha256'), 'supplier library')
+    require(library['path'] == 'libgcc_s.so.1' and library['rpmFileDigestVerified'] is True,
+            'Invalid supplier library identity or RPM verification')
+    require(isinstance(library['sha256'], str) and re.fullmatch('[0-9a-f]{64}', library['sha256']),
+            'Invalid supplier library SHA256')
+    require(type(library['byteLength']) is int and 0 < library['byteLength'] <= 8 * 1024 * 1024,
+            'Supplier library size is outside bounds')
+    require(type(library['rpmFileDigestAlgorithm']) is int and library['rpmFileDigestAlgorithm'] == 8,
+            'Supplier RPM digest algorithm must be integer SHA256 (8)')
+    require(isinstance(library['rpmFileDigestSha256'], str) and
+            re.fullmatch('[0-9a-f]{64}', library['rpmFileDigestSha256']) and
+            library['rpmFileDigestSha256'] == library['sha256'], 'Supplier RPM digest differs from measured SHA256')
+    def direct_path(value, parents):
+        require(isinstance(value, str) and 0 < len(value) <= 1024 and
+                all(32 <= ord(c) < 127 for c in value) and '\\' not in value,
+                'Invalid supplier RPM path')
+        path = PurePosixPath(value)
+        require(path.is_absolute() and str(path) == value and str(path.parent) in parents and
+                re.fullmatch(r'libgcc_s(?:-[A-Za-z0-9._+\-]+)?[.]so[.]1', path.name),
+                'Supplier RPM path must be a direct canonical libgcc leaf')
+        return path
+    canonical = direct_path(library['supplierPath'], {'/usr/lib64'})
+    payload = direct_path(library['rpmPayloadPath'], {'/usr/lib64', '/lib64'})
+    require(payload.name == canonical.name, 'Supplier RPM alias basename differs from canonical library')
+    return library
+
+
 def validate_input(path, supplier, source_root, target):
     data = read_file(path, MAX_METADATA)
     value = load_json(data)
@@ -294,16 +329,13 @@ def validate_input(path, supplier, source_root, target):
                          triple + r'-pgo%2Blto-full\.tar\.zst', archive['url']), 'Expected pinned full shared Python archive')
     require(isinstance(archive['metadataUrl'], str) and archive['metadataUrl'].startswith('https://'), 'Missing Python archive metadata URL')
     origin = value['libgcc']; keys(origin, ('schema', 'package', 'library', 'licenses'), 'libgcc origin')
-    require(origin['schema'] == 'openprose.sdk-native-origin/1', 'Unsupported libgcc origin schema')
+    require(origin['schema'] == 'openprose.sdk-native-origin/2', 'Unsupported libgcc origin schema')
     package = origin['package']; keys(package, ('name', 'epoch', 'version', 'release', 'architecture', 'sourceRpm', 'license'), 'supplier package')
     require(package['name'] == 'libgcc' and package['architecture'] == arch and
             all(isinstance(v, str) and v and not any(ord(c) < 32 for c in v) for v in package.values()) and
             re.fullmatch(r'[0-9]+', package['epoch']) and package['sourceRpm'].endswith('.src.rpm'), 'Invalid supplier package provenance')
-    library = origin['library']; keys(library, ('path', 'sha256', 'byteLength', 'supplierPath', 'rpmFileDigestVerified'), 'supplier library')
-    require(library['path'] == 'libgcc_s.so.1' and library['rpmFileDigestVerified'] is True and
-            isinstance(library['supplierPath'], str) and library['supplierPath'].startswith('/usr/lib64/') and
-            '..' not in PurePosixPath(library['supplierPath']).parts, 'Invalid supplier library origin')
-    actual = read_file(supplier)
+    library = validate_supplier_library(origin['library'])
+    actual = read_file(supplier, 8 * 1024 * 1024)
     require(library['sha256'] == sha(actual) and type(library['byteLength']) is int and library['byteLength'] == len(actual),
             'Explicit libgcc bytes differ from supplier receipt')
     licenses = origin['licenses']; require(isinstance(licenses, list) and 0 < len(licenses) <= 32, 'Missing supplier license evidence')
@@ -441,19 +473,16 @@ replace CArchive/extracted-byte custody or establish missing supplier facts.
         require(type(row['byteLength']) is int and 0 < row['byteLength'] <= maximum, 'Invalid native receipt size')
     origins = value['origins']; keys(origins, ('supplier', 'python', 'wheels'), 'native origins')
     supplier = origins['supplier']; keys(supplier, ('schema', 'package', 'library', 'licenses', 'image'), 'supplier origin')
-    require(supplier['schema'] == 'openprose.sdk-native-origin/1', 'Invalid supplier origin schema')
+    require(supplier['schema'] == 'openprose.sdk-native-origin/2', 'Invalid supplier origin schema')
     keys(supplier['package'], ('name', 'epoch', 'version', 'release', 'architecture', 'sourceRpm', 'license'), 'supplier package')
     arch = {'linux-x64-gnu': 'x86_64', 'linux-arm64-gnu': 'aarch64'}.get(target)
     require(arch is not None, 'Unsupported native receipt target')
     require(supplier['package']['architecture'] == arch and supplier['package']['name'] == 'libgcc' and all(isinstance(x, str) and x for x in supplier['package'].values()),
             'Invalid supplier package metadata')
-    keys(supplier['library'], ('path', 'sha256', 'byteLength', 'supplierPath', 'rpmFileDigestVerified'), 'supplier file')
-    require(supplier['library']['rpmFileDigestVerified'] is True, 'Supplier RPM file digest was not verified')
-    file_row({k: supplier['library'][k] for k in ('path', 'sha256', 'byteLength')}, MAX_BYTES)
+    validate_supplier_library(supplier['library'])
     keys(supplier['image'], ('image', 'configSha256', 'metadataUrl'), 'supplier image')
     digest(supplier['image']['configSha256'])
     require(re.fullmatch(r'quay\.io/pypa/manylinux_2_28_' + arch + r'@sha256:[0-9a-f]{64}', supplier['image']['image']), 'Supplier image target/floor mismatch')
-    require(supplier['library']['path'] == 'libgcc_s.so.1' and isinstance(supplier['library']['supplierPath'], str) and supplier['library']['supplierPath'].startswith('/usr/lib64/'), 'Supplier library origin mismatch')
     require(re.fullmatch(r'[0-9]+', supplier['package']['epoch']) and supplier['package']['sourceRpm'].endswith('.src.rpm'), 'Supplier RPM identity is incomplete')
     require(isinstance(supplier['licenses'], list) and supplier['licenses'], 'Missing supplier licenses')
     for row in supplier['licenses']:

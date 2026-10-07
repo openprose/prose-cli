@@ -18,6 +18,7 @@ import time
 import uuid
 import shutil
 import sys
+import sdk_native_inventory as native_inventory
 
 LOCK = Path(__file__).with_name('agents-sdk-linux-build.lock.json')
 SOURCES = ('harnesses/agents-sdk/run.py', 'harnesses/agents-sdk/requirements-build.txt',
@@ -96,7 +97,7 @@ def verify_archive(path, row):
 
 def validate_origin(origin, root, row):
     require(isinstance(origin,dict) and set(origin)=={'schema','package','library','licenses'}
-            and origin['schema']=='openprose.sdk-native-origin/1','Closed native origin required')
+            and origin['schema']=='openprose.sdk-native-origin/2','Closed native origin required')
     package=origin['package']
     require(set(package)=={'name','epoch','version','release','architecture','sourceRpm','license'}
             and all(isinstance(v,str) and v and len(v)<=1024 for v in package.values())
@@ -104,11 +105,9 @@ def validate_origin(origin, root, row):
             and re.fullmatch('[A-Za-z0-9_.+~-]+[.]src[.]rpm',package['sourceRpm']),
             'Actual supplying RPM and source RPM facts required')
     lib=origin['library'];path=checked_path(root/'libgcc_s.so.1')
-    require(set(lib)=={'path','sha256','byteLength','supplierPath','rpmFileDigestVerified'}
-            and lib['path']=='libgcc_s.so.1' and lib['supplierPath'].startswith('/usr/lib64/')
-            and lib['rpmFileDigestVerified'] is True and sha(path)==lib['sha256']
-            and type(lib['byteLength']) is int and path.stat().st_size==lib['byteLength'],
-            'Supplier origin does not bind exact libgcc bytes')
+    native_inventory.validate_supplier_library(lib)
+    require(sha(path)==lib["sha256"] and path.stat().st_size==lib["byteLength"],
+            "Supplier origin does not bind exact libgcc bytes")
     licenses=origin['licenses'];require(isinstance(licenses,list) and 0<len(licenses)<=128,'Native license evidence required')
     text=[]
     for i,license in enumerate(licenses):
@@ -149,29 +148,223 @@ def container_command(row, image_key, source, output, script, *, network='none',
 SUPPLIER = r'''/opt/python/cp310-cp310/bin/python /job/supplier.py
 '''
 SUPPLIER_PY = r'''
-import hashlib,json,pathlib,subprocess
-out=pathlib.Path('/job/supplier');out.mkdir()
-p=pathlib.Path('/usr/lib64/libgcc_s.so.1').resolve(strict=True)
-assert p.parent==pathlib.Path('/usr/lib64') and p.is_file()
-b=p.read_bytes();assert b[:4]==b'\x7fELF'
-raw=subprocess.check_output(['rpm','-qf','--qf','%{NAME}\n%{EPOCHNUM}\n%{VERSION}\n%{RELEASE}\n%{ARCH}\n%{SOURCERPM}\n%{LICENSE}\n',str(p)],text=True).splitlines()
-assert len(raw)==7 and all(raw) and raw[0]=='libgcc' and raw[5].endswith('.src.rpm')
-files=subprocess.check_output(['rpm','-qf','--qf','[%{FILENAMES}\t%{FILEDIGESTS}\n]',str(p)],text=True).splitlines()
-digests=dict(line.split('\t') for line in files);digest=hashlib.sha256(b).hexdigest()
-assert digests.get(str(p))==digest, 'Supplier libgcc differs from installed RPM digest'
-(out/'libgcc_s.so.1').write_bytes(b)
-licenses=[]
-for name in subprocess.check_output(['rpm','-ql',raw[0]],text=True).splitlines():
- q=pathlib.Path(name)
- if str(q).startswith('/usr/share/licenses/') and q.is_file():
-  data=q.read_bytes();assert len(data)<=1048576
-  dest=out/('license-'+str(len(licenses))+'.txt');dest.write_bytes(data)
-  licenses.append({'packagePath':str(q),'path':dest.name,'sha256':hashlib.sha256(data).hexdigest(),'byteLength':len(data)})
-texts='\n'.join((out/x['path']).read_text(errors='replace') for x in licenses)
-assert 'GCC RUNTIME LIBRARY EXCEPTION' in texts and 'GNU GENERAL PUBLIC LICENSE' in texts, 'Actual supplier license texts missing'
-record={'schema':'openprose.sdk-native-origin/1','package':dict(zip(['name','epoch','version','release','architecture','sourceRpm','license'],raw)),
- 'library':{'path':'libgcc_s.so.1','sha256':digest,'byteLength':len(b),'supplierPath':str(p),'rpmFileDigestVerified':True},'licenses':licenses}
-(out/'origin.json').write_text(json.dumps(record,sort_keys=True,indent=2)+'\n')
+import hashlib,json,os,pathlib,re,selectors,signal,stat,subprocess,sys,time
+
+FIELDS=('name','epoch','version','release','architecture','sourceRpm','license')
+HEADER='%{NAME}\t%{EPOCHNUM}\t%{VERSION}\t%{RELEASE}\t%{ARCH}\t%{SOURCERPM}\t%{LICENSE}\t%{FILEDIGESTALGO}\n'
+TABLE='[%{FILENAMES}\t%{FILEDIGESTS}\t%{FILEMODES}\n]'
+MAX_RPM_BYTES=262144
+MAX_ROWS=128
+MAX_LIBRARY_BYTES=8*1024*1024
+MAX_LICENSE_BYTES=1048576
+MAX_LICENSE_TOTAL=2*1048576
+DIAG={}
+
+class SupplierFailure(ValueError):
+ def __init__(self,code):
+  self.code=code
+  super().__init__(code)
+
+def require(ok,code):
+ if not ok:raise SupplierFailure(code)
+
+def remaining(deadline):
+ value=deadline-time.monotonic()
+ require(value>0,'supplier-timeout')
+ return value
+
+def rpm(args,deadline):
+ end=time.monotonic()+min(5,remaining(deadline))
+ env={'PATH':'/usr/bin:/bin','LANG':'C','LC_ALL':'C'}
+ p=subprocess.Popen(['rpm',*args],stdout=subprocess.PIPE,stderr=subprocess.STDOUT,
+                    env=env,start_new_session=True)
+ data=bytearray()
+ try:
+  with selectors.DefaultSelector() as selector:
+   selector.register(p.stdout,selectors.EVENT_READ)
+   while selector.get_map():
+    require(time.monotonic()<end,'rpm-timeout')
+    for key,_ in selector.select(min(.05,max(0,end-time.monotonic()))):
+     chunk=os.read(key.fd,8192)
+     if not chunk:selector.unregister(key.fileobj);continue
+     require(len(data)+len(chunk)<=MAX_RPM_BYTES,'rpm-output-limit')
+     data.extend(chunk)
+   try:p.wait(timeout=max(.001,end-time.monotonic()))
+   except subprocess.TimeoutExpired:raise SupplierFailure('rpm-timeout')
+   require(p.returncode==0,'rpm-query-failed')
+   try:return bytes(data).decode('utf-8')
+   except UnicodeDecodeError:raise SupplierFailure('rpm-malformed-output')
+ finally:
+  # Kill the complete query group, including descendants retaining the pipe.
+  try:os.killpg(p.pid,signal.SIGKILL)
+  except ProcessLookupError:pass
+  p.stdout.close()
+  try:p.wait(timeout=1)
+  except subprocess.TimeoutExpired:pass
+
+def text(value):
+ return isinstance(value,str) and 0<len(value)<=1024 and all(32<=ord(c)<127 for c in value)
+
+def direct_path(value,parents):
+ if not text(value):return False
+ p=pathlib.PurePosixPath(value)
+ return str(p)==value and str(p.parent) in parents and p.name not in ('','.','..')
+
+def canonical_path(value):
+ return direct_path(value,('/usr/lib64',)) and re.fullmatch(r'libgcc_s(?:-[A-Za-z0-9._+\-]+)?\.so\.1',pathlib.PurePosixPath(value).name) is not None
+
+def payload_path(value,canonical):
+ return canonical_path(canonical) and direct_path(value,('/lib64','/usr/lib64')) and pathlib.PurePosixPath(value).name==pathlib.PurePosixPath(canonical).name
+
+def parse_header(line,arch):
+ raw=line.split('\t')
+ require(len(raw)==8 and all(text(x) for x in raw),'rpm-package-ambiguous')
+ package=dict(zip(FIELDS,raw[:7]))
+ require(package['name']=='libgcc' and package['architecture']==arch and
+         re.fullmatch('[0-9]+',package['epoch']) is not None and
+         package['sourceRpm'].endswith('.src.rpm'),'rpm-package-identity')
+ if re.fullmatch('[0-9]+',raw[7]):DIAG['algorithm']=int(raw[7])
+ require(raw[7]=='8','rpm-digest-algorithm')
+ DIAG.update(algorithm=8,packageCount=1)
+ return package
+
+def parse_table(output,arch):
+ lines=output.splitlines()
+ require(0<len(lines)<=MAX_ROWS+1,'rpm-row-limit')
+ package=parse_header(lines[0],arch)
+ rows=[]
+ for line in lines[1:]:
+  parts=line.split('\t')
+  require(len(parts)==3 and text(parts[0]) and (not parts[1] or text(parts[1])) and len(parts[1])<=128 and
+          re.fullmatch('[0-9]+',parts[2]) is not None,'rpm-malformed-row')
+  mode=int(parts[2]);require(0<=mode<=65535,'rpm-malformed-row')
+  rows.append({'path':parts[0],'digest':parts[1],'mode':mode})
+ DIAG['rowCount']=len(rows)
+ return package,rows
+
+def identity(info):return info.st_dev,info.st_ino
+def stable(info):return identity(info)+(info.st_mode,info.st_size,info.st_mtime_ns,info.st_ctime_ns)
+
+def select_payload(rows,canonical,info,lstat=None):
+ require(canonical_path(canonical) and stat.S_ISREG(info.st_mode),'supplier-canonical-file')
+ lstat=lstat or (lambda name:pathlib.Path(name).lstat())
+ matches=[]
+ for row in rows:
+  if not payload_path(row['path'],canonical):continue
+  try:found=lstat(row['path'])
+  except FileNotFoundError:continue
+  require(stat.S_ISREG(found.st_mode),'rpm-payload-nonregular')
+  if identity(found)!=identity(info):continue
+  require(stat.S_ISREG(row['mode']),'rpm-mode-nonregular')
+  matches.append(row)
+ DIAG['matchCount']=len(matches)
+ require(len(matches)==1,'rpm-payload-ambiguity')
+ row=matches[0]
+ require(re.fullmatch('[0-9a-f]{64}',row['digest']) is not None,'rpm-payload-digest-format')
+ DIAG.update(payloadPath=row['path'],expectedSha256=row['digest'])
+ return row
+
+def verify_owner(output,package,arch):
+ lines=output.splitlines()
+ require(len(lines)==1,'rpm-owner-ambiguity')
+ owner=parse_header(lines[0],arch)
+ DIAG.update(ownerName=owner['name'],ownerArchitecture=owner['architecture'],ownerVersion=owner['version'],ownerRelease=owner['release'])
+ require(owner==package,'rpm-owner-mismatch')
+
+def read_regular(path,maximum,deadline):
+ remaining(deadline)
+ before=path.lstat()
+ require(stat.S_ISREG(before.st_mode),'supplier-nonregular-file')
+ fd=os.open(path,os.O_RDONLY|os.O_NOFOLLOW)
+ with os.fdopen(fd,'rb') as f:
+  opened=os.fstat(f.fileno())
+  require(stable(opened)==stable(before),'supplier-identity-change')
+  require(0<opened.st_size<=maximum,'supplier-file-size')
+  data=f.read(maximum+1)
+  require(len(data)==opened.st_size and len(data)<=maximum,'supplier-file-size')
+  require(stable(os.fstat(f.fileno()))==stable(opened) and stable(path.lstat())==stable(opened),'supplier-identity-change')
+ remaining(deadline)
+ return data,opened
+
+def check_binding(canonical,row,info,lstat=None):
+ lstat=lstat or (lambda name:pathlib.Path(name).lstat())
+ require(stable(lstat(canonical))==stable(info) and stable(lstat(row['path']))==stable(info),'supplier-identity-change')
+
+def verify_digest(data,row):
+ digest=hashlib.sha256(data).hexdigest()
+ DIAG['measuredSha256']=digest
+ require(digest==row['digest'],'rpm-payload-digest-mismatch')
+ return digest
+
+def diagnostic(code):
+ record={'phase':DIAG.get('phase','supplier'),'code':code}
+ for key in ('architecture','algorithm','packageCount','rowCount','matchCount','canonicalPath','payloadPath','expectedSha256','measuredSha256','ownerName','ownerArchitecture','ownerVersion','ownerRelease'):
+  value=DIAG.get(key)
+  if type(value) is int or text(value):record[key]=value
+ encoded=json.dumps(record,sort_keys=True)
+ if len(encoded.encode())>4096:encoded=json.dumps({'phase':'supplier','code':code})
+ return encoded
+
+def main():
+ deadline=time.monotonic()+30
+ DIAG['phase']='target'
+ target=pathlib.Path('/job/target.json')
+ require(target.stat().st_size<=65536,'supplier-target-size')
+ arch=json.loads(target.read_text())['machine']
+ require(arch in ('x86_64','aarch64'),'supplier-target-architecture')
+ DIAG['architecture']=arch
+ p=pathlib.Path('/usr/lib64/libgcc_s.so.1').resolve(strict=True)
+ require(canonical_path(str(p)),'supplier-canonical-path')
+ DIAG.update(phase='rpm-package',canonicalPath=str(p))
+ package,rows=parse_table(rpm(['-q','--qf',HEADER+TABLE,'libgcc'],deadline),arch)
+ info=p.lstat();row=select_payload(rows,str(p),info)
+ DIAG['phase']='rpm-owner'
+ verify_owner(rpm(['-qf','--qf',HEADER,row['path']],deadline),package,arch)
+ DIAG['phase']='payload'
+ b,read_info=read_regular(p,MAX_LIBRARY_BYTES,deadline)
+ require(stable(read_info)==stable(info),'supplier-identity-change')
+ check_binding(str(p),row,info)
+ require(b[:4]==b'\x7fELF','supplier-not-elf')
+ digest=verify_digest(b,row)
+ DIAG['phase']='licenses'
+ licenses=[];license_bytes=[];seen=set();total=0
+ for item in rows:
+  name=item['path']
+  if not direct_path(name,('/usr/share/licenses',)) and not name.startswith('/usr/share/licenses/'):continue
+  require(text(name) and str(pathlib.PurePosixPath(name))==name and '..' not in pathlib.PurePosixPath(name).parts,'supplier-license-path')
+  require(name not in seen,'supplier-license-duplicate');seen.add(name)
+  q=pathlib.Path(name)
+  if not stat.S_ISREG(item['mode']):continue
+  data,_=read_regular(q,MAX_LICENSE_BYTES,deadline)
+  total+=len(data)
+  require(len(licenses)<32 and total<=MAX_LICENSE_TOTAL,'supplier-license-limit')
+  licenses.append({'packagePath':name,'path':'license-'+str(len(licenses))+'.txt','sha256':hashlib.sha256(data).hexdigest(),'byteLength':len(data)})
+  license_bytes.append(data)
+ texts=b'\n'.join(license_bytes)
+ require(b'GCC RUNTIME LIBRARY EXCEPTION' in texts and b'GNU GENERAL PUBLIC LICENSE' in texts,'supplier-license-texts')
+ DIAG['phase']='publish'
+ verify_owner(rpm(['-q','--qf',HEADER,'libgcc'],deadline),package,arch)
+ check_binding(str(p),row,info)
+ remaining(deadline)
+ out=pathlib.Path('/job/supplier');out.mkdir()
+ (out/'libgcc_s.so.1').write_bytes(b)
+ copied=(out/'libgcc_s.so.1').read_bytes()
+ require(len(copied)==len(b) and hashlib.sha256(copied).hexdigest()==digest,'supplier-copy-digest')
+ for item,data in zip(licenses,license_bytes):(out/item['path']).write_bytes(data)
+ record={'schema':'openprose.sdk-native-origin/2','package':package,'library':{
+  'path':'libgcc_s.so.1','sha256':digest,'byteLength':len(b),'supplierPath':str(p),
+  'rpmPayloadPath':row['path'],'rpmFileDigestAlgorithm':8,'rpmFileDigestSha256':row['digest'],
+  'rpmFileDigestVerified':True},'licenses':licenses}
+ remaining(deadline)
+ (out/'origin.json').write_text(json.dumps(record,sort_keys=True,indent=2)+'\n')
+
+if __name__=='__main__':
+ try:main()
+ except Exception as error:
+  code=error.code if isinstance(error,SupplierFailure) else 'supplier-internal-failure'
+  try:print(diagnostic(code),file=sys.stderr)
+  except Exception:pass
+  sys.exit(1)
 '''
 PREPARE = r'''/opt/python/cp310-cp310/bin/python - <<'PIN'
 import hashlib,json,pathlib
