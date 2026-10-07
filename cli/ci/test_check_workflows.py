@@ -286,6 +286,20 @@ class CurrentWorkflowPolicyTest(unittest.TestCase):
                 self.changed(name, lambda w, j, i=index, a=before, b=after: j["steps"][i].update(
                              run=j["steps"][i]["run"].replace(a, b)))
 
+    def test_linux_sdk_pins_deadlines_and_failure_evidence_cannot_be_removed(self):
+        for name in ("cli-distribution-check.yml", "cli-kernel-rc.yml"):
+            steps = self.workflows[name]["jobs"][JOBS[name]]["steps"]
+            index = next(i for i, step in enumerate(steps) if step.get("name") == "Prepare the pinned full Linux SDK Python archive")
+            self.changed(name, lambda w, j, i=index: j["steps"].pop(i))
+            self.changed(name, lambda w, j, i=index: j["steps"][i].update({"if": "false"}))
+            for before, after in (("timeout --kill-after=1s 130s ", ""), ("prepare_agents_sdk_linux.py", "echo"),
+                                  ("--platform", "--unpinned-platform")):
+                self.changed(name, lambda w, j, i=index, a=before, b=after: j["steps"][i].update(run=j["steps"][i]["run"].replace(a, b)))
+            retention = next(i for i, step in enumerate(steps) if step.get("uses", "").startswith("actions/upload-artifact@"))
+            for path in ("agents-sdk-native/supplier", "agents-sdk-native/frozen", "agents-sdk-native/*.log",
+                         "agents-sdk-native/python-full/python/PYTHON.json", "agents-sdk-runtime/runtime-report.json"):
+                self.changed(name, lambda w, j, i=retention, p=path: j["steps"][i]["with"].update(path=j["steps"][i]["with"]["path"].replace("${{ runner.temp }}/kernel-rc/" + p, "omitted")))
+
     def test_distribution_production_sdk_custody_is_required(self):
         name = "cli-distribution-check.yml"
         steps = self.workflows[name]["jobs"][JOBS[name]]["steps"]

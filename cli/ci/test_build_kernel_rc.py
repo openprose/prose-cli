@@ -142,6 +142,7 @@ class NativeSdkRoutingTests(unittest.TestCase):
 
     def test_native_linux_uses_driver_and_exact_frozen_trio(self):
         import build_agents_sdk_linux as driver
+        import verify_agents_sdk_linux as verifier
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
             def frozen(source, stage, target, archive, *, epoch):
@@ -149,12 +150,22 @@ class NativeSdkRoutingTests(unittest.TestCase):
                 (stage / 'frozen').mkdir(parents=True)
                 for name in ('prose-agents-sdk', 'agents-sdk-build.json', 'AGENTS-SDK-NOTICES.txt'):
                     (stage / 'frozen' / name).write_bytes(name.encode())
-            with patch.object(rc.sys, 'platform', 'linux'), patch.object(rc.platform, 'machine', return_value='aarch64'), patch.object(driver, 'build', side_effect=frozen), patch.object(rc, 'command') as command:
+            with patch.object(rc.sys, 'platform', 'linux'), patch.object(rc.platform, 'machine', return_value='aarch64'), patch.object(driver, 'build', side_effect=frozen), patch.object(verifier, 'verify') as verify, patch.object(rc, 'command') as command:
                 actual = rc.build_sdk(root, epoch='123', env={}, logs=root, linux_python_archive=root / 'pinned.tar.zst')
                 command.assert_not_called()
+                verify.assert_called_once_with(root / 'agents-sdk-native/frozen', root / 'agents-sdk-runtime', 'linux-arm64-gnu')
             self.assertEqual(len(list(actual.iterdir())), 3)
             for p in actual.iterdir():
                 self.assertEqual(p.read_bytes(), p.name.encode())
+
+    def test_failed_clean_runtime_never_admits_sdk_payload(self):
+        import build_agents_sdk_linux as driver
+        import verify_agents_sdk_linux as verifier
+        with tempfile.TemporaryDirectory() as d, patch.object(rc.sys, 'platform', 'linux'), patch.object(rc.platform, 'machine', return_value='x86_64'), patch.object(driver, 'build'), patch.object(verifier, 'verify', side_effect=ValueError('runtime rejected')), patch.object(rc, 'command') as command:
+            root = Path(d)
+            with self.assertRaisesRegex(ValueError, 'runtime rejected'):
+                rc.build_sdk(root, epoch='0', env={}, logs=root, linux_python_archive=root / 'pinned')
+            command.assert_not_called(); self.assertFalse((root / 'agents-sdk').exists())
 
     def test_macos_keeps_separate_pinned_interpreter(self):
         with tempfile.TemporaryDirectory() as d, patch.object(rc.sys, 'platform', 'darwin'), patch.object(rc, 'command') as command:

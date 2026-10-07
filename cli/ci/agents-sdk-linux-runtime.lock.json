@@ -1,0 +1,25 @@
+{
+  "platforms": {
+    "linux-arm64-gnu": {
+      "dockerPlatform": "linux/arm64",
+      "machine": "aarch64",
+      "runtime": {
+        "configSha256": "81cb9b7fe37a4f8d3d51778736005c0f7d8619d6c3a0d9059935a5d88f368a86",
+        "image": "quay.io/almalinuxorg/9-minimal@sha256:7bc235d6597d8bcffd03a4e0ff120e44b733838cd3c16fa3a5ec4a49edecdaa5",
+        "indexDigest": "sha256:ae819e0517abfec9c71a3c37e78a281d18fba2341212fd96796d9fab489c797b",
+        "metadataUrl": "https://quay.io/api/v1/repository/almalinuxorg/9-minimal/tag/?limit=1&onlyActiveTags=true&specificTag=latest"
+      }
+    },
+    "linux-x64-gnu": {
+      "dockerPlatform": "linux/amd64",
+      "machine": "x86_64",
+      "runtime": {
+        "configSha256": "a9e621adbc87609e9f19bcffac9441b7089f242dc4fca3f6ff691ad8faad1e3f",
+        "image": "quay.io/almalinuxorg/9-minimal@sha256:dd354c60b7e383d1655699b897176f34e0210a2c5a43c3def6e766cb6d94c24e",
+        "indexDigest": "sha256:ae819e0517abfec9c71a3c37e78a281d18fba2341212fd96796d9fab489c797b",
+        "metadataUrl": "https://quay.io/api/v1/repository/almalinuxorg/9-minimal/tag/?limit=1&onlyActiveTags=true&specificTag=latest"
+      }
+    }
+  },
+  "schema": "openprose.sdk-linux-runtime-inputs/1"
+}

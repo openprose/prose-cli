@@ -317,7 +317,7 @@ def audit_workflow(name: str, text: str) -> list[str]:
                 ),
                 "cli-kernel-rc.yml": (
                     "Build and verify fresh standalone and npm installations",
-                    'python3 cli/ci/build_kernel_rc.py --version "$RC_VERSION" --out "$RUNNER_TEMP/kernel-rc" --agents-sdk-python "$RUNNER_TEMP/agents-sdk-python/bin/python3"',
+                    'python3 cli/ci/build_kernel_rc.py --version "$RC_VERSION" --out "$RUNNER_TEMP/kernel-rc" --agents-sdk-python "$RUNNER_TEMP/agents-sdk-python/bin/python3" --agents-sdk-linux-python-archive "$RUNNER_TEMP/agents-sdk-python-full.tar.zst"',
                 ),
             }[name]
             require(
@@ -328,6 +328,22 @@ def audit_workflow(name: str, text: str) -> list[str]:
                 by_name[required_step]["run"] == command,
                 "required qualification command drift",
             )
+        if name in ("cli-kernel-rc.yml", "cli-distribution-check.yml"):
+            prefetch = by_name.get("Prepare the pinned full Linux SDK Python archive", {})
+            require(prefetch.get("if") == "runner.os == 'Linux'" and
+                    prefetch.get("env") == {"SDK_PLATFORM": "${{ runner.arch == 'ARM64' && 'linux-arm64-gnu' || 'linux-x64-gnu' }}"} and
+                    prefetch.get("run") == 'timeout --kill-after=1s 130s python3 cli/ci/prepare_agents_sdk_linux.py --platform "$SDK_PLATFORM" --out "$RUNNER_TEMP/agents-sdk-python-full.tar.zst"',
+                    "native Linux SDK preparation requires pinned archive and external transfer watchdog")
+            require(steps.index(prefetch) < steps.index(by_name["Prepare the separately locked Agents SDK build interpreter"]),
+                    "prepare pinned full archive before native SDK construction")
+            retention = next(step for step in steps if step.get("uses", "").startswith("actions/upload-artifact@"))
+            native_retained = retention.get("with", {}).get("path", "").splitlines()
+            require(all("${{ runner.temp }}/kernel-rc/" + path in native_retained for path in
+                        ("agents-sdk", "agents-sdk-native/*.json", "agents-sdk-native/*.log",
+                         "agents-sdk-native/supplier", "agents-sdk-native/frozen",
+                         "agents-sdk-native/python-full/python/PYTHON.json", "agents-sdk-native/python-full/python/licenses",
+                         "agents-sdk-runtime/runtime-report.json", "agents-sdk-runtime/job/*.log")),
+                    "retain actual native SDK construction/runtime facts and failures")
         if name == "cli-distribution-check.yml":
             sdk_build = by_name["Build and verify production SDK standalone and npm installations"]
             sdk_homebrew = by_name["Rehearse Homebrew against the production SDK archives"]
@@ -335,7 +351,7 @@ def audit_workflow(name: str, text: str) -> list[str]:
                     "production SDK installations must be qualified unconditionally")
             require(sdk_build.get("env") == {"RC_VERSION": "0.15.0-rc.4"}
                     and sdk_build.get("run") ==
-                    'python3 cli/ci/build_kernel_rc.py --version "$RC_VERSION" --out "$RUNNER_TEMP/kernel-rc" --agents-sdk-python "$RUNNER_TEMP/agents-sdk-python/bin/python3"',
+                    'python3 cli/ci/build_kernel_rc.py --version "$RC_VERSION" --out "$RUNNER_TEMP/kernel-rc" --agents-sdk-python "$RUNNER_TEMP/agents-sdk-python/bin/python3" --agents-sdk-linux-python-archive "$RUNNER_TEMP/agents-sdk-python-full.tar.zst"',
                     "production SDK must use the native source-bound RC builder")
             require(sdk_homebrew.get("env") == {"RC_VERSION": "0.15.0-rc.4", "EXPECTED_SOURCE": "${{ github.sha }}"}
                     and sdk_homebrew.get("run") ==

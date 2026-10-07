@@ -60,6 +60,11 @@ jobs:
           python3 -m pip install --require-hashes --only-binary=:all: -r cli/ci/requirements-test.txt
           cd cli/bun
           bun install --frozen-lockfile --ignore-scripts
+      - name: Prepare the pinned full Linux SDK Python archive
+        if: runner.os == 'Linux'
+        env:
+          SDK_PLATFORM: ${{ runner.arch == 'ARM64' && 'linux-arm64-gnu' || 'linux-x64-gnu' }}
+        run: timeout --kill-after=1s 130s python3 cli/ci/prepare_agents_sdk_linux.py --platform "$SDK_PLATFORM" --out "$RUNNER_TEMP/agents-sdk-python-full.tar.zst"
       - name: Prepare the separately locked Agents SDK build interpreter
         run: |
           uv venv --python 3.10.20 --seed "$RUNNER_TEMP/agents-sdk-python"
@@ -122,7 +127,7 @@ jobs:
         # qualification and reviewed publication remain separate gates.
         env:
           RC_VERSION: '0.15.0-rc.4'
-        run: python3 cli/ci/build_kernel_rc.py --version "$RC_VERSION" --out "$RUNNER_TEMP/kernel-rc" --agents-sdk-python "$RUNNER_TEMP/agents-sdk-python/bin/python3"
+        run: python3 cli/ci/build_kernel_rc.py --version "$RC_VERSION" --out "$RUNNER_TEMP/kernel-rc" --agents-sdk-python "$RUNNER_TEMP/agents-sdk-python/bin/python3" --agents-sdk-linux-python-archive "$RUNNER_TEMP/agents-sdk-python-full.tar.zst"
       - name: Fetch pinned genuine previous release inputs
         env:
           UPGRADE_PLATFORM: ${{ matrix.os == 'ubuntu-22.04' && 'linux-x64-gnu' || matrix.os == 'ubuntu-22.04-arm' && 'linux-arm64-gnu' || matrix.os == 'macos-15-intel' && 'darwin-x64' || 'darwin-arm64' }}
@@ -166,6 +171,15 @@ jobs:
             ${{ runner.temp }}/kernel-rc/agents-sdk
             ${{ runner.temp }}/kernel-rc/package
             ${{ runner.temp }}/kernel-rc/logs
+            ${{ runner.temp }}/kernel-rc/agents-sdk-native/*.json
+            ${{ runner.temp }}/kernel-rc/agents-sdk-native/*.log
+            ${{ runner.temp }}/kernel-rc/agents-sdk-native/*cleanup-error.txt
+            ${{ runner.temp }}/kernel-rc/agents-sdk-native/supplier
+            ${{ runner.temp }}/kernel-rc/agents-sdk-native/frozen
+            ${{ runner.temp }}/kernel-rc/agents-sdk-native/python-full/python/PYTHON.json
+            ${{ runner.temp }}/kernel-rc/agents-sdk-native/python-full/python/licenses
+            ${{ runner.temp }}/kernel-rc/agents-sdk-runtime/runtime-report.json
+            ${{ runner.temp }}/kernel-rc/agents-sdk-runtime/job/*.log
             ${{ runner.temp }}/kernel-rc/build-report.json
             ${{ runner.temp }}/kernel-rc/homebrew
             ${{ runner.temp }}/kernel-rc/installed-qualification

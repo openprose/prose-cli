@@ -137,6 +137,8 @@ def build_sdk(output, *, epoch, env, logs, agents_sdk_python=None, linux_python_
         from build_agents_sdk_linux import build as build_linux
         stage = output / 'agents-sdk-native'
         build_linux(ROOT, stage, targets[platform.machine()], linux_python_archive, epoch=int(epoch))
+        from verify_agents_sdk_linux import verify as verify_linux
+        verify_linux(stage / 'frozen', output / 'agents-sdk-runtime', targets[platform.machine()])
         sdk_output.mkdir()
         for name in ('prose-agents-sdk', 'agents-sdk-build.json', 'AGENTS-SDK-NOTICES.txt'):
             shutil.copy2(stage / 'frozen' / name, sdk_output / name)
@@ -219,6 +221,11 @@ def build(version, output, *, agents_sdk_python=None, linux_python_archive=None)
               'publicationAuthorized': False, 'checks': [{'name': name, 'status': 'passed'} for name in ['built-bun', 'built-rust', 'installed-bun', 'installed-rust', 'installed-npm']],
               'evidence': {str(p.relative_to(output)): {'sha256': digest(p), 'byteLength': p.stat().st_size} for directory in (logs, package)
                            for p in sorted(directory.rglob('*')) if p.is_file()}}
+    if sys.platform.startswith('linux'):
+        native_evidence = output / 'agents-sdk-runtime'
+        report['evidence'].update({str(p.relative_to(output)): {'sha256': digest(p), 'byteLength': p.stat().st_size}
+                                  for p in sorted(native_evidence.rglob('*'))
+                                  if p.is_file() and not p.is_symlink() and 'payload' not in p.relative_to(native_evidence).parts})
     (output / 'build-report.json').write_text(json.dumps(report, indent=2, sort_keys=True) + '\n')
     return report
 
