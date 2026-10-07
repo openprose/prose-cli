@@ -1,8 +1,8 @@
 {
-  "id": "job-contract-attach-model-refused",
+  "id": "job-contract-attach-replace-same-ref-bare",
   "feature": "jobs",
   "operation": "job.contract.attach",
-  "description": "--model applies to webhook jobs only; for another job type it is refused before the binding is sent.",
+  "description": "--replace naming the attached program itself, with no setting, sends a bare program_ref.",
   "argv": [
     "--output",
     "json",
@@ -12,8 +12,8 @@
     "attach",
     "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10",
     "exowner1/jobs-example@0123456789abcdef",
-    "--model",
-    "model-luna",
+    "--replace",
+    "exowner1/jobs-example@0123456789abcdef",
     "--yes"
   ],
   "fixture": {
@@ -30,7 +30,7 @@
         "body": {
           "trigger": {
             "id": "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10",
-            "type": "email",
+            "type": "webhook",
             "name": null,
             "internalRef": "opaque-1",
             "url": null,
@@ -76,38 +76,83 @@
         "requestHeaders": {
           "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
         }
+      },
+      {
+        "method": "GET",
+        "path": "/triggers/3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10/contracts",
+        "status": 200,
+        "body": {
+          "contracts": [
+            {
+              "program_ref": "exowner1/jobs-example@0123456789abcdef",
+              "owner": "exowner1",
+              "slug": "jobs-example",
+              "rev_id": "0123456789abcdef",
+              "content": "# private program text",
+              "is_platform_default": false,
+              "enabled": true,
+              "bound_at": 1789501241012,
+              "inputs": {
+                "channel": "C0123",
+                "cost_center": "ops"
+              },
+              "model": "model-luna",
+              "effective_model": "model-luna",
+              "reasoning_effort": "low",
+              "repositories": [
+                {
+                  "url": "https://github.com/exowner1/app",
+                  "branch": "main"
+                }
+              ],
+              "output": null,
+              "environment": "builtin",
+              "files": [
+                {
+                  "name": "notes.md",
+                  "size": 12,
+                  "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+                }
+              ]
+            }
+          ],
+          "max_contracts": 5
+        },
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/triggers/3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10/contracts",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          }
+        },
+        "expectedBody": {
+          "program_ref": "exowner1/jobs-example@0123456789abcdef"
+        },
+        "status": 201,
+        "body": {
+          "bound": "exowner1/jobs-example@0123456789abcdef"
+        }
       }
     ]
   },
-  "exitCode": 2,
+  "exitCode": 0,
   "stdout": {
     "json": {
       "interaction": "job.contracts",
       "operation": "job.contract.attach",
-      "problem": {
-        "action": "Attach without those options: `prose --output json cli job contract attach 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10 exowner1/jobs-example@0123456789abcdef --yes`.",
-        "boundary": "invocation",
-        "code": "INVOCATION_INVALID",
-        "details": {
-          "reason": "job 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10 is an email job; run settings (--model, --reasoning-effort, --repo, --commit-output, --input, --inputs-file, --environment, --file, --replace, --allow-reset and the --clear options) apply to webhook jobs only",
-          "suggestedArgv": [
-            "--output",
-            "json",
-            "cli",
-            "job",
-            "contract",
-            "attach",
-            "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10",
-            "exowner1/jobs-example@0123456789abcdef",
-            "--yes"
-          ]
-        },
-        "exitCode": 2,
-        "message": "That command isn't quite right.",
-        "retryable": false,
-        "schema": "openprose.runner-error/1"
+      "problem": null,
+      "result": {
+        "contracts": [
+          {
+            "program_ref": "exowner1/jobs-example@0123456789abcdef"
+          }
+        ]
       },
-      "result": null,
       "schema": "openprose.service-operation/1"
     }
   },

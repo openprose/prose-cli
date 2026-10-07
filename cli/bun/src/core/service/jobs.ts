@@ -1031,6 +1031,8 @@ interface Binding {
   allowReset: boolean;
   /** Any option above was given. */
   any: boolean;
+  /** An option that changes a setting was given (anything but --allow-reset and --replace). */
+  changes: boolean;
 }
 
 /**
@@ -1065,6 +1067,7 @@ async function bindingOptions(context: Context): Promise<Binding> {
     allowReset: context.flag("--allow-reset"),
     inputs: await parseInputs(context),
     any: BINDING_OPTIONS.some(given),
+    changes: BINDING_OPTIONS.some((name) => name !== "--allow-reset" && name !== "--replace" && given(name)),
   };
   const model = modelOption(context);
   if (model !== undefined) binding.model = model;
@@ -1075,14 +1078,14 @@ async function bindingOptions(context: Context): Promise<Binding> {
     binding.commit = parseRepository("--commit-output", commitValue);
     if (binding.commit.branch !== undefined) throw invocationFailure(`--commit-output ${quoteText(commitValue)} takes OWNER/NAME: the service chooses the commit's branch`);
   }
+  if (binding.commit !== undefined && binding.repo !== undefined && !sameRepository(binding.commit, binding.repo)) {
+    throw commitNotRead(binding.commit);
+  }
   const environment = tokenOption(context, "--environment", "an environment");
   if (environment !== undefined) binding.environment = environment;
   if (replaceValue !== undefined) binding.replace = pinnedValue(context, replaceValue, "--replace");
   const files = await bindingFiles(context);
   if (files !== undefined) binding.files = files;
-  if (binding.commit !== undefined && binding.repo !== undefined && !sameRepository(binding.commit, binding.repo)) {
-    throw commitNotRead(binding.commit);
-  }
   return binding;
 }
 
@@ -1257,8 +1260,10 @@ function attachBody(context: Context, id: string, reference: string, binding: Bi
     return inputs;
   };
   const body: JsonObject = { program_ref: reference };
+  // A bound ref whose settings this request does not change gets a bare
+  // program_ref on a merging service (a no-op there).
+  if (saved !== undefined && !moved && merging && !binding.changes) return { body, effective: savedEffective() };
   if (saved !== undefined && !moved && !binding.any) {
-    if (merging) return { body, effective: savedEffective() };
     throw refusal(
       `${reference} is already bound to job ${humanSafeScalar(id)}; this service does not report its stored files or environment, so re-attaching it could reset them`,
       `List its settings with \`${context.command(`job contract list ${id}`)}\`.`,
@@ -1340,7 +1345,7 @@ async function contractAttach(context: Context): Promise<Json> {
   if (binding.any && jobType !== "webhook") {
     const named = humanSafeScalar(jobType ?? "");
     const article = /^[aeiou]/u.test(named) ? "an" : "a";
-    const error = invocationFailure(`job ${id} is ${article} ${named} job; run settings (--model, --reasoning-effort, --repo, --commit-output, --input, --inputs-file, --environment, --file, --replace and the --clear options) apply to webhook jobs only`);
+    const error = invocationFailure(`job ${id} is ${article} ${named} job; run settings (--model, --reasoning-effort, --repo, --commit-output, --input, --inputs-file, --environment, --file, --replace, --allow-reset and the --clear options) apply to webhook jobs only`);
     throw context.corrected(error, "Attach without those options: `{command}`", withoutBindingOptions(context.invocation.argv));
   }
   // The listed contracts keep a bound program's saved settings.

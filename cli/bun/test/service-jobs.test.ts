@@ -176,6 +176,19 @@ describe("Service job contract settings", () => {
     expect(full.exit).toBe(0);
   });
 
+  test("a bound program on a merging service gets a bare program_ref when no setting changes", async () => {
+    for (const extra of [["--allow-reset"], ["--replace", REF], []]) {
+      const result = await attach([REF, ...extra, "--yes"], [jobRead(), listing([merging()]), post({ program_ref: REF })]);
+      expect(result.exit).toBe(0);
+    }
+  });
+
+  test("the --commit-output mismatch is reported before any --file is read", async () => {
+    const result = await attach([REF, "--repo", "exowner1/app", "--commit-output", "exowner1/other", "--file", "missing.md", "--yes"], []);
+    expect(result.exit).toBe(2);
+    expect(result.report!.problem.details.reason).toStartWith("--commit-output exowner1/other must also be given as --repo");
+  });
+
   test("a non-webhook job takes the program alone, bound or not, and refuses settings with the right article", async () => {
     const plain = await attach([REF, "--yes"], [jobRead("email"), listing([merging()]), post({ program_ref: REF })]);
     expect(plain.exit).toBe(0);

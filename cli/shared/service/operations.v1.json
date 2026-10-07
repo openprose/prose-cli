@@ -5688,7 +5688,7 @@
         {
           "name": "--allow-reset",
           "value": null,
-          "description": "Reset stored files and environment a service does not report.",
+          "description": "Accept resetting stored files and environment a service cannot keep, or dropping files on --replace.",
           "repeatable": false,
           "required": false
         }
