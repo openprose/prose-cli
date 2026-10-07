@@ -124,11 +124,93 @@ class KernelRCSdkExtractionTests(unittest.TestCase):
     def test_production_extracts_closed_sdk_payload(self):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d); archive = root / 'source.tgz'
-            names = ('prose', 'prose-agents-sdk', 'agents-sdk-build.json', 'AGENTS-SDK-NOTICES.txt')
-            self.archive(archive, [('release/' + name, 'file') for name in names])
-            executable = rc.extract_binary(archive, root / 'install/prose', require_sdk=True)
+            from test_qualify_installed_sdk import sdk_archive
+            manifest, _ = sdk_archive(archive, prefix='release/')
+            names = ('prose', 'prose-agents-sdk', 'agents-sdk-build.json', 'AGENTS-SDK-NOTICES.txt', 'prose-agents-sdk-runtime')
+            executable = rc.extract_binary(archive, root.resolve() / 'install/prose', require_sdk=True, manifest=manifest)
             self.assertEqual({p.name for p in executable.parent.iterdir()}, set(names))
             self.assertTrue(os.access(executable.parent / 'prose-agents-sdk', os.X_OK))
+
+    def test_mutated_support_is_rejected_before_installation(self):
+        from test_qualify_installed_sdk import sdk_archive, archive as write_archive
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d).resolve(); path = root / 'source.tgz'
+            manifest, table = sdk_archive(path, prefix='release/')
+            table['files']['release/prose-agents-sdk-runtime/empty-data'] = (b'poison', 0o644)
+            write_archive(path, table['files'], table)
+            with self.assertRaises(ValueError):
+                rc.extract_binary(path, root / 'install/prose', require_sdk=True, manifest=manifest)
+            self.assertFalse((root / 'install').exists())
+
+
+class CompleteSdkProducerEvidenceTests(unittest.TestCase):
+    def test_support_resource_names_cannot_select_cli_or_receipt(self):
+        from test_qualify_installed_sdk import sdk_archive_with_resource_names
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw).resolve(); path = root / 'source.tgz'
+            manifest, _ = sdk_archive_with_resource_names(path)
+            rc.extract_binary(path, root / 'installed/prose', require_sdk=True, manifest=manifest)
+            self.assertEqual((root / 'installed/prose').read_bytes(), b'cli')
+            self.assertEqual((root / 'installed/prose-agents-sdk-runtime/agents-sdk-build.json').read_bytes(), b'support resource agents-sdk-build.json')
+
+    def test_producer_bundle_matches_shared_custody_and_retains_actual_mocked_outputs(self):
+        import hashlib
+        import kernel_rc_evidence as custody
+        from test_kernel_rc_evidence import sdk_fixture
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw).resolve(); sdk_dir = root / 'agents-sdk'; sdk_dir.mkdir()
+            sdk, scoped = sdk_fixture('darwin-x64')
+            receipt = json.loads(scoped['files']['agents-sdk-build.json'][0]); payload = receipt['payload']
+            collect = b'nonexecuted producer declaration fixture'
+            payload['collectTocSha256'] = hashlib.sha256(collect).hexdigest()
+            (sdk_dir / 'collect.toc').write_bytes(collect)
+            encoded = json.dumps(receipt, sort_keys=True).encode(); scoped['files']['agents-sdk-build.json'] = (encoded, 0o644)
+            sdk['receiptSha256'] = hashlib.sha256(encoded).hexdigest(); (sdk_dir / 'agents-sdk-build.json').write_bytes(encoded)
+            checks = [('codesign-' + str(i).zfill(4) + '.log', path, 'strict') for i, path in enumerate(payload['codeSignaturePaths'])]
+            checks.append(('codesign.log', 'prose-agents-sdk', 'strict-deep'))
+            for name, target, verification in checks:
+                data = b'fixture diagnostic'; raw_name = name + '.stderr'; (sdk_dir / raw_name).write_bytes(data)
+                proof = {'schema': 'openprose.sdk-code-signature-check/1', 'phase': 'code-signature', 'path': target,
+                    'verification': verification, 'exitCode': 0, 'timeoutSeconds': 30, 'success': True,
+                    'outputComplete': True, 'timedOut': False, 'outputLimitExceeded': False, 'stdoutBytes': 0, 'stderrBytes': len(data),
+                    'rawOutput': {'stderr': {'path': raw_name, 'sha256': hashlib.sha256(data).hexdigest(), 'byteLength': len(data)}}}
+                (sdk_dir / name).write_text(json.dumps(proof))
+            evidence = rc.sdk_producer_evidence(root, sdk_dir)
+            table = {kind: {'source/' + n: v for n, v in rows.items()} for kind, rows in scoped.items()}
+            table['files']['source/prose'] = (b'fixture CLI', 0o755)
+            manifest = {'platform': 'darwin-x64', 'agentsSdk': sdk}
+            bundle = custody.validate_sdk_producer_evidence(manifest, table, evidence, lambda name: (root / name).read_bytes())
+            self.assertEqual(len(bundle['checks']), len(checks)); self.assertEqual(len(bundle['rawOutputs']), len(checks))
+            self.assertTrue(all((sdk_dir / name).is_file() for name, _, _ in checks))
+            broken = dict(evidence); broken['logs/sdk-code-signatures.json'] = dict(broken['logs/sdk-code-signatures.json'], sha256='0'*64)
+            with self.assertRaises(ValueError): custody.validate_sdk_producer_evidence(manifest, table, broken, lambda name: (root / name).read_bytes())
+
+    def test_collect_and_silent_signature_proofs_are_retained_and_poison_refused(self):
+        import hashlib
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw).resolve(); sdk = root / 'agents-sdk'; sdk.mkdir()
+            (sdk / 'collect.toc').write_bytes(b'fixture producer TOC')
+            payload = {'collectTocSha256': rc.digest(sdk / 'collect.toc'), 'codeSignaturePaths': ['prose-agents-sdk']}
+            (sdk / 'agents-sdk-build.json').write_text(json.dumps({'platform': 'darwin', 'architecture': 'x86_64', 'payload': payload}))
+            for name, verification in (('codesign-0000.log', 'strict'), ('codesign.log', 'strict-deep')):
+                proof = {'schema': 'openprose.sdk-code-signature-check/1', 'phase': 'code-signature', 'path': 'prose-agents-sdk',
+                    'verification': verification, 'exitCode': 0, 'timeoutSeconds': 30, 'success': True,
+                    'outputComplete': True, 'timedOut': False, 'outputLimitExceeded': False, 'rawOutput': {}, 'stdoutBytes': 0, 'stderrBytes': 0}
+                (sdk / name).write_text(json.dumps(proof))
+            evidence = rc.sdk_producer_evidence(root, sdk)
+            self.assertEqual(set(evidence), {'logs/sdk-collect.toc', 'logs/sdk-code-signatures.json'})
+            for poison in ('collect', 'empty', 'failure', 'raw-path'):
+                with self.subTest(poison=poison):
+                    original = (sdk / 'codesign.log').read_bytes(); toc = (sdk / 'collect.toc').read_bytes()
+                    if poison == 'collect': (sdk / 'collect.toc').write_bytes(b'changed')
+                    elif poison == 'empty': (sdk / 'codesign.log').write_bytes(b'')
+                    else:
+                        proof = json.loads(original)
+                        if poison == 'failure': proof['success'] = False
+                        else: proof['rawOutput'] = {'stderr': {'path': '../escape', 'sha256': '0'*64, 'byteLength': 1}}
+                        (sdk / 'codesign.log').write_text(json.dumps(proof))
+                    with self.assertRaises(ValueError): rc.sdk_producer_evidence(root, sdk)
+                    (sdk / 'codesign.log').write_bytes(original); (sdk / 'collect.toc').write_bytes(toc)
 
 
 class NativeSdkRoutingTests(unittest.TestCase):

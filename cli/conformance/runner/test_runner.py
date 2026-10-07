@@ -1918,5 +1918,75 @@ class RunnerUnitTest(unittest.TestCase):
         )
 
 
+
+class SdkSourceCustodyTests(unittest.TestCase):
+    def source(self, root):
+        ci = str(runner.CLI / 'ci')
+        if ci not in sys.path: sys.path.insert(0, ci)
+        from test_kernel_rc_evidence import sdk_fixture
+        from test_sdk_native_inventory import onedir_fixture
+        import sdk_native_inventory as inventory
+        source = root / 'production'; source.mkdir()
+        sdk, table = sdk_fixture('darwin-x64'); view = onedir_fixture()
+        inventory.materialize_macos_payload(source, view['payload'], view['files'], view['directories'], view['symlinks'], view['architecture'])
+        for name in ('agents-sdk-build.json', 'AGENTS-SDK-NOTICES.txt'):
+            data, mode = table['files'][name]; (source / name).write_bytes(data); (source / name).chmod(mode)
+        (source / 'prose').write_bytes(b'synthetic nonexecuted CLI'); (source / 'prose').chmod(0o755)
+        product = runner.Product('fixture', source / 'prose', 'bun')
+        context = {'directory': str(source), 'platform': 'darwin-x64', 'agentsSdk': sdk}
+        return product, context
+
+    def test_source_authentication_is_once_separate_from_cli_only_oracle_substitution(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw).resolve(); product, context = self.source(root)
+            product = runner.attach_sdk_sources([product], [['fixture', json.dumps(context)]])[0]
+            identity = runner.capture_candidate_identity(product)
+            snapshot = runner.snapshot_product(product, identity, root / 'snapshot')
+            workspace = root / 'workspace'; workspace.mkdir(); environment = root / 'environment'; environment.mkdir()
+            case = json.loads((runner.CASES / 'adapters/sdk-production-04.json').read_text())
+            execution, fixture, _ = runner.prepare_sdk_installation(snapshot, case, workspace, environment)
+            sibling = Path(fixture['nativePath']).parent
+            self.assertFalse((sibling / 'prose-agents-sdk-runtime').exists())
+            self.assertEqual(fixture['productionSdkSourceRef'], context['agentsSdk']['receiptSha256'])
+            self.assertEqual(fixture['helperSubstitution'], 'provider-free-oracle')
+            self.assertIs(fixture['productionSdkExecuted'], False)
+            self.assertEqual((sibling / 'prose-agents-sdk').read_bytes(), runner.INSTALLED_ADAPTER_HARNESS.read_bytes())
+            report = runner.make_report(phase=7, case_ids=[case['id']], candidates=[(execution, identity)], candidate_passed=1, candidate_failed=0, differential_passed=0, differential_failed=0, failures=[])
+            self.assertEqual(len(report['sdkSourceCustody']['evidence']), 1)
+            self.assertEqual(runner.validate_report(report), [])
+            (sibling / 'prose-agents-sdk').write_bytes(b'poisoned oracle')
+            observation = runner.Observation(execution, case, 0, b'', b'', workspace=workspace, sdk_fixture=fixture)
+            self.assertIn('SDK fixture helper substitution bytes changed', runner.validate_sdk_effects(observation))
+
+    def test_source_mutation_and_foreign_native_directory_refused(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw).resolve(); product, context = self.source(root)
+            changed = dict(context, directory=str(root))
+            with self.assertRaises(ValueError): runner.attach_sdk_sources([product], [['fixture', json.dumps(changed)]])
+            (Path(context['directory']) / 'prose-agents-sdk-runtime/empty-data').write_bytes(b'changed')
+            with self.assertRaises(ValueError): runner.attach_sdk_sources([product], [['fixture', json.dumps(context)]])
+            for poison in ({}, dict(context, platform=[]), dict(context, unknown='not-accepted')):
+                with self.assertRaises(ValueError): runner.attach_sdk_sources([product], [['fixture', json.dumps(poison)]])
+
+    def test_report_source_claims_and_receipt_references_fail_closed(self):
+        import copy
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw).resolve(); product, context = self.source(root)
+            product = runner.attach_sdk_sources([product], [['fixture', json.dumps(context)]])[0]
+            case = json.loads((runner.CASES / 'adapters/sdk-production-04.json').read_text())
+            report = runner.make_report(phase=7, case_ids=[case['id']], candidates=[(product, runner.capture_candidate_identity(product))], candidate_passed=1, candidate_failed=0, differential_passed=0, differential_failed=0, failures=[])
+            self.assertEqual(runner.validate_report(report), [])
+            for poison in ('claim', 'reference', 'shape', 'policy', 'bool-length', 'digest'):
+                changed = copy.deepcopy(report)
+                if poison == 'claim': changed['sdkSourceCustody']['productionSdkExecuted'] = True
+                elif poison == 'reference': changed['sdkSourceCustody']['candidateReferences']['fixture'] = []
+                elif poison == 'shape': next(iter(changed['sdkSourceCustody']['evidence'].values()))['unknown'] = True
+                else:
+                    sdk = next(iter(changed['sdkSourceCustody']['evidence'].values()))['agentsSdk']
+                    if poison == 'policy': sdk['discovery'] = 'PATH'
+                    elif poison == 'bool-length': sdk['byteLength'] = True
+                    else: sdk['dependencyLockSha256'] = 'not-a-digest'
+                with self.subTest(poison=poison): self.assertTrue(runner.validate_report(changed))
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

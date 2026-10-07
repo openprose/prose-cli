@@ -1,7 +1,9 @@
 """Bind native kernel RC observations to the exact final package bytes."""
 import hashlib
 import re
-from pathlib import PurePosixPath
+from pathlib import PurePosixPath, Path
+import json
+import os
 
 CHECKS = ('built-bun', 'built-rust', 'installed-bun', 'installed-rust', 'installed-npm')
 CHECK_PATHS = tuple('logs/' + name + '.json' for name in CHECKS)
@@ -93,10 +95,13 @@ def validate_sdk_native_sbom(components, receipt=None):
     require(encode(observed) == encode(expected), 'Native SDK SBOM differs from bound receipt')
 
 
-def validate_sdk_members(manifest, members, prefix, platform):
+def validate_sdk_members(manifest, members, prefix, platform, *, historical=None):
     """Bind the frozen helper and its source/dependency receipt without executing it."""
     import json
     import publication as pub
+    table = members if set(members) == {'files','directories','symlinks'} else None
+    if table is not None:
+        members = {name: value[0] for name,value in table['files'].items()}
     sdk = manifest.get('agentsSdk')
     keys = {'path', 'byteLength', 'sha256', 'receiptSha256', 'noticesSha256', 'python',
             'pyinstaller', 'version', 'discovery', 'selfTest', 'toolSelfTest', 'dependencyLockSha256'}
@@ -107,6 +112,8 @@ def validate_sdk_members(manifest, members, prefix, platform):
             and sdk['selfTest'] == SDK_IMPORT_TEST and sdk['toolSelfTest'] == SDK_TOOL_TEST,
             'Packaged SDK policy or tool qualification differs')
     require(all(prefix + name in members for name in SDK_NAMES), 'Missing packaged SDK siblings')
+    if table is not None:
+        require(all(table['files'][prefix+name][1]==(0o755 if name==SDK_NAMES[0] else 0o644) for name in SDK_NAMES),'SDK sibling modes differ')
     helper, encoded, notices = (members[prefix + name] for name in SDK_NAMES)
     require(type(sdk['byteLength']) is int and 0 < sdk['byteLength'] == len(helper)
             and hashlib.sha256(helper).hexdigest() == sdk['sha256']
@@ -154,7 +161,81 @@ def validate_sdk_members(manifest, members, prefix, platform):
     else:
         validate_sdk_native_receipt(receipt)
         require(receipt.get('linuxLibraries') == 'not-applicable', 'SDK platform library receipt differs')
+        if historical is None:
+            require(table is not None and isinstance(receipt.get('payload'),dict),'Current Mac SDK requires complete onedir payload')
+            import sdk_native_inventory as native
+            scope = sdk_scoped_table(table,prefix)
+            native.validate_macos_payload(receipt['payload'],**scope,architecture=architecture)
+        else:
+            require(isinstance(historical,dict) and set(historical)=={'sourceRevision','archiveSha256','receiptSha256'}
+                    and isinstance(historical['sourceRevision'],str) and re.fullmatch('[0-9a-f]{40}',historical['sourceRevision'])
+                    and manifest.get('source',{}).get('revision')==historical['sourceRevision']
+                    and historical['receiptSha256']==sdk['receiptSha256']
+                    and re.fullmatch('[0-9a-f]{64}',historical['archiveSha256'])
+                    and 'payload' not in receipt,'Exact historical onefile custody required')
+    if table is not None:
+        root=prefix+'prose-agents-sdk-runtime'
+        allowed = set()
+        if platform.startswith('darwin') and historical is None:
+            allowed={prefix+row['path'] for row in receipt['payload']['entries']}
+        require(set(table['symlinks']) <= allowed,'Undeclared non-SDK archive links forbidden')
+        require(all(not (name==root or name.startswith(root+'/')) or name in allowed for name in
+                    set(table['files'])|set(table['directories'])|set(table['symlinks'])),'Unexpected SDK support member')
     return sdk
+
+
+def sdk_archive_prefix(table):
+    require(isinstance(table,dict) and set(table)=={'files','directories','symlinks'},'Complete typed SDK archive table required')
+    candidates=[name for name in table['files'] if name.endswith('/prose') and
+                (len(PurePosixPath(name).parts)==2 or PurePosixPath(name).parts==('package','bin','prose'))]
+    require(len(candidates)==1,'Expected one packaged CLI for SDK sibling binding')
+    return candidates[0].rsplit('/',1)[0]+'/'
+
+
+def sdk_scoped_table(table,prefix):
+    root=prefix+'prose-agents-sdk-runtime'
+    def selected(name):return name==prefix+SDK_NAMES[0] or name==root or name.startswith(root+'/')
+    return {kind:{name[len(prefix):]:value for name,value in table[kind].items() if selected(name)}
+            for kind in ('files','directories','symlinks')}
+
+
+def validate_sdk_archive_table(manifest,table,*,historical=None):
+    return validate_sdk_members(manifest,table,sdk_archive_prefix(table),manifest['platform'],historical=historical)
+
+
+def materialize_sdk_members(manifest,table,destination,*,historical=None):
+    """Materialize only a previously complete validated SDK, never generic archive links."""
+    validate_sdk_archive_table(manifest,table,historical=historical)
+    prefix=sdk_archive_prefix(table);destination=Path(destination)
+    require(destination.is_dir() and destination.resolve()==destination.absolute()
+            and destination.stat().st_uid==os.getuid(),'Canonical owned SDK destination required')
+    for ancestor in (destination,*destination.parents):require(not ancestor.is_symlink(),'SDK destination ancestor is aliased')
+    for name in (*SDK_NAMES,'prose-agents-sdk-runtime'):
+        target=destination/name
+        require(not target.exists() and not target.is_symlink(),'SDK destination must be fresh')
+    scope=sdk_scoped_table(table,prefix)
+    if manifest['platform'].startswith('darwin') and historical is None:
+        import sdk_native_inventory as native
+        encoded=table['files'][prefix+SDK_NAMES[1]][0]
+        receipt=json.loads(encoded)
+        native.materialize_macos_payload(destination,receipt['payload'],**scope,architecture=receipt['architecture'])
+    else:
+        data,mode=scope['files'][SDK_NAMES[0]]
+        target=destination/SDK_NAMES[0]
+        require(not target.exists() and not target.is_symlink(),'SDK destination must be fresh')
+        with target.open('xb') as f:f.write(data)
+        target.chmod(mode)
+    for name in SDK_NAMES[1:]:
+        target=destination/name;require(not target.exists() and not target.is_symlink(),'SDK destination must be fresh')
+        data,mode=table['files'][prefix+name]
+        with target.open('xb') as f:f.write(data)
+        target.chmod(mode)
+    # Recheck actual SDK support bytes; receipt/notices are separate regular siblings.
+    for name in SDK_NAMES:
+        data,mode=table['files'][prefix+name];target=destination/name
+        require(target.is_file() and not target.is_symlink() and target.read_bytes()==data
+                and target.stat().st_mode&0o777==mode,'Materialized SDK bytes or modes differ')
+    return scope
 
 
 def validate_sdk_archives(manifest, archive_reader):
@@ -165,6 +246,8 @@ def validate_sdk_archives(manifest, archive_reader):
         if artifact['kind'] not in ('standalone-archive', 'npm-platform'):
             continue
         members = archive_reader(artifact['path'])
+        if set(members)=={'files','directories','symlinks'}:
+            observed.append(validate_sdk_archive_table(manifest,members));continue
         cli_names = [name for name in members if name.endswith('/prose') or name.endswith('/prose.exe')]
         require(len(cli_names) == 1, 'Expected one packaged CLI for SDK sibling binding')
         prefix = cli_names[0].rsplit('/', 1)[0] + '/'
@@ -221,6 +304,107 @@ def validate_native(report, manifest, checks, final_hashes, launcher_hash):
                     'Installed npm check lacks Node interpreter identity')
 
 
+
+SDK_PAYLOAD_EVIDENCE='logs/installed-sdk-payloads.json'
+
+
+def validate_installed_sdk_payloads(records,manifest,table):
+    """Bind all three measured installed views to the complete packaged bytes."""
+    prefix=sdk_archive_prefix(table)
+    validate_sdk_archive_table(manifest,table)
+    expected={name:{'sha256':hashlib.sha256(table['files'][prefix+name][0]).hexdigest(),
+                    'byteLength':len(table['files'][prefix+name][0])} for name in SDK_NAMES}
+    if manifest['platform'].startswith('darwin'):
+        payload=json.loads(table['files'][prefix+SDK_NAMES[1]][0])['payload']
+        digest=hashlib.sha256(json.dumps(payload,sort_keys=True,separators=(',',':')).encode()).hexdigest()
+        expected['supportTree']={'payload':payload,'sha256':digest,'byteLength':payload['totalRegularBytes'],'entryCount':len(payload['entries'])}
+    require(isinstance(records,list) and len(records)==3,'Three installed SDK payload surfaces required')
+    for row,surface in zip(records,('installed-bun','installed-rust','installed-npm')):
+        require(isinstance(row,dict) and set(row)=={'surface','before','after'} and row['surface']==surface,
+                'Installed SDK payload surface identity differs')
+        for key in ('before','after'):
+            identity=row[key]
+            require(isinstance(identity,dict) and set(identity)==set(expected),'Installed SDK payload identity coverage differs')
+            for name in SDK_NAMES:
+                record=identity[name]
+                require(isinstance(record,dict) and set(record)=={'sha256','byteLength'} and type(record['byteLength']) is int,
+                        'Installed SDK payload sibling record differs')
+            if 'supportTree' in expected:
+                record=identity['supportTree']
+                require(isinstance(record,dict) and set(record)=={'payload','sha256','byteLength','entryCount'}
+                        and type(record['byteLength']) is int and type(record['entryCount']) is int,'Installed SDK support record differs')
+            require(identity==expected,'Installed SDK payload differs from packaged complete tree')
+    return records
+
+
+SDK_SIGNATURE_EVIDENCE='logs/sdk-code-signatures.json'
+SDK_COLLECT_EVIDENCE='logs/sdk-collect.toc'
+
+
+def validate_sdk_producer_evidence(manifest,table,evidence,reader):
+    """Authenticate retained producer records; records alone are not execution proof."""
+    import base64
+    validate_sdk_archive_table(manifest,table)
+    if not manifest['platform'].startswith('darwin'):
+        prefix=sdk_archive_prefix(table)
+        receipt=json.loads(table['files'][prefix+SDK_NAMES[1]][0])
+        require('payload' not in receipt and not {SDK_SIGNATURE_EVIDENCE,SDK_COLLECT_EVIDENCE}.intersection(evidence), 'Linux must not claim Mac SDK producer evidence')
+        return None
+    require({SDK_SIGNATURE_EVIDENCE,SDK_COLLECT_EVIDENCE}.issubset(evidence),'Mac SDK producer evidence is missing')
+    prefix=sdk_archive_prefix(table)
+    payload=json.loads(table['files'][prefix+SDK_NAMES[1]][0])['payload']
+    encoded_payload=json.dumps(payload,sort_keys=True,separators=(',',':')).encode()
+    def bound(relative,maximum):
+        row=evidence[relative]
+        require(isinstance(row,dict) and set(row)=={'sha256','byteLength'} and type(row['byteLength']) is int
+                and 0<row['byteLength']<=maximum,'SDK producer evidence bound differs')
+        data=reader(relative)
+        require(isinstance(data,bytes) and len(data)==row['byteLength'] and hashlib.sha256(data).hexdigest()==row['sha256'],
+                'SDK producer evidence bytes differ')
+        return data
+    collect=bound(SDK_COLLECT_EVIDENCE,2*1024*1024)
+    require(hashlib.sha256(collect).hexdigest()==payload['collectTocSha256'],'SDK producer COLLECT differs from packaged receipt')
+    import publication as pub
+    bundle=json.loads(bound(SDK_SIGNATURE_EVIDENCE,16*1024*1024),object_pairs_hook=pub.object_pairs)
+    architecture='arm64' if manifest['platform']=='darwin-arm64' else 'x86_64'
+    require(isinstance(bundle,dict) and set(bundle)=={'schema','architecture','payloadSha256','checks','rawOutputs'}
+            and bundle['schema']=='openprose.sdk-code-signatures/1' and bundle['architecture']==architecture
+            and bundle['payloadSha256']==hashlib.sha256(encoded_payload).hexdigest(),'SDK producer signature bundle identity differs')
+    expected=[('codesign-'+str(index).zfill(4)+'.log',path,'strict') for index,path in enumerate(payload['codeSignaturePaths'])]
+    expected.append(('codesign.log',SDK_NAMES[0],'strict-deep'))
+    require(isinstance(bundle['checks'],list) and len(bundle['checks'])==len(expected) and isinstance(bundle['rawOutputs'],dict),
+            'SDK producer signature target closure differs')
+    seen=set()
+    for row,(log,target,verification) in zip(bundle['checks'],expected):
+        require(isinstance(row,dict) and set(row)=={'log','proof'} and row['log']==log,'SDK producer signature ordering differs')
+        proof=row['proof']
+        keys={'schema','phase','path','verification','exitCode','stdoutBytes','stderrBytes','timedOut','outputLimitExceeded','timeoutSeconds','success','outputComplete','rawOutput'}
+        require(isinstance(proof,dict) and set(proof)==keys and proof['schema']=='openprose.sdk-code-signature-check/1'
+                and proof['phase']=='code-signature' and proof['path']==target and proof['verification']==verification
+                and type(proof['exitCode']) is int and proof['exitCode']==0 and type(proof['timeoutSeconds']) is int and proof['timeoutSeconds']==30
+                and proof['success'] is True and proof['outputComplete'] is True and proof['timedOut'] is False and proof['outputLimitExceeded'] is False,
+                'SDK producer signature verification is not completed')
+        raw=proof['rawOutput']
+        require(isinstance(raw,dict) and set(raw)<={'stdout','stderr'},'SDK producer raw output streams differ')
+        for stream in ('stdout','stderr'):
+            count=proof[stream+'Bytes']
+            require(type(count) is int and 0<=count<=65536 and (stream in raw)==(count>0),'SDK producer raw output count differs')
+            if count==0:continue
+            record=raw[stream];name=log+'.'+stream
+            require(isinstance(record,dict) and set(record)=={'path','sha256','byteLength'} and record['path']==name
+                    and type(record['byteLength']) is int and record['byteLength']==count and name not in seen,
+                    'SDK producer raw output reference differs')
+            seen.add(name);stored=bundle['rawOutputs'].get(name)
+            require(isinstance(stored,dict) and set(stored)=={'sha256','byteLength','base64'} and type(stored['byteLength']) is int
+                    and stored['byteLength']==count and stored['sha256']==record['sha256'] and isinstance(stored['base64'],str)
+                    and len(stored['base64'])<=4*((65536+2)//3),'SDK producer raw output custody differs')
+            try:data=base64.b64decode(stored['base64'],validate=True)
+            except ValueError as error:raise ValueError('SDK producer raw output encoding differs') from error
+            require(len(data)==count and base64.b64encode(data).decode()==stored['base64'] and hashlib.sha256(data).hexdigest()==record['sha256'],
+                    'SDK producer raw output bytes differ')
+    require(set(bundle['rawOutputs'])==seen,'SDK producer undeclared raw output is forbidden')
+    return bundle
+
 def verify_platform_evidence(plan, root, platform, report_name, binary_hashes):
     # Runtime import keeps the validator usable from publication.py's CLI without
     # a module initialization cycle. These helpers never execute package content.
@@ -239,7 +423,7 @@ def verify_platform_evidence(plan, root, platform, report_name, binary_hashes):
     require(manifest.get('embeddedDiagnosticImage') == preflight.get('embeddedDiagnosticImage') and manifest.get('kernelPolicy') == preflight.get('kernelPolicy'), 'Native manifest kernel policy differs from qualification')
     artifact_names = {a['path'] for a in manifest.get('artifacts', [])}
     evidence = report.get('evidence', {})
-    require(isinstance(evidence, dict) and set(CHECK_PATHS + SDK_PROBES).union({'package/release-manifest.json'}).issubset(evidence), 'Required structured evidence is missing')
+    require(isinstance(evidence, dict) and set(CHECK_PATHS + SDK_PROBES).union({'package/release-manifest.json',SDK_PAYLOAD_EVIDENCE}).issubset(evidence), 'Required structured evidence is missing')
     seen = set()
     for relative, record in evidence.items():
         name = asset_name(platform, relative, artifact_names)
@@ -260,7 +444,12 @@ def verify_platform_evidence(plan, root, platform, report_name, binary_hashes):
                 and item['kind'] == kind and item['implementation'] == artifact['implementation']
                 and item['platform'] == (artifact['platform'] or 'all'), 'Native artifact differs from final reviewed inventory')
     require(manifest.get('platform') == platform, 'Native manifest identity mismatch')
-    validate_sdk_archives(manifest, lambda name: pub.archive_members(root / name))
+    tables=[]
+    def sdk_archive(name):
+        table=pub.read_sdk_archive(root/name,manifest);tables.append(table);return table
+    validate_sdk_archives(manifest,sdk_archive)
+    validate_installed_sdk_payloads(pub.read_json(root/asset_name(platform,SDK_PAYLOAD_EVIDENCE,artifact_names),max_bytes=16*1024*1024),manifest,tables[0])
+    validate_sdk_producer_evidence(manifest,tables[0],evidence,lambda relative:(root/asset_name(platform,relative,artifact_names)).read_bytes())
     for relative in SDK_PROBES:
         probe = pub.read_json(root / asset_name(platform, relative, artifact_names))
         require(probe == (SDK_TOOL_TEST if 'sdk-tools-' in relative else SDK_IMPORT_TEST),

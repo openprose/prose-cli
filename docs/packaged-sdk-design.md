@@ -9,11 +9,15 @@ IMP-098, checked October 6, 2026; applies IMP-099. The user selects `~/.prose/cl
 - [OpenCode installation](https://opencode.ai/docs/): standalone, npm and Homebrew installation.
 - [Prime source](https://raw.githubusercontent.com/PrimeIntellect-ai/prime-agent/main/README.md): versioned installer and integrated Python tooling; a different runtime design.
 
-The peers support package-owned platform runtimes and installation-independent preferences, without a universal Python layout. Retain the CLI's existing four native platform payloads. Freeze the existing Python SDK harness into a sibling `prose-agents-sdk` executable using pinned PyInstaller onefile; no user Python, source, provisioning or PATH changes. Archives contain sibling regular executables; npm uses `bin/`; Homebrew installs both to `bin`. Resolve the helper beside the canonical installed CLI executable. Explicit existing test/developer seams remain separate.
+The peers support package-owned platform runtimes and installation-independent preferences, without a universal Python layout. Retain the CLI's existing four native platform payloads. Freeze the existing Python SDK harness with pinned PyInstaller. Both Mac targets use standard onedir: the regular sibling `prose-agents-sdk` executable and its complete `prose-agents-sdk-runtime/` support directory. Linux retains onefile and its existing native dependency closure. No user Python, provisioning or PATH helper is required. npm uses `bin/`; Homebrew installs the helper and Mac support directory together under `bin`. Resolve the helper beside the canonical installed CLI executable. Explicit existing test/developer seams remain separate.
 
 ## Choice and costs
 
-[PyInstaller usage](https://pyinstaller.org/en/stable/usage.html) documents onefile extraction. [POSIX bundle guidance](https://pyinstaller.org/en/stable/common-issues-and-pitfalls.html) documents onedir symlinks and sanitizing dynamic-library variables for child tools. Onefile preserves the existing regular-file archive safety boundary; onedir or bundled interpreter trees would require broader packaging changes. Cost: larger payload/cold start, native build on every supported platform, temporary executable filesystem requirements, and possible leftover extraction directories after forced death. Do not claim forced-death temporary cleanup. Verify frozen-helper supervision including shell descendants.
+[Pinned PyInstaller usage](https://pyinstaller.org/en/v6.22.3/usage.html) and [POSIX bundle guidance](https://pyinstaller.org/en/v6.22.3/common-issues-and-pitfalls.html) describe directory bundles, declared aliases and onefile extraction before Python entry. A retained Mac Intel npx installation timed out in the unchanged five-second version probe despite the fast Python version entry. That observation does not identify which startup phase consumed the time. Mac onedir removes unconditional extraction while preserving execution of the real frozen helper; fresh native evidence must demonstrate cold discovery. Linux onefile retains its temporary executable filesystem requirement and possible leftover extraction directories after forced death. Do not claim forced-death temporary cleanup. Verify frozen-helper supervision including shell descendants.
+
+Mac packaging binds every physical support file, directory and declared relative alias in the SDK receipt. Validate the whole confined graph before copying or extraction, write regular files before aliases, and recheck complete bytes, modes and targets after relocation and helper tests. Verify every actual Mach-O target and signature after final signing. COLLECT declarations establish producer membership and alias evidence; the final inventory binds signed bytes. The twelve distribution identity fields remain unchanged because the receipt digest binds this complete inventory.
+
+The SDK support inventory has an explicit 8,192-entry envelope. Generic archives retain their 128-member, no-link policy. The SDK allowance applies only to an authenticated SDK context with exact declared membership, and remains subject to 256 MiB per file, 512 MiB total support and whole publication payload, 2 MiB encoded receipt and 768 MiB expanded installed payload limits. These are simultaneous bounds; they do not establish that a candidate fits. The prior Mac onefile archive already contained 2,532 support declarations, making the generic member count unsuitable for the directory bundle.
 
 Build CPython 3.10.20, existing SDK0.22.2/OpenAI3.13.0, and a hash-locked transitive dependency graph with source identities, SBOM/notices and helper hashes in package evidence. Qualified release targets remain macOS/Linux ARM64/x64, with no expansion to unadmitted Windows execution. Verify actual packaged imports, HTTPS certificates, cold discovery, cancellation and tools on native target builders. Preserve existing glibc/platform admission policy.
 
@@ -37,8 +41,8 @@ flag may imply enforcement the helper does not implement.
 
 Resolve `prose-agents-sdk` beside the canonical CLI executable, following the
 CLI's symlink to the installed payload before selecting its sibling. The helper
-must be a regular executable; reject a sibling helper symlink. Relocating
-both regular executables together preserves discovery. Never search PATH as a
+must be a regular executable; reject a sibling helper symlink. Relocation keeps
+the CLI, helper and complete Mac support directory together. Never search PATH as a
 production fallback or accidentally pair a CLI with another installation's
 helper. Existing explicit developer/test seams remain separate from production.
 Repair a missing/incompatible sibling by reinstalling the CLI through its current

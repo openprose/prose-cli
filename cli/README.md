@@ -254,6 +254,9 @@ The local built-in selects the packaged Agents SDK and `gpt-6.1-sol`, using
 `OPENAI_API_KEY` from the process environment. A complete installation needs
 no separately provisioned Python or PATH helper. Other harnesses remain
 explicit alternatives, saved in `~/.prose/cli.toml` or selected for one command.
+Keep the installed files together when moving a standalone installation. Mac
+packages include a support directory beside the CLI and SDK helper; moving only
+the executable leaves an incomplete installation.
 The explicitly selected OpenProse-billed local route remains unavailable and
 fails closed. No adapter silently changes harness, credential group or billing owner. Harness-
 internal account/provider routing remains harness-managed. See

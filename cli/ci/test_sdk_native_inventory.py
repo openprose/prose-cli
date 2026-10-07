@@ -40,6 +40,36 @@ def elf(*, imported=False, machine=62, version='GCC_3.0', symbol='_Unwind_Resume
     return bytes(blob)
 
 
+def macho_fixture(architecture='x86_64', kind=6):
+    """Header-only, nonexecuted Mach-O parser fixture; no native success claim."""
+    cpu = {'x86_64': 0x1000007, 'arm64': 0x100000c}[architecture]
+    return struct.pack('<IIIIIIII', 0xfeedfacf, cpu, 3 if architecture == 'x86_64' else 0, kind, 0, 0, 0, 0)
+
+
+def onedir_fixture(architecture='x86_64'):
+    root = native.SDK_PAYLOAD_ROOT
+    files = {native.SDK_HELPER: (macho_fixture(architecture, 2), 0o755),
+             root + '/Python.framework/Versions/3.10/Python': (macho_fixture(architecture), 0o755),
+             root + '/base_library.zip': (b'synthetic base library', 0o644),
+             root + '/empty-data': (b'', 0o644)}
+    directories = {p: 0o755 for p in (root, root + '/Python.framework',
+                    root + '/Python.framework/Versions', root + '/Python.framework/Versions/3.10')}
+    links = {root + '/Python.framework/Python': 'Versions/Current/Python',
+             root + '/Python.framework/Versions/Current': '3.10'}
+    entries = [{'path': p, 'type': 'file', 'sha256': native.sha(data), 'byteLength': len(data), 'mode': mode}
+               for p, (data, mode) in files.items() if p != native.SDK_HELPER]
+    entries += [{'path': p, 'type': 'directory', 'mode': mode} for p, mode in directories.items()]
+    entries += [{'path': p, 'type': 'symlink', 'target': target,
+                 'resolvedPath': root + '/Python.framework/Versions/3.10' + ('/Python' if p.endswith('/Python') else '')}
+                for p, target in links.items()]
+    payload = {'layout': 'pyinstaller-onedir/1', 'root': root, 'entries': sorted(entries, key=lambda r: r['path']),
+               'totalRegularBytes': sum(len(data) for p, (data, _) in files.items() if p != native.SDK_HELPER),
+               'builderSources': {'cli/ci/build_agents_sdk.py': 'a' * 64, 'cli/ci/sdk_native_inventory.py': 'b' * 64},
+               'entrySourceSha256': 'c' * 64, 'collectTocSha256': 'd' * 64,
+               'codeSignaturePaths': sorted([native.SDK_HELPER, root + '/Python.framework/Versions/3.10/Python'])}
+    return {'payload': payload, 'files': files, 'directories': directories, 'symlinks': links, 'architecture': architecture}
+
+
 def input_fixture(root, target='linux-x64-gnu'):
     arch = 'x86_64' if target == 'linux-x64-gnu' else 'aarch64'
     machine = 62 if arch == 'x86_64' else 183
@@ -311,6 +341,151 @@ class NativeInventoryTests(unittest.TestCase):
     def test_duplicate_json_metadata_keys_rejected(self):
         with self.assertRaisesRegex(ValueError, 'Duplicate'):
             native.load_json('{"target":"first","target":"second"}')
+
+
+
+
+
+class MacPayloadTests(unittest.TestCase):
+    def test_exact_complete_view_and_relocated_tree_preserve_physical_aliases(self):
+        for architecture in ('arm64', 'x86_64'):
+            fixture = onedir_fixture(architecture)
+            self.assertEqual(native.validate_macos_payload(**fixture), fixture['payload'])
+            with tempfile.TemporaryDirectory() as raw:
+                root = Path(raw).resolve(); first = root / 'first'; second = root / 'second'; first.mkdir(); second.mkdir()
+                view = native.materialize_macos_payload(first, **fixture)
+                self.assertEqual(view, {key: fixture[key] for key in ('files', 'directories', 'symlinks')})
+                self.assertTrue((first / native.SDK_PAYLOAD_ROOT / 'Python.framework/Python').is_symlink())
+                self.assertEqual(native.materialize_macos_payload(second, fixture['payload'], architecture=architecture, **view), view)
+                self.assertEqual(native.inventory_macos_payload(second, architecture, fixture['payload']['builderSources'],
+                    fixture['payload']['entrySourceSha256'], fixture['payload']['collectTocSha256']), fixture['payload'])
+                with self.assertRaisesRegex(ValueError, 'absent SDK'):
+                    native.materialize_macos_payload(second, **fixture)
+
+    def test_declared_graph_rejects_escaping_dangling_cycles_and_physical_children(self):
+        root = native.SDK_PAYLOAD_ROOT; link = root + '/Python.framework/Python'
+        for target in ('/etc/passwd', '../../../outside', 'missing', 'Python', 'Versions/Current/../../../Python', 'bad\\target', 'bad\ntarget'):
+            value = copy.deepcopy(onedir_fixture())
+            value['symlinks'][link] = target
+            next(r for r in value['payload']['entries'] if r['path'] == link)['target'] = target
+            with self.subTest(target=target), self.assertRaises(ValueError): native.validate_macos_payload(**value)
+        value = copy.deepcopy(onedir_fixture()); child = root + '/Python.framework/Versions/Current/injected'
+        value['files'][child] = (b'', 0o644)
+        value['payload']['entries'].append({'path': child, 'type': 'file', 'sha256': native.sha(b''), 'byteLength': 0, 'mode': 0o644})
+        value['payload']['entries'].sort(key=lambda r: r['path'])
+        with self.assertRaisesRegex(ValueError, 'beneath alias'): native.validate_macos_payload(**value)
+        value = copy.deepcopy(onedir_fixture()); target = '../Versions/3.10/Python'
+        value['symlinks'][link] = target
+        next(r for r in value['payload']['entries'] if r['path'] == link)['target'] = target
+        # Parent traversal is legitimate only when resolving to an existing member.
+        with self.assertRaisesRegex(ValueError, 'dangling'): native.validate_macos_payload(**value)
+        target = 'Versions/3.10/../3.10/Python'; value['symlinks'][link] = target
+        next(r for r in value['payload']['entries'] if r['path'] == link)['target'] = target
+        self.assertEqual(native.validate_macos_payload(**value), value['payload'])
+
+    def test_incomplete_mutated_or_untyped_maps_are_rejected_before_materialization(self):
+        root = native.SDK_PAYLOAD_ROOT
+        controls = []
+        v = onedir_fixture(); del v['files'][root + '/empty-data']; controls.append(v)
+        v = onedir_fixture(); v['files'][root + '/extra'] = (b'', 0o644); controls.append(v)
+        v = onedir_fixture(); v['files'][root + '/empty-data'] = (b'changed', 0o644); controls.append(v)
+        v = onedir_fixture(); v['files'][root + '/empty-data'] = (b'', 0o755); controls.append(v)
+        v = onedir_fixture(); v['directories'][root] = 0o700; controls.append(v)
+        v = onedir_fixture(); v['symlinks'] = {}; controls.append(v)
+        v = onedir_fixture(); v['files'][native.SDK_HELPER] = (macho_fixture('arm64', 2), 0o755); controls.append(v)
+        v = onedir_fixture(); v['payload']['codeSignaturePaths'] = [native.SDK_HELPER]; controls.append(v)
+        v = onedir_fixture(); v['payload']['builderSources']['unknown'] = 'a' * 64; controls.append(v)
+        v = onedir_fixture(); v['payload']['entries'].append(v['payload']['entries'][0]); controls.append(v)
+        v = onedir_fixture(); v['payload']['totalRegularBytes'] = True; controls.append(v)
+        for index, value in enumerate(controls):
+            with self.subTest(index=index), tempfile.TemporaryDirectory() as raw:
+                destination = Path(raw).resolve()
+                with self.assertRaises(ValueError): native.materialize_macos_payload(destination, **value)
+                self.assertEqual(list(destination.iterdir()), [])
+
+    def test_real_tree_extra_link_missing_tree_and_mutated_bytes_are_observed(self):
+        value = onedir_fixture()
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw).resolve(); (root / native.SDK_HELPER).write_bytes(value['files'][native.SDK_HELPER][0]); (root / native.SDK_HELPER).chmod(0o755)
+            with self.assertRaisesRegex(ValueError, 'support directory'): native.read_macos_payload(root, value['payload'], value['architecture'])
+            (root / native.SDK_HELPER).unlink()
+            native.materialize_macos_payload(root, **value)
+            extra = root / native.SDK_PAYLOAD_ROOT / 'foreign'; extra.symlink_to('/etc/passwd')
+            with self.assertRaises(ValueError): native.read_macos_payload(root, value['payload'], value['architecture'])
+            extra.unlink(); (root / native.SDK_PAYLOAD_ROOT / 'empty-data').write_bytes(b'mutation')
+            with self.assertRaisesRegex(ValueError, 'bytes/mode differ'): native.read_macos_payload(root, value['payload'], value['architecture'])
+
+    def test_macho_thin_fat_command_and_cpu_poison_controls(self):
+        self.assertIsNone(native.macho_architectures(b'ordinary data'))
+        self.assertEqual(native.macho_architectures(macho_fixture()), ('x86_64',))
+        thin = macho_fixture(); fat = struct.pack('>IIIIIII', 0xcafebabe, 1, 0x1000007, 3, 32, len(thin), 3) + bytes(4) + thin
+        self.assertEqual(native.macho_architectures(fat), ('x86_64',))
+        for poisoned in (thin[:10], struct.pack('<IIIIIIII', 0xfeedfacf, 7, 3, 6, 0, 0, 0, 0),
+                         struct.pack('<IIIIIIII', 0xfeedfacf, 0x1000007, 3, 6, 1, 8, 0, 0) + bytes(8),
+                         fat[:40], fat[:12] + struct.pack('>I', 0) + fat[16:]):
+            with self.assertRaises(ValueError): native.macho_architectures(poisoned)
+
+    def test_growing_alias_cycle_and_repeat_reuse_are_bounded_without_false_rejection(self):
+        value = onedir_fixture(); root = native.SDK_PAYLOAD_ROOT; path = root + '/Python.framework/Python'
+        value['symlinks'][path] = 'Python/Python'
+        next(r for r in value['payload']['entries'] if r['path'] == path)['target'] = 'Python/Python'
+        with mock.patch.object(native, 'deque', wraps=native.deque) as queue:
+            with self.assertRaisesRegex(ValueError, 'alias cycle'): native.validate_macos_payload(**value)
+            self.assertEqual(queue.call_count, 1)
+        value = onedir_fixture(); target = 'Versions/Current/../Current/Python'
+        value['symlinks'][path] = target
+        next(r for r in value['payload']['entries'] if r['path'] == path)['target'] = target
+        native.validate_macos_payload(**value)
+
+    def test_portable_file_directory_alias_unicode_collisions_and_drive_targets_refuse(self):
+        root = native.SDK_PAYLOAD_ROOT
+        for kind in ('file', 'directory', 'symlink'):
+            value = onedir_fixture(); row = {'path': root + '/EMPTY-DATA', 'type': kind}
+            if kind == 'file': row.update(sha256=native.sha(b''), byteLength=0, mode=0o644)
+            elif kind == 'directory': row.update(mode=0o755)
+            else: row.update(target='empty-data', resolvedPath=root + '/empty-data')
+            value['payload']['entries'].append(row); value['payload']['entries'].sort(key=lambda r: r['path'])
+            with self.subTest(kind=kind), self.assertRaisesRegex(ValueError, 'Portable SDK path collision'):
+                native.validate_macos_payload_structure(value['payload'], value['architecture'])
+        value = onedir_fixture()
+        for name in ('\u00e9', 'e\u0301'):
+            value['payload']['entries'].append({'path': root + '/' + name, 'type': 'directory', 'mode': 0o755})
+        value['payload']['entries'].sort(key=lambda r: r['path'])
+        with self.assertRaisesRegex(ValueError, 'Portable SDK path collision'):
+            native.validate_macos_payload_structure(value['payload'], value['architecture'])
+        for target in ('C:relative', './C:/other', 'Versions/C:'):
+            value = onedir_fixture(); row = next(r for r in value['payload']['entries'] if r['type'] == 'symlink')
+            row['target'] = target
+            with self.assertRaisesRegex(ValueError, 'alias target'):
+                native.validate_macos_payload_structure(value['payload'], value['architecture'])
+        value = onedir_fixture(); value['payload']['entries'][0]['path'] = root + '/C:relative'
+        with self.assertRaisesRegex(ValueError, 'payload path'):
+            native.validate_macos_payload_structure(value['payload'], value['architecture'])
+
+    def test_structure_api_reuses_closed_alias_rules_without_claiming_bytes(self):
+        value = onedir_fixture()
+        self.assertEqual(native.validate_macos_payload_structure(value['payload'], value['architecture']), value['payload'])
+        # Structure can validate a report declaration, but the full validator
+        # still rejects changed actual bytes or incomplete native coverage.
+        value['files'][native.SDK_HELPER] = (b'not Mach-O', 0o755)
+        native.validate_macos_payload_structure(value['payload'], value['architecture'])
+        with self.assertRaisesRegex(ValueError, 'must be Mach-O'):
+            native.validate_macos_payload(**value)
+        old_name = copy.deepcopy(value['payload']); old_name['sources'] = old_name.pop('builderSources')
+        with self.assertRaisesRegex(ValueError, 'payload.*shape'):
+            native.validate_macos_payload_structure(old_name, value['architecture'])
+        unknown_alias = copy.deepcopy(value['payload'])
+        next(r for r in unknown_alias['entries'] if r['type'] == 'symlink')['target'] = '/outside'
+        with self.assertRaises(ValueError): native.validate_macos_payload_structure(unknown_alias, value['architecture'])
+
+    def test_sdk_only_member_aggregate_and_receipt_bounds(self):
+        value = onedir_fixture()
+        with mock.patch.object(native, 'SDK_PAYLOAD_MAX_ENTRIES', 2), self.assertRaisesRegex(ValueError, 'member count'):
+            native.validate_macos_payload(**value)
+        with mock.patch.object(native, 'SDK_PAYLOAD_MAX_BYTES', 2), self.assertRaisesRegex(ValueError, 'aggregate bytes'):
+            native.validate_macos_payload(**value)
+        with mock.patch.object(native, 'SDK_PAYLOAD_MAX_METADATA', 2), self.assertRaisesRegex(ValueError, 'metadata'):
+            native.validate_macos_payload(**value)
 
 
 if __name__ == '__main__':

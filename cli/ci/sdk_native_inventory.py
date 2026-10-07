@@ -6,12 +6,16 @@ its frozen inspection entrypoint. The builder separately inspects the archive.
 """
 from __future__ import annotations
 import ast
+from collections import deque
 import base64
 import hashlib
 import json
+import os
+import stat
 from pathlib import Path, PurePosixPath
 import re
 import struct
+import unicodedata
 
 MAX_BYTES = 256 * 1024 * 1024
 MAX_FILES = 128
@@ -589,3 +593,317 @@ all source, dependency and extracted-library claims to agree internally.
     require(maximum is not None and runtime['requiredGlibcMaximum'] == '.'.join(map(str, maximum)),
             'Extracted GLIBC aggregate differs from native receipt')
     return deps
+
+
+# This allowance is restricted to the package-owned Mac SDK support tree. Generic
+# publication archives keep their separate 128-member and no-link policies.
+SDK_PAYLOAD_ROOT = 'prose-agents-sdk-runtime'
+SDK_HELPER = 'prose-agents-sdk'
+SDK_PAYLOAD_MAX_ENTRIES = 8192
+SDK_PAYLOAD_MAX_BYTES = 512 * 1024 * 1024
+SDK_PAYLOAD_MAX_METADATA = 2 * 1024 * 1024
+SDK_BUILDER_SOURCES = ('cli/ci/build_agents_sdk.py', 'cli/ci/sdk_native_inventory.py')
+
+
+def _payload_path(value):
+    safe_path(value)
+    require(len(value.encode('utf-8')) <= 1024 and
+            ':' not in value and all(unicodedata.category(c) not in ('Cc', 'Cf', 'Cs') for c in value), 'Invalid SDK payload path')
+    return value
+
+
+def _payload_target(value):
+    require(isinstance(value, str) and 0 < len(value.encode('utf-8')) <= 1024 and
+            not value.startswith('/') and '\\' not in value and
+            ':' not in value and all(unicodedata.category(c) not in ('Cc', 'Cf', 'Cs') for c in value), 'Invalid SDK alias target')
+    return value
+
+
+def _resolve_payload_alias(path, entries):
+    """Resolve declared POSIX links with active frames and bounded work.
+
+    Active expansions reject A->A/A immediately; completion frames allow a
+    legitimate alias to be reused later, such as Current/../Current/Python.
+    """
+    pending = deque(PurePosixPath(path).parts); resolved = []; active = set(); steps = 0
+    pending_bytes = sum(len(p.encode('utf-8')) for p in pending); work = pending_bytes
+    while pending:
+        steps += 1
+        require(steps <= SDK_PAYLOAD_MAX_ENTRIES * 4, 'SDK alias resolution exceeds bound')
+        part = pending.popleft()
+        if isinstance(part, tuple):
+            active.remove(part[0]); continue
+        pending_bytes -= len(part.encode('utf-8'))
+        if part == '.': continue
+        if part == '..':
+            require(len(resolved) > 1, 'SDK alias escapes support root')
+            resolved.pop(); continue
+        candidate = '/'.join([*resolved, part])
+        require(candidate in entries, 'SDK alias is dangling')
+        row = entries[candidate]
+        if row['type'] == 'symlink':
+            require(candidate not in active, 'SDK alias cycle')
+            require(len(active) < 128, 'SDK alias nesting exceeds bound')
+            target = PurePosixPath(row['target']).parts
+            size = sum(len(p.encode('utf-8')) for p in target); work += size
+            require(len(pending) + len(target) + 1 <= 4096 and pending_bytes + size <= 8192 and
+                    work <= 1024 * 1024, 'SDK alias expansion work exceeds bound')
+            active.add(candidate); pending.appendleft((candidate,))
+            pending.extendleft(reversed(target)); pending_bytes += size
+            continue
+        require(not any(isinstance(p, str) for p in pending) or row['type'] == 'directory',
+                'SDK alias traverses a regular file')
+        resolved.append(part)
+    result = '/'.join(resolved)
+    require(result in entries and entries[result]['type'] in ('file', 'directory'),
+            'SDK alias does not resolve to a real member')
+    return result
+
+
+def macho_architectures(data):
+    """Inspect bounded thin/fat Mach-O headers and load-command layout.
+
+    CPU values/layouts follow Apple mach-o/loader.h and fat.h. Ordinary resource
+    bytes return None; a recognized malformed native header is never data.
+    """
+    require(isinstance(data, bytes) and len(data) <= MAX_BYTES, 'Oversized Mach-O inspection')
+    magic = data[:4]
+    thin = {b'\xcf\xfa\xed\xfe': ('<', 32), b'\xfe\xed\xfa\xcf': ('>', 32),
+            b'\xce\xfa\xed\xfe': ('<', 28), b'\xfe\xed\xfa\xce': ('>', 28)}
+    fat = {b'\xca\xfe\xba\xbe': ('>', False), b'\xbe\xba\xfe\xca': ('<', False),
+           b'\xca\xfe\xba\xbf': ('>', True), b'\xbf\xba\xfe\xca': ('<', True)}
+    if magic not in thin and magic not in fat:
+        return None
+    cpu_names = {0x1000007: 'x86_64', 0x100000c: 'arm64'}
+    if magic in thin:
+        endian, size = thin[magic]
+        require(size == 32 and len(data) >= size, 'Unsupported Mach-O header')
+        _, cpu, _, kind, count, commands_size, _, _ = struct.unpack_from(endian + 'IIIIIIII', data)
+        require(cpu in cpu_names and kind in (2, 6, 8), 'Unsupported Mach-O target or file type')
+        require(count <= 65536 and commands_size <= len(data) - size, 'Invalid Mach-O command table')
+        position = size
+        for _ in range(count):
+            require(position + 8 <= size + commands_size, 'Truncated Mach-O command')
+            _, length = struct.unpack_from(endian + 'II', data, position)
+            require(length >= 8 and length % 4 == 0 and position + length <= size + commands_size,
+                    'Invalid Mach-O command size')
+            position += length
+        require(position == size + commands_size, 'Mach-O command count differs')
+        return (cpu_names[cpu],)
+    endian, wide = fat[magic]
+    require(len(data) >= 8, 'Truncated fat Mach-O header')
+    count = struct.unpack_from(endian + 'I', data, 4)[0]; row_size = 32 if wide else 20
+    require(0 < count <= 16 and 8 + count * row_size <= len(data), 'Invalid fat Mach-O count')
+    result = []; ranges = []; identities = set()
+    for index in range(count):
+        values = struct.unpack_from(endian + ('IIQQII' if wide else 'IIIII'), data, 8 + index * row_size)
+        cpu, subtype, offset, length, alignment = values[:5]
+        require(cpu in cpu_names and (cpu, subtype) not in identities, 'Duplicate or unsupported fat Mach-O target')
+        identities.add((cpu, subtype))
+        require(alignment <= 31 and offset % (1 << alignment) == 0 and
+                offset >= 8 + count * row_size and length >= 32 and offset + length <= len(data),
+                'Invalid fat Mach-O slice')
+        require(all(offset + length <= a or offset >= b for a, b in ranges), 'Overlapping fat Mach-O slices')
+        ranges.append((offset, offset + length))
+        require(data[offset:offset + 4] in thin, 'Fat Mach-O slice must be thin')
+        slice_endian = thin[data[offset:offset + 4]][0]
+        require(struct.unpack_from(slice_endian + 'II', data, offset + 4) == (cpu, subtype),
+                'Fat Mach-O subtype differs from slice')
+        actual = macho_architectures(data[offset:offset + length])
+        require(actual == (cpu_names[cpu],), 'Fat Mach-O CPU differs from slice')
+        result.extend(actual)
+    return tuple(sorted(set(result)))
+
+
+def _macos_payload_structure(payload, architecture):
+    """Shared closed metadata/alias validation without claiming native bytes."""
+    keys(payload, ('layout', 'root', 'entries', 'totalRegularBytes', 'builderSources',
+                   'entrySourceSha256', 'collectTocSha256', 'codeSignaturePaths'), 'Mac SDK payload')
+    require(payload['layout'] == 'pyinstaller-onedir/1' and payload['root'] == SDK_PAYLOAD_ROOT and
+            architecture in ('arm64', 'x86_64'), 'Unsupported Mac SDK layout/target')
+    keys(payload['builderSources'], SDK_BUILDER_SOURCES, 'Mac SDK builder sources')
+    hashes = [*payload['builderSources'].values(), payload['entrySourceSha256'], payload['collectTocSha256']]
+    require(all(isinstance(h, str) and re.fullmatch('[0-9a-f]{64}', h) for h in hashes), 'Invalid Mac SDK source digest')
+    require(isinstance(payload['entries'], list) and 0 < len(payload['entries']) <= SDK_PAYLOAD_MAX_ENTRIES,
+            'Invalid Mac SDK member count')
+    require(len(json.dumps(payload, sort_keys=True).encode('utf-8')) <= SDK_PAYLOAD_MAX_METADATA,
+            'Mac SDK payload metadata exceeds bound')
+    entries = {}; portable_names = set(); expected_files = {SDK_HELPER}; expected_dirs = set(); expected_links = set(); total = 0
+    for row in payload['entries']:
+        require(isinstance(row, dict), 'Invalid SDK payload entry')
+        kind = row.get('type')
+        shape = {'file': ('path', 'type', 'sha256', 'byteLength', 'mode'),
+                 'directory': ('path', 'type', 'mode'), 'symlink': ('path', 'type', 'target', 'resolvedPath')}
+        require(isinstance(kind, str) and kind in shape, 'Unsupported SDK payload member type'); keys(row, shape[kind], 'SDK payload entry')
+        path = _payload_path(row['path'])
+        require((path == SDK_PAYLOAD_ROOT or path.startswith(SDK_PAYLOAD_ROOT + '/')) and path not in entries,
+                'Foreign or duplicate SDK payload member')
+        portable = unicodedata.normalize('NFC', unicodedata.normalize('NFC', path).casefold())
+        require(portable not in portable_names, 'Portable SDK path collision')
+        portable_names.add(portable); entries[path] = row
+        if kind == 'file':
+            require(type(row['mode']) is int and row['mode'] in (0o644, 0o755) and
+                    type(row['byteLength']) is int and 0 <= row['byteLength'] <= MAX_BYTES and
+                    isinstance(row['sha256'], str) and re.fullmatch('[0-9a-f]{64}', row['sha256']),
+                    'Invalid SDK regular file metadata')
+            expected_files.add(path); total += row['byteLength']
+        elif kind == 'directory':
+            require(type(row['mode']) is int and row['mode'] == 0o755, 'Invalid SDK directory mode'); expected_dirs.add(path)
+        else:
+            _payload_target(row['target']); _payload_path(row['resolvedPath']); expected_links.add(path)
+    require(list(entries) == sorted(entries), 'SDK payload entries are not sorted')
+    require(SDK_PAYLOAD_ROOT in entries and entries[SDK_PAYLOAD_ROOT]['type'] == 'directory', 'Missing SDK support root')
+    require(type(payload['totalRegularBytes']) is int and total == payload['totalRegularBytes'] and
+            total <= SDK_PAYLOAD_MAX_BYTES, 'SDK payload aggregate bytes differ/exceed bound')
+    for path, row in entries.items():
+        if path != SDK_PAYLOAD_ROOT:
+            parent = str(PurePosixPath(path).parent)
+            require(parent in entries and entries[parent]['type'] == 'directory', 'SDK physical member beneath alias/missing directory')
+        if row['type'] == 'symlink':
+            require(_resolve_payload_alias(path, entries) == row['resolvedPath'], 'SDK alias resolved member differs')
+    signatures = payload['codeSignaturePaths']
+    require(isinstance(signatures, list) and signatures and all(isinstance(p, str) for p in signatures) and
+            signatures == sorted(set(signatures)) and SDK_HELPER in signatures and
+            set(signatures) <= expected_files, 'Invalid SDK signature path declaration')
+    return entries, expected_files, expected_dirs, expected_links
+
+
+def validate_macos_payload_structure(payload, architecture):
+    """Validate metadata only; native bytes/signatures remain unverified here."""
+    _macos_payload_structure(payload, architecture)
+    return payload
+
+
+def validate_macos_payload(payload, files, directories, symlinks, architecture):
+    """Validate COMPLETE SDK-scoped typed tables before any byte projection."""
+    entries, expected_files, expected_dirs, expected_links = _macos_payload_structure(payload, architecture)
+    require(all(isinstance(table, dict) for table in (files, directories, symlinks)), 'Invalid SDK typed member view')
+    require(set(files) == expected_files and set(directories) == expected_dirs and set(symlinks) == expected_links,
+            'SDK complete typed member inventory differs')
+    native_paths = []
+    for path in sorted(files):
+        item = files[path]
+        require(type(item) is tuple and len(item) == 2 and isinstance(item[0], bytes) and
+                type(item[1]) is int and item[1] in (0o644, 0o755) and len(item[0]) <= MAX_BYTES,
+                'Invalid SDK file view')
+        data, mode = item
+        if path == SDK_HELPER:
+            require(mode == 0o755 and data, 'Invalid SDK helper mode/bytes')
+        else:
+            row = entries[path]
+            require(mode == row['mode'] and len(data) == row['byteLength'] and sha(data) == row['sha256'],
+                    'SDK support file bytes/mode differ')
+        actual = macho_architectures(data)
+        if actual is not None:
+            require(actual == (architecture,), 'SDK Mach-O architecture differs from target')
+            native_paths.append(path)
+        elif path == SDK_HELPER:
+            require(False, 'SDK helper must be Mach-O')
+    require(payload['codeSignaturePaths'] == native_paths, 'SDK code signature path closure differs')
+    require(all(type(mode) is int and mode == entries[path]['mode'] for path, mode in directories.items()),
+            'SDK directory table differs')
+    require(all(target == entries[path]['target'] for path, target in symlinks.items()), 'SDK literal alias target differs')
+    return payload
+
+
+def _owned_payload_root(root):
+    root = Path(root)
+    require(root.is_dir() and not root.is_symlink() and root == root.resolve(), 'SDK sibling directory must be canonical')
+    require(root.stat().st_uid == os.getuid(), 'SDK output directory must be owned')
+    for parent in root.parents:
+        require(not parent.is_symlink(), 'SDK sibling directory has symlink ancestor')
+    return root
+
+
+def _payload_file(path):
+    before = path.lstat()
+    require(stat.S_ISREG(before.st_mode) and before.st_nlink == 1 and 0 <= before.st_size <= MAX_BYTES,
+            'SDK payload file is not bounded regular bytes')
+    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+    with os.fdopen(descriptor, 'rb') as stream:
+        opened = os.fstat(stream.fileno())
+        require((opened.st_dev, opened.st_ino) == (before.st_dev, before.st_ino), 'SDK payload identity changed before read')
+        data = stream.read(MAX_BYTES + 1)
+    after = path.lstat()
+    require(len(data) == before.st_size and
+            (before.st_dev, before.st_ino, before.st_size, before.st_mode, before.st_mtime_ns) ==
+            (after.st_dev, after.st_ino, after.st_size, after.st_mode, after.st_mtime_ns), 'SDK payload changed while reading')
+    return data, stat.S_IMODE(before.st_mode)
+
+
+def _read_payload_view(root):
+    root = _owned_payload_root(root); files = {SDK_HELPER: _payload_file(root / SDK_HELPER)}; directories = {}; links = {}
+    support = root / SDK_PAYLOAD_ROOT
+    regular_bytes = [0]
+    require(support.is_dir() and not support.is_symlink(), 'Missing/aliased SDK support directory')
+    def walk(path):
+        relative = path.relative_to(root).as_posix(); _payload_path(relative); before = path.lstat()
+        require(len(files) + len(directories) + len(links) <= SDK_PAYLOAD_MAX_ENTRIES + 1, 'SDK tree exceeds member bound')
+        if stat.S_ISLNK(before.st_mode):
+            links[relative] = os.readlink(path); _payload_target(links[relative]); return
+        if stat.S_ISREG(before.st_mode):
+            require(regular_bytes[0] + before.st_size <= SDK_PAYLOAD_MAX_BYTES, 'SDK physical tree exceeds aggregate bytes')
+            files[relative] = _payload_file(path); regular_bytes[0] += len(files[relative][0]); return
+        require(stat.S_ISDIR(before.st_mode), 'Unsupported physical SDK member')
+        directories[relative] = stat.S_IMODE(before.st_mode)
+        children = []
+        for child in path.iterdir():
+            children.append(child)
+            require(len(children) <= SDK_PAYLOAD_MAX_ENTRIES, 'SDK directory exceeds member bound')
+        children.sort()
+        for child in children: walk(child)
+        after = path.lstat()
+        require((before.st_dev, before.st_ino, before.st_mode, before.st_mtime_ns) ==
+                (after.st_dev, after.st_ino, after.st_mode, after.st_mtime_ns), 'SDK tree changed while enumerating')
+    walk(support)
+    return {'files': files, 'directories': directories, 'symlinks': links}
+
+
+def read_macos_payload(root, payload, architecture):
+    validate_macos_payload_structure(payload, architecture)
+    view = _read_payload_view(root)
+    validate_macos_payload(payload, architecture=architecture, **view)
+    return view
+
+
+def materialize_macos_payload(destination, payload, files, directories, symlinks, architecture):
+    validate_macos_payload(payload, files, directories, symlinks, architecture)
+    destination = _owned_payload_root(destination)
+    require(not os.path.lexists(destination / SDK_HELPER) and not os.path.lexists(destination / SDK_PAYLOAD_ROOT),
+            'SDK materialization requires absent SDK paths')
+    # Parent directories are physical, never links. Links are created last and no
+    # file is ever opened through a declared alias. Partial failures are retained.
+    for relative in sorted(directories, key=lambda p: (len(PurePosixPath(p).parts), p)):
+        path = destination / relative; path.mkdir(mode=0o755); path.chmod(directories[relative])
+    for relative in sorted(files):
+        path = destination / relative
+        require(not any(parent.is_symlink() for parent in path.parents), 'SDK file parent became aliased')
+        with path.open('xb') as stream: stream.write(files[relative][0])
+        path.chmod(files[relative][1])
+    for relative in sorted(symlinks):
+        path = destination / relative
+        require(not any(parent.is_symlink() for parent in path.parents), 'SDK alias parent became aliased')
+        path.symlink_to(symlinks[relative])
+    return read_macos_payload(destination, payload, architecture)
+
+
+
+def inventory_macos_payload(root, architecture, builder_sources, entry_source_sha256, collect_toc_sha256):
+    """Builder-only construction from actual final bytes; consumers validate it."""
+    view = _read_payload_view(root); entries = []
+    for path, (data, mode) in view['files'].items():
+        if path != SDK_HELPER:
+            entries.append({'path': path, 'type': 'file', 'sha256': sha(data), 'byteLength': len(data), 'mode': mode})
+    entries.extend({'path': p, 'type': 'directory', 'mode': mode} for p, mode in view['directories'].items())
+    entries.extend({'path': p, 'type': 'symlink', 'target': target, 'resolvedPath': ''} for p, target in view['symlinks'].items())
+    by_path = {r['path']: r for r in entries}
+    for row in entries:
+        if row['type'] == 'symlink': row['resolvedPath'] = _resolve_payload_alias(row['path'], by_path)
+    result = {'layout': 'pyinstaller-onedir/1', 'root': SDK_PAYLOAD_ROOT,
+              'entries': sorted(entries, key=lambda r: r['path']),
+              'totalRegularBytes': sum(len(data) for p, (data, _) in view['files'].items() if p != SDK_HELPER),
+              'builderSources': builder_sources, 'entrySourceSha256': entry_source_sha256,
+              'collectTocSha256': collect_toc_sha256,
+              'codeSignaturePaths': sorted(p for p, (data, _) in view['files'].items() if macho_architectures(data) is not None)}
+    validate_macos_payload(result, architecture=architecture, **view)
+    return result

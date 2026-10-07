@@ -105,6 +105,7 @@ class Product:
     execution_source_context: Path | None = None
     npm_context: dict[str, Any] | None = None
     execution_launch_path: Path | None = None
+    sdk_source_evidence: dict[str, Any] | None = None
 
     @property
     def expected_runner_name(self) -> str:
@@ -412,6 +413,7 @@ def snapshot_product(
         interpreter,
         source_context,
         product.npm_context,
+        sdk_source_evidence=product.sdk_source_evidence,
     )
 
 
@@ -629,7 +631,7 @@ def make_report(
     differential_total = differential_passed + differential_failed
     total = candidate_total + differential_total
     failed = candidate_failed + differential_failed
-    return {
+    report = {
         "schema": "openprose.mechanical-conformance-report/1",
         "phase": phase,
         "caseIds": list(case_ids),
@@ -661,6 +663,21 @@ def make_report(
             "releaseAdmission": False,
         },
     }
+
+    evidence = {}
+    references = {}
+    for product, _ in candidates:
+        if product.sdk_source_evidence is not None:
+            digest = product.sdk_source_evidence['agentsSdk']['receiptSha256']
+            if digest in evidence and evidence[digest] != product.sdk_source_evidence:
+                raise ValueError('SDK source receipt has conflicting identities')
+            evidence[digest] = product.sdk_source_evidence
+            references[product.name] = digest
+    if evidence:
+        report['sdkSourceCustody'] = {'evidence': evidence, 'candidateReferences': references,
+            'fixtureHelperSha256': sha256(INSTALLED_ADAPTER_HARNESS.read_bytes()),
+            'helperSubstitution': 'provider-free-oracle', 'productionSdkExecuted': False}
+    return report
 
 
 def _exact_keys(value: Any, expected: set[str], path: str) -> list[str]:
@@ -801,7 +818,7 @@ def validate_report(report: Any) -> list[str]:
             "validations",
             "failures",
             "claims",
-        },
+        } | ({"sdkSourceCustody"} if isinstance(report, dict) and "sdkSourceCustody" in report else set()),
         "$",
     )
     if failures:
@@ -990,6 +1007,39 @@ def validate_report(report: Any) -> list[str]:
             failures.append(
                 "$.failures must contain exactly one bounded record per failed validation"
             )
+
+    if 'sdkSourceCustody' in report:
+        source = report['sdkSourceCustody']
+        shape = _exact_keys(source, {'evidence', 'candidateReferences', 'fixtureHelperSha256', 'helperSubstitution', 'productionSdkExecuted'}, '$.sdkSourceCustody')
+        failures.extend(shape)
+        if not shape:
+            if source['helperSubstitution'] != 'provider-free-oracle' or source['productionSdkExecuted'] is not False or not isinstance(source['fixtureHelperSha256'], str) or not re.fullmatch('[0-9a-f]{64}', source['fixtureHelperSha256']):
+                failures.append('$.sdkSourceCustody overstates fixture execution')
+            evidence, references = source['evidence'], source['candidateReferences']
+            if not isinstance(evidence, dict) or not evidence or len(evidence) > len(labels) or not isinstance(references, dict) or not references or not set(references) <= set(labels) or not all(isinstance(d, str) for d in references.values()) or set(references.values()) != set(evidence):
+                failures.append('$.sdkSourceCustody references are invalid')
+            else:
+                expected = {'path', 'byteLength', 'sha256', 'receiptSha256', 'noticesSha256', 'python', 'pyinstaller', 'version', 'discovery', 'selfTest', 'toolSelfTest', 'dependencyLockSha256'}
+                for digest, row in evidence.items():
+                    if _exact_keys(row, {'platform', 'agentsSdk', 'payloadSha256'}, '$.sdkSourceCustody evidence') or not isinstance(digest, str) or not re.fullmatch('[0-9a-f]{64}', digest):
+                        failures.append('$.sdkSourceCustody evidence shape differs'); continue
+                    sdk = row['agentsSdk']
+                    if not isinstance(sdk, dict) or set(sdk) != expected or sdk.get('receiptSha256') != digest:
+                        failures.append('$.sdkSourceCustody receipt reference differs')
+                    else:
+                        ci = str(CLI / 'ci')
+                        if ci not in sys.path: sys.path.insert(0, ci)
+                        import kernel_rc_evidence as sdk_policy
+                        if (sdk['path'] != 'prose-agents-sdk' or type(sdk['byteLength']) is not int or
+                            not 0 < sdk['byteLength'] <= MAX_CANDIDATE_BYTES or
+                            any(not isinstance(sdk[k], str) or not re.fullmatch('[0-9a-f]{64}', sdk[k])
+                                for k in ('sha256', 'receiptSha256', 'noticesSha256', 'dependencyLockSha256')) or
+                            sdk['python'] != '3.10.20' or sdk['pyinstaller'] != '6.22.3' or sdk['version'] != '0.1.0' or
+                            sdk['discovery'] != 'canonical-cli-sibling' or sdk['selfTest'] != sdk_policy.SDK_IMPORT_TEST or
+                            sdk['toolSelfTest'] != sdk_policy.SDK_TOOL_TEST):
+                            failures.append('$.sdkSourceCustody source SDK policy differs')
+                    if not isinstance(row['platform'], str) or row['platform'] not in {'darwin-arm64', 'darwin-x64', 'linux-arm64-gnu', 'linux-x64-gnu'} or not isinstance(row['payloadSha256'], str) or (row['platform'].startswith('darwin-') and not re.fullmatch('[0-9a-f]{64}', row['payloadSha256'])) or (row['platform'].startswith('linux-') and row['payloadSha256'] != 'not-applicable'):
+                        failures.append('$.sdkSourceCustody platform/payload differs')
 
     claims = report["claims"]
     claim_failures = _exact_keys(
@@ -1695,6 +1745,60 @@ def attach_npm_contexts(products: list[Product], specifications: list[list[str]]
     return [replace(product,npm_context=contexts.get(product.name,product.npm_context)) for product in products]
 
 
+def attach_sdk_sources(products, specifications):
+    """Authenticate an explicitly supplied production surface once, never execute it."""
+    if not specifications:
+        return products
+    ci = str(CLI / 'ci')
+    if ci not in sys.path:
+        sys.path.insert(0, ci)
+    import publication as publication_custody
+    import kernel_rc_evidence as sdk_custody
+    import sdk_native_inventory as inventory
+    contexts = {}
+    names = {p.name for p in products}
+    for label, encoded in specifications:
+        if label not in names or label in contexts or len(encoded.encode()) > 2 * 1024 * 1024:
+            raise ValueError('Invalid or duplicate SDK source context')
+        context = json.loads(encoded, object_pairs_hook=publication_custody.object_pairs)
+        if not isinstance(context, dict) or set(context) != {'directory', 'platform', 'agentsSdk'}:
+            raise ValueError('Closed explicit SDK source context required')
+        if not isinstance(context['platform'], str) or context['platform'] not in publication_custody.PLATFORMS:
+            raise ValueError('Unsupported SDK source platform')
+        contexts[label] = context
+    result = []
+    for product in products:
+        if product.name not in contexts:
+            result.append(product); continue
+        context = contexts[product.name]
+        if not isinstance(context['directory'], str):
+            raise ValueError('SDK source directory must be an absolute canonical directory')
+        directory = Path(context['directory'])
+        if not directory.is_absolute() or directory.resolve(strict=True) != directory or any(p.is_symlink() for p in (directory, *directory.parents)):
+            raise ValueError('SDK source directory must be an absolute canonical directory')
+        native = npm_context_paths(product.npm_context)['native'] if product.npm_context else product.executable.resolve(strict=True)
+        if directory / 'prose' != native:
+            raise ValueError('SDK source context differs from authenticated native candidate')
+        files = {}
+        for name in ('prose', 'prose-agents-sdk', 'agents-sdk-build.json', 'AGENTS-SDK-NOTICES.txt'):
+            path = directory / name
+            limit = 2 * 1024 * 1024 if name == 'agents-sdk-build.json' else (8 * 1024 * 1024 if name == 'AGENTS-SDK-NOTICES.txt' else MAX_CANDIDATE_BYTES)
+            if path.is_symlink() or not path.is_file() or not 0 < path.stat().st_size <= limit:
+                raise ValueError('SDK source sibling is not regular and bounded')
+            files[name] = (path.read_bytes(), stat.S_IMODE(path.stat().st_mode))
+        receipt = json.loads(files['agents-sdk-build.json'][0], object_pairs_hook=publication_custody.object_pairs)
+        table = {'files': {'source/' + n: v for n, v in files.items()}, 'directories': {}, 'symlinks': {}}
+        if context['platform'].startswith('darwin-'):
+            view = inventory.read_macos_payload(directory, receipt['payload'], receipt['architecture'])
+            for kind, values in view.items():
+                table[kind].update({'source/' + n: v for n, v in values.items()})
+        sdk_custody.validate_sdk_archive_table(context, table)
+        evidence = {'platform': context['platform'], 'agentsSdk': context['agentsSdk'],
+                    'payloadSha256': sha256(canonical_json(receipt['payload'])) if 'payload' in receipt else 'not-applicable'}
+        result.append(replace(product, sdk_source_evidence=evidence))
+    return result
+
+
 def prepare_sdk_installation(product: Product, case: dict[str, Any], workspace: Path,
                              environment_root: Path) -> tuple[Product, dict[str, Any], Path]:
     """Exercise real sibling discovery using an exact native candidate byte copy."""
@@ -1768,8 +1872,12 @@ def prepare_sdk_installation(product: Product, case: dict[str, Any], workspace: 
     (workspace / '.sdk-compatibility-fixture.json').write_text(json.dumps(setup), encoding='utf-8')
     execution = Product(product.name, product.executable, product.runner_name,
                         product.interpreter, (product.execution_executable or product.executable) if interpreted else target, product.execution_interpreter,
-                        launcher_context, product.npm_context, target if interpreted else None)
-    fixture = {**fixture, 'nativePath': str(native), 'nativeSha256': sha256(source.read_bytes())}
+                        launcher_context, product.npm_context, target if interpreted else None, product.sdk_source_evidence)
+    fixture = {**fixture, 'nativePath': str(native), 'nativeSha256': sha256(source.read_bytes()),
+               'fixtureHelperSha256': sha256(INSTALLED_ADAPTER_HARNESS.read_bytes()),
+               'helperSubstitution': 'provider-free-oracle', 'productionSdkExecuted': False}
+    if product.sdk_source_evidence is not None:
+        fixture['productionSdkSourceRef'] = product.sdk_source_evidence['agentsSdk']['receiptSha256']
     if interpreted:
         fixture['npmContext']=product.npm_context
         fixture['npmCloneFiles']=[{'path':str(prefix/row['path']),'sha256':row['sha256'],'byteLength':row['byteLength']} for row in product.npm_context['files'].values()]
@@ -1790,6 +1898,9 @@ def validate_sdk_effects(observation: Observation) -> list[str]:
     try:
         if sha256(Path(fixture['nativePath']).read_bytes()) != fixture['nativeSha256']:
             failures.append('SDK relocated candidate bytes changed during execution')
+        if (fixture.get('helperSubstitution') != 'provider-free-oracle' or fixture.get('productionSdkExecuted') is not False
+                or sha256((Path(fixture['nativePath']).parent / 'prose-agents-sdk').read_bytes()) != fixture['fixtureHelperSha256']):
+            failures.append('SDK fixture helper substitution bytes changed')
         if (workspace / '.sdk-wrong-helper-used').exists():
             failures.append('SDK discovery used a foreign PATH helper')
         if fixture['noProbe'] and (workspace / '.sdk-harness-probed').exists():
@@ -2465,6 +2576,7 @@ def main(argv: list[str] | None = None) -> int:
             "the interpreter bytes are bound into the report"
         ),
     )
+    parser.add_argument('--candidate-sdk-source',action='append',nargs=2,default=[],metavar=('LABEL','JSON'),help='Explicit production SDK source custody; fixtures deliberately substitute the provider-free oracle')
     parser.add_argument('--candidate-npm-context',action='append',nargs=2,default=[],metavar=('LABEL','JSON'),help='Explicit benchmark-bound npm native child closure for SDK installation fixtures')
     args = parser.parse_args(argv)
     if args.candidate and (args.rust is not None or args.bun is not None):
@@ -2486,6 +2598,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         products = attach_candidate_interpreters(products, args.candidate_interpreter)
         products = attach_npm_contexts(products,args.candidate_npm_context)
+        products = attach_sdk_sources(products,args.candidate_sdk_source)
     except ValueError as error:
         parser.error(str(error))
     verified_products: list[Product] = []
@@ -2502,6 +2615,7 @@ def main(argv: list[str] | None = None) -> int:
                 else None
             ),
             npm_context=product.npm_context,
+            sdk_source_evidence=product.sdk_source_evidence,
         )
         try:
             identity = capture_candidate_identity(verified)

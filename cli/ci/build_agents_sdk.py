@@ -2,6 +2,7 @@
 """Freeze the package-owned SDK helper without provider calls or ambient credentials."""
 from __future__ import annotations
 import argparse
+import ast
 import hashlib
 import importlib.metadata as metadata
 import json
@@ -9,10 +10,12 @@ import os
 from pathlib import Path
 import platform
 import re
+import selectors
 import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import sdk_native_inventory as native
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -185,6 +188,139 @@ def inspect_archive(helper):
     return rows
 
 
+
+def verify_collect_toc(path, view):
+    """Bind generated COLLECT member/type/alias declarations to final tree.
+
+    Native signing changes source bytes; the final payload separately binds
+    signed output bytes. Retain this producer TOC as hashed build evidence.
+    """
+    data = native.read_file(path, native.MAX_METADATA)
+    try: value = ast.literal_eval(data.decode('utf-8'))
+    except (ValueError, SyntaxError, UnicodeDecodeError, RecursionError) as error:
+        raise ValueError('Invalid SDK COLLECT declaration') from error
+    require(type(value) is tuple and len(value) == 1 and isinstance(value[0], list) and
+            0 < len(value[0]) <= native.SDK_PAYLOAD_MAX_ENTRIES, 'Unsupported SDK COLLECT shape')
+    files = {}; links = {}; parents = {native.SDK_PAYLOAD_ROOT}
+    for row in value[0]:
+        require(type(row) is tuple and len(row) == 3 and all(isinstance(x, str) for x in row), 'Invalid SDK COLLECT member')
+        name, source, kind = row; native._payload_path(name)
+        if kind == 'EXECUTABLE':
+            require(name == NAME, 'Unexpected SDK COLLECT executable'); destination = name
+        else:
+            require(kind in ('BINARY', 'EXTENSION', 'DATA', 'SYMLINK'), 'Unsupported SDK COLLECT type')
+            destination = native.SDK_PAYLOAD_ROOT + '/' + name
+        require(destination not in files and destination not in links, 'Duplicate SDK COLLECT destination')
+        if kind == 'SYMLINK':
+            native._payload_target(source); links[destination] = source
+        else:
+            files[destination] = kind
+        if destination != NAME:
+            parent = Path(destination).parent
+            while str(parent) != '.':
+                parents.add(parent.as_posix()); parent = parent.parent
+    require(set(files) == set(view['files']) and links == view['symlinks'] and parents == set(view['directories']),
+            'SDK COLLECT physical membership/aliases differ from final tree')
+    return native.sha(data)
+
+
+def verify_frozen_module_closure(helper):
+    # Build-time only: do not import this parser from the frozen stdlib inventory.
+    from PyInstaller.archive.readers import CArchiveReader
+    native.read_file(helper)
+    archive = CArchiveReader(str(helper)); require(len(archive.toc) <= native.SDK_PAYLOAD_MAX_ENTRIES,
+                                                  'SDK executable archive exceeds member bound')
+    modules = []; nested_count = 0
+    for name, row in archive.toc.items():
+        native.safe_path(name)
+        require(not (name == 'PyInstaller' or name.startswith(('PyInstaller.', 'PyInstaller/'))),
+                'Build-tool PyInstaller is present in consumer archive')
+        if row[-1] == 'z':
+            embedded = archive.open_embedded_archive(name)
+            require(len(embedded.toc) <= native.SDK_PAYLOAD_MAX_ENTRIES, 'SDK Python module archive exceeds member bound')
+            nested_count += len(embedded.toc)
+            for module in embedded.toc:
+                require(isinstance(module, str) and not (module == 'PyInstaller' or module.startswith('PyInstaller.')),
+                        'Build-tool PyInstaller is present in consumer modules')
+                modules.append(module)
+    require(nested_count > 0, 'SDK consumer Python archive is absent')
+    return {'archiveMembers': len(archive.toc), 'pythonModules': nested_count,
+            'buildToolNamespaceAbsent': True}
+
+
+def _capture_signature(command, *, env, cwd, timeout, output_limit=65536):
+    """Bound both output streams while the fixed native verification runs."""
+    deadline = time.monotonic() + timeout
+    process = subprocess.Popen(command, env=env, cwd=cwd, stdin=subprocess.DEVNULL,
+                               stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    chunks = {'stdout': bytearray(), 'stderr': bytearray()}; counts = {'stdout': 0, 'stderr': 0}
+    timed_out = overflow = False; code = None
+    try:
+        with selectors.DefaultSelector() as selector:
+            selector.register(process.stdout, selectors.EVENT_READ, 'stdout')
+            selector.register(process.stderr, selectors.EVENT_READ, 'stderr')
+            while selector.get_map():
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    timed_out = True; break
+                for key, _ in selector.select(min(remaining, 0.1)):
+                    data = os.read(key.fileobj.fileno(), 8192)
+                    if not data:
+                        selector.unregister(key.fileobj); continue
+                    name = key.data; counts[name] += len(data)
+                    available = max(0, output_limit - len(chunks[name])); chunks[name].extend(data[:available])
+                    if counts[name] > output_limit: overflow = True; break
+                if overflow: break
+        if not timed_out and not overflow:
+            try: code = process.wait(timeout=max(0.001, deadline - time.monotonic()))
+            except subprocess.TimeoutExpired: timed_out = True
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.wait(timeout=1)
+        if code is None: code = process.returncode
+        process.stdout.close(); process.stderr.close()
+    return {'exitCode': code, 'stdout': bytes(chunks['stdout']), 'stderr': bytes(chunks['stderr']),
+            'stdoutBytes': counts['stdout'], 'stderrBytes': counts['stderr'],
+            'timedOut': timed_out, 'outputLimitExceeded': overflow}
+
+
+def verify_code_signature(output, relative, log_name, *, env, deep=False):
+    native._payload_path(relative)
+    command = ['/usr/bin/codesign', '--verify', '--strict']
+    if deep: command.append('--deep')
+    command.append(str(output / relative))
+    result = _capture_signature(command, env=env, cwd=output, timeout=30)
+    proof = {'schema': 'openprose.sdk-code-signature-check/1', 'phase': 'code-signature',
+             'path': relative, 'verification': 'strict-deep' if deep else 'strict',
+             **{k: result[k] for k in ('exitCode', 'stdoutBytes', 'stderrBytes', 'timedOut', 'outputLimitExceeded')},
+             'timeoutSeconds': 30, 'success': result['exitCode'] == 0 and
+             not result['timedOut'] and not result['outputLimitExceeded']}
+    proof['outputComplete'] = not result['timedOut'] and not result['outputLimitExceeded']
+    raw = {}
+    for name in ('stdout', 'stderr'):
+        if result[name]:
+            path = output / (log_name + '.' + name); path.write_bytes(result[name])
+            raw[name] = {'path': path.name, 'sha256': digest(path), 'byteLength': len(result[name])}
+    proof['rawOutput'] = raw
+    (output / log_name).write_text(json.dumps(proof, sort_keys=True) + '\n')
+    require(proof['success'], 'SDK code signature verification failed; inspect retained proof')
+    return proof
+
+
+def verify_macos_signatures(output, payload, *, env):
+    # Paths are independently derived from actual final bytes by the full view
+    # validator. Verify every native regular file, including DATA/BINARY members.
+    view = native.read_macos_payload(output, payload, platform.machine())
+    for index, path in enumerate(payload['codeSignaturePaths']):
+        require(native.macho_architectures(view['files'][path][0]) == (platform.machine(),), 'SDK signing target mismatch')
+        verify_code_signature(output, path, 'codesign-' + str(index).zfill(4) + '.log', env=env)
+    # Preserve the existing helper-level strict/deep verification as well.
+    verify_code_signature(output, NAME, 'codesign.log', env=env, deep=True)
+    require(native.read_macos_payload(output, payload, platform.machine()) == view,
+            'SDK final signed tree changed during verification')
+
+
 def build(output, *, epoch=0, codesign_identity=None, linux_libgcc=None, linux_native_origin=None):
     require(platform.python_version() == '3.10.20', 'SDK release builder requires Python 3.10.20')
     require(sys.platform in ('darwin', 'linux') and platform.machine() in ('arm64', 'aarch64', 'x86_64'), 'SDK builder requires native supported POSIX host')
@@ -226,18 +362,22 @@ def build(output, *, epoch=0, codesign_identity=None, linux_libgcc=None, linux_n
     # Snapshot the concurrently maintained runtime before freezing. Receipt binds exact bytes.
     source_copy = output / 'prose_sdk_runtime.py'; source_copy.write_bytes(SOURCE.read_bytes())
     source_sha = digest(source_copy)
+    builder_sources = {name: digest(ROOT / name) for name in native.SDK_BUILDER_SOURCES}
     native_source = Path(native.__file__)
     (output / 'sdk_native_inventory.py').write_bytes(native.read_file(native_source))
     if native_input is not None:
         require(source_sha == native_input['sourceSnapshot']['sources']['harnesses/agents-sdk/run.py'] and
                 digest(output / 'sdk_native_inventory.py') == native_input['sourceSnapshot']['sources']['cli/ci/sdk_native_inventory.py'],
                 'Frozen source copies differ from bound source snapshot')
-    args = [sys.executable, '-m', 'PyInstaller', '--clean', '--noconfirm', '--onefile', '--noupx',
+    args = [sys.executable, '-m', 'PyInstaller', '--clean', '--noconfirm',
+            '--onedir' if sys.platform == 'darwin' else '--onefile', '--noupx',
             '--name', NAME, '--distpath', output / 'dist', '--workpath', output / 'work',
             '--specpath', output, '--paths', output, '--hidden-import', 'prose_sdk_runtime',
             '--collect-all', 'agents', '--collect-all', 'openai', '--collect-all', 'certifi',
             '--copy-metadata', 'openai-agents', '--copy-metadata', 'openai',
             '--add-data', str(output / NOTICES) + os.pathsep + '.', entry]
+    if sys.platform == 'darwin':
+        args.extend(['--contents-directory', native.SDK_PAYLOAD_ROOT, '--target-arch', platform.machine()])
     args.extend(['--hidden-import', 'sdk_native_inventory'])
     if native_input is not None:
         args.extend(['--add-binary', str(linux_libgcc) + os.pathsep + '.'])
@@ -246,7 +386,19 @@ def build(output, *, epoch=0, codesign_identity=None, linux_libgcc=None, linux_n
     for package in packages:
         args.extend(['--copy-metadata', package['name']])
     run(args, env=env, cwd=output, log=output / 'freeze.log')
-    helper = output / NAME; shutil.copyfile(output / 'dist' / NAME, helper); helper.chmod(0o755)
+    helper = output / NAME; payload = None
+    if sys.platform == 'darwin':
+        dist_root = output / 'dist' / NAME
+        view = native._read_payload_view(dist_root)
+        collect_path = output / 'work' / NAME / 'COLLECT-00.toc'
+        collect_sha = verify_collect_toc(collect_path, view)
+        (output / 'collect.toc').write_bytes(native.read_file(collect_path, native.MAX_METADATA))
+        payload = native.inventory_macos_payload(dist_root, platform.machine(), builder_sources, digest(entry), collect_sha)
+        native.materialize_macos_payload(output, payload, architecture=platform.machine(), **view)
+        verify_frozen_module_closure(helper)
+        verify_macos_signatures(output, payload, env=env)
+    else:
+        shutil.copyfile(output / 'dist' / NAME, helper); helper.chmod(0o755)
     require(0 < helper.stat().st_size <= MAX_BYTES, 'Frozen SDK helper exceeds size limit')
     native_dependencies = None
     if native_input is not None:
@@ -283,7 +435,9 @@ def build(output, *, epoch=0, codesign_identity=None, linux_libgcc=None, linux_n
         maximum = tuple(int(x) for x in linux_libraries['requiredGlibcMaximum'].split('.'))
         require(maximum <= (2, 34), 'Frozen SDK libraries require glibc newer than 2.34')
     if sys.platform == 'darwin':
-        run(['/usr/bin/codesign', '--verify', '--deep', '--strict', helper], env=env, cwd=output, log=output / 'codesign.log', timeout=30)
+        native.read_macos_payload(output, payload, platform.machine())
+        require(builder_sources == {name: digest(ROOT / name) for name in native.SDK_BUILDER_SOURCES},
+                'Mac SDK builder source changed during freeze')
         signing = 'developer-id-embedded' if codesign_identity is not None else 'ad-hoc-integrity-only'
     receipt = {'schema': 'openprose.agents-sdk-build/1', 'helper': {'path': NAME, 'sha256': digest(helper), 'byteLength': helper.stat().st_size},
                'python': platform.python_version(), 'pyinstaller': metadata.version('pyinstaller'),
@@ -295,6 +449,10 @@ def build(output, *, epoch=0, codesign_identity=None, linux_libgcc=None, linux_n
                'toolSelfTest': tool_self_test,
                'linuxLibraries': linux_libraries, 'pythonExecutableSha256': digest(Path(sys.executable).resolve()),
                'authority': 'local-build-and-imports-only', 'publicationAuthorized': False}
+    if payload is not None:
+        receipt['payload'] = payload
+        require(len(json.dumps(receipt, sort_keys=True).encode('utf-8')) <= native.SDK_PAYLOAD_MAX_METADATA,
+                'Mac SDK complete receipt exceeds metadata bound')
     if native_input is not None:
         final_input, final_sha, _ = native.validate_input(linux_native_origin, linux_libgcc, ROOT, target)
         final_rows, final_origins = native.assign_origins(archive_rows, final_input, packages, metadata.distribution)

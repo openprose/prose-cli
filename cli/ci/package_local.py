@@ -813,8 +813,21 @@ def validated_archive_members(
     return sorted(result, key=lambda item: item[0])
 
 
-def tar_gz(path: Path, members: Iterable[tuple[str, bytes, int]], epoch: int) -> None:
+def tar_gz(path: Path, members: Iterable[tuple[str, bytes, int]], epoch: int, *, sdk_table=None, sdk_prefix="") -> None:
     closed_members = validated_archive_members(members)
+    if sdk_table is not None:
+        # SDK table was snapshotted and fully validated; validate its receipt/table
+        # again before retaining nonregular metadata in an artifact.
+        encoded=sdk_table['files'][SDK_RECEIPT][0]
+        receipt=strict_json_object(encoded,'SDK receipt')
+        if receipt['platform']=='darwin':
+            import sdk_native_inventory as native
+            scoped={kind:{n:v for n,v in sdk_table[kind].items() if n not in (SDK_RECEIPT,SDK_NOTICES)} for kind in ('files','directories','symlinks')}
+            native.validate_macos_payload(receipt['payload'],**scoped,architecture=receipt['architecture'])
+        else:
+            if sdk_table['directories'] or sdk_table['symlinks']:raise PackageError('Non-Mac SDK cannot contain support aliases')
+        actual={n[len(sdk_prefix):]:(data,mode) for n,data,mode in closed_members if n.startswith(sdk_prefix) and (n[len(sdk_prefix):] in (SDK_NAME,SDK_RECEIPT,SDK_NOTICES) or n[len(sdk_prefix):]=='prose-agents-sdk-runtime' or n[len(sdk_prefix):].startswith('prose-agents-sdk-runtime/'))}
+        if actual!=sdk_table['files']:raise PackageError('SDK regular archive membership differs')
     with path.open("wb") as raw:
         with gzip.GzipFile(
             filename="", mode="wb", fileobj=raw, mtime=epoch, compresslevel=9
@@ -832,6 +845,21 @@ def tar_gz(path: Path, members: Iterable[tuple[str, bytes, int]], epoch: int) ->
                     info.uname = ""
                     info.gname = ""
                     archive.addfile(info, io.BytesIO(data))
+                if sdk_table is not None:
+                    metadata=[]
+                    for name,mode in sdk_table['directories'].items():metadata.append((name,'directory',mode,None))
+                    for name,target in sdk_table['symlinks'].items():metadata.append((name,'symlink',0o777,target))
+                    for name,kind,mode,target in sorted(metadata):
+                        info=tarfile.TarInfo(sdk_prefix+name);info.mode=mode;info.mtime=epoch
+                        info.uid=info.gid=0;info.uname=info.gname=''
+                        info.type=tarfile.DIRTYPE if kind=='directory' else tarfile.SYMTYPE
+                        if target is not None:info.linkname=target
+                        archive.addfile(info)
+
+
+def sdk_regular_members(sdk_members):
+    if isinstance(sdk_members,dict):return [(name,data,mode) for name,(data,mode) in sdk_members['files'].items()]
+    return sdk_members or []
 
 
 def package_status(mode: str) -> tuple[str, str]:
@@ -1415,7 +1443,7 @@ def standalone_readme(
     if mode in {"kernel-rc", "release"}:
         first_use = (
             "First run with the packaged Agents SDK default:\n"
-            "  Keep prose and its sibling prose-agents-sdk together. No Python installation is required.\n"
+            "  Keep prose and its sibling prose-agents-sdk together, including prose-agents-sdk-runtime on macOS. No Python installation is required.\n"
             "  Supply OPENAI_API_KEY in your environment; requests use your OpenAI API account.\n"
             "  The fresh-install model default is gpt-6.1-sol. Saved explicit harness choices remain effective.\n"
             f"  {prose_command} cli doctor\n"
@@ -1750,7 +1778,7 @@ def standalone_archive(
     mode: str,
     hello_example: bytes,
     windows_host: bytes | None = None,
-    sdk_members: list[tuple[str, bytes, int]] | None = None,
+    sdk_members: dict | list[tuple[str, bytes, int]] | None = None,
 ) -> Path:
     root = f"openprose-prose-cli-{implementation}-{version}-{platform_identifier}"
     executable_name = (
@@ -1780,8 +1808,8 @@ def standalone_archive(
     ]
     if windows_host is not None:
         members.append((f"{root}/{WINDOWS_HOST_NAME}", windows_host, 0o755))
-    members.extend((f"{root}/{name}", data, mode) for name, data, mode in (sdk_members or []))
-    tar_gz(destination, members, epoch)
+    members.extend((f"{root}/{name}", data, mode) for name, data, mode in sdk_regular_members(sdk_members))
+    tar_gz(destination, members, epoch, sdk_table=sdk_members if isinstance(sdk_members,dict) else None, sdk_prefix=root+"/")
     return destination
 
 
@@ -1919,7 +1947,7 @@ def npm_packages(
     *,
     package_name: str = "@openprose/prose-cli",
     publication_platforms: str | None = None,
-    sdk_members: list[tuple[str, bytes, int]] | None = None,
+    sdk_members: dict | list[tuple[str, bytes, int]] | None = None,
 ) -> tuple[Path, Path]:
     if package_name not in {"@openprose/prose-cli", "@openprose/prose"}:
         raise PackageError("npm identity must be explicitly supported")
@@ -2001,7 +2029,7 @@ def npm_packages(
                 0o644,
             ),
             (f"package/bin/{executable_name}", bun_binary, 0o755),
-            *((f"package/bin/{name}", data, mode) for name, data, mode in (sdk_members or [])),
+            *((f"package/bin/{name}", data, mode) for name, data, mode in sdk_regular_members(sdk_members)),
             *(
                 [(f"package/bin/{WINDOWS_HOST_NAME}", windows_host, 0o755)]
                 if windows_host is not None
@@ -2010,6 +2038,7 @@ def npm_packages(
             ("package/LICENSE", LICENSE.read_bytes(), 0o644),
         ],
         epoch,
+        sdk_table=sdk_members if isinstance(sdk_members,dict) else None, sdk_prefix="package/bin/",
     )
     return meta, platform_package
 
@@ -2454,7 +2483,7 @@ def dependency_sbom_components(report: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def snapshot_sdk(directory: Path, snapshots: Path, platform_identifier: str,
-                 mode: str, readelf: Path | None) -> tuple[list[tuple[str, bytes, int]], dict[str, Any]]:
+                 mode: str, readelf: Path | None) -> tuple[dict, dict[str, Any]]:
     """Bind the package-owned helper to its native build receipt and exact source."""
     if directory.is_symlink() or not directory.is_dir():
         raise PackageError("SDK build directory must be a real directory")
@@ -2481,14 +2510,40 @@ def snapshot_sdk(directory: Path, snapshots: Path, platform_identifier: str,
                 raise PackageError('SDK native build source snapshot differs from current source')
     except (ValueError, KeyError, TypeError) as error:
         raise PackageError('SDK native receipt differs: ' + str(error)) from error
-    helper, length, digest = snapshot_binary(directory / SDK_NAME, snapshots / SDK_NAME, "Agents SDK")
+    mac_view = None
+    if expected_os == 'darwin':
+        import sdk_native_inventory as native
+        if not isinstance(receipt.get('payload'),dict):raise PackageError('Current Mac SDK requires complete onedir payload')
+        payload=receipt['payload']
+        try:
+            if payload['builderSources'] != {name:sha256_file(ROOT/name) for name in ('cli/ci/build_agents_sdk.py','cli/ci/sdk_native_inventory.py')}:
+                raise ValueError('SDK payload builder source differs from current source')
+            import ast
+            module=ast.parse((ROOT/'cli/ci/build_agents_sdk.py').read_text())
+            entry=next(ast.literal_eval(node.value) for node in module.body if isinstance(node,ast.Assign) and any(isinstance(t,ast.Name) and t.id=='ENTRY_SOURCE' for t in node.targets))
+            if payload['entrySourceSha256']!=sha256_bytes(entry.encode()):raise ValueError('SDK entry source differs from current source')
+            entry_sidecar=read_static_asset(directory/'sdk-entry.py','SDK entry sidecar',1024*1024)
+            collect_sidecar=read_static_asset(directory/'collect.toc','SDK COLLECT sidecar',2*1024*1024)
+            if entry_sidecar!=entry.encode() or sha256_bytes(entry_sidecar)!=payload['entrySourceSha256']:
+                raise ValueError('SDK entry sidecar differs from current source')
+            if sha256_bytes(collect_sidecar)!=payload['collectTocSha256']:
+                raise ValueError('SDK COLLECT sidecar differs from payload')
+            mac_view=native.read_macos_payload(directory,payload,expected_arch)
+        except (ValueError,KeyError,TypeError) as error:raise PackageError('SDK complete payload differs: '+str(error)) from error
+        helper=snapshots/SDK_NAME;length=len(mac_view['files'][SDK_NAME][0]);digest=sha256_bytes(mac_view['files'][SDK_NAME][0])
+    else:
+        helper, length, digest = snapshot_binary(directory / SDK_NAME, snapshots / SDK_NAME, "Agents SDK")
     if receipt.get("helper") != {"path": SDK_NAME, "sha256": digest, "byteLength": length}:
         raise PackageError("SDK helper differs from build receipt")
     notices = read_static_asset(directory / SDK_NOTICES, "SDK notices", 16 * 1024 * 1024)
     if receipt.get("notices") != {"path": SDK_NOTICES, "sha256": sha256_bytes(notices), "byteLength": len(notices)}:
         raise PackageError("SDK notices differ from build receipt")
+    if mac_view is not None:
+        try:native.materialize_macos_payload(snapshots,payload,**mac_view,architecture=expected_arch)
+        except (ValueError,KeyError,TypeError) as error:raise PackageError('SDK materialization differs: '+str(error)) from error
     if expected_os == "darwin" and mode in {"kernel-rc", "release", "alpha"}:
-        verify_darwin_code_signature(helper, "Agents SDK")
+        for name in receipt['payload']['codeSignaturePaths']:
+            verify_darwin_code_signature(snapshots/name, 'Agents SDK '+name)
     if readelf is not None:
         inspect_linux_glibc(helper, "Agents SDK", readelf)
     environment = {"PATH": "/usr/bin:/bin", "PYTHONDONTWRITEBYTECODE": "1"}
@@ -2521,7 +2576,18 @@ def snapshot_sdk(directory: Path, snapshots: Path, platform_identifier: str,
         if version_tuple(maximum) > version_tuple(LINUX_MINIMUM_GLIBC):
             raise PackageError("Packaged SDK libraries require newer than the admitted glibc floor")
     helper_bytes = verified_snapshot_bytes(helper, length, digest, "Agents SDK")
-    return [(SDK_NAME, helper_bytes, 0o755), (SDK_RECEIPT, receipt_bytes, 0o644), (SDK_NOTICES, notices, 0o644)], {
+    table={'files':{SDK_NAME:(helper_bytes,0o755),SDK_RECEIPT:(receipt_bytes,0o644),SDK_NOTICES:(notices,0o644)},'directories':{},'symlinks':{}}
+    if mac_view is not None:
+        try:
+            if native.read_macos_payload(directory,payload,expected_arch)!=mac_view or native.read_macos_payload(snapshots,payload,expected_arch)!=mac_view:
+                raise ValueError('SDK support tree changed during package tests')
+        except (ValueError,KeyError,TypeError) as error:raise PackageError('SDK complete payload changed: '+str(error)) from error
+        if read_static_asset(directory/'sdk-entry.py','SDK entry sidecar',1024*1024)!=entry_sidecar or read_static_asset(directory/'collect.toc','SDK COLLECT sidecar',2*1024*1024)!=collect_sidecar:
+            raise PackageError('SDK source sidecars changed during package tests')
+        if payload['builderSources']!={name:sha256_file(ROOT/name) for name in payload['builderSources']} or receipt['sources']!={name:sha256_file(ROOT/name) for name in receipt['sources']}:
+            raise PackageError('SDK source files changed during package tests')
+        table['files'].update(mac_view['files']);table['directories']=mac_view['directories'];table['symlinks']=mac_view['symlinks']
+    return table, {
         "path": SDK_NAME, "byteLength": length, "sha256": digest,
         "receiptSha256": sha256_bytes(receipt_bytes), "noticesSha256": sha256_bytes(notices),
         "python": "3.10.20", "pyinstaller": "6.22.3", "version": "0.1.0",
@@ -2647,7 +2713,7 @@ def build(
     with tempfile.TemporaryDirectory(
         prefix=".openprose-package-", dir=args.out.parent
     ) as temporary:
-        temporary_root = Path(temporary)
+        temporary_root = Path(temporary).resolve()
         snapshots = temporary_root / "inputs"
         snapshots.mkdir(mode=0o700)
         executable_suffix = ".exe" if platform_identifier.startswith("win32-") else ""
@@ -2920,7 +2986,7 @@ def build(
                if isinstance(sdk_record, dict) else [])
             + dependency_sbom_components(dependency_report)
             + (sdk_custody.sdk_native_sbom_components(
-                strict_json_object(next(data for name, data, _ in sdk_members if name == SDK_RECEIPT), 'SDK receipt'))
+                strict_json_object(next(data for name, data, _ in sdk_regular_members(sdk_members) if name == SDK_RECEIPT), 'SDK receipt'))
                if sdk_members else []),
             "properties": [
                 {

@@ -104,25 +104,22 @@ def select_archives(package: Path) -> tuple[dict[str, Any], dict[str, dict[str, 
             raise ValueError('Invalid archive byte limit')
         if archive.stat().st_size != item['byteLength'] or hashlib.sha256(archive.read_bytes()).hexdigest() != item.get('sha256'):
             raise ValueError('Native archive identity mismatch')
-        # Homebrew strips the package root and installs only the verified executable.
-        with tarfile.open(archive, 'r:gz') as contents:
-            members = contents.getmembers()
-            for member in members:
-                parts = Path(member.name).parts
-                if member.name.startswith('/') or '..' in parts or not (member.isfile() or member.isdir()):
-                    raise ValueError('Unsafe archive member')
-            executables = [m for m in members if Path(m.name).name == 'prose' and m.isfile()]
-            if len(executables) != 1 or len(Path(executables[0].name).parts) != 2:
+        if 'agentsSdk' in manifest:
+            table = pub.read_sdk_archive(archive, manifest)
+            custody.validate_sdk_archive_table(manifest, table)
+            cli_path = custody.sdk_archive_prefix(table) + 'prose'
+            if cli_path not in table['files'] or len(Path(cli_path).parts) != 2:
                 raise ValueError('Archive requires one prose executable under one package root')
-            sdk_record = manifest.get('agentsSdk')
-            if isinstance(sdk_record, dict):
-                for filename, digest_key in (('prose-agents-sdk', 'sha256'), ('agents-sdk-build.json', 'receiptSha256'), ('AGENTS-SDK-NOTICES.txt', 'noticesSha256')):
-                    selected_members = [m for m in members if Path(m.name).name == filename and m.isfile()]
-                    if len(selected_members) != 1 or Path(selected_members[0].name).parent != Path(executables[0].name).parent:
-                        raise ValueError('Archive requires unique SDK helper/receipt/notices siblings')
-                    member = selected_members[0]
-                    if not 0 < member.size <= 256 * 1024 * 1024 or hashlib.sha256(contents.extractfile(member).read()).hexdigest() != sdk_record.get(digest_key):
-                        raise ValueError('Archive SDK member differs from package identity')
+        else:
+            with tarfile.open(archive, 'r:gz') as contents:
+                members = contents.getmembers()
+                for member in members:
+                    parts = Path(member.name).parts
+                    if member.name.startswith('/') or '..' in parts or not (member.isfile() or member.isdir()):
+                        raise ValueError('Unsafe archive member')
+                executables = [m for m in members if Path(m.name).name == 'prose' and m.isfile()]
+                if len(executables) != 1 or len(Path(executables[0].name).parts) != 2:
+                    raise ValueError('Archive requires one prose executable under one package root')
         selected[implementation] = item
     if set(selected) != {'bun', 'rust'}:
         raise ValueError('Both native implementations are required')
@@ -137,6 +134,7 @@ def formula(version: str, implementation: str, archive: Path, sha256: str) -> st
         f'  url "{archive.as_uri()}"', f'  sha256 "{sha256}"', '',
         '  def install', '    bin.install "prose"',
         '    bin.install "prose-agents-sdk" if File.exist?("prose-agents-sdk")',
+        '    bin.install "prose-agents-sdk-runtime" if File.directory?("prose-agents-sdk-runtime")',
         '    pkgshare.install "agents-sdk-build.json", "AGENTS-SDK-NOTICES.txt" if File.exist?("agents-sdk-build.json")',
         '  end', '',
         '  test do', f'    assert_equal "prose {version} ({implementation})", shell_output("#{{bin}}/prose --version").strip',
@@ -186,13 +184,24 @@ def verify_kernel_rc(root: Path, expected_source: str, expected_version: str) ->
                         'Native artifact is not bound to report evidence')
     hashes = {}
     for implementation, item in archives.items():
-        members = pub.archive_members(root / 'package' / item['path'])
-        binaries = [data for name, data in members.items() if Path(name).name == 'prose']
+        if 'agentsSdk' in manifest:
+            table = pub.read_sdk_archive(root / 'package' / item['path'], manifest)
+            custody.validate_sdk_archive_table(manifest, table)
+            members = {name: data for name, (data, _) in table['files'].items()}
+        else:
+            members = pub.archive_members(root / 'package' / item['path'])
+        binaries = ([members[custody.sdk_archive_prefix(table) + 'prose']] if 'agentsSdk' in manifest
+                    else [data for name, data in members.items() if Path(name).name == 'prose'])
         custody.require(len(binaries) == 1, 'A unique native binary is required')
         hashes[(implementation, manifest['platform'])] = hashlib.sha256(binaries[0]).hexdigest()
     platform_artifact = next((a for a in artifacts if a.get('kind') == 'npm-platform'), None)
     custody.require(platform_artifact is not None, 'Missing npm native artifact')
-    npm_members = pub.archive_members(root / 'package' / platform_artifact['path'])
+    if 'agentsSdk' in manifest:
+        npm_table = pub.read_sdk_archive(root / 'package' / platform_artifact['path'], manifest)
+        custody.validate_sdk_archive_table(manifest, npm_table)
+        npm_members = {name: data for name, (data, _) in npm_table['files'].items()}
+    else:
+        npm_members = pub.archive_members(root / 'package' / platform_artifact['path'])
     custody.require('package/bin/prose' in npm_members
                     and hashlib.sha256(npm_members['package/bin/prose']).hexdigest() == hashes[('bun', manifest['platform'])],
                     'npm native binary differs from standalone archive')
@@ -203,6 +212,10 @@ def verify_kernel_rc(root: Path, expected_source: str, expected_version: str) ->
     launcher_hash = hashlib.sha256(members['package/bin/prose.js']).hexdigest()
     checks = {name: pub.read_json(root / 'logs' / (name + '.json')) for name in custody.CHECKS}
     custody.validate_native(report, manifest, checks, hashes, launcher_hash)
+    if 'agentsSdk' in manifest:
+        custody.require(custody.SDK_PAYLOAD_EVIDENCE in evidence, 'Missing complete installed SDK payload evidence')
+        custody.validate_installed_sdk_payloads(pub.read_json(root / custody.SDK_PAYLOAD_EVIDENCE), manifest, npm_table)
+        custody.validate_sdk_producer_evidence(manifest, npm_table, evidence, lambda relative: (root / relative).read_bytes())
     # Original build trees retain these files; uploaded artifact trees retain the
     # built probes instead. Both bind to the exact packaged executable hashes.
     binaries = root / 'binaries'
@@ -220,6 +233,8 @@ def verify_kernel_rc(root: Path, expected_source: str, expected_version: str) ->
                 'nativeReportSha256': pub.digest(root / 'build-report.json'),
                 'archiveIdentities': [{key: item[key] for key in ('kind', 'implementation', 'platform', 'path', 'sha256', 'byteLength')}
                                       for item in artifacts]}
+    if 'agentsSdk' in manifest:
+        verified['sdkBuild'] = json.loads(npm_table['files'][custody.sdk_archive_prefix(npm_table) + 'agents-sdk-build.json'][0])
     return verified, manifest, archives
 
 
@@ -240,12 +255,19 @@ def run_kernel_rc(root: Path, output: Path, brew: str, expected_source: str, exp
 
 
 def qualify_installed_sdk(active: Path, manifest: dict[str, Any], verified: dict[str, Any],
-                          command: Any, label: str, *, expected_timeout: str = '10m') -> None:
+                          command: Any, label: str, *, expected_timeout: str = '10m') -> dict[str, Any]:
     """Probe the real installed default; synthetic-key dry runs never infer."""
     helper = active.resolve(strict=True).parent / 'prose-agents-sdk'
     sdk = manifest.get('agentsSdk')
     if not isinstance(sdk, dict) or not helper.is_file() or helper.is_symlink() or pub.digest(helper) != sdk.get('sha256'):
         raise ValueError('Homebrew SDK helper differs from the verified package')
+    payload_view = None
+    build = verified.get('sdkBuild')
+    if manifest['platform'].startswith('darwin'):
+        import sdk_native_inventory as native
+        if not isinstance(build, dict) or not isinstance(build.get('payload'), dict):
+            raise ValueError('Homebrew Mac SDK requires a verified complete payload')
+        payload_view = native.read_macos_payload(helper.parent, build['payload'], build['architecture'])
     command(label + '-sdk-imports', [str(helper), '--packaged-self-test'])
     command(label + '-sdk-tools', [str(helper), '--packaged-tool-self-test'])
     def report(suffix: str, argv: list[str], code: int = 0, additions: dict[str, str] | None = None) -> dict[str, Any]:
@@ -275,6 +297,13 @@ def qualify_installed_sdk(active: Path, manifest: dict[str, Any], verified: dict
         raise ValueError('Installed command did not discover the packaged SDK default')
     if dry.get('billingOwner') != 'user-provider' or dry.get('blockingError') is not None:
         raise ValueError('Installed SDK dry run changed billing or reported a blocker')
+    proof = {'stage': label, 'helperSha256': sdk['sha256'], 'receiptSha256': sdk['receiptSha256']}
+    if payload_view is not None:
+        if native.read_macos_payload(helper.parent, build['payload'], build['architecture']) != payload_view:
+            raise ValueError('Homebrew SDK support tree changed during qualification')
+        proof.update(layout=build['payload']['layout'], supportEntries=len(build['payload']['entries']),
+                     totalRegularBytes=build['payload']['totalRegularBytes'], completePayloadVerified=True)
+    return proof
 
 
 def exercise(package: Path, manifest: dict[str, Any], archives: dict[str, Any], verified: dict[str, Any],
@@ -289,6 +318,7 @@ def exercise(package: Path, manifest: dict[str, Any], archives: dict[str, Any], 
     for name in ('cache', 'logs', 'tmp', 'trust', 'user-settings'):
         (output / name).mkdir()
     checks = []
+    sdk_payload_checks = []
 
     def command(label: str, argv: list[str], *, expected_failure: bool = False,
                 expected_code: int = 0, additions: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
@@ -313,6 +343,9 @@ def exercise(package: Path, manifest: dict[str, Any], archives: dict[str, Any], 
     active_helper = prefix / 'bin/prose-agents-sdk'
     if manifest.get('agentsSdk') and (active_helper.exists() or active_helper.is_symlink()):
         raise ValueError('Rehearsal refuses to overwrite an existing SDK helper command')
+    active_support = prefix / 'bin/prose-agents-sdk-runtime'
+    if manifest.get('agentsSdk') and (active_support.exists() or active_support.is_symlink()):
+        raise ValueError('Rehearsal refuses to overwrite an existing SDK support directory')
     tap = output / 'tap'
     (tap / 'Formula').mkdir(parents=True)
     for implementation, item in archives.items():
@@ -344,15 +377,39 @@ def exercise(package: Path, manifest: dict[str, Any], archives: dict[str, Any], 
             if digest != verified['packageIdentity'][f'{implementation}BinarySha256']:
                 raise ValueError('Homebrew executable differs from the verified candidate')
             if isinstance(manifest.get('agentsSdk'), dict):
-                qualify_installed_sdk(active, manifest, verified, command, 'fresh-' + implementation)
+                sdk_payload_checks.append(qualify_installed_sdk(active, manifest, verified, command, 'fresh-' + implementation))
             command(f'unlink-{implementation}', [brew, 'unlink', name])
         command('link-bun', [brew, 'link', f'{TAP}/prose-bun'])
         original = hashlib.sha256(active.read_bytes()).hexdigest()
+        def sdk_link_identity():
+            if not manifest.get('agentsSdk'):
+                return None
+            helper = active.resolve(strict=True).parent / 'prose-agents-sdk'
+            if active_helper.resolve(strict=True) != helper or pub.digest(helper) != manifest['agentsSdk']['sha256']:
+                raise ValueError('Active Homebrew SDK helper linkage differs from selected keg')
+            identity = {'links': {}}
+            for name, path in (('prose', active), ('helper', active_helper), ('support', active_support)):
+                if not (path.exists() or path.is_symlink()):
+                    identity['links'][name] = None
+                else:
+                    metadata = path.lstat()
+                    identity['links'][name] = {'device': metadata.st_dev, 'inode': metadata.st_ino,
+                        'mode': metadata.st_mode, 'mtimeNs': metadata.st_mtime_ns,
+                        'target': os.readlink(path) if path.is_symlink() else None}
+            if manifest['platform'].startswith('darwin'):
+                import sdk_native_inventory as native
+                build = verified['sdkBuild']
+                native.read_macos_payload(helper.parent, build['payload'], build['architecture'])
+                identity['payloadSha256'] = hashlib.sha256(json.dumps(build['payload'], sort_keys=True).encode()).hexdigest()
+            return identity
+        sdk_conflict_before = sdk_link_identity()
         conflict = command('reject-overwrite', [brew, 'link', f'{TAP}/prose-rust'], expected_failure=True)
         if 'Could not symlink' not in conflict.stdout + conflict.stderr:
             raise ValueError('The rejected link did not report a symlink collision')
         if hashlib.sha256(active.read_bytes()).hexdigest() != original:
             raise ValueError('A failed link changed the active executable')
+        if sdk_link_identity() != sdk_conflict_before:
+            raise ValueError('A failed link changed the active SDK linkage or payload')
         command('switch-unlink-bun', [brew, 'unlink', f'{TAP}/prose-bun'])
         command('switch-link-rust', [brew, 'link', f'{TAP}/prose-rust'])
         if hashlib.sha256(active.read_bytes()).hexdigest() != verified['packageIdentity']['rustBinarySha256']:
@@ -364,7 +421,7 @@ def exercise(package: Path, manifest: dict[str, Any], archives: dict[str, Any], 
                 installed = command(label, [brew, 'list', '--formula', '--versions']).stdout
                 if any(line.split()[0].split('/')[-1] in {'prose-bun', 'prose-rust'} for line in installed.splitlines() if line.split()):
                     raise ValueError('Owned rehearsal kegs survived all-version uninstall')
-                if active.exists() or active.is_symlink() or active_helper.exists() or active_helper.is_symlink():
+                if any(path.exists() or path.is_symlink() for path in (active, active_helper, active_support)):
                     raise ValueError('Owned rehearsal commands survived all-version uninstall')
             command('uninstall-fresh-before-upgrade', [brew, 'uninstall', '--force', f'{TAP}/prose-bun', f'{TAP}/prose-rust'])
             require_empty_owned_installation('remaining-kegs-before-upgrades')
@@ -400,7 +457,7 @@ def exercise(package: Path, manifest: dict[str, Any], archives: dict[str, Any], 
                 command(selected + '-test-upgraded-inactive', [brew, 'test', f'{TAP}/prose-{other}'])
                 if pub.digest(active) != verified['packageIdentity'][other + 'BinarySha256']:
                     raise ValueError('Inactive implementation did not upgrade to exact candidate bytes')
-                qualify_installed_sdk(active, manifest, verified, command, selected + '-upgraded-inactive', expected_timeout='9m')
+                sdk_payload_checks.append(qualify_installed_sdk(active, manifest, verified, command, selected + '-upgraded-inactive', expected_timeout='9m'))
                 preserve(selected + '-settings-after-inactive-upgrade')
                 command(selected + '-unlink-upgraded-inactive', [brew, 'unlink', f'{TAP}/prose-{other}'])
                 command(selected + '-upgrade-selected', [brew, 'upgrade', f'{TAP}/prose-{selected}'])
@@ -409,7 +466,7 @@ def exercise(package: Path, manifest: dict[str, Any], archives: dict[str, Any], 
                 selected_prefix = Path(command(selected + '-selected-prefix', [brew, '--prefix', f'{TAP}/prose-{selected}']).stdout.strip())
                 if active.resolve() != (selected_prefix / 'bin/prose').resolve() or pub.digest(active) != verified['packageIdentity'][selected + 'BinarySha256']:
                     raise ValueError('Upgrade changed the selected implementation or candidate identity')
-                qualify_installed_sdk(active, manifest, verified, command, selected + '-upgraded-selected', expected_timeout='9m')
+                sdk_payload_checks.append(qualify_installed_sdk(active, manifest, verified, command, selected + '-upgraded-selected', expected_timeout='9m'))
                 preserve(selected + '-settings-after-selected-upgrade')
                 command(selected + '-uninstall-upgraded', [brew, 'uninstall', '--force', f'{TAP}/prose-bun', f'{TAP}/prose-rust'])
                 require_empty_owned_installation(selected + '-remaining-kegs-after-upgrade')
@@ -433,6 +490,8 @@ def exercise(package: Path, manifest: dict[str, Any], archives: dict[str, Any], 
         raise ValueError('The rehearsal command did not uninstall cleanly')
     if manifest.get('agentsSdk') and (active_helper.exists() or active_helper.is_symlink()):
         raise ValueError('The rehearsal SDK helper command did not uninstall cleanly')
+    if manifest.get('agentsSdk') and (active_support.exists() or active_support.is_symlink()):
+        raise ValueError('The rehearsal SDK support directory did not uninstall cleanly')
     if previous:
         preserve('settings-after-final-cleanup')
     receipt = {'schema': 'openprose.homebrew-rehearsal/1', 'status': ('passed-native-rc-packaging-check' if verified['custodyKind'] == 'kernel-rc-native' else 'passed-development-packaging-check') if completed else 'failed',
@@ -440,6 +499,9 @@ def exercise(package: Path, manifest: dict[str, Any], archives: dict[str, Any], 
                'source': verified.get('source', verified['packageIdentity'].get('sourceRevision', manifest.get('source', {}).get('revision'))), 'custodyKind': verified['custodyKind'],
                'rehearsalManifestSha256': verified['manifestSha256'], 'checks': checks, 'modelCalls': 0,
                'publicationAuthorized': False, 'releaseQualification': False, 'uninstallPassed': True}
+    if sdk_payload_checks:
+        receipt['sdkPayloadChecks'] = sdk_payload_checks
+        receipt['sdkLinkConflictPreserved'] = True
     receipt['upgradeQualification'] = 'passed-genuine-upgrade-both-selections' if previous else 'not-requested-fresh-install-only'
     receipt['kernelRetrieval'] = 'published-kernel-may-be-acquired-by-provider-free-dry-run' if manifest.get('agentsSdk') else 'not-measured'
     if previous:

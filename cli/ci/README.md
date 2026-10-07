@@ -45,6 +45,20 @@ Products transport opaque image/task bytes, spawn argument arrays without an
 outer shell or PTY, and do not infer OpenProse semantics or install ambient
 skills. Black-box tests supply behavioral evidence alongside static checks.
 
+## Packaged SDK checks
+
+Mac SDK construction uses PyInstaller's directory layout. Admission binds every
+physical support file, directory and framework alias, complete COLLECT membership,
+actual Mach-O architecture/signature targets and final hashes. Archive consumers,
+fresh installation, upgrade, Homebrew and relocation verify the complete tree.
+Linux retains the single-file layout and pinned native supplier/ELF closure checks.
+
+Provider-free adapter-oracle fixtures substitute an inert helper. Their recorded
+production source identity and fixture substitution remain distinct from actual
+packaged-helper execution. Synthetic tree and poison controls establish rejection
+behavior; native jobs must separately prove real payload size, cold startup and
+installation. The helper's five-second version-probe deadline remains unchanged.
+
 ## Remote checks and release
 
 [Source admission](../../.github/workflows/cli-ci.yml) runs the full command on

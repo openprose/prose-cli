@@ -15,17 +15,49 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import qualify_installed_sdk as installed
 
 
-def archive(path, members):
+def archive(path, members, table=None):
     with tarfile.open(path, 'w:gz') as target:
         for name, data in members.items():
-            member = tarfile.TarInfo(name); member.size = len(data); member.mode = 0o755
+            data, mode = data if isinstance(data, tuple) else (data, 0o755)
+            member = tarfile.TarInfo(name); member.size = len(data); member.mode = mode
             target.addfile(member, io.BytesIO(data))
+        for name, mode in (table or {}).get('directories', {}).items():
+            member = tarfile.TarInfo(name); member.type = tarfile.DIRTYPE; member.mode = mode; target.addfile(member)
+        for name, text in (table or {}).get('symlinks', {}).items():
+            member = tarfile.TarInfo(name); member.type = tarfile.SYMTYPE; member.mode = 0o777; member.linkname = text; target.addfile(member)
+
+
+def sdk_archive(path, extra=None, prefix='payload/'):
+    from test_kernel_rc_evidence import sdk_fixture
+    sdk, scoped = sdk_fixture('darwin-x64')
+    table = {kind: {prefix + name: value for name, value in rows.items()} for kind, rows in scoped.items()}
+    table['files'].update(extra or {prefix + 'prose': (b'cli', 0o755)})
+    archive(path, table['files'], table)
+    return {'agentsSdk': sdk, 'platform': 'darwin-x64'}, table
+
+
+def sdk_archive_with_resource_names(path):
+    manifest, table = sdk_archive(path)
+    payload = json.loads(table['files']['payload/agents-sdk-build.json'][0])
+    for name in ('prose', 'agents-sdk-build.json'):
+        relative = 'prose-agents-sdk-runtime/' + name
+        data = b'support resource ' + name.encode()
+        table['files']['payload/' + relative] = (data, 0o644)
+        payload['payload']['entries'].append({'path': relative, 'type': 'file', 'mode': 0o644,
+            'byteLength': len(data), 'sha256': hashlib.sha256(data).hexdigest()})
+        payload['payload']['totalRegularBytes'] += len(data)
+    payload['payload']['entries'].sort(key=lambda row: row['path'])
+    encoded = json.dumps(payload, sort_keys=True).encode()
+    table['files']['payload/agents-sdk-build.json'] = (encoded, 0o644)
+    manifest['agentsSdk']['receiptSha256'] = hashlib.sha256(encoded).hexdigest()
+    archive(path, table['files'], table)
+    return manifest, table
 
 
 class InstallationQualificationTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory(); self.addCleanup(self.temporary.cleanup)
-        self.root = Path(self.temporary.name)
+        self.root = Path(self.temporary.name).resolve()
         self.node = self.root / 'node'; self.node.write_bytes(b'node-fixture'); self.node.chmod(0o755)
         self.npm = self.root / 'npm-cli.js'; self.npm.write_bytes(b'npm-fixture')
 
@@ -74,25 +106,27 @@ class InstallationQualificationTests(unittest.TestCase):
 
     def test_standalone_extracts_bound_siblings_and_relocation_preserves_bytes(self):
         path = self.root / 'package.tgz'
-        data = {'payload/prose': b'cli', **{'payload/' + n: n.encode() for n in installed.SDK_NAMES}}
-        archive(path, data)
-        receipt = installed.extract_standalone(path, self.root / 'install', sdk=True)
+        manifest, _ = sdk_archive(path)
+        receipt = installed.extract_standalone(path, self.root / 'install', sdk=True, manifest=manifest)
         (self.root / 'install').rename(self.root / 'relocated')
-        self.assertEqual(set(receipt), {'prose', *installed.SDK_NAMES})
+        self.assertEqual(set(receipt), {'prose', *installed.SDK_NAMES, 'supportTree'})
         for name, record in receipt.items():
+            if name == "supportTree": continue
             self.assertEqual(installed.pub.digest(self.root / 'relocated' / name), record['sha256'])
         with self.assertRaisesRegex(ValueError, 'fresh'):
-            installed.extract_standalone(path, self.root / 'relocated', sdk=True)
+            installed.extract_standalone(path, self.root / 'relocated', sdk=True, manifest=manifest)
 
     def test_archive_link_and_missing_helper_rejected_before_execution(self):
         path = self.root / 'bad.tgz'
         with tarfile.open(path, 'w:gz') as target:
             member = tarfile.TarInfo('payload/prose'); member.type = tarfile.SYMTYPE; member.linkname = '/user/bin/prose'; target.addfile(member)
-        with self.assertRaisesRegex(ValueError, 'Links'):
-            installed.extract_standalone(path, self.root / 'install', sdk=True)
+        from test_kernel_rc_evidence import sdk_fixture
+        manifest = {'platform': 'darwin-x64', 'agentsSdk': sdk_fixture('darwin-x64')[0]}
+        with self.assertRaises(ValueError):
+            installed.extract_standalone(path, self.root / 'install', sdk=True, manifest=manifest)
         archive(path, {'payload/prose': b'cli'})
-        with self.assertRaisesRegex(ValueError, 'siblings'):
-            installed.extract_standalone(path, self.root / 'install', sdk=True)
+        with self.assertRaisesRegex(ValueError, 'SDK'):
+            installed.extract_standalone(path, self.root / 'install', sdk=True, manifest=manifest)
         self.assertFalse((self.root / 'install').exists())
 
     def test_artifact_digest_and_regular_file_binding(self):
@@ -104,19 +138,21 @@ class InstallationQualificationTests(unittest.TestCase):
             installed.artifact(self.root, record)
 
     def test_npm_original_alias_cohort_and_native_binding(self):
-        source = '1' * 40; version = '0.15.0-rc.4'; platform = 'darwin-arm64'; binary = b'compiled-bun'
+        source = '1' * 40; version = '0.15.0-rc.4'; platform = 'darwin-x64'; binary = b'compiled-bun'
         payload_version = installed.package_local.npm_payload_version(version, platform)
         cohort = {'sourceRevision': source, 'version': version}
         meta = {'name': '@openprose/prose-cli', 'version': version, 'openproseCohort': cohort, 'optionalDependencies': {'@openprose/prose-cli-' + platform: 'npm:@openprose/prose-cli@' + payload_version}}
         native = {'name': '@openprose/prose-cli', 'version': payload_version, 'openproseCohort': cohort}
         archive(self.root / 'meta.tgz', {'package/package.json': json.dumps(meta).encode(), 'package/bin/prose.js': b'launcher'})
-        archive(self.root / 'native.tgz', {'package/package.json': json.dumps(native).encode(), 'package/bin/prose': binary})
+        sdk_manifest, native_table = sdk_archive(self.root / 'native.tgz', {'package/package.json': (json.dumps(native).encode(), 0o644), 'package/bin/prose': (binary, 0o755)}, prefix='package/bin/')
         manifest = {'source': {'revision': source}, 'version': version, 'artifacts': [{'kind': kind, 'platform': target, 'path': path.name, 'byteLength': path.stat().st_size, 'sha256': installed.pub.digest(path)} for kind, target, path in [('npm-meta', None, self.root / 'meta.tgz'), ('npm-platform', platform, self.root / 'native.tgz')]]}
+        manifest['agentsSdk'] = sdk_manifest['agentsSdk']; manifest['platform'] = 'darwin-x64'
         self.assertEqual(installed.npm_inputs(self.root, manifest, platform, expected_binary=hashlib.sha256(binary).hexdigest()), (self.root / 'meta.tgz', self.root / 'native.tgz'))
         with self.assertRaisesRegex(ValueError, 'differs from verified'):
             installed.npm_inputs(self.root, manifest, platform, expected_binary='0' * 64)
         native['scripts'] = {'postinstall': 'touch bad'}
-        archive(self.root / 'native.tgz', {'package/package.json': json.dumps(native).encode(), 'package/bin/prose': binary})
+        native_table['files']['package/package.json'] = (json.dumps(native).encode(), 0o644)
+        archive(self.root / 'native.tgz', native_table['files'], native_table)
         manifest['artifacts'][1].update(byteLength=(self.root / 'native.tgz').stat().st_size, sha256=installed.pub.digest(self.root / 'native.tgz'))
         with self.assertRaisesRegex(ValueError, 'lifecycle'):
             installed.npm_inputs(self.root, manifest, platform)
@@ -226,6 +262,87 @@ class InstallationQualificationTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'custody rejected'):
                 installed.qualify(self.root / 'candidate', self.root / 'previous', self.root / 'output', '1' * 40, '0.15.0-rc.4', self.node, self.npm)
         verifier.assert_called_once(); self.assertFalse((self.root / 'output').exists())
+
+    def test_support_resource_named_prose_does_not_select_cli(self):
+        manifest, _ = sdk_archive_with_resource_names(self.root / 'complete.tgz')
+        directory = self.root / 'installed'
+        installed.extract_standalone(self.root / 'complete.tgz', directory, sdk=True, manifest=manifest)
+        self.assertEqual((directory / 'prose').read_bytes(), b'cli')
+        self.assertEqual((directory / 'prose-agents-sdk-runtime/prose').read_bytes(), b'support resource prose')
+
+    def test_complete_tree_relocation_and_aliases_are_preserved(self):
+        manifest, _ = sdk_archive(self.root / 'complete.tgz')
+        directory = self.root / 'installed'
+        installed.extract_standalone(self.root / 'complete.tgz', directory, sdk=True, manifest=manifest)
+        before = installed.installed_sdk_identity(directory, manifest['agentsSdk'])
+        directory.rename(self.root / 'relocated-complete')
+        self.assertEqual(before, installed.installed_sdk_identity(self.root / 'relocated-complete', manifest['agentsSdk']))
+        framework = self.root / 'relocated-complete/prose-agents-sdk-runtime/Python.framework'
+        self.assertTrue((framework / 'Versions/Current').is_symlink())
+        self.assertEqual(os.readlink(framework / 'Versions/Current'), '3.10')
+        (framework / 'Versions/3.10/Python').write_bytes(b'changed')
+        with self.assertRaises(ValueError):
+            installed.installed_sdk_identity(self.root / 'relocated-complete', manifest['agentsSdk'])
+
+    def test_missing_support_refused_before_any_helper_probe(self):
+        manifest, _ = sdk_archive(self.root / 'complete.tgz')
+        q = self.qualification(); directory = q.output / 'installed'
+        installed.extract_standalone(self.root / 'complete.tgz', directory, sdk=True, manifest=manifest)
+        import shutil
+        shutil.rmtree(directory / 'prose-agents-sdk-runtime')
+        with patch.object(q, 'execute') as execute:
+            with self.assertRaises(ValueError):
+                q.payload(directory, installed.pub.digest(directory / 'prose'), manifest['agentsSdk'])
+            execute.assert_not_called()
+
+    def test_support_mutation_during_mocked_tool_probe_cannot_be_recorded(self):
+        manifest, _ = sdk_archive(self.root / 'complete.tgz')
+        q = self.qualification(); directory = q.output / 'installed'
+        installed.extract_standalone(self.root / 'complete.tgz', directory, sdk=True, manifest=manifest)
+        def mocked(argv, **kwargs):
+            if argv[-1] == '--packaged-tool-self-test':
+                (directory / 'prose-agents-sdk-runtime/empty-data').write_bytes(b'mutated')
+                expected = installed.kernel_rc_evidence.SDK_TOOL_TEST
+            else: expected = installed.kernel_rc_evidence.SDK_IMPORT_TEST
+            return {'stdout': json.dumps(expected), 'stderr': ''}
+        with patch.object(q, 'execute', side_effect=mocked):
+            with self.assertRaises(ValueError):
+                q.payload(directory, installed.pub.digest(directory / 'prose'), manifest['agentsSdk'])
+        self.assertEqual(q.payloads, [])
+
+    def test_receipt_dictionary_is_once_bound_and_missing_unreferenced_poison_refused(self):
+        import copy
+        manifest, _ = sdk_archive(self.root / 'complete.tgz')
+        q = self.qualification(); directory = q.output / 'installed'
+        installed.extract_standalone(self.root / 'complete.tgz', directory, sdk=True, manifest=manifest)
+        def mocked(argv, **kwargs):
+            expected = installed.kernel_rc_evidence.SDK_TOOL_TEST if argv[-1] == '--packaged-tool-self-test' else installed.kernel_rc_evidence.SDK_IMPORT_TEST
+            return {'stdout': json.dumps(expected), 'stderr': ''}
+        with patch.object(q, 'execute', side_effect=mocked):
+            q.payload(directory, installed.pub.digest(directory / 'prose'), manifest['agentsSdk'])
+        installed.validate_payload_evidence(q.payloads, q.sdk_evidence, 'darwin-x64')
+        with self.assertRaisesRegex(ValueError, 'architecture differs'):
+            installed.validate_payload_evidence(q.payloads, q.sdk_evidence, 'darwin-arm64')
+        self.assertEqual(len(q.sdk_evidence), 1)
+        self.assertNotIn('payload', q.payloads[0]['members']['supportTree'])
+        for poison in ('missing', 'unreferenced', 'support-count', 'receipt-bytes', 'record-extra'):
+            records, evidence = copy.deepcopy(q.payloads), dict(q.sdk_evidence)
+            if poison == 'missing': evidence.clear()
+            elif poison == 'unreferenced': evidence['0' * 64] = next(iter(evidence.values()))
+            elif poison == 'support-count': records[0]['before']['supportTree']['entryCount'] = True
+            elif poison == 'receipt-bytes': evidence[next(iter(evidence))] += ' '
+            else: records[0]['unknown'] = 'not-accepted'
+            with self.subTest(poison=poison), self.assertRaises(ValueError):
+                installed.validate_payload_evidence(records, evidence, 'darwin-x64')
+        digest = next(iter(q.sdk_evidence))
+        raw = q.sdk_evidence[digest].replace('{', '{"schema":"duplicate",', 1)
+        rebound = hashlib.sha256(raw.encode()).hexdigest()
+        records = copy.deepcopy(q.payloads)
+        for identity in (records[0]['before'], records[0]['after'], records[0]['members']):
+            identity['supportTree']['receiptSha256'] = rebound
+            identity['agents-sdk-build.json'] = {'sha256': rebound, 'byteLength': len(raw.encode())}
+        with self.assertRaises(ValueError):
+            installed.validate_payload_evidence(records, {rebound: raw}, 'darwin-x64')
 
 
 if __name__ == '__main__':

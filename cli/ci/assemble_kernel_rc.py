@@ -52,16 +52,21 @@ def assemble(roots, output, evidence, live_smoke=None):
                 inventory[name] = (actual, record)
         artifact_names = {a['path'] for a in manifest['artifacts']}
         pub.require(set(custody.CHECK_PATHS).issubset(report['evidence']), 'Required structured evidence is missing')
-        custody.validate_sdk_archives(manifest, lambda name: pub.archive_members(package / name))
+        custody.validate_sdk_archives(manifest, lambda name: pub.read_sdk_archive(package / name, manifest))
         for relative in custody.SDK_PROBES:
             pub.require(relative in report['evidence'], 'Missing installed SDK evidence')
             pub.require(pub.read_json(root / relative) == (custody.SDK_TOOL_TEST if 'sdk-tools-' in relative else custody.SDK_IMPORT_TEST), 'Installed SDK probe differs')
         native_hashes = {}
         launcher_hash = None
         for artifact in manifest['artifacts']:
-            members = pub.archive_members(package / artifact['path'])
+            if artifact['kind'] == 'npm-meta':
+                members = pub.archive_members(package / artifact['path'])
+            else:
+                table = pub.read_sdk_archive(package / artifact['path'], manifest)
+                custody.validate_sdk_archive_table(manifest, table)
+                members = {name: data for name, (data, _) in table['files'].items()}
             if artifact['kind'] == 'standalone-archive':
-                binaries = [data for name, data in members.items() if name.endswith('/prose')]
+                binaries = [members[custody.sdk_archive_prefix(table) + 'prose']]
                 pub.require(len(binaries) == 1, 'Expected one standalone binary')
                 native_hashes[(artifact['implementation'], platform)] = hashlib.sha256(binaries[0]).hexdigest()
             elif artifact['kind'] == 'npm-meta':
@@ -69,6 +74,9 @@ def assemble(roots, output, evidence, live_smoke=None):
                 launcher_hash = hashlib.sha256(members['package/bin/prose.js']).hexdigest()
         checks = {name: pub.read_json(root / ('logs/' + name + '.json')) for name in custody.CHECKS}
         custody.validate_native(report, manifest, checks, native_hashes, launcher_hash)
+        pub.require(custody.SDK_PAYLOAD_EVIDENCE in report['evidence'], 'Missing complete installed SDK payload evidence')
+        custody.validate_installed_sdk_payloads(pub.read_json(root / custody.SDK_PAYLOAD_EVIDENCE), manifest, table)
+        custody.validate_sdk_producer_evidence(manifest, table, report['evidence'], lambda relative: (root / relative).read_bytes())
         all_binary_hashes.update(native_hashes)
         # Retain every report-bound input, including the five structured native
         # observations. Publication independently repeats these bindings.

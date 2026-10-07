@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Build and install an unsigned RC with published-kernel startup, without model calls."""
 import argparse
+import base64
 import hashlib
 import json
 import os
@@ -11,6 +12,9 @@ import shutil
 import subprocess
 import sys
 import tarfile
+import publication as pub
+import kernel_rc_evidence as sdk_custody
+import sdk_native_inventory as sdk_inventory
 
 ROOT = Path(__file__).resolve().parents[2]
 RC = re.compile(r'(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-rc\.(0|[1-9][0-9]*)')
@@ -73,8 +77,76 @@ def prepare_macos_binary(binary, env, logs):
             cwd=ROOT, log=logs / 'rust-ad-hoc-verify.log', timeout=60)
 
 
-def extract_binary(archive, output, *, require_sdk=False):
+def sdk_producer_evidence(output, sdk_output):
+    """Retain producer COLLECT and actual signature execution sidecars."""
+    receipt = json.loads(sdk_inventory.read_file(sdk_output / 'agents-sdk-build.json', 2 * 1024 * 1024), object_pairs_hook=pub.object_pairs)
+    if receipt.get('platform') != 'darwin':
+        return {}
+    payload = receipt['payload']; paths = [sdk_output / 'collect.toc']
+    require(paths[0].is_file() and not paths[0].is_symlink() and 0 < paths[0].stat().st_size <= 2 * 1024 * 1024, 'SDK COLLECT evidence must be bounded regular bytes')
+    collect = sdk_inventory.read_file(paths[0], 2 * 1024 * 1024)
+    require(hashlib.sha256(collect).hexdigest() == payload['collectTocSha256'], 'SDK COLLECT evidence differs')
+    checks = [('codesign-' + str(i).zfill(4) + '.log', path, 'strict')
+              for i, path in enumerate(payload['codeSignaturePaths'])]
+    checks.append(('codesign.log', 'prose-agents-sdk', 'strict-deep'))
+    check_rows = []; raw_outputs = {}
+    for name, target, verification in checks:
+        path = sdk_output / name
+        require(path.is_file() and not path.is_symlink() and 0 < path.stat().st_size <= 128 * 1024, 'SDK signature sidecar missing or unbounded')
+        proof = json.loads(sdk_inventory.read_file(path, 128 * 1024), object_pairs_hook=pub.object_pairs)
+        require(isinstance(proof, dict) and set(proof) == {'schema', 'phase', 'path', 'verification', 'exitCode', 'stdoutBytes', 'stderrBytes', 'timedOut', 'outputLimitExceeded', 'timeoutSeconds', 'success', 'outputComplete', 'rawOutput'} and proof.get('phase') == 'code-signature' and proof.get('schema') == 'openprose.sdk-code-signature-check/1' and
+                proof.get('path') == target and proof.get('verification') == verification and
+                proof.get('exitCode') == 0 and type(proof.get('exitCode')) is int and
+                proof.get('timeoutSeconds') == 30 and proof.get('success') is True and
+                proof.get('outputComplete') is True and proof.get('timedOut') is False and
+                proof.get('outputLimitExceeded') is False, 'SDK signature sidecar is not a completed verification')
+        paths.append(path); check_rows.append({'log': name, 'proof': proof})
+        raw = proof.get('rawOutput')
+        require(isinstance(raw, dict) and set(raw) <= {'stdout', 'stderr'} and
+                all(type(proof.get(stream + 'Bytes')) is int and 0 <= proof[stream + 'Bytes'] <= 65536 and
+                    (stream in raw) == (proof[stream + 'Bytes'] > 0) for stream in ('stdout', 'stderr')), 'SDK raw signature output differs')
+        for stream, record in raw.items():
+            require(isinstance(record, dict) and set(record) == {'path', 'sha256', 'byteLength'} and record['path'] == name + '.' + stream, 'SDK raw signature output path differs')
+            raw_path = sdk_output / record['path']
+            require(raw_path.is_file() and not raw_path.is_symlink() and type(record['byteLength']) is int and
+                    0 < record['byteLength'] <= 65536 and raw_path.stat().st_size == record['byteLength'] and
+                    proof.get(stream + 'Bytes') == record['byteLength'], 'SDK raw signature output custody differs')
+            paths.append(raw_path)
+            raw_data = sdk_inventory.read_file(raw_path, 65536)
+            require(len(raw_data) == record['byteLength'] and hashlib.sha256(raw_data).hexdigest() == record['sha256'], 'SDK raw signature output changed while bundling')
+            raw_outputs[raw_path.name] = {'sha256': record['sha256'], 'byteLength': record['byteLength'],
+                                          'base64': base64.b64encode(raw_data).decode('ascii')}
+    aggregate = {'schema': 'openprose.sdk-code-signatures/1', 'architecture': receipt['architecture'],
+                 'payloadSha256': hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(',', ':')).encode()).hexdigest(),
+                 'checks': check_rows, 'rawOutputs': raw_outputs}
+    encoded = json.dumps(aggregate, sort_keys=True).encode() + b'\n'
+    require(0 < len(encoded) <= 16 * 1024 * 1024, 'SDK signature aggregate exceeds evidence bound')
+    logs = output / 'logs'; logs.mkdir(exist_ok=True)
+    require(logs.is_dir() and not logs.is_symlink(), 'SDK producer logs directory must be real')
+    targets = [(logs / 'sdk-code-signatures.json', encoded), (logs / 'sdk-collect.toc', collect)]
+    require(all(not path.exists() and not path.is_symlink() for path, _ in targets), 'SDK producer aggregate paths must be fresh')
+    result = {}
+    for path, data in targets:
+        with path.open('xb') as stream: stream.write(data)
+        result[str(path.relative_to(output))] = {'sha256': digest(path), 'byteLength': len(data)}
+    return result
+
+
+def extract_binary(archive, output, *, require_sdk=False, manifest=None):
     """Extract only one regular executable; reject unsafe archive metadata first."""
+    if require_sdk:
+        require(isinstance(manifest, dict), 'SDK extraction requires bound production manifest')
+        table = pub.read_sdk_archive(archive, manifest)
+        sdk_custody.validate_sdk_archive_table(manifest, table)
+        prefix = sdk_custody.sdk_archive_prefix(table)
+        data, mode = table['files'][prefix + 'prose']
+        require(mode & 0o111, 'Missing executable')
+        output.parent.mkdir(parents=True, exist_ok=False)
+        with output.open('xb') as target:
+            target.write(data)
+        output.chmod(0o755)
+        sdk_custody.materialize_sdk_members(manifest, table, output.parent)
+        return output
     with tarfile.open(archive) as source:
         members = source.getmembers()
         require(len(members) <= 100, 'Too many archive members')
@@ -105,6 +177,12 @@ def extract_binary(archive, output, *, require_sdk=False):
                 shutil.copyfileobj(src, dst)
             target.chmod(0o755 if target.name == 'prose-agents-sdk' else 0o644)
     return output
+
+
+def installed_sdk_identity(directory, manifest):
+    """Retain exact complete identity before and after actual installed probes."""
+    from qualify_installed_sdk import installed_sdk_identity as inspect
+    return inspect(directory, manifest['agentsSdk'])
 
 
 def verified_artifacts(package):
@@ -188,15 +266,20 @@ def build(version, output, *, agents_sdk_python=None, linux_python_archive=None)
         args += ['--readelf', executable_tool('readelf', env)]
     command(args, env=env, cwd=ROOT, log=logs / 'package.log')
     manifest = verified_artifacts(package)
+    sdk_records = []
     for item in manifest['artifacts']:
         if item['kind'] == 'standalone-archive':
             runner = item['implementation']
-            binary = extract_binary(package / item['path'], output / 'installed' / runner / 'prose', require_sdk=True)
+            binary = extract_binary(package / item['path'], output / 'installed' / runner / 'prose', require_sdk=True, manifest=manifest)
+            sdk_before = installed_sdk_identity(binary.parent, manifest)
             check(binary, runner, 'installed-' + runner)
             command([binary.parent / 'prose-agents-sdk', '--packaged-self-test'], env=env, cwd=output,
                     log=logs / ('installed-sdk-' + runner + '.json'), timeout=30)
             command([binary.parent / 'prose-agents-sdk', '--packaged-tool-self-test'], env=env, cwd=output,
                     log=logs / ('installed-sdk-tools-' + runner + '.json'), timeout=30)
+            sdk_after = installed_sdk_identity(binary.parent, manifest)
+            require(sdk_after == sdk_before, 'Installed SDK tree changed during probes')
+            sdk_records.append({'surface': 'installed-' + runner, 'before': sdk_before, 'after': sdk_after})
     prefix = output / 'npm-prefix'
     from npm_alias_install import install as install_alias
     meta = next(package / a['path'] for a in manifest['artifacts'] if a['kind'] == 'npm-meta')
@@ -205,15 +288,21 @@ def build(version, output, *, agents_sdk_python=None, linux_python_archive=None)
                                   command=command, log=logs / 'npm-install.log')
     (logs / 'npm-alias-install.json').write_text(json.dumps(alias_install, sort_keys=True) + '\n')
     node = shutil.which('node', path=env.get('PATH')); require(node, 'Node is required for npm launcher')
-    check(prefix / 'bin/prose', 'bun', 'installed-npm', node)
-    installed_helpers = list((prefix / 'lib/node_modules').rglob('prose-agents-sdk'))
-    require(len(installed_helpers) == 1 and installed_helpers[0].is_file() and not installed_helpers[0].is_symlink(),
+    installed_helpers = [prefix / 'lib/node_modules/@openprose' / ('prose-cli-' + manifest['platform']) / 'bin/prose-agents-sdk']
+    require(installed_helpers[0].is_file() and not installed_helpers[0].is_symlink(),
             'npm installation requires one package-owned SDK helper')
-    require(digest(installed_helpers[0]) == manifest['agentsSdk']['sha256'], 'Installed npm SDK helper differs')
+    sdk_before = installed_sdk_identity(installed_helpers[0].parent, manifest)
+    check(prefix / 'bin/prose', 'bun', 'installed-npm', node)
     command([installed_helpers[0], '--packaged-self-test'], env=env, cwd=output,
             log=logs / 'installed-sdk-npm.json', timeout=30)
     command([installed_helpers[0], '--packaged-tool-self-test'], env=env, cwd=output,
             log=logs / 'installed-sdk-tools-npm.json', timeout=30)
+    sdk_after = installed_sdk_identity(installed_helpers[0].parent, manifest)
+    require(sdk_after == sdk_before, 'Installed npm SDK tree changed during probes')
+    sdk_records.append({'surface': 'installed-npm', 'before': sdk_before, 'after': sdk_after})
+    sdk_encoded = json.dumps(sdk_records, sort_keys=True).encode('utf-8') + b'\n'
+    require(len(sdk_encoded) <= 16 * 1024 * 1024, 'Installed SDK payload record exceeds evidence bound')
+    (logs / 'installed-sdk-payloads.json').write_bytes(sdk_encoded)
     report = {'schema': 'openprose.kernel-rc-build/1', 'version': version, 'sourceRevision': revision,
               'platform': manifest['platform'], 'imageSource': 'published-on-run', 'testSeamsEnabled': False,
               'signing': 'unsigned', 'modelCalls': 0, 'kernelFetches': 0,
@@ -221,6 +310,11 @@ def build(version, output, *, agents_sdk_python=None, linux_python_archive=None)
               'publicationAuthorized': False, 'checks': [{'name': name, 'status': 'passed'} for name in ['built-bun', 'built-rust', 'installed-bun', 'installed-rust', 'installed-npm']],
               'evidence': {str(p.relative_to(output)): {'sha256': digest(p), 'byteLength': p.stat().st_size} for directory in (logs, package)
                            for p in sorted(directory.rglob('*')) if p.is_file()}}
+    report['evidence'].update(sdk_producer_evidence(output, sdk_output))
+    if manifest['platform'].startswith('darwin-'):
+        producer_archive = next(package / item['path'] for item in manifest['artifacts'] if item['kind'] == 'standalone-archive')
+        sdk_custody.validate_sdk_producer_evidence(manifest, pub.read_sdk_archive(producer_archive, manifest),
+            report['evidence'], lambda name: (output / name).read_bytes())
     if sys.platform.startswith('linux'):
         native_evidence = output / 'agents-sdk-runtime'
         report['evidence'].update({str(p.relative_to(output)): {'sha256': digest(p), 'byteLength': p.stat().st_size}

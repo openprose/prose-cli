@@ -15,6 +15,7 @@ import kernel_rc_evidence
 import npm_alias_install
 import package_local
 import publication as pub
+import sdk_native_inventory as sdk_inventory
 
 PREVIOUS_MANIFEST_SHA256 = '571eb285f964ea980d4e3aec6aa574f782b9d51f2a6934d219bc2ae7d8755e4f'
 SETUP_ACTION = 'Set OPENAI_API_KEY to an OpenAI API key in the process environment, then retry. No model request was sent.'
@@ -56,7 +57,9 @@ def npm_inputs(root: Path, manifest: dict, platform: str, *, previous=False, exp
         records = [a for a in manifest['artifacts'] if a['kind'] == kind and a.get('platform') == target]
         pub.require(len(records) == 1, 'Exactly one npm artifact per role is required')
         selected.append(artifact(root, records[0], previous=previous))
-    meta, native = [pub.archive_members(path) for path in selected]
+    meta = pub.archive_members(selected[0])
+    native = (pub.archive_members(selected[1]) if previous else
+              {name: value[0] for name, value in pub.read_sdk_archive(selected[1], manifest)['files'].items()})
     for members in (meta, native):
         pub.require('package/package.json' in members, 'Missing npm package metadata')
     root_package, platform_package = [json.loads(m['package/package.json'], object_pairs_hook=pub.object_pairs) for m in (meta, native)]
@@ -73,14 +76,25 @@ def npm_inputs(root: Path, manifest: dict, platform: str, *, previous=False, exp
     return tuple(selected)
 
 
-def extract_standalone(archive: Path, directory: Path, *, sdk: bool) -> dict:
+def extract_standalone(archive: Path, directory: Path, *, sdk: bool, manifest=None) -> dict:
     """Extract only verified regular payloads, never archive metadata or links."""
     pub.require(not directory.exists() and not directory.is_symlink(), 'Installation must be fresh')
-    members = pub.archive_members(archive)
-    executables = [name for name in members if Path(name).name == 'prose']
-    pub.require(len(executables) == 1 and len(Path(executables[0]).parts) == 2, 'Unique package-root CLI required')
-    prefix = executables[0].rsplit('/', 1)[0] + '/'
-    names = ('prose', *SDK_NAMES) if sdk else ('prose',)
+    table = None
+    if sdk:
+        pub.require(isinstance(manifest, dict), 'SDK installation requires bound production manifest')
+        table = pub.read_sdk_archive(archive, manifest)
+        kernel_rc_evidence.validate_sdk_archive_table(manifest, table)
+        members = {name: value[0] for name, value in table['files'].items()}
+    else:
+        # Explicit published RC3 extraction retains its original regular-only policy.
+        members = pub.archive_members(archive)
+    if sdk:
+        prefix = kernel_rc_evidence.sdk_archive_prefix(table)
+    else:
+        executables = [name for name in members if Path(name).name == 'prose']
+        pub.require(len(executables) == 1 and len(Path(executables[0]).parts) == 2, 'Unique package-root CLI required')
+        prefix = executables[0].rsplit('/', 1)[0] + '/'
+    names = ('prose',)
     pub.require(all(prefix + name in members for name in names), 'Required executable siblings missing')
     directory.mkdir(parents=True)
     receipt = {}
@@ -91,7 +105,86 @@ def extract_standalone(archive: Path, directory: Path, *, sdk: bool) -> dict:
             stream.write(data)
         path.chmod(0o755 if name in ('prose', 'prose-agents-sdk') else 0o644)
         receipt[name] = {'sha256': hashlib.sha256(data).hexdigest(), 'byteLength': len(data)}
+    if sdk:
+        kernel_rc_evidence.materialize_sdk_members(manifest, table, directory)
+        receipt.update(installed_sdk_identity(directory, manifest['agentsSdk']))
     return receipt
+
+
+def installed_sdk_identity(directory: Path, sdk_record: dict) -> dict:
+    """Authenticate the full installed Mac tree; Linux keeps its frozen trio."""
+    identities = {}
+    for name, key in zip(SDK_NAMES, ('sha256', 'receiptSha256', 'noticesSha256')):
+        path = directory / name
+        regular(path)
+        pub.require(pub.digest(path) == sdk_record[key], 'Installed SDK sibling bytes differ')
+        identities[name] = {'sha256': sdk_record[key], 'byteLength': path.stat().st_size}
+    receipt_path = directory / SDK_NAMES[1]
+    pub.require(0 < receipt_path.stat().st_size <= 2 * 1024 * 1024, 'Installed SDK receipt exceeds bound')
+    receipt = json.loads(receipt_path.read_bytes(), object_pairs_hook=pub.object_pairs)
+    pub.require(isinstance(receipt, dict), 'Installed SDK receipt must be an object')
+    if receipt.get('platform') == 'darwin':
+        payload = receipt.get('payload')
+        sdk_inventory.read_macos_payload(directory, payload, receipt.get('architecture'))
+        identities['supportTree'] = {'payload': payload,
+            'sha256': hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(',', ':')).encode()).hexdigest(),
+            'byteLength': payload['totalRegularBytes'], 'entryCount': len(payload['entries'])}
+    return identities
+
+
+def validate_payload_evidence(records, evidence, platform):
+    """Validate captured receipt references; this does not re-execute native proof."""
+    pub.require(isinstance(records, list) and 0 < len(records) <= 32, 'Installed payload record bound differs')
+    mac = isinstance(platform, str) and platform.startswith('darwin-')
+    pub.require(isinstance(evidence, dict) and (len(evidence) == 1 if mac else not evidence), 'SDK evidence dictionary differs')
+    receipts = {}
+    for digest, encoded in evidence.items():
+        pub.require(isinstance(digest, str) and re.fullmatch('[0-9a-f]{64}', digest)
+                    and isinstance(encoded, str), 'SDK evidence key/value differs')
+        raw = encoded.encode('utf-8')
+        pub.require(0 < len(raw) <= 2 * 1024 * 1024 and hashlib.sha256(raw).hexdigest() == digest,
+                    'SDK evidence receipt digest/length differs')
+        receipt = json.loads(raw, object_pairs_hook=pub.object_pairs)
+        pub.require(isinstance(receipt, dict) and receipt.get('schema') == 'openprose.agents-sdk-build/1'
+                    and receipt.get('platform') == 'darwin', 'SDK evidence platform differs')
+        pub.require(receipt.get('architecture') == {'darwin-arm64': 'arm64', 'darwin-x64': 'x86_64'}.get(platform), 'SDK evidence architecture differs from qualification platform')
+        sdk_inventory.validate_macos_payload_structure(receipt['payload'], receipt['architecture'])
+        receipts[digest] = receipt
+    referenced = set()
+    for record in records:
+        pub.require(isinstance(record, dict) and set(record) == {'directory', 'members', 'before', 'after'}
+                    and record['before'] == record['after'], 'Installed payload record shape/equality differs')
+        pub.require(isinstance(record['directory'], str) and record['directory']
+                    and not Path(record['directory']).is_absolute() and '..' not in Path(record['directory']).parts,
+                    'Installed payload directory differs')
+        identity = record['before']
+        pub.require(isinstance(identity, dict) and set(identity) == set(SDK_NAMES) | ({'supportTree'} if mac else set()),
+                    'Installed SDK identity shape differs')
+        pub.require(isinstance(record['members'], dict) and set(record['members']) == set(identity) | {'prose'}
+                    and all(record['members'][key] == value for key, value in identity.items()),
+                    'Installed member identities differ')
+        for name in ('prose', *SDK_NAMES):
+            row = record['members'][name]
+            pub.require(isinstance(row, dict) and set(row) == {'sha256', 'byteLength'}
+                        and isinstance(row['sha256'], str) and re.fullmatch('[0-9a-f]{64}', row['sha256'])
+                        and type(row['byteLength']) is int and 0 < row['byteLength'] <= 256 * 1024 * 1024,
+                        'Installed sibling identity differs')
+        if mac:
+            tree = identity['supportTree']
+            pub.require(isinstance(tree, dict) and set(tree) == {'sha256', 'byteLength', 'entryCount', 'receiptSha256'},
+                        'Installed support reference shape differs')
+            digest = tree['receiptSha256']; pub.require(isinstance(digest, str) and digest in receipts, 'Missing SDK receipt reference')
+            referenced.add(digest); receipt = receipts[digest]; payload = receipt['payload']
+            expected = {'sha256': hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(',', ':')).encode()).hexdigest(),
+                        'byteLength': payload['totalRegularBytes'], 'entryCount': len(payload['entries']), 'receiptSha256': digest}
+            pub.require(tree == expected and all(type(tree[key]) is int for key in ('byteLength', 'entryCount')),
+                        'Installed support identity differs from receipt')
+            pub.require(identity['agents-sdk-build.json'] == {'sha256': digest, 'byteLength': len(evidence[digest].encode())}
+                        and identity['prose-agents-sdk'] == {key: receipt['helper'][key] for key in ('sha256', 'byteLength')}
+                        and identity['AGENTS-SDK-NOTICES.txt'] == {key: receipt['notices'][key] for key in ('sha256', 'byteLength')},
+                        'Installed SDK sibling receipt bindings differ')
+    pub.require(referenced == set(evidence), 'Unreferenced SDK evidence')
+    return records
 
 
 class Qualification:
@@ -104,7 +197,7 @@ class Qualification:
         self.logs = output / 'logs'; self.logs.mkdir()
         self.tools = output / 'node-only'; self.tools.mkdir()
         (self.tools / 'node').symlink_to(node)
-        self.commands = []; self.checks = []; self.payloads = []
+        self.commands = []; self.checks = []; self.payloads = []; self.sdk_evidence = {}
 
     def environment(self, root: Path, *, npm=False, explicit_config=False) -> dict[str, str]:
         # A boundary marker stops project configuration discovery at this
@@ -193,22 +286,32 @@ class Qualification:
     def payload(self, directory, expected_binary, sdk_record):
         regular(directory / 'prose')
         pub.require(pub.digest(directory / 'prose') == expected_binary, 'Installed CLI bytes differ')
-        for name, key in zip(SDK_NAMES, ('sha256', 'receiptSha256', 'noticesSha256')):
-            regular(directory / name)
-            pub.require(pub.digest(directory / name) == sdk_record[key], 'Installed SDK sibling bytes differ')
+        before = installed_sdk_identity(directory, sdk_record)
         for argument, expected in (('--packaged-self-test', kernel_rc_evidence.SDK_IMPORT_TEST), ('--packaged-tool-self-test', kernel_rc_evidence.SDK_TOOL_TEST)):
             env = {'PATH': '', 'HOME': str(self.output), 'TMPDIR': str(self.output), 'LANG': 'C', 'LC_ALL': 'C'}
             record = self.execute([directory / 'prose-agents-sdk', argument], env=env, cwd=self.output, label=directory.parent.name + '-' + argument.lstrip('-'), timeout=45)
             pub.require(not record['stderr'] and json.loads(record['stdout']) == expected, 'Installed SDK self-test differs')
-        identities = {name: {'sha256': pub.digest(directory / name), 'byteLength': (directory / name).stat().st_size} for name in ('prose', *SDK_NAMES)}
-        pub.require(identities['prose']['sha256'] == expected_binary and all(identities[name]['sha256'] == sdk_record[key] for name, key in zip(SDK_NAMES, ('sha256', 'receiptSha256', 'noticesSha256'))), 'Installed bytes changed during probes')
-        self.payloads.append({'directory': str(directory.relative_to(self.output)), 'members': identities})
+        after = installed_sdk_identity(directory, sdk_record)
+        pub.require(before == after and pub.digest(directory / 'prose') == expected_binary,
+                    'Installed bytes changed during probes')
+        if 'supportTree' in after:
+            encoded = (directory / 'agents-sdk-build.json').read_text('utf-8')
+            digest = sdk_record['receiptSha256']
+            pub.require(digest not in self.sdk_evidence or self.sdk_evidence[digest] == encoded, 'Installed SDK receipt identity conflicts')
+            self.sdk_evidence[digest] = encoded
+            for identity in (before, after):
+                identity['supportTree'] = {key: value for key, value in identity['supportTree'].items() if key != 'payload'}
+                identity['supportTree']['receiptSha256'] = digest
+        identities = {'prose': {'sha256': expected_binary, 'byteLength': (directory / 'prose').stat().st_size}, **after}
+        self.payloads.append({'directory': str(directory.relative_to(self.output)), 'members': identities,
+                              'before': before, 'after': after})
+
 
 
 def qualify(candidate_root, previous_release, output, source, version, node, npm):
     """All writes and installations are beneath fresh output; prior bytes stay original."""
     verified, manifest, archives = custody.verify_kernel_rc(candidate_root, source, version)
-    kernel_rc_evidence.validate_sdk_archives(manifest, lambda name: pub.archive_members(candidate_root / 'package' / name))
+    kernel_rc_evidence.validate_sdk_archives(manifest, lambda name: pub.read_sdk_archive(candidate_root / 'package' / name, manifest))
     previous = custody.verify_previous_release(previous_release, manifest['platform'], version)
     previous_plan = custody.read_previous_manifest(previous_release)
     pub.require(pub.digest(previous_release / 'manifest.json') == PREVIOUS_MANIFEST_SHA256, 'Previous manifest is not the pinned published release')
@@ -224,7 +327,7 @@ def qualify(candidate_root, previous_release, output, source, version, node, npm
         root = output / ('standalone-' + runner); root.mkdir()
         env = q.environment(root, explicit_config=runner == 'rust')
         fresh = root / 'fresh'
-        extract_standalone(candidate_root / 'package' / archives[runner]['path'], fresh, sdk=True)
+        extract_standalone(candidate_root / 'package' / archives[runner]['path'], fresh, sdk=True, manifest=manifest)
         q.payload(fresh, verified['packageIdentity'][runner + 'BinarySha256'], manifest['agentsSdk'])
         q.defaults([fresh / 'prose'], runner, version, source, root, env, runner + '-fresh')
         relocated = root / 'relocated'; fresh.rename(relocated)
@@ -236,7 +339,7 @@ def qualify(candidate_root, previous_release, output, source, version, node, npm
         pub.require(pub.digest(upgrade / 'prose') == previous['binaryHashes'][runner], 'Installed previous bytes differ')
         q.identity([upgrade / 'prose'], runner, previous_plan['version'], previous_plan['source'], root, env, runner + '-previous')
         shutil.rmtree(upgrade)
-        extract_standalone(candidate_root / 'package' / archives[runner]['path'], upgrade, sdk=True)
+        extract_standalone(candidate_root / 'package' / archives[runner]['path'], upgrade, sdk=True, manifest=manifest)
         q.payload(upgrade, verified['packageIdentity'][runner + 'BinarySha256'], manifest['agentsSdk'])
         q.identity([upgrade / 'prose'], runner, version, source, root, env, runner + '-upgraded')
         q.preferences([upgrade / 'prose'], root, env, runner + '-upgraded', saved)
@@ -297,7 +400,12 @@ def qualify(candidate_root, previous_release, output, source, version, node, npm
     for path, digest in input_hashes.items():
         pub.require(pub.digest(Path(path)) == digest, 'Original qualification input changed')
     report = {'schema': 'openprose.installed-sdk-qualification/1', 'status': 'pass', 'sourceRevision': source, 'version': version, 'platform': manifest['platform'], 'candidate': verified, 'previous': {'version': previous_plan['version'], 'source': previous_plan['source'], 'manifestSha256': PREVIOUS_MANIFEST_SHA256}, 'inputSha256': input_hashes, 'node': {'path': str(node), 'sha256': pub.digest(node)}, 'npm': {'path': str(npm), 'sha256': pub.digest(npm)}, 'checks': q.checks, 'commands': q.commands, 'installedPayloads': q.payloads, 'npmInstallations': [*installs, install_record], 'modelCalls': 0, 'networkScope': 'loopback npm cache priming and public published-kernel retrieval only; no provider credentials', 'networkIsolation': 'not-enforced', 'publicationAuthorized': False, 'globalUserStateModified': False}
-    (output / 'qualification.json').write_text(json.dumps(report, indent=2, sort_keys=True) + '\n')
+    validate_payload_evidence(q.payloads, q.sdk_evidence, manifest['platform'])
+    if q.sdk_evidence:
+        report['sdkEvidence'] = q.sdk_evidence
+    encoded = json.dumps(report, indent=2, sort_keys=True).encode('utf-8') + b'\n'
+    pub.require(len(encoded) <= 16 * 1024 * 1024, 'Installed qualification report exceeds evidence bound')
+    (output / 'qualification.json').write_bytes(encoded)
     return report
 
 

@@ -75,17 +75,14 @@ class AssemblyTests(unittest.TestCase):
             output.mkdir(parents=True)
             self.roots.append(root)
             artifacts = []
-            sdk, sdk_members = sdk_fixture(platform)
+            from test_kernel_rc_evidence import sdk_fixture as complete_sdk_fixture
+            sdk, sdk_members = complete_sdk_fixture(platform)
             for implementation in ('bun', 'rust'):
                 name = implementation + '-' + platform + '.tgz'
                 data = (implementation + platform).encode()
-                with tarfile.open(output / name, 'w:gz') as archive:
-                    member = tarfile.TarInfo('root/prose')
-                    member.size = len(data)
-                    archive.addfile(member, io.BytesIO(data))
-                    for sdk_name, sdk_data, sdk_mode in sdk_members:
-                        item = tarfile.TarInfo('root/' + sdk_name); item.size = len(sdk_data); item.mode = sdk_mode
-                        archive.addfile(item, io.BytesIO(sdk_data))
+                package.tar_gz(output / name, [('root/prose', data, 0o755),
+                    *[('root/' + member, value, mode) for member, (value, mode) in sdk_members['files'].items()]],
+                    0, sdk_table=sdk_members, sdk_prefix='root/')
                 artifacts.append(self.record(output / name, implementation, 'standalone-archive', platform))
             runtime = {'minimumGlibc': '2.34', 'requiredGlibcMaximum': {'rust': '2.34', 'bun': '2.34'}, 'executionEvidence': 'ubuntu-22.04-only'} if platform.startswith('linux-') else 'not-applicable'
             meta, native = package.npm_packages(output, ('bun' + platform).encode(), self.version, platform, 0, self.source, self.image, runtime, 'kernel-rc', package.HELLO_EXAMPLE.read_bytes(), publication_platforms='posix-four', sdk_members=sdk_members)
@@ -103,6 +100,22 @@ class AssemblyTests(unittest.TestCase):
                 (logs / (name + '.json')).write_text(json.dumps(check))
             for relative in custody.SDK_PROBES:
                 (root / relative).write_text(json.dumps(custody.SDK_TOOL_TEST if 'sdk-tools-' in relative else custody.SDK_IMPORT_TEST))
+            identities = {name: {'sha256': hashlib.sha256(data).hexdigest(), 'byteLength': len(data)}
+                          for name, (data, _) in sdk_members['files'].items()
+                          if name in ('prose-agents-sdk', 'agents-sdk-build.json', 'AGENTS-SDK-NOTICES.txt')}
+            sdk_receipt = json.loads(sdk_members['files']['agents-sdk-build.json'][0])
+            if platform.startswith('darwin'):
+                payload = sdk_receipt['payload']
+                identities['supportTree'] = {'payload': payload,
+                    'sha256': hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(',', ':')).encode()).hexdigest(),
+                    'byteLength': payload['totalRegularBytes'], 'entryCount': len(payload['entries'])}
+            (logs / 'installed-sdk-payloads.json').write_text(json.dumps([
+                {'surface': 'installed-' + surface, 'before': identities, 'after': identities}
+                for surface in ('bun', 'rust', 'npm')], sort_keys=True) + '\n')
+            if platform.startswith('darwin'):
+                from test_kernel_rc_evidence import sdk_producer_fixture
+                for relative, encoded in sdk_producer_fixture(sdk_members).items():
+                    (root / relative).write_bytes(encoded)
             evidence = {str(f.relative_to(root)): {'sha256': p.digest(f), 'byteLength': f.stat().st_size} for directory in (output, logs) for f in directory.iterdir()}
             report = {'schema': 'openprose.kernel-rc-build/1', 'platform': platform, 'version': self.version, 'sourceRevision': self.source, 'imageSource': 'published-on-run', 'testSeamsEnabled': False, 'qualification': 'offline-install-only', 'publicationAuthorized': False, 'modelCalls': 0, 'kernelFetches': 0, 'checks': [{'name': n, 'status': 'passed'} for n in ('built-bun','built-rust','installed-bun','installed-rust','installed-npm')], 'evidence': evidence}
             (root / 'build-report.json').write_text(json.dumps(report))
@@ -152,6 +165,44 @@ class AssemblyTests(unittest.TestCase):
         reversed_output = self.root / 'reversed-checksums'
         a.assemble(list(reversed(self.roots)), reversed_output, self.evidence)
         self.assertEqual((reversed_output / 'SHA256SUMS').read_bytes(), expected)
+
+    def test_missing_complete_installed_payload_evidence_is_refused(self):
+        root = self.roots[0]
+        report_path = root / 'build-report.json'
+        report = json.loads(report_path.read_text())
+        del report['evidence'][custody.SDK_PAYLOAD_EVIDENCE]
+        report_path.write_text(json.dumps(report))
+        with self.assertRaisesRegex(ValueError, 'installed SDK payload evidence'):
+            a.assemble(self.roots, self.root / 'assembly', self.evidence)
+        self.assertFalse((self.root / 'assembly').exists())
+
+    def test_rehashed_installed_support_claim_must_match_packaged_tree(self):
+        root = next(root for root in self.roots if root.name == 'darwin-arm64')
+        path = root / custody.SDK_PAYLOAD_EVIDENCE
+        records = json.loads(path.read_text())
+        records[0]['after']['supportTree']['entryCount'] += 1
+        path.write_text(json.dumps(records))
+        report_path = root / 'build-report.json'
+        report = json.loads(report_path.read_text())
+        report['evidence'][custody.SDK_PAYLOAD_EVIDENCE] = {'sha256': p.digest(path), 'byteLength': path.stat().st_size}
+        report_path.write_text(json.dumps(report))
+        with self.assertRaisesRegex(ValueError, 'packaged complete tree'):
+            a.assemble(self.roots, self.root / 'assembly', self.evidence)
+        self.assertFalse((self.root / 'assembly').exists())
+
+    def test_rehashed_failed_signature_proof_cannot_assemble(self):
+        root = next(root for root in self.roots if root.name == 'darwin-arm64')
+        path = root / custody.SDK_SIGNATURE_EVIDENCE
+        bundle = json.loads(path.read_text())
+        bundle['checks'][0]['proof']['success'] = False
+        path.write_text(json.dumps(bundle))
+        report_path = root / 'build-report.json'
+        report = json.loads(report_path.read_text())
+        report['evidence'][custody.SDK_SIGNATURE_EVIDENCE] = {'sha256': p.digest(path), 'byteLength': path.stat().st_size}
+        report_path.write_text(json.dumps(report))
+        with self.assertRaisesRegex(ValueError, 'signature verification'):
+            a.assemble(self.roots, self.root / 'assembly', self.evidence)
+        self.assertFalse((self.root / 'assembly').exists())
 
     def test_damaged_generated_package_refused(self):
         next((self.roots[0]/'package').glob('*.tgz')).write_bytes(b'changed')

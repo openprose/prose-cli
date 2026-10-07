@@ -1809,11 +1809,32 @@ class ToolchainReceiptTests(unittest.TestCase):
         self.assertNotIn("RUSTUP_TOOLCHAIN", run.call_args.kwargs["environment"])
 
 
+def macos_c_fixture_payload(directory,architecture):
+    """Actual supplied C-helper bytes + synthetic COLLECT; never PyInstaller proof."""
+    import ast
+    import sdk_native_inventory as native
+    directory=directory.resolve()
+    support=directory/native.SDK_PAYLOAD_ROOT;support.mkdir(mode=0o755);support.chmod(0o755)
+    marker=support/'hermetic-c-fixture.txt'
+    marker.write_bytes(b'Hermetic compiled C helper fixture. Synthetic COLLECT only; no PyInstaller SDK qualification.');marker.chmod(0o644)
+    module=ast.parse((ROOT/'cli/ci/build_agents_sdk.py').read_text())
+    entry=next(ast.literal_eval(node.value) for node in module.body if isinstance(node,ast.Assign) and any(isinstance(t,ast.Name) and t.id=='ENTRY_SOURCE' for t in node.targets))
+    entry_path=directory/'sdk-entry.py';entry_path.write_text(entry)
+    # These declarations describe the actual hermetic fixture files, not a
+    # freezer invocation or SDK integration. The C helper was compiled/signed
+    # by write_sdk_candidate before this function captures its real bytes.
+    collect=repr(([(PACKAGE_LOCAL.SDK_NAME,str(directory/PACKAGE_LOCAL.SDK_NAME),'EXECUTABLE'),
+                   ('hermetic-c-fixture.txt',str(marker),'DATA')],)).encode()
+    (directory/'collect.toc').write_bytes(collect)
+    builders={name:PACKAGE_LOCAL.sha256_file(ROOT/name) for name in ('cli/ci/build_agents_sdk.py','cli/ci/sdk_native_inventory.py')}
+    return native.inventory_macos_payload(directory,architecture,builders,hashlib.sha256(entry_path.read_bytes()).hexdigest(),hashlib.sha256(collect).hexdigest())
+
+
 class LocalPackagingTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.temporary = tempfile.TemporaryDirectory(prefix="openprose-package-test-")
-        cls.root = Path(cls.temporary.name)
+        cls.root = Path(cls.temporary.name).resolve()
         cls.source_revision = f"package-local-test-{uuid.uuid4().hex}"
         cls.rust_binary = (
             cls.root
@@ -2354,6 +2375,9 @@ process.stdout.write(JSON.stringify({ spawned, stderr, exitCode: fakeProcess.exi
                   "notices": {"path": PACKAGE_LOCAL.SDK_NOTICES, "sha256": hashlib.sha256(notices).hexdigest(), "byteLength": len(notices)},
                   "selfTest": expected, "toolSelfTest": tools, "linuxLibraries": libraries if platform.system() == "Linux" else "not-applicable",
                   "authority": "hermetic-test-fixture-not-release-evidence"}
+        if platform.system()=='Darwin':
+            record['payload']=macos_c_fixture_payload(directory,record['architecture'])
+            record['collectEvidenceAuthority']='synthetic-hermetic-C-fixture-not-PyInstaller'
         if native_fields is not None:
             record.update(native_fields)
             record['dependencies'] = [{'name': 'fixture', 'version': '1.0.0', 'wheelSha256': ['e' * 64]}]
@@ -4946,6 +4970,103 @@ class PackagedSdkArtifactTests(unittest.TestCase):
                     else:
                         payload, record = PACKAGE_LOCAL.snapshot_sdk(sdk, snapshots, 'linux-x64-gnu', 'kernel-rc', None)
                         self.assertEqual(len(payload), 3); self.assertEqual(len(record), 12)
+
+
+class MacOnedirPackagingTests(unittest.TestCase):
+    def snapshot_fixture(self,root):
+        import ast
+        import sdk_native_inventory as native
+        from test_kernel_rc_evidence import sdk_fixture
+        identity,table=sdk_fixture('darwin-x64')
+        receipt=json.loads(table['files'][PACKAGE_LOCAL.SDK_RECEIPT][0])
+        receipt['sources']={name:PACKAGE_LOCAL.sha256_file(ROOT/name) for name in receipt['sources']}
+        receipt['payload']['builderSources']={name:PACKAGE_LOCAL.sha256_file(ROOT/name) for name in receipt['payload']['builderSources']}
+        module=ast.parse((ROOT/'cli/ci/build_agents_sdk.py').read_text())
+        entry=next(ast.literal_eval(node.value) for node in module.body if isinstance(node,ast.Assign) and any(isinstance(t,ast.Name) and t.id=='ENTRY_SOURCE' for t in node.targets))
+        receipt['payload']['entrySourceSha256']=hashlib.sha256(entry.encode()).hexdigest()
+        collect=b'Synthetic package control COLLECT declaration; no freezer execution.'
+        receipt['payload']['collectTocSha256']=hashlib.sha256(collect).hexdigest()
+        sdk=root/'sdk';sdk.mkdir();snapshots=root/'snapshots';snapshots.mkdir()
+        (sdk/'sdk-entry.py').write_text(entry);(sdk/'collect.toc').write_bytes(collect)
+        scope={kind:{n:v for n,v in table[kind].items() if n not in (PACKAGE_LOCAL.SDK_RECEIPT,PACKAGE_LOCAL.SDK_NOTICES)} for kind in table}
+        native.materialize_macos_payload(sdk,receipt['payload'],**scope,architecture='x86_64')
+        (sdk/PACKAGE_LOCAL.SDK_RECEIPT).write_text(json.dumps(receipt));(sdk/PACKAGE_LOCAL.SDK_NOTICES).write_bytes(table['files'][PACKAGE_LOCAL.SDK_NOTICES][0])
+        def execute(argv,**kwargs):
+            value=receipt['selfTest' if argv[-1]=='--packaged-self-test' else 'toolSelfTest']
+            return subprocess.CompletedProcess(argv,0,json.dumps(value).encode(),b'')
+        return sdk,snapshots,receipt,execute
+
+    def test_snapshot_retains_complete_support_and_verifies_every_native_file(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary).resolve();sdk,snapshots,receipt,execute=self.snapshot_fixture(root)
+            with mock.patch.object(PACKAGE_LOCAL,'run_bounded',side_effect=execute) as run,mock.patch.object(PACKAGE_LOCAL,'verify_darwin_code_signature') as signatures:
+                table,identity=PACKAGE_LOCAL.snapshot_sdk(sdk,snapshots,'darwin-x64','kernel-rc',None)
+            self.assertEqual(len(identity),12)
+            self.assertEqual({str(call.args[0].relative_to(snapshots)) for call in signatures.call_args_list},set(receipt['payload']['codeSignaturePaths']))
+            self.assertEqual(len(run.call_args_list),2)
+            self.assertTrue((snapshots/'prose-agents-sdk-runtime/Python.framework/Versions/Current').is_symlink())
+            archive=root/'payload.tgz';members=[('root/prose',b'cli',0o755)]+[('root/'+n,d,m) for n,(d,m) in table['files'].items()]
+            PACKAGE_LOCAL.tar_gz(archive,members,0,sdk_table=table,sdk_prefix='root/')
+            import publication
+            decoded=publication.read_sdk_archive(archive,{'platform':'darwin-x64','agentsSdk':identity})
+            self.assertEqual(decoded['symlinks'],{'root/'+n:t for n,t in table['symlinks'].items()})
+
+    def test_changed_support_is_rejected_before_selftests_and_copy(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary).resolve();sdk,snapshots,receipt,execute=self.snapshot_fixture(root)
+            (sdk/'prose-agents-sdk-runtime/base_library.zip').write_bytes(b'poison')
+            with mock.patch.object(PACKAGE_LOCAL,'run_bounded') as run:
+                with self.assertRaisesRegex(PACKAGE_LOCAL.PackageError,'payload differs'):PACKAGE_LOCAL.snapshot_sdk(sdk,snapshots,'darwin-x64','kernel-rc',None)
+            run.assert_not_called();self.assertEqual(list(snapshots.iterdir()),[])
+
+    def test_poisoned_helper_and_notices_refuse_before_snapshot_writes(self):
+        for poison in ('helper','notices','entry','collect'):
+            with self.subTest(poison=poison),tempfile.TemporaryDirectory() as temporary:
+                root=Path(temporary).resolve();sdk,snapshots,receipt,execute=self.snapshot_fixture(root)
+                if poison in ('helper','notices'):receipt[poison]['sha256']='0'*64
+                else:(sdk/('sdk-entry.py' if poison=='entry' else 'collect.toc')).write_bytes(b'poison')
+                (sdk/PACKAGE_LOCAL.SDK_RECEIPT).write_text(json.dumps(receipt))
+                with mock.patch.object(PACKAGE_LOCAL,'run_bounded') as run:
+                    with self.assertRaisesRegex(PACKAGE_LOCAL.PackageError,{'helper':'helper differs','notices':'notices differ','entry':'entry sidecar','collect':'COLLECT sidecar'}[poison]):
+                        PACKAGE_LOCAL.snapshot_sdk(sdk,snapshots,'darwin-x64','kernel-rc',None)
+                run.assert_not_called();self.assertEqual(list(snapshots.iterdir()),[])
+
+    def test_native_C_fixture_payload_captures_supplied_bytes_and_truthful_sidecars(self):
+        import sdk_native_inventory as native
+        from test_sdk_native_inventory import macho_fixture
+        # Source-only factory control: header fixture is explicitly unexecuted;
+        # heavy LocalPackaging still supplies its real compiled/signed C helper.
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary).resolve();helper=root/PACKAGE_LOCAL.SDK_NAME
+            data=macho_fixture('x86_64',kind=2);helper.write_bytes(data);helper.chmod(0o755)
+            payload=macos_c_fixture_payload(root,'x86_64')
+            view=native.read_macos_payload(root,payload,'x86_64')
+            self.assertEqual(view['files'][PACKAGE_LOCAL.SDK_NAME],(data,0o755))
+            self.assertEqual(payload['collectTocSha256'],hashlib.sha256((root/'collect.toc').read_bytes()).hexdigest())
+            self.assertEqual(payload['entrySourceSha256'],hashlib.sha256((root/'sdk-entry.py').read_bytes()).hexdigest())
+            self.assertEqual(payload['builderSources'],{name:PACKAGE_LOCAL.sha256_file(ROOT/name) for name in payload['builderSources']})
+            self.assertIn(b'no PyInstaller SDK qualification',view['files']['prose-agents-sdk-runtime/hermetic-c-fixture.txt'][0])
+
+    def test_source_payload_change_during_selftests_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary).resolve();sdk,snapshots,receipt,execute=self.snapshot_fixture(root)
+            def changed(argv,**kwargs):
+                result=execute(argv,**kwargs)
+                (sdk/'prose-agents-sdk-runtime/base_library.zip').write_bytes(b'poison')
+                return result
+            with mock.patch.object(PACKAGE_LOCAL,'run_bounded',side_effect=changed),mock.patch.object(PACKAGE_LOCAL,'verify_darwin_code_signature'):
+                with self.assertRaisesRegex(PACKAGE_LOCAL.PackageError,'payload changed'):PACKAGE_LOCAL.snapshot_sdk(sdk,snapshots,'darwin-x64','kernel-rc',None)
+
+    def test_archive_regular_projection_cannot_replace_or_add_sdk_member(self):
+        from test_kernel_rc_evidence import sdk_fixture
+        identity,table=sdk_fixture('darwin-x64')
+        for poison in ('replace','extra'):
+            with self.subTest(poison=poison),tempfile.TemporaryDirectory() as temporary:
+                path=Path(temporary)/'sdk.tgz';members=[('root/'+n,d,m) for n,(d,m) in table['files'].items()]
+                if poison=='replace':members=[(n,b'poison' if n.endswith('/base_library.zip') else d,m) for n,d,m in members]
+                else:members.append(('root/prose-agents-sdk-runtime/unlisted',b'poison',0o644))
+                with self.assertRaisesRegex(PACKAGE_LOCAL.PackageError,'membership differs'):PACKAGE_LOCAL.tar_gz(path,members,0,sdk_table=table,sdk_prefix='root/')
+                self.assertFalse(path.exists())
 
 
 if __name__ == "__main__":

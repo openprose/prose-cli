@@ -1140,5 +1140,66 @@ class ReleaseRehearsalTests(unittest.TestCase):
                     )
 
 
+class CompleteSdkConformanceCustodyTests(unittest.TestCase):
+    def fixture(self, root, platform='darwin-x64'):
+        from test_kernel_rc_evidence import sdk_fixture
+        import kernel_rc_evidence as custody
+        module = rehearse_release.load_installed_benchmark(); module.sdk_modules()
+        sdk, scoped = sdk_fixture(platform)
+        manifest = {'platform': platform, 'agentsSdk': sdk}
+        raw = {'platform': platform, 'installations': [], 'measurementPlan': {'executablePaths': {'direct-rust': '$INSTALL_ROOT/rust-standalone/release/prose', 'direct-bun': '$INSTALL_ROOT/bun-standalone/release/prose'}}}
+        evidence = {sdk['receiptSha256']: scoped['files']['agents-sdk-build.json'][0].decode()}
+        if platform.startswith('darwin'): raw['sdkEvidence'] = evidence
+        for label, tree_root, prefix in (
+                ('direct-rust', root / 'rust-standalone', 'release'),
+                ('direct-bun', root / 'bun-standalone', 'release'),
+                ('npm-launcher', root / 'npm-prefix', 'lib/node_modules/@openprose/prose-cli-' + platform + '/bin')):
+            directory = tree_root / prefix; directory.mkdir(parents=True)
+            table = {kind: {'source/' + n: v for n, v in rows.items()} for kind, rows in scoped.items()}
+            table['files']['source/prose'] = (b'nonexecuted CLI fixture', 0o755)
+            custody.materialize_sdk_members(manifest, table, directory)
+            (directory / 'prose').write_bytes(b'nonexecuted CLI fixture'); (directory / 'prose').chmod(0o755)
+            context = {'receiptSha256': sdk['receiptSha256'], 'prefix': prefix, 'encoded': evidence[sdk['receiptSha256']]} if platform.startswith('darwin') else None
+            tree = module.capture_installed_tree(tree_root, sdk_context=context)
+            raw['installations'].append({'surface': label, 'treeIdentity': tree})
+        return module, manifest, raw
+
+    def test_three_complete_source_trees_authenticate_on_both_platforms(self):
+        for platform in ('darwin-x64', 'linux-x64-gnu'):
+            with self.subTest(platform=platform), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp).resolve(); module, release, raw = self.fixture(root, platform)
+                contexts = rehearse_release._sdk_conformance_contexts(root, raw, release, module)
+                self.assertEqual(set(contexts), {'direct-rust', 'direct-bun', 'npm-launcher'})
+                self.assertTrue(all(c['agentsSdk'] == release['agentsSdk'] for c in contexts.values()))
+                expected = rehearse_release._sdk_report_binding(raw, release)
+                rehearse_release._validate_sdk_conformance_binding({'sdkSourceCustody': expected}, raw, release)
+                with self.assertRaises(rehearse_release.RehearsalError): rehearse_release._validate_sdk_conformance_binding({}, raw, release)
+                bad = json.loads(json.dumps(expected)); bad['candidateReferences']['direct-rust'] = '0' * 64
+                with self.assertRaises(rehearse_release.RehearsalError): rehearse_release._validate_sdk_conformance_binding({'sdkSourceCustody': bad}, raw, release)
+                altered = json.loads(json.dumps(release)); altered['agentsSdk']['sha256'] = '0' * 64
+                with self.assertRaises(ValueError): rehearse_release._sdk_conformance_contexts(root, raw, altered, module)
+
+    def test_omitted_release_and_support_changes_refuse_instead_of_fixture_fallback(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp).resolve(); module, release, raw = self.fixture(root)
+            with self.assertRaises(rehearse_release.RehearsalError): rehearse_release._sdk_conformance_contexts(root, raw, None, module)
+            (root / 'rust-standalone/release/prose-agents-sdk-runtime/empty-data').write_bytes(b'changed')
+            with self.assertRaises(Exception): rehearse_release._sdk_conformance_contexts(root, raw, release, module)
+
+    def test_source_rechecked_after_mocked_conformance_before_report_admission(self):
+        import time
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp).resolve(); module, release, raw = self.fixture(root)
+            labels = [('direct-rust', 'rust', root / 'rust-standalone/prose'), ('direct-bun', 'bun', root / 'bun-standalone/prose'), ('npm-launcher', 'bun', root / 'npm-prefix/bin/prose')]
+            def execute(argv, cwd, env):
+                self.assertEqual(argv.count('--candidate-sdk-source'), 3)
+                (root / 'bun-standalone/release/prose-agents-sdk-runtime/empty-data').write_bytes(b'changed')
+                return subprocess.CompletedProcess(argv, 0, b'', b'')
+            with patch.object(rehearse_release, '_conformance_inputs', return_value=(labels, Path('/nonexecuted/node'), '0'*64)), patch.object(rehearse_release, '_npm_conformance_context', return_value={}):
+                with self.assertRaises(Exception): rehearse_release._run_mechanical_conformance(type('Runner', (), {'__file__': __file__}), raw, root, root / 'report.json', {}, time.monotonic() + 30, execute, release=release, benchmark_module=module)
+                self.assertFalse((root / 'report.json').exists())
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

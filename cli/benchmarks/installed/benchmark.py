@@ -1295,8 +1295,7 @@ def verify_package_output(
             sys.path.insert(0, ci_path)
         import kernel_rc_evidence as custody
         try:
-            sdk = custody.validate_sdk_archives(release, lambda name: {
-                path: data for path, (data, mode) in decode_archive_members(encoded[name], name).items()})
+            sdk = custody.validate_sdk_archives(release, lambda name: sdk_modules()[0].decode_sdk_archive(encoded[name], release, label=name))
         except (ValueError, KeyError, TypeError) as error:
             fail('IDENTITY_DIVERGENCE', str(error))
         if 'agentsSdkPython' not in dependency['inventories']:
@@ -1322,7 +1321,7 @@ def verify_package_output(
         for name, artifact in artifacts.items():
             if artifact['kind'] not in ('standalone-archive', 'npm-platform'):
                 continue
-            members = decode_archive_members(encoded[name], name)
+            members = decode_archive_members(encoded[name], name, manifest=release)
             native_receipts.extend(json_no_duplicates(data, 'SDK receipt') for path, (data, mode) in members.items()
                                    if path.endswith('/agents-sdk-build.json'))
         try:
@@ -1453,9 +1452,42 @@ def decode_exact_gzip_tar(archive_bytes: bytes, label: str) -> bytes:
     return decoded
 
 
+class SdkMembers(dict):
+    """Regular projection retained only after complete typed SDK validation."""
+    def __init__(self, table, manifest):
+        super().__init__(table['files'])
+        self.table, self.manifest = table, manifest
+
+
+def sdk_modules():
+    ci = str(Path(__file__).resolve().parents[2] / 'ci')
+    if ci not in sys.path:
+        sys.path.insert(0, ci)
+    import publication
+    import kernel_rc_evidence
+    import sdk_native_inventory
+    return publication, kernel_rc_evidence, sdk_native_inventory
+
+
+def sdk_support_regular_paths(members):
+    if not isinstance(members, SdkMembers):
+        return set()
+    _, custody, _ = sdk_modules()
+    prefix = custody.sdk_archive_prefix(members.table)
+    return {name for name in members if name.startswith(prefix + 'prose-agents-sdk-runtime/')}
+
+
 def decode_archive_members(
-    archive_bytes: bytes, label: str
+    archive_bytes: bytes, label: str, *, manifest=None
 ) -> dict[str, tuple[bytes, int]]:
+    if manifest is not None and isinstance(manifest.get('agentsSdk'), dict):
+        pub, custody, _ = sdk_modules()
+        try:
+            table = pub.decode_sdk_archive(archive_bytes, manifest, label=label)
+            custody.validate_sdk_archive_table(manifest, table)
+        except (ValueError, KeyError, TypeError) as error:
+            fail('IDENTITY_DIVERGENCE', str(error))
+        return SdkMembers(table, manifest)
     decoded = decode_exact_gzip_tar(archive_bytes, label)
     try:
         archive = tarfile.open(fileobj=io.BytesIO(decoded), mode="r:")
@@ -1516,6 +1548,25 @@ def extract_members(
             "INSTALL_ROOT_UNSAFE",
             f"owned extraction destination already exists: {destination}",
         )
+    if isinstance(members, SdkMembers):
+        _, custody, _ = sdk_modules()
+        table, manifest = members.table, members.manifest
+        custody.validate_sdk_archive_table(manifest, table)
+        prefix = custody.sdk_archive_prefix(table)
+        destination.mkdir(mode=0o700)
+        sibling = destination.joinpath(*PurePosixPath(prefix.rstrip('/')).parts)
+        sibling.mkdir(parents=True, mode=0o755)
+        for name in sorted(members):
+            if name in {prefix + n for n in ('prose-agents-sdk', 'agents-sdk-build.json', 'AGENTS-SDK-NOTICES.txt')} or name.startswith(prefix + 'prose-agents-sdk-runtime/'):
+                continue
+            data, mode = members[name]
+            target = destination.joinpath(*safe_member_name(name).parts)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with target.open('xb') as output:
+                output.write(data)
+            target.chmod(mode)
+        custody.materialize_sdk_members(manifest, table, sibling)
+        return
     destination.mkdir(mode=0o700)
     for name in sorted(members):
         data, mode = members[name]
@@ -1619,7 +1670,7 @@ def validate_npm_packages(
     platform_name = f"openprose-prose-cli-{platform_value}-{version}.tgz"
     meta_members = decode_archive_members(context["encoded"][meta_name], meta_name)
     platform_members = decode_archive_members(
-        context["encoded"][platform_name], platform_name
+        context["encoded"][platform_name], platform_name, manifest=release
     )
     if set(meta_members) != {
         "package/package.json",
@@ -1641,6 +1692,7 @@ def validate_npm_packages(
         expected_platform_members.add("package/bin/openprose-windows-process-host.exe")
     if isinstance(release.get('agentsSdk'), dict):
         expected_platform_members.update('package/bin/' + name for name in ('prose-agents-sdk', 'agents-sdk-build.json', 'AGENTS-SDK-NOTICES.txt'))
+        expected_platform_members.update(sdk_support_regular_paths(platform_members))
     if set(platform_members) != expected_platform_members:
         fail(
             "MEMBERSHIP_MALFORMED",
@@ -1792,6 +1844,7 @@ def validate_npm_packages(
         "platformManifest": platform_manifest,
         "platformManifestBytes": platform_manifest_bytes,
         "binary": packaged_binary,
+        "members": platform_members,
         "sidecar": platform_members.get(
             "package/bin/openprose-windows-process-host.exe", (None, 0)
         )[0],
@@ -2186,8 +2239,35 @@ def read_installed_regular(path: Path, expected: os.stat_result) -> tuple[int, s
     return length, observed_digest.hexdigest()
 
 
+def sdk_tree_context(members, prefix=None):
+    if not isinstance(members, SdkMembers) or not members.manifest['platform'].startswith('darwin-'):
+        return None
+    _, custody, _ = sdk_modules()
+    archive_prefix = custody.sdk_archive_prefix(members.table)
+    encoded = members[archive_prefix + 'agents-sdk-build.json'][0]
+    return {'receiptSha256': sha256_bytes(encoded), 'prefix': (archive_prefix.rstrip('/') if prefix is None else prefix),
+            'encoded': encoded.decode('utf-8')}
+
+
+def sdk_directory_identity(payload, resolved):
+    rows = [row for row in payload['entries'] if row['path'] == resolved or row['path'].startswith(resolved + '/')]
+    return {'resolvedDirectorySha256': sha256_bytes(canonical_json(rows)), 'resolvedEntryCount': len(rows)}
+
+
+def sdk_report_receipt(context, platform=None):
+    encoded = context['encoded'].encode('utf-8')
+    if not 0 < len(encoded) <= 2 * 1024 * 1024 or sha256_bytes(encoded) != context['receiptSha256']:
+        fail('REPORT_MALFORMED', 'SDK evidence receipt digest/length differs')
+    receipt = require_object(json_no_duplicates(encoded, 'installed SDK evidence'), 'installed SDK evidence')
+    if receipt.get('schema') != 'openprose.agents-sdk-build/1' or receipt.get('platform') != 'darwin':
+        fail('REPORT_MALFORMED', 'SDK evidence is not a Mac build receipt')
+    if platform is not None and (not isinstance(platform, str) or receipt.get('architecture') != {'darwin-arm64': 'arm64', 'darwin-x64': 'x86_64'}.get(platform)):
+        fail('REPORT_MALFORMED', 'SDK receipt architecture differs from report platform')
+    return receipt
+
+
 def capture_installed_tree(
-    root: Path, allowed_symlinks: Mapping[Path, Path] | None = None
+    root: Path, allowed_symlinks: Mapping[Path, Path] | None = None, *, sdk_context=None
 ) -> dict[str, Any]:
     try:
         root_metadata = root.lstat()
@@ -2196,6 +2276,25 @@ def capture_installed_tree(
         fail("INSTALL_UNSAFE", f"cannot inspect installed tree root: {error}")
     if not stat.S_ISDIR(root_metadata.st_mode) or stat.S_ISLNK(root_metadata.st_mode):
         fail("INSTALL_UNSAFE", "installed tree root must be a non-symlink directory")
+    sdk_aliases = {}
+    sdk_receipt = None
+    if sdk_context is not None:
+        sdk_receipt = sdk_report_receipt(sdk_context)
+        prefix = safe_member_name(sdk_context['prefix']).as_posix()
+        sibling = root / prefix
+        _, _, inventory = sdk_modules()
+        inventory.read_macos_payload(sibling, sdk_receipt['payload'], sdk_receipt['architecture'])
+        actual_receipt = safe_read(sibling / 'agents-sdk-build.json', 2 * 1024 * 1024)
+        if actual_receipt != sdk_context['encoded'].encode('utf-8'):
+            fail('INSTALL_MUTATED', 'Installed SDK receipt differs from evidence')
+        for row in sdk_receipt['payload']['entries']:
+            if row['type'] == 'symlink':
+                sdk_aliases[(sibling / row['path']).absolute()] = row
+        allowed_symlinks = dict(allowed_symlinks or {})
+        for path, row in sdk_aliases.items():
+            if path in allowed_symlinks:
+                fail('INSTALL_UNSAFE', 'SDK alias conflicts with generic launcher link')
+            allowed_symlinks[path] = sibling / row['resolvedPath']
     allowed: dict[Path, Path] = {}
     for raw_link, raw_target in (allowed_symlinks or {}).items():
         link = raw_link.absolute()
@@ -2317,26 +2416,36 @@ def capture_installed_tree(
                         f"installed symlink identity changed: {relative}",
                     )
                 target_metadata = resolved.lstat()
-                if not stat.S_ISREG(target_metadata.st_mode):
-                    fail(
-                        "INSTALL_UNSAFE",
-                        f"installed symlink target is not regular: {relative}",
+                sdk_alias = sdk_aliases.get(path.absolute())
+                if sdk_alias is not None and link_target != sdk_alias['target']:
+                    fail('INSTALL_MUTATED', 'Installed SDK alias text changed')
+                if stat.S_ISDIR(target_metadata.st_mode) and sdk_alias is not None:
+                    observed_members.extend(((path, observed), (resolved, target_metadata)))
+                    entries.append({'path': relative, 'type': 'sdk-directory-symlink',
+                        'linkTarget': link_target, 'linkTextSha256': sha256_bytes(os.fsencode(link_target)),
+                        'resolvedPath': resolved_relative,
+                        **sdk_directory_identity(sdk_receipt['payload'], sdk_alias['resolvedPath'])})
+                else:
+                    if not stat.S_ISREG(target_metadata.st_mode):
+                        fail(
+                            "INSTALL_UNSAFE",
+                            f"installed symlink target is not regular: {relative}",
+                        )
+                    target_length, target_sha = read_installed_regular(
+                        resolved, target_metadata
                     )
-                target_length, target_sha = read_installed_regular(
-                    resolved, target_metadata
-                )
-                observed_members.extend(((path, observed), (resolved, target_metadata)))
-                entries.append(
-                    {
-                        "path": relative,
-                        "type": "symlink",
-                        "linkTarget": link_target,
-                        "linkTextSha256": sha256_bytes(os.fsencode(link_target)),
-                        "resolvedPath": resolved_relative,
-                        "resolvedByteLength": target_length,
-                        "resolvedSha256": target_sha,
-                    }
-                )
+                    observed_members.extend(((path, observed), (resolved, target_metadata)))
+                    entries.append(
+                        {
+                            "path": relative,
+                            "type": "symlink",
+                            "linkTarget": link_target,
+                            "linkTextSha256": sha256_bytes(os.fsencode(link_target)),
+                            "resolvedPath": resolved_relative,
+                            "resolvedByteLength": target_length,
+                            "resolvedSha256": target_sha,
+                        }
+                    )
                 seen_allowed.add(path.absolute())
             else:
                 fail(
@@ -2391,19 +2500,73 @@ def capture_installed_tree(
             )
     entries.sort(key=lambda entry: entry["path"])
     payload = {"schema": INSTALLED_TREE_SCHEMA, "entries": entries}
-    return {
+    result = {
         "schema": INSTALLED_TREE_SCHEMA,
         "entryCount": len(entries),
         "directoryCount": sum(entry["type"] == "directory" for entry in entries),
         "regularFileCount": sum(entry["type"] == "regular" for entry in entries),
-        "symlinkCount": sum(entry["type"] == "symlink" for entry in entries),
+        "symlinkCount": sum(entry["type"] in {"symlink", "sdk-directory-symlink"} for entry in entries),
         "byteCount": total_bytes,
         "digestSha256": sha256_bytes(canonical_json(payload)),
         "entries": entries,
     }
 
+    if sdk_context is not None:
+        inventory.read_macos_payload(sibling, sdk_receipt['payload'], sdk_receipt['architecture'])
+        result['sdkEvidenceRef'] = {'receiptSha256': sdk_context['receiptSha256'], 'prefix': prefix}
+    return result
 
-def validate_installed_tree_identity(value: Any, label: str) -> dict[str, Any]:
+
+def validate_sdk_tree_rows(identity, sdk_evidence):
+    reference = require_object(identity.get('sdkEvidenceRef'), 'SDK evidence reference')
+    require_exact_keys(reference, {'receiptSha256', 'prefix'}, 'SDK evidence reference')
+    digest = require_sha(reference['receiptSha256'], 'SDK evidence receipt digest')
+    prefix = safe_member_name(require_string(reference['prefix'], 'SDK evidence prefix')).as_posix()
+    if not isinstance(sdk_evidence, dict) or digest not in sdk_evidence:
+        fail('REPORT_MALFORMED', 'SDK tree lacks digest-bound evidence')
+    receipt = sdk_report_receipt({**reference, 'encoded': sdk_evidence[digest]})
+    _, _, inventory = sdk_modules()
+    try:
+        inventory.validate_macos_payload_structure(receipt['payload'], receipt['architecture'])
+    except (ValueError, KeyError, TypeError) as error:
+        fail('REPORT_MALFORMED', str(error))
+    entries = {row['path']: row for row in identity['entries']}
+    support = receipt['payload']
+    expected = {}
+    by_path = {row['path']: row for row in support['entries']}
+    for row in support['entries']:
+        path = prefix + '/' + row['path']
+        if row['type'] == 'directory':
+            expected[path] = {'path': path, 'type': 'directory', 'mode': row['mode']}
+        elif row['type'] == 'file':
+            expected[path] = {'path': path, 'type': 'regular', **{key: row[key] for key in ('mode', 'byteLength', 'sha256')}}
+        else:
+            target = by_path[row['resolvedPath']]
+            link = {'path': path, 'type': 'symlink', 'linkTarget': row['target'],
+                    'linkTextSha256': sha256_bytes(os.fsencode(row['target'])),
+                    'resolvedPath': prefix + '/' + row['resolvedPath']}
+            if target['type'] == 'directory':
+                link.update(type='sdk-directory-symlink', **sdk_directory_identity(support, row['resolvedPath']))
+            else:
+                link.update(resolvedByteLength=target['byteLength'], resolvedSha256=target['sha256'])
+            expected[path] = link
+    root = prefix + '/' + support['root']
+    if {path for path in entries if path == root or path.startswith(root + '/')} != set(expected):
+        fail('REPORT_MALFORMED', 'SDK installed support membership differs')
+    if any(entries[path] != row for path, row in expected.items()):
+        fail('REPORT_MALFORMED', 'SDK installed support identity differs')
+    for name, sha, length, mode in (
+            ('prose-agents-sdk', receipt['helper']['sha256'], receipt['helper']['byteLength'], 0o755),
+            ('agents-sdk-build.json', digest, len(sdk_evidence[digest].encode('utf-8')), 0o644),
+            ('AGENTS-SDK-NOTICES.txt', receipt['notices']['sha256'], receipt['notices']['byteLength'], 0o644)):
+        path = prefix + '/' + name
+        expected_row = {'path': path, 'type': 'regular', 'sha256': sha, 'byteLength': length, 'mode': mode}
+        if entries.get(path) != expected_row:
+            fail('REPORT_MALFORMED', 'SDK installed sibling evidence differs')
+    return receipt
+
+
+def validate_installed_tree_identity(value: Any, label: str, sdk_evidence=None) -> dict[str, Any]:
     identity = require_object(value, label)
     if (
         set(identity)
@@ -2416,7 +2579,7 @@ def validate_installed_tree_identity(value: Any, label: str) -> dict[str, Any]:
             "byteCount",
             "digestSha256",
             "entries",
-        }
+        } | ({"sdkEvidenceRef"} if "sdkEvidenceRef" in identity else set())
         or identity.get("schema") != INSTALLED_TREE_SCHEMA
     ):
         fail("REPORT_MALFORMED", f"{label} has an unsupported shape")
@@ -2444,7 +2607,7 @@ def validate_installed_tree_identity(value: Any, label: str) -> dict[str, Any]:
     require_sha(identity.get("digestSha256"), f"{label} digest")
     paths: list[str] = []
     portable: set[str] = set()
-    counts = {"directory": 0, "regular": 0, "symlink": 0}
+    counts = {"directory": 0, "regular": 0, "symlink": 0, "sdk-directory-symlink": 0}
     byte_count = 0
     for raw in entries:
         entry = require_object(raw, f"{label} entry")
@@ -2476,6 +2639,17 @@ def validate_installed_tree_identity(value: Any, label: str) -> dict[str, Any]:
                 fail("REPORT_MALFORMED", f"{label} regular entry length is invalid")
             require_sha(entry.get("sha256"), f"{label} regular entry digest")
             byte_count += length
+        elif kind == 'sdk-directory-symlink':
+            require_exact_keys(entry, {'path', 'type', 'linkTarget', 'linkTextSha256', 'resolvedPath',
+                                      'resolvedDirectorySha256', 'resolvedEntryCount'}, 'SDK directory alias')
+            if 'sdkEvidenceRef' not in identity:
+                fail('REPORT_MALFORMED', 'SDK directory alias lacks payload evidence')
+            require_string(entry['linkTarget'], 'SDK directory alias target')
+            if entry['linkTextSha256'] != sha256_bytes(os.fsencode(entry['linkTarget'])):
+                fail('REPORT_MALFORMED', 'SDK directory alias text identity differs')
+            safe_member_name(entry['resolvedPath'])
+            require_sha(entry['resolvedDirectorySha256'], 'SDK directory identity')
+            require_positive_int(entry['resolvedEntryCount'], 'SDK directory entry count')
         elif kind == "symlink":
             if set(entry) != {
                 "path",
@@ -2524,7 +2698,7 @@ def validate_installed_tree_identity(value: Any, label: str) -> dict[str, Any]:
     if (
         identity.get("directoryCount") != counts["directory"]
         or identity.get("regularFileCount") != counts["regular"]
-        or identity.get("symlinkCount") != counts["symlink"]
+        or identity.get("symlinkCount") != counts["symlink"] + counts["sdk-directory-symlink"]
         or identity.get("byteCount") != byte_count
         or identity.get("digestSha256")
         != sha256_bytes(
@@ -2532,16 +2706,20 @@ def validate_installed_tree_identity(value: Any, label: str) -> dict[str, Any]:
         )
     ):
         fail("REPORT_MALFORMED", f"{label} counts or digest differ from its entries")
+    if 'sdkEvidenceRef' in identity:
+        validate_sdk_tree_rows(identity, sdk_evidence)
     return identity
 
 
 def verify_installed_tree(
     root: Path,
     expected: Any,
-    allowed_symlinks: Mapping[Path, Path] | None = None,
+    allowed_symlinks: Mapping[Path, Path] | None = None, *, sdk_evidence=None,
 ) -> str:
-    validated = validate_installed_tree_identity(expected, "retained installed tree")
-    observed = capture_installed_tree(root, allowed_symlinks)
+    validated = validate_installed_tree_identity(expected, "retained installed tree", sdk_evidence)
+    reference = validated.get('sdkEvidenceRef')
+    context = {**reference, 'encoded': sdk_evidence[reference['receiptSha256']]} if reference else None
+    observed = capture_installed_tree(root, allowed_symlinks, sdk_context=context)
     if observed != validated:
         fail("INSTALL_MUTATED", f"retained installed tree identity differs: {root}")
     return observed["digestSha256"]
@@ -2553,6 +2731,19 @@ def installed_tree_entries_by_path(
     return {entry["path"]: entry for entry in identity["entries"]}
 
 
+def linux_sdk_sibling_paths(entries, prefix, platform):
+    """Admit only the existing onefile trio; source proof requires release context."""
+    if not platform.startswith('linux-'):
+        return set()
+    rows = {prefix + '/' + name: mode for name, mode in
+            (('prose-agents-sdk', 0o755), ('agents-sdk-build.json', 0o644), ('AGENTS-SDK-NOTICES.txt', 0o644))}
+    present = set(rows) & set(entries)
+    if not present: return set()
+    if present != set(rows) or any(entries[path].get('type') != 'regular' or entries[path].get('mode') != mode for path, mode in rows.items()):
+        fail('REPORT_MALFORMED', 'Linux installed SDK requires its full regular canonical trio')
+    return set(rows)
+
+
 def validate_installation_tree_relationships(
     surface: str,
     identity: Mapping[str, Any],
@@ -2562,6 +2753,12 @@ def validate_installation_tree_relationships(
     launcher: Mapping[str, Any],
 ) -> None:
     entries = installed_tree_entries_by_path(identity)
+    reference = identity.get('sdkEvidenceRef')
+    sdk_paths = set()
+    if reference:
+        prefix = reference['prefix'] + '/'
+        sdk_paths = {path for path in entries if path.startswith(prefix + 'prose-agents-sdk-runtime/') or path == prefix + 'prose-agents-sdk-runtime'}
+        sdk_paths.update(prefix + name for name in ('prose-agents-sdk', 'agents-sdk-build.json', 'AGENTS-SDK-NOTICES.txt'))
     executable = "prose.exe" if platform_value.startswith("win32-") else "prose"
     if surface in {"direct-rust", "direct-bun"}:
         implementation = surface.removeprefix("direct-")
@@ -2576,6 +2773,8 @@ def validate_installation_tree_relationships(
         }
         if platform_value.startswith("win32-"):
             expected_paths.add(f"{root_name}/openprose-windows-process-host.exe")
+        sdk_paths.update(linux_sdk_sibling_paths(entries, root_name, platform_value))
+        expected_paths.update(sdk_paths)
         if set(entries) != expected_paths:
             fail("REPORT_MALFORMED", f"{surface} installed tree membership differs")
         if (
@@ -2620,6 +2819,8 @@ def validate_installation_tree_relationships(
         f"{platform_root}/bin",
         f"{platform_root}/bin/{executable}",
     }
+    sdk_paths.update(linux_sdk_sibling_paths(entries, platform_root + '/bin', platform_value))
+    required_paths.update(sdk_paths)
     if set(entries) != required_paths:
         fail("REPORT_MALFORMED", "npm installed tree membership differs")
     directory_paths = {
@@ -2633,7 +2834,7 @@ def validate_installation_tree_relationships(
         platform_root,
         f"{platform_root}/bin",
     }
-    regular_paths = required_paths - directory_paths - {"bin/prose"}
+    regular_paths = required_paths - directory_paths - {"bin/prose"} - sdk_paths
     if any(entries[path].get("type") != "directory" for path in directory_paths):
         fail("REPORT_MALFORMED", "npm installed tree directory type differs")
     if any(entries[path].get("type") != "regular" for path in regular_paths):
@@ -2864,11 +3065,12 @@ def validate_package_payloads(context: Mapping[str, Any]) -> dict[str, Any]:
             f"openprose-prose-cli-{implementation}-{version}-{platform_value}.tar.gz"
         )
         members = decode_archive_members(
-            context["encoded"][artifact_name], artifact_name
+            context["encoded"][artifact_name], artifact_name, manifest=release
         )
         root_name, expected = expected_standalone_members(artifact_name, platform_value)
         if isinstance(context['release'].get('agentsSdk'), dict):
             expected.update(root_name + '/' + name for name in ('prose-agents-sdk', 'agents-sdk-build.json', 'AGENTS-SDK-NOTICES.txt'))
+            expected.update(sdk_support_regular_paths(members))
             if members.get(root_name + '/prose-agents-sdk', (b'', 0))[1] & 0o111 == 0:
                 fail('ARCHIVE_UNSAFE', 'SDK helper is not executable')
         if set(members) != expected:
@@ -2965,6 +3167,7 @@ def install_verified_package_set(
             "Windows measurement requires native Job Object containment before any process spawn",
         )
     install = prepare_install_root(install_root)
+    sdk_evidence = {}
     installations: list[dict[str, Any]] = []
     extracted = payloads["extracted"]
     for implementation in ("rust", "bun"):
@@ -2980,7 +3183,10 @@ def install_verified_package_set(
                 "INPUT_MUTATED",
                 f"installed {implementation} binary differs from archive",
             )
-        tree_identity = capture_installed_tree(destination)
+        sdk_context = sdk_tree_context(extracted[implementation]['members'])
+        if sdk_context:
+            sdk_evidence[sdk_context['receiptSha256']] = sdk_context['encoded']
+        tree_identity = capture_installed_tree(destination, sdk_context=sdk_context)
         installations.append(
             {
                 "surface": f"direct-{implementation}",
@@ -3081,7 +3287,10 @@ def install_verified_package_set(
         fail("INSTALL_FAILED", "npm did not create the launcher command")
     command_identity = launcher_command_identity(command, launcher_source)
     allowed_links = {command: launcher_source} if command.is_symlink() else {}
-    npm_tree_identity = capture_installed_tree(npm_prefix, allowed_links)
+    sdk_context = sdk_tree_context(npm_package['members'], (platform_root / 'bin').relative_to(npm_prefix).as_posix())
+    if sdk_context:
+        sdk_evidence[sdk_context['receiptSha256']] = sdk_context['encoded']
+    npm_tree_identity = capture_installed_tree(npm_prefix, allowed_links, sdk_context=sdk_context)
     npm_report_argv = [
         "$NPM",
         "install",
@@ -3152,6 +3361,7 @@ def install_verified_package_set(
         **payloads,
         "install": install,
         "installations": installations,
+        "sdkEvidence": sdk_evidence,
         "npmTool": npm_tool,
         "nodeTool": node_tool,
         "npmPrefix": npm_prefix,
@@ -3196,6 +3406,7 @@ def run_benchmark(
     release = context["release"]
     platform_value = context["platform"]
     version = release["version"]
+    sdk_evidence = {}
     installations: list[dict[str, Any]] = []
     extracted: dict[str, dict[str, Any]] = {}
     for implementation in ("rust", "bun"):
@@ -3204,11 +3415,12 @@ def run_benchmark(
             f"openprose-prose-cli-{implementation}-{version}-{platform_value}.tar.gz"
         )
         members = decode_archive_members(
-            context["encoded"][artifact_name], artifact_name
+            context["encoded"][artifact_name], artifact_name, manifest=release
         )
         root_name, expected = expected_standalone_members(artifact_name, platform_value)
         if isinstance(context['release'].get('agentsSdk'), dict):
             expected.update(root_name + '/' + name for name in ('prose-agents-sdk', 'agents-sdk-build.json', 'AGENTS-SDK-NOTICES.txt'))
+            expected.update(sdk_support_regular_paths(members))
             if members.get(root_name + '/prose-agents-sdk', (b'', 0))[1] & 0o111 == 0:
                 fail('ARCHIVE_UNSAFE', 'SDK helper is not executable')
         if set(members) != expected:
@@ -3230,7 +3442,10 @@ def run_benchmark(
                 f"{implementation} standalone binary is not executable",
             )
         binary_bytes = safe_read(binary, MAX_MEMBER_BYTES)
-        tree_identity = capture_installed_tree(destination)
+        sdk_context = sdk_tree_context(members)
+        if sdk_context:
+            sdk_evidence[sdk_context['receiptSha256']] = sdk_context['encoded']
+        tree_identity = capture_installed_tree(destination, sdk_context=sdk_context)
         installations.append(
             {
                 "surface": f"direct-{implementation}",
@@ -3334,7 +3549,10 @@ def run_benchmark(
         fail("INSTALL_FAILED", "npm did not create the launcher command")
     command_identity = launcher_command_identity(command, launcher_source)
     allowed_links = {command: launcher_source} if command.is_symlink() else {}
-    npm_tree_identity = capture_installed_tree(npm_prefix, allowed_links)
+    sdk_context = sdk_tree_context(npm_package['members'], (platform_root / 'bin').relative_to(npm_prefix).as_posix())
+    if sdk_context:
+        sdk_evidence[sdk_context['receiptSha256']] = sdk_context['encoded']
+    npm_tree_identity = capture_installed_tree(npm_prefix, allowed_links, sdk_context=sdk_context)
     npm_report_argv = [
         "$NPM",
         "install",
@@ -3602,6 +3820,10 @@ def run_benchmark(
             "runtimeNetworkIsolation": "not-enforced",
         },
     }
+    if sdk_evidence:
+        report['sdkEvidence'] = sdk_evidence
+    if len(render_json(report)) > MAX_EVIDENCE_BYTES:
+        fail('REPORT_MALFORMED', 'Installed report exceeds existing evidence bound')
     remaining_before(deadline_monotonic, "before final installed-tree reauthentication")
     verify_retained_install_trees(install, report)
     remaining_before(deadline_monotonic, "after final installed-tree reauthentication")
@@ -3625,13 +3847,19 @@ def analyse_report(report: Any) -> dict[str, Any]:
         "toolchain",
         "limitations",
     }
-    if set(value) != expected_top_level:
+    if set(value) != expected_top_level | ({"sdkEvidence"} if "sdkEvidence" in value else set()):
         fail(
             "REPORT_MALFORMED",
             "benchmark report has missing or unknown top-level fields",
         )
     if value.get("schema") != REPORT_SCHEMA:
         fail("REPORT_MALFORMED", "unsupported installed benchmark report schema")
+    sdk_evidence = value.get('sdkEvidence')
+    if sdk_evidence is not None:
+        if not isinstance(sdk_evidence, dict) or len(sdk_evidence) != 1 or len(render_json(value)) > MAX_EVIDENCE_BYTES:
+            fail('REPORT_MALFORMED', 'SDK evidence dictionary shape/size differs')
+        for digest, encoded in sdk_evidence.items():
+            sdk_report_receipt({'receiptSha256': require_sha(digest, 'SDK evidence key'), 'encoded': require_string(encoded, 'SDK encoded evidence')}, value.get('platform'))
     platform_value = value.get("platform")
     if platform_value not in SUPPORTED_PLATFORMS or str(platform_value).startswith(
         "win32-"
@@ -3994,6 +4222,8 @@ def analyse_report(report: Any) -> dict[str, Any]:
     install_summary = []
     if len(installations) != 3:
         fail("REPORT_MALFORMED", "benchmark must contain exactly three installations")
+    if sdk_evidence and any(record.get('treeIdentity', {}).get('sdkEvidenceRef', {}).get('receiptSha256') not in sdk_evidence for record in installations):
+        fail('REPORT_MALFORMED', 'SDK evidence is not referenced by every installed surface')
     npm_installer: dict[str, Any] | None = None
     for index, item in enumerate(installations):
         record = require_object(item, "installation record")
@@ -4020,7 +4250,7 @@ def analyse_report(report: Any) -> dict[str, Any]:
             record.get("installedByteCount"), "installed byte count"
         )
         tree_identity = validate_installed_tree_identity(
-            record.get("treeIdentity"), f"installation tree {surface}"
+            record.get("treeIdentity"), f"installation tree {surface}", sdk_evidence
         )
         if tree_identity["byteCount"] != installed_bytes:
             fail(
@@ -4267,7 +4497,7 @@ def verify_retained_install_trees(install_root: Path, report: Any) -> dict[str, 
         verified[surface] = verify_installed_tree(
             tree_root,
             records[surface]["treeIdentity"],
-            allowed,
+            allowed, sdk_evidence=value.get("sdkEvidence"),
         )
     return verified
 

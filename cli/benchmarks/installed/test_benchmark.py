@@ -89,8 +89,14 @@ def write_tar(path: Path, members: list[tuple[str, bytes, int | str]]) -> None:
             if isinstance(mode_or_type, int):
                 info.mode = mode_or_type
                 archive.addfile(info, io.BytesIO(data))
+            elif isinstance(mode_or_type, tuple):
+                info.type = tarfile.DIRTYPE
+                info.mode = mode_or_type[1]
+                info.size = 0
+                archive.addfile(info)
             else:
                 info.type = tarfile.SYMTYPE
+                info.mode = 0o777
                 info.linkname = mode_or_type
                 info.size = 0
                 archive.addfile(info)
@@ -717,8 +723,11 @@ def make_release_package_output(root: Path, *, platform_value: str = PLATFORM) -
     ci_path = str(ROOT / 'cli/ci')
     if ci_path not in sys.path:
         sys.path.insert(0, ci_path)
-    from test_assemble_kernel_rc import sdk_fixture
-    sdk, sdk_members = sdk_fixture(platform_value)
+    from test_kernel_rc_evidence import sdk_fixture
+    sdk, sdk_table = sdk_fixture(platform_value)
+    sdk_members = [(n, d, m) for n, (d, m) in sdk_table["files"].items()]
+    sdk_members += [(n, b"", ("directory", m)) for n, m in sdk_table["directories"].items()]
+    sdk_members += [(n, b"", target) for n, target in sdk_table["symlinks"].items()]
     manifest['agentsSdk'] = sdk
     for artifact in manifest['artifacts']:
         if artifact['kind'] in ('standalone-archive', 'npm-platform'):
@@ -799,6 +808,8 @@ def rewrite_tar(path: Path, mutate) -> None:
                 members.append((info.name, extracted.read(), info.mode))
             elif info.issym():
                 members.append((info.name, b"", info.linkname))
+            elif info.isdir():
+                members.append((info.name, b"", ("directory", info.mode)))
     mutate(members)
     write_tar(path, members)
 
@@ -2052,6 +2063,108 @@ class NativeSdkSbomCustodyTests(unittest.TestCase):
                 self.assertEqual(rejected.exception.code, 'IDENTITY_DIVERGENCE')
                 self.assertEqual(rejected.exception.message, 'Native SDK SBOM differs from bound receipt')
 
+
+
+class CompleteSdkInstalledTreeTests(unittest.TestCase):
+    def fixture(self, root):
+        BENCHMARK.sdk_modules()
+        from test_kernel_rc_evidence import sdk_fixture
+        from test_sdk_native_inventory import onedir_fixture
+        _, _, inventory = BENCHMARK.sdk_modules()
+        sdk, table = sdk_fixture('darwin-x64')
+        view = onedir_fixture()
+        sibling = root / 'installed'; sibling.mkdir()
+        inventory.materialize_macos_payload(sibling, view['payload'], view['files'], view['directories'], view['symlinks'], view['architecture'])
+        for name in ('agents-sdk-build.json', 'AGENTS-SDK-NOTICES.txt'):
+            data, mode = table['files'][name]
+            (sibling / name).write_bytes(data); (sibling / name).chmod(mode)
+        encoded = table['files']['agents-sdk-build.json'][0].decode()
+        context = {'receiptSha256': sdk['receiptSha256'], 'prefix': 'installed', 'encoded': encoded}
+        return sibling, context, {sdk['receiptSha256']: encoded}
+
+    def test_complete_alias_tree_capture_and_retained_reauthentication(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw).resolve(); sibling, context, evidence = self.fixture(root)
+            identity = BENCHMARK.capture_installed_tree(root, sdk_context=context)
+            aliases = [row for row in identity['entries'] if row['type'] == 'sdk-directory-symlink']
+            self.assertEqual(len(aliases), 1)
+            BENCHMARK.validate_installed_tree_identity(identity, 'SDK fixture', evidence)
+            self.assertEqual(BENCHMARK.verify_installed_tree(root, identity, sdk_evidence=evidence), identity['digestSha256'])
+            (sibling / 'prose-agents-sdk-runtime/base_library.zip').write_bytes(b'mutation')
+            with self.assertRaises(ValueError):
+                BENCHMARK.verify_installed_tree(root, identity, sdk_evidence=evidence)
+
+    def test_generic_directory_alias_stays_forbidden(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw).resolve(); target = root / 'directory'; target.mkdir(); link = root / 'link'; link.symlink_to(target)
+            with self.assertRaises(BENCHMARK.BenchmarkError):
+                BENCHMARK.capture_installed_tree(root, {link: target})
+
+    def test_payload_poison_with_rehashed_report_identity_is_refused(self):
+        import copy
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw).resolve(); _, context, evidence = self.fixture(root)
+            valid = BENCHMARK.capture_installed_tree(root, sdk_context=context)
+            for poison in ('missing-reference', 'wrong-evidence', 'directory-hash', 'extra-support', 'link-text', 'helper-length', 'helper-mode', 'receipt-length', 'notices-length', 'notices-mode'):
+                changed = copy.deepcopy(valid)
+                if poison == 'missing-reference': changed.pop('sdkEvidenceRef')
+                elif poison == 'wrong-evidence': changed['sdkEvidenceRef']['receiptSha256'] = '0' * 64
+                elif poison == 'directory-hash':
+                    next(row for row in changed['entries'] if row['type'] == 'sdk-directory-symlink')['resolvedDirectorySha256'] = '0' * 64
+                elif poison == 'extra-support':
+                    changed['entries'].append({'path': 'installed/prose-agents-sdk-runtime/foreign', 'type': 'directory', 'mode': 0o755})
+                    changed['entries'].sort(key=lambda r: r['path']); changed['entryCount'] += 1; changed['directoryCount'] += 1
+                elif poison in ('helper-length', 'helper-mode', 'receipt-length', 'notices-length', 'notices-mode'):
+                    name = 'prose-agents-sdk' if poison.startswith('helper') else ('agents-sdk-build.json' if poison.startswith('receipt') else 'AGENTS-SDK-NOTICES.txt')
+                    row = next(row for row in changed['entries'] if row['path'] == 'installed/' + name)
+                    if poison.endswith('length'): row['byteLength'] += 1; changed['byteCount'] += 1
+                    else: row['mode'] = 0o644 if name == 'prose-agents-sdk' else 0o755
+                else:
+                    row = next(row for row in changed['entries'] if row['type'] == 'sdk-directory-symlink')
+                    row['linkTarget'] = '../escape'; row['linkTextSha256'] = BENCHMARK.sha256_bytes(b'../escape')
+                changed['digestSha256'] = BENCHMARK.sha256_bytes(BENCHMARK.canonical_json({'schema': BENCHMARK.INSTALLED_TREE_SCHEMA, 'entries': changed['entries']}))
+                with self.subTest(poison=poison), self.assertRaises(BENCHMARK.BenchmarkError):
+                    BENCHMARK.validate_installed_tree_identity(changed, 'SDK fixture', evidence)
+
+    def test_linux_onefile_trio_stays_closed_without_mac_support_reference(self):
+        import copy
+        BENCHMARK.sdk_modules()
+        from test_kernel_rc_evidence import sdk_fixture
+        platform = 'linux-x64-gnu'; version = '0.15.0-rc.4'
+        name = 'openprose-prose-cli-rust-' + version + '-' + platform
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw).resolve(); sibling = root / name; sibling.mkdir()
+            (sibling / 'examples').mkdir()
+            for path in ('LICENSE', 'README.txt', 'examples/hello.prose.md', 'prose'):
+                (sibling / path).write_bytes(b'fixture'); (sibling / path).chmod(0o755 if path == 'prose' else 0o644)
+            _, table = sdk_fixture(platform)
+            for path, (data, mode) in table['files'].items():
+                (sibling / path).write_bytes(data); (sibling / path).chmod(mode)
+            identity = BENCHMARK.capture_installed_tree(root)
+            surfaces = {'direct-rust': {'binarySha256': BENCHMARK.sha256_bytes(b'fixture')}}
+            BENCHMARK.validate_installation_tree_relationships('direct-rust', identity, version, platform, surfaces, {})
+            self.assertNotIn('sdkEvidenceRef', identity)
+            for poison in ('partial', 'mode', 'alias', 'support'):
+                changed = copy.deepcopy(identity)
+                if poison == 'partial': changed['entries'] = [r for r in changed['entries'] if not r['path'].endswith('/agents-sdk-build.json')]
+                elif poison == 'mode': next(r for r in changed['entries'] if r['path'].endswith('/prose-agents-sdk'))['mode'] = 0o644
+                elif poison == 'alias': next(r for r in changed['entries'] if r['path'].endswith('/prose-agents-sdk'))['type'] = 'symlink'
+                else: changed['entries'].append({'path': name + '/prose-agents-sdk-runtime', 'type': 'directory', 'mode': 0o755})
+                with self.subTest(poison=poison), self.assertRaises(BENCHMARK.BenchmarkError):
+                    BENCHMARK.validate_installation_tree_relationships('direct-rust', changed, version, platform, surfaces, {})
+
+    def test_synthetic_report_dictionary_avoids_receipt_duplication(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw).resolve(); _, context, evidence = self.fixture(root)
+            identity = BENCHMARK.capture_installed_tree(root, sdk_context=context)
+            report = {'sdkEvidence': evidence, 'trees': [identity, identity, identity]}
+            encoded = BENCHMARK.render_json(report)
+            self.assertLess(len(encoded), BENCHMARK.MAX_EVIDENCE_BYTES)
+            with self.assertRaisesRegex(BENCHMARK.BenchmarkError, 'architecture differs'):
+                BENCHMARK.sdk_report_receipt(context, 'darwin-arm64')
+            self.assertEqual(len(evidence), 1)
+            self.assertEqual(len([t for t in report['trees'] if t['sdkEvidenceRef']['receiptSha256'] in evidence]), 3)
+            self.synthetic_size = len(encoded)
 
 if __name__ == "__main__":
     unittest.main()
