@@ -42,7 +42,13 @@ a candidate do not establish public availability or authorize publication.
   Its plan quotes the hold for the binding as it will run. Re-attaching a
   bound program changes only the options given instead of resetting its
   settings. `--model` is no longer refused. The options are refused for other
-  job types.
+  job types, and a plain re-attach sends only `program_ref`. On a service that
+  does not report a binding's stored files and environment, re-binding a bound
+  webhook program is refused unless the files and environment are given or
+  `--allow-reset` accepts resetting them; `--replace` likewise needs `--file`,
+  `--clear-files` or `--allow-reset` when the old binding has stored files.
+- The published `cli service operations` size budget is raised from 98,304 to
+  106,496 bytes for the new job options.
 - An interrupt during a plan's advisory quote (`run submit`, `program draft`,
   `program save`, `job contract attach`) now stops the command instead of being
   swallowed.

@@ -209,7 +209,7 @@
             "--json"
           ],
           "schema": "openprose.service-operations/1",
-          "sha256": "ff313c6f91b301039bb3688ad59464da1c10c5a6a13abff1d20b73550501da0b"
+          "sha256": "66a3a4190335950c43afde9c54cbf21a505f5189353d6d367a50352a11b31ab3"
         },
         "nouns": {
           "auth": [

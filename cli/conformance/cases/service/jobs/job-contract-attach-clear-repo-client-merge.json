@@ -2,7 +2,7 @@
   "id": "job-contract-attach-clear-repo-client-merge",
   "feature": "jobs",
   "operation": "job.contract.attach",
-  "description": "On a service that does not report environment, --clear-repo leaves the repository and commit output out of the full binding.",
+  "description": "On a service that does not report environment, --clear-repo leaves the repository and commit output out of the full binding, with --allow-reset.",
   "argv": [
     "--output",
     "json",
@@ -13,6 +13,7 @@
     "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10",
     "exowner1/jobs-example@0123456789abcdef",
     "--clear-repo",
+    "--allow-reset",
     "--yes"
   ],
   "fixture": {

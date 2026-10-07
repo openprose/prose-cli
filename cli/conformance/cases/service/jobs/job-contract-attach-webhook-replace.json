@@ -2,7 +2,7 @@
   "id": "job-contract-attach-webhook-replace",
   "feature": "jobs",
   "operation": "job.contract.attach",
-  "description": "--replace moves a webhook binding to another revision: a full replace that carries the replaced binding's model, reasoning effort, repository, inputs and environment; stored files cannot be carried.",
+  "description": "--replace moves a webhook binding to another revision: a full replace carrying the old binding's model, reasoning effort, repository, inputs and environment; --clear-files accepts that stored files are not carried.",
   "argv": [
     "--output",
     "json",
@@ -14,6 +14,7 @@
     "exowner1/jobs-example@fedcba9876543210",
     "--replace",
     "exowner1/jobs-example@0123456789abcdef",
+    "--clear-files",
     "--yes"
   ],
   "fixture": {

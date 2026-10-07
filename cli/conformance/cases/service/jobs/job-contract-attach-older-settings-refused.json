@@ -1,9 +1,11 @@
 {
-  "id": "job-contract-attach-webhook-rebind-client-merge-human",
+  "id": "job-contract-attach-older-settings-refused",
   "feature": "jobs",
   "operation": "job.contract.attach",
-  "description": "The client-merge path warns that stored files and environment cannot be kept, with --allow-reset.",
+  "description": "On an older service, changing a bound program's settings needs --file/--clear-files with --environment, or --allow-reset.",
   "argv": [
+    "--output",
+    "json",
     "cli",
     "job",
     "contract",
@@ -12,7 +14,6 @@
     "exowner1/jobs-example@0123456789abcdef",
     "--reasoning-effort",
     "high",
-    "--allow-reset",
     "--yes"
   ],
   "fixture": {
@@ -112,36 +113,29 @@
         "requestHeaders": {
           "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
         }
-      },
-      {
-        "method": "POST",
-        "path": "/triggers/3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10/contracts",
-        "requestHeaders": {
-          "Authorization": {
-            "present": true
-          }
-        },
-        "expectedBody": {
-          "program_ref": "exowner1/jobs-example@0123456789abcdef",
-          "model": "model-luna",
-          "reasoning_effort": "high",
-          "repository_url": "https://github.com/exowner1/app",
-          "repository_branch": "main",
-          "inputs": {
-            "channel": "C0123",
-            "cost_center": "ops"
-          }
-        },
-        "status": 201,
-        "body": {
-          "bound": "exowner1/jobs-example@0123456789abcdef"
-        }
       }
     ]
   },
-  "exitCode": 0,
+  "exitCode": 2,
   "stdout": {
-    "text": "Attached exowner1/jobs-example@0123456789abcdef to job 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10.\n  settings: reasoning effort high; repository https://github.com/exowner1/app@main; inputs channel, cost_center\nList the job's contracts with `cli job contract list 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10`.\n"
+    "json": {
+      "interaction": "job.contracts",
+      "operation": "job.contract.attach",
+      "problem": {
+        "action": "Give --file or --clear-files and --environment, or pass --allow-reset.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "this service does not report stored files or environment, so re-attaching exowner1/jobs-example@0123456789abcdef would reset them; give --file or --clear-files and --environment, or pass --allow-reset"
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
   },
   "stderr": {
     "text": ""

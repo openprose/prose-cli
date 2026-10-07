@@ -5617,7 +5617,7 @@
         },
         {
           "name": "--commit-output",
-          "value": "OWNER/NAME[@BRANCH]",
+          "value": "OWNER/NAME",
           "description": "Repository receiving each run's commit; the context repository.",
           "repeatable": false,
           "required": false
@@ -5681,7 +5681,14 @@
         {
           "name": "--replace",
           "value": "OWNER/SLUG@REV",
-          "description": "Bound revision this replaces, keeping its settings.",
+          "description": "Bound revision this replaces, carrying its settings but not stored files.",
+          "repeatable": false,
+          "required": false
+        },
+        {
+          "name": "--allow-reset",
+          "value": null,
+          "description": "Reset stored files and environment a service does not report.",
           "repeatable": false,
           "required": false
         }
@@ -5693,7 +5700,7 @@
           "path": "/triggers/{id}",
           "auth": "bearer",
           "body": null,
-          "when": "a webhook option, --replace, or a plan (no --yes)",
+          "when": "always",
           "catalogRoute": {
             "method": "GET",
             "path": "/triggers/{id}",

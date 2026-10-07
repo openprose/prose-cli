@@ -87,7 +87,11 @@ describe("Service job local checks send nothing", () => {
       [["--repo", "exowner1/app", "--commit-output", "exowner1/other"], "--commit-output exowner1/other must also be given as --repo exowner1/other[@BRANCH]"],
       [["--replace", "exowner1/probe"], "--replace: program reference"],
       [["--file", "a.md", "--clear-files"], "--file and --clear-files cannot be combined"],
-      [["--file", "dir/x=a.md"], '--file "dir/x=a.md": the file name must be 1 to 256 characters without /, \\ or control characters; give it as NAME=PATH'],
+      [["--file", "dir/x=a.md"], '--file "dir/x=a.md": the file name must be 1 to 200 letters, digits, ., _ or -, not starting with a dot and without ..; give it as NAME=PATH'],
+      [["--file", ".env=a.md"], '--file ".env=a.md": the file name must be'],
+      [["--file", "a..b=a.md"], '--file "a..b=a.md": the file name must be'],
+      [["--repo", "exowner1/app", "--commit-output", "exowner1/app@main"], '--commit-output "exowner1/app@main" takes OWNER/NAME: the service chooses the commit\'s branch'],
+      [["--input", "topic", "--clear-input", "topic"], '--input "topic" must be KEY=VALUE or KEY=@FILE'],
       [["--file", "a.md", "--file", "a.md=a.md"], '--file name "a.md" was given more than once; name each file uniquely with NAME=PATH'],
       [["--file", "missing.md"], '--file "missing.md"'],
       [["--file", "dir/"], '--file "dir/" is not a readable file'],
@@ -121,133 +125,108 @@ describe("Service job secrets", () => {
 
 describe("Service job contract settings", () => {
   const REF = "exowner1/probe@0123456789abcdef";
+  const NEXT = "exowner1/probe@fedcba9876543210";
   const contractsPath = `/triggers/${TID}/contracts`;
-  const webhook = (deliveryMode: string) => ({
+  const jobRead = (type = "webhook") => ({
     method: "GET", path: `/triggers/${TID}`, status: 200,
-    body: { trigger: { id: TID, type: "webhook", createdAt: 1 }, status: { deliveryMode } },
+    body: { trigger: { id: TID, type, createdAt: 1 }, status: { deliveryMode: "test" } },
   });
   const listing = (contracts: unknown[]) => ({ method: "GET", path: contractsPath, status: 200, body: { contracts, max_contracts: 5 } });
-  const bound = (extra: Record<string, unknown>) => ({
+  // A bound binding as an older service lists it (no environment or files); pass them for a merging service.
+  const bound = (extra: Record<string, unknown> = {}) => ({
     program_ref: REF, owner: "exowner1", slug: "probe", rev_id: "0123456789abcdef", content: "# private", is_platform_default: false,
     enabled: true, bound_at: 1, inputs: { keep: "1", count: 3 }, model: null, effective_model: "model-luna", reasoning_effort: null,
     repositories: [{ url: "https://github.com/exowner1/app", branch: "main" }],
     output: { type: "commit", repository: "https://github.com/exowner1/app" }, ...extra,
   });
+  const merging = (extra: Record<string, unknown> = {}) => bound({ environment: "linux", files: [{ name: "a.md", size: 1 }], ...extra });
   const fixture = (exchanges: unknown[]) => ({ environment: "production", credentials: { production: KEY }, storeAvailable: true, exchanges });
   const post = (expectedBody: unknown, status = 201, body: unknown = { bound: REF }) => ({ method: "POST", path: contractsPath, expectedBody, status, body });
+  const quote = (query: Record<string, string>) => ({ method: "GET", path: "/run/quote", status: 200, body: { hold: { hold_usd: "0.06", ttl_seconds: 900 } }, query });
+  const attach = (args: string[], exchanges: unknown[], options: { human?: boolean; files?: Record<string, string> } = {}) =>
+    job(["contract", "attach", TID, ...args], { ...options, fixture: fixture(exchanges) });
 
-  test("a merging service gets a new repository with a null branch and the output that committed elsewhere cleared", async () => {
-    const result = await job(["contract", "attach", TID, REF, "--repo", "exowner1/other", "--yes"], {
-      fixture: fixture([webhook("test"), listing([bound({ environment: null, files: [] })]),
-        post({ program_ref: REF, replace_program_ref: REF, repository_url: "https://github.com/exowner1/other", repository_branch: null, output: null })]),
-    });
-    expect(result.exit).toBe(0);
+  test("a merging service: a new repository without a branch sends a null branch; the saved one keeps its branch", async () => {
+    const other = await attach([REF, "--repo", "exowner1/other", "--clear-commit-output", "--yes"], [jobRead(), listing([merging()]),
+      post({ program_ref: REF, replace_program_ref: REF, repository_url: "https://github.com/exowner1/other", repository_branch: null, output: null })]);
+    expect(other.exit).toBe(0);
+    const same = await attach([REF, "--repo", "exowner1/App", "--yes"], [jobRead(), listing([merging()]),
+      post({ program_ref: REF, replace_program_ref: REF, repository_url: "https://github.com/exowner1/App", repository_branch: "main" })]);
+    expect(same.exit).toBe(0);
   });
 
-  test("an older service gets the saved settings merged in full, non-string inputs unchanged", async () => {
-    const result = await job(["contract", "attach", TID, REF, "--commit-output", "exowner1/app@out", "--clear-input", "keep", "--yes"], {
-      fixture: fixture([webhook("test"), listing([bound({})]),
-        post({ program_ref: REF, repository_url: "https://github.com/exowner1/app", repository_branch: "main", inputs: { count: 3 }, output: { type: "commit", repository: "https://github.com/exowner1/app", branch: "out" } })]),
-    });
-    expect(result.exit).toBe(0);
-  });
-
-  test("a commit output needs a repository the runs read", async () => {
-    const result = await job(["contract", "attach", TID, REF, "--commit-output", "exowner1/app", "--yes"], {
-      fixture: fixture([webhook("test"), listing([])]),
-    });
+  test("a new repository with the saved commit output elsewhere is refused", async () => {
+    const result = await attach([REF, "--repo", "exowner1/other", "--yes"], [jobRead(), listing([merging()])]);
     expect(result.exit).toBe(2);
-    expect(result.report!.problem.details.reason).toStartWith("--commit-output exowner1/app must also be given as --repo");
+    expect(result.report!.problem.details.reason).toBe("the saved commit output goes to https://github.com/exowner1/app; with --repo give --commit-output OWNER/NAME or --clear-commit-output");
   });
 
-  test("a live job's refusal names switching it to test delivery", async () => {
-    const result = await job(["contract", "attach", TID, REF, "--environment", "linux", "--yes"], {
-      fixture: fixture([webhook("live"), listing([]), post({ program_ref: REF, environment: "linux" }, 400, { error: "execution configuration is immutable" })]),
-    });
-    expect(result.exit).toBe(10);
-    const problem = result.report!.problem;
-    expect(problem.code).toBe("SERVICE_REQUEST_REJECTED");
-    expect(problem.details.suggestedArgv).toEqual(["--output", "json", "cli", "job", "update", TID, "--spec-file", "-", "--yes"]);
-    expect(problem.details.suggestedStdin).toBe('{"delivery_mode":"test"}\n');
-    expect(problem.action).toEndWith(`The job delivers live; to change its binding, switch it to test delivery first: \`prose --output json cli job update ${TID} --spec-file - --yes\` with details.suggestedStdin on standard input.`);
+  test("an older service: a plain re-attach is refused; settings need --allow-reset or a file option with --environment", async () => {
+    const plain = await attach([REF, "--yes"], [jobRead(), listing([bound()])]);
+    expect(plain.exit).toBe(2);
+    expect(plain.report!.problem.details.reason).toBe(`${REF} is already bound to job ${TID}; this service does not report its stored files or environment, so re-attaching it could reset them`);
+    expect(plain.report!.problem.action).toBe(`List its settings with \`prose --output json cli job contract list ${TID}\`.`);
+    expect(plain.report!.problem.details).not.toHaveProperty("suggestedArgv");
+    const settings = await attach([REF, "--reasoning-effort", "high", "--yes"], [jobRead(), listing([bound()])]);
+    expect(settings.report!.problem.details.reason).toBe(`this service does not report stored files or environment, so re-attaching ${REF} would reset them; give --file or --clear-files and --environment, or pass --allow-reset`);
+    expect(settings.report!.problem.action).toBe("Give --file or --clear-files and --environment, or pass --allow-reset.");
+    expect(settings.report!.problem.details).not.toHaveProperty("suggestedArgv");
+    const full = await attach([REF, "--commit-output", "exowner1/APP", "--clear-input", "keep", "--clear-files", "--environment", "linux", "--yes"], [jobRead(), listing([bound()]),
+      post({ program_ref: REF, repository_url: "https://github.com/exowner1/app", repository_branch: "main", inputs: { count: 3 }, output: { type: "commit", repository: "https://github.com/exowner1/app" }, environment: "linux" })]);
+    expect(full.exit).toBe(0);
   });
 
-  test("the preview plan digests the merged body, summarizes it and quotes the binding as it will run", async () => {
-    const quote = {
-      method: "GET", path: "/run/quote", status: 200, body: { hold: { hold_usd: "0.06", ttl_seconds: 900 } },
-      query: { program_ref: REF, reasoning_effort: "low", job_type: "webhook" },
-    };
-    const result = await job(["contract", "attach", TID, REF, "--input", "topic=cats", "--reasoning-effort", "low", "--preview"], {
-      fixture: fixture([webhook("test"), listing([]), quote]),
-    });
-    expect(result.exit).toBe(0);
-    expect(result.report!.result.plannedRequest.summary).toEqual({ programRef: REF, reasoning_effort: "low", inputKeys: ["topic"] });
-    expect(result.report!.result.plannedRequest.quote).toEqual({ hold: { hold_usd: "0.06", hold_cents: 6, ttl_seconds: 900 } });
+  test("a non-webhook job takes the program alone, bound or not, and refuses settings with the right article", async () => {
+    const plain = await attach([REF, "--yes"], [jobRead("email"), listing([merging()]), post({ program_ref: REF })]);
+    expect(plain.exit).toBe(0);
+    const refused = await attach([REF, "--allow-reset", "--yes"], [jobRead("schedule")]);
+    expect(refused.report!.problem.details.reason).toStartWith(`job ${TID} is a schedule job; run settings`);
+    const email = await attach([REF, "--model", "model-luna", "--yes"], [jobRead("email")]);
+    expect(email.report!.problem.details.reason).toStartWith(`job ${TID} is an email job; run settings`);
+    expect(email.report!.problem.details.suggestedArgv).toEqual(["--output", "json", "cli", "job", "contract", "attach", TID, REF, "--yes"]);
   });
 
-  test("a server-merge plan quotes the saved settings with a cleared repository removed", async () => {
-    const quote = {
-      method: "GET", path: "/run/quote", status: 200, body: { hold: { hold_usd: "0.06", ttl_seconds: 900 } },
-      query: { program_ref: REF, model: "model-sol", environment: "linux", job_type: "webhook" },
-    };
-    const result = await job(["contract", "attach", TID, REF, "--clear-repo", "--model", "model-sol", "--preview"], {
-      fixture: fixture([webhook("test"), listing([bound({ environment: "linux" })]), quote]),
-    });
-    expect(result.exit).toBe(0);
-    expect(result.report!.result.plannedRequest.quote.hold.hold_usd).toBe("0.06");
-  });
-
-  test("files replace the stored set; clearing an unbound program's files sends nothing", async () => {
-    const sent = await job(["contract", "attach", TID, REF, "--file", "a.md", "--clear-files", "--yes"], { files: { "a.md": "a" } });
-    expect(sent.exit).toBe(2);
-    const unbound = await job(["contract", "attach", TID, REF, "--clear-files", "--yes"], {
-      fixture: fixture([webhook("test"), listing([]), post({ program_ref: REF })]),
-    });
-    expect(unbound.exit).toBe(0);
-    const older = await job(["contract", "attach", TID, REF, "--file", "a.md", "--yes"], {
-      files: { "a.md": "hi\n" }, human: true,
-      fixture: fixture([webhook("test"), listing([bound({})]),
-        post({ program_ref: REF, repository_url: "https://github.com/exowner1/app", repository_branch: "main", inputs: { keep: "1", count: 3 }, output: { type: "commit", repository: "https://github.com/exowner1/app" }, files: { "a.md": "aGkK" } })]),
-    });
-    expect(older.exit).toBe(0);
-    expect(older.stdout).toContain("  settings: repository https://github.com/exowner1/app@main; commit output https://github.com/exowner1/app; inputs count, keep; files a.md\n");
-  });
-
-  test("--replace onto another program that is already bound is refused before the binding is sent", async () => {
-    const other = "exowner1/probe@fedcba9876543210";
-    const result = await job(["contract", "attach", TID, other, "--replace=" + REF, "--yes"], {
-      fixture: fixture([webhook("test"), listing([bound({}), bound({ program_ref: other })])]),
-    });
-    expect(result.exit).toBe(2);
-    expect(result.report!.problem.details.reason).toBe(`${other} is already bound to job ${TID}; --replace would reset its settings. Change it in place without --replace, or detach ${REF} first`);
-    expect(result.report!.problem.details.suggestedArgv).toEqual(["--output", "json", "cli", "job", "contract", "attach", TID, other, "--yes"]);
-  });
-
-  test("a move to another revision is a full replace: saved settings and environment are sent, files are noted", async () => {
-    const next = "exowner1/probe@fedcba9876543210";
-    const result = await job(["contract", "attach", TID, next, "--replace", REF, "--yes"], {
-      human: true,
-      fixture: fixture([webhook("test"), listing([bound({ environment: "linux", files: [{ name: "a.md", size: 1 }] })]),
-        { method: "POST", path: contractsPath, status: 201, body: { bound: next }, expectedBody: {
-          program_ref: next, replace_program_ref: REF, environment: "linux", repository_url: "https://github.com/exowner1/app", repository_branch: "main",
-          inputs: { keep: "1", count: 3 }, output: { type: "commit", repository: "https://github.com/exowner1/app" },
-        } }]),
-    });
-    expect(result.exit).toBe(0);
-    expect(result.stderr).toBe("note: stored files are not carried to the new revision; pass --file to attach them\n");
+  test("a move to another revision is a full replace and must account for the stored files", async () => {
+    const refused = await attach([NEXT, "--replace", REF, "--yes"], [jobRead(), listing([merging()])]);
+    expect(refused.exit).toBe(2);
+    expect(refused.report!.problem.details.reason).toBe(`replacing ${REF} with ${NEXT} drops ${REF}'s 1 stored file(s); give them with --file, or pass --clear-files or --allow-reset`);
+    const moved = await attach([NEXT, "--replace", REF, "--file", "a.md", "--yes"], [jobRead(), listing([merging()]),
+      { ...post({
+        program_ref: NEXT, replace_program_ref: REF, environment: "linux", repository_url: "https://github.com/exowner1/app", repository_branch: "main",
+        inputs: { keep: "1", count: 3 }, output: { type: "commit", repository: "https://github.com/exowner1/app" }, files: { "a.md": "aGkK" },
+      }), body: { bound: NEXT } }], { files: { "a.md": "hi\n" }, human: true });
+    expect(moved.exit).toBe(0);
+    expect(moved.stderr).toBe("");
+    expect(moved.stdout).toContain("  settings: repository https://github.com/exowner1/app@main; commit output https://github.com/exowner1/app; inputs count, keep; files a.md\n");
   });
 
   test("an object-valued saved input is SERVICE_PROTOCOL_INVALID and nothing is sent", async () => {
-    const result = await job(["contract", "attach", TID, REF, "--yes"], { fixture: fixture([listing([bound({ environment: null, inputs: { a: [1] } })])]) });
+    const result = await attach([REF, "--yes"], [jobRead(), listing([merging({ inputs: { a: [1] } })])]);
     expect(result.exit).toBe(10);
     expect(result.report!.problem.details.reason).toBe("unexpected job response: contracts[0].inputs.a");
   });
 
-  test("the live hint is added only for an immutable-configuration refusal", async () => {
-    const result = await job(["contract", "attach", TID, REF, "--environment", "linux", "--yes"], {
-      fixture: fixture([webhook("live"), listing([]), post({ program_ref: REF, environment: "linux" }, 400, { error: "environment is not offered" })]),
-    });
+  test("a refusal passes through without a delivery-mode hint", async () => {
+    const result = await attach([REF, "--environment", "linux", "--yes"], [jobRead(), listing([]), post({ program_ref: REF, environment: "linux" }, 400, { error: "execution configuration is immutable" })]);
     expect(result.exit).toBe(10);
     expect(result.report!.problem.details).not.toHaveProperty("suggestedStdin");
+  });
+
+  test("the preview plan digests the body, summarizes it and quotes the binding as it will run", async () => {
+    const fresh = await attach([REF, "--input", "topic=cats", "--reasoning-effort", "low", "--preview"],
+      [jobRead(), listing([]), quote({ program_ref: REF, reasoning_effort: "low", job_type: "webhook" })]);
+    expect(fresh.exit).toBe(0);
+    expect(fresh.report!.result.plannedRequest.summary).toEqual({ programRef: REF, reasoning_effort: "low", inputKeys: ["topic"] });
+    expect(fresh.report!.result.plannedRequest.quote).toEqual({ hold: { hold_usd: "0.06", hold_cents: 6, ttl_seconds: 900 } });
+    const merged = await attach([REF, "--clear-repo", "--model", "model-sol", "--preview"],
+      [jobRead(), listing([merging()]), quote({ program_ref: REF, model: "model-sol", environment: "linux", job_type: "webhook" })]);
+    expect(merged.report!.result.plannedRequest.quote.hold.hold_usd).toBe("0.06");
+  });
+
+  test("--replace onto another program that is already bound is refused before the binding is sent", async () => {
+    const result = await attach([NEXT, "--replace=" + REF, "--yes"], [jobRead(), listing([merging(), merging({ program_ref: NEXT })])]);
+    expect(result.exit).toBe(2);
+    expect(result.report!.problem.details.reason).toBe(`${NEXT} is already bound to job ${TID}; --replace would reset its settings. Change it in place without --replace, or detach ${REF} first`);
+    expect(result.report!.problem.details.suggestedArgv).toEqual(["--output", "json", "cli", "job", "contract", "attach", TID, NEXT, "--yes"]);
   });
 });

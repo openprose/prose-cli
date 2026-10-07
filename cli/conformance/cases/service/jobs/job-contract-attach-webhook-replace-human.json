@@ -2,7 +2,7 @@
   "id": "job-contract-attach-webhook-replace-human",
   "feature": "jobs",
   "operation": "job.contract.attach",
-  "description": "Human --replace output notes that stored files are not carried to the new revision.",
+  "description": "--replace moves a webhook binding to another revision: a full replace carrying the old binding's model, reasoning effort, repository, inputs and environment; --clear-files accepts that stored files are not carried.",
   "argv": [
     "cli",
     "job",
@@ -12,6 +12,7 @@
     "exowner1/jobs-example@fedcba9876543210",
     "--replace",
     "exowner1/jobs-example@0123456789abcdef",
+    "--clear-files",
     "--yes"
   ],
   "fixture": {
@@ -153,6 +154,6 @@
     "text": "Attached exowner1/jobs-example@fedcba9876543210 to job 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10.\n  settings: reasoning effort low; repository https://github.com/exowner1/app@main; inputs channel, cost_center\nList the job's contracts with `cli job contract list 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10`.\n"
   },
   "stderr": {
-    "text": "note: stored files are not carried to the new revision; pass --file to attach them\n"
+    "text": ""
   }
 }

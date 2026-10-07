@@ -183,7 +183,7 @@ prose cli job show "$JOB" --json | jq '.result.status | {
   `SERVICE_REQUEST_REJECTED`).
 - For a **webhook** job, `job contract attach` also sets how its runs execute:
   `--model`, `--reasoning-effort`, `--repo OWNER/NAME[@BRANCH]` (a repository
-  the runs read as context), `--commit-output OWNER/NAME[@BRANCH]` (it must be
+  the runs read as context), `--commit-output OWNER/NAME` (it must be
   that repository), `--input KEY=VALUE` / `--inputs-file FILE`,
   `--environment ENV`, `--file [NAME=]PATH` (UTF-8; it replaces the stored
   file set, as re-deploying from the editor does; at most 20 files, 5 MiB each
@@ -192,22 +192,37 @@ prose cli job show "$JOB" --json | jq '.result.status | {
   removed on its own: the service returns file metadata, not content, so give
   the full set with `--file`. These options on another job type are refused before
   anything is sent (the job is read first to check its type).
-- Attaching a program that is already bound changes only the options given.
-  When the service reports each binding's `environment`, the CLI re-binds the
-  same reference (`replace_program_ref`) with just the changed fields and
-  `null` for a clear, and the service keeps the rest, including stored files.
-  Against a service that does not report it, the CLI merges the saved
-  settings itself and warns that stored files and environment may be
-  dropped. `--replace OWNER/SLUG@REV` moves a binding to another revision of
-  the same program: a full replace that carries the old binding's model,
-  reasoning effort, repository, inputs and environment, but not its stored
-  files (give them again with `--file`). `--replace` onto a program that is
-  already bound is refused; change that binding in place. Settings apply to
-  deliveries
-  admitted after the change. The plan (`--preview` or `CONFIRMATION_REQUIRED`)
-  carries the hold for the binding as it will run (`GET /run/quote` with the
-  program, the job's type and the effective model, reasoning effort,
-  environment and repository); a failed quote leaves the plan without one.
+- The job is always read first. On another job type, and for a plain re-attach
+  of a bound program on a webhook, the CLI sends just `program_ref`; the
+  service treats re-attaching a bound program as a no-op.
+- Changing a bound webhook binding changes only the options given. When the
+  service reports each binding's `environment`, the CLI re-binds the same
+  reference (`replace_program_ref`) with just the changed fields and `null`
+  for a clear, and the service keeps the rest, including stored files. A
+  service that does not report it would reset stored files and environment
+  on any re-bind, so there the CLI refuses unless `--file` or `--clear-files`
+  and `--environment` are given, or `--allow-reset` accepts the reset; a plain
+  re-attach of a bound program is refused. `--input` sends the full resulting
+  input set, so a concurrent edit of the same binding's inputs can be
+  overwritten.
+- `--repo` naming the saved repository without `@BRANCH` keeps its branch.
+  A different `--repo` while the saved commit output goes elsewhere is refused
+  until `--commit-output` or `--clear-commit-output` is also given; the
+  service never retargets a commit output silently. `--commit-output` takes
+  `OWNER/NAME`: the service chooses the commit's branch.
+- `--file` names must be what the service stores: 1 to 200 letters, digits,
+  `.`, `_` or `-`, not starting with a dot and without `..`.
+- `--replace OWNER/SLUG@REV` moves a binding to another revision of the same
+  program: a full replace that carries the old binding's model, reasoning
+  effort, repository, inputs and environment. Stored files cannot be carried,
+  so when the old binding has any, `--file`, `--clear-files` or
+  `--allow-reset` is required. `--replace` onto a program that is already
+  bound is refused; change that binding in place. Settings apply to
+  deliveries admitted after the change. The plan (`--preview` or
+  `CONFIRMATION_REQUIRED`) carries the hold for the binding as it will run
+  (`GET /run/quote` with the program, the job's type and the effective model,
+  reasoning effort, environment and repository); a failed quote leaves the
+  plan without one.
 - `job contract list` reports each contract's `program_ref`, `program_slug`,
   `enabled`, `model`, `effective_model`, `rev_id`, `bound_at`,
   `is_platform_default` and, for a binding with saved settings,

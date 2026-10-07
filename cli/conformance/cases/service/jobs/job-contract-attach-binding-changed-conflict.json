@@ -1,9 +1,11 @@
 {
-  "id": "job-contract-attach-webhook-rebind-client-merge-human",
+  "id": "job-contract-attach-binding-changed-conflict",
   "feature": "jobs",
   "operation": "job.contract.attach",
-  "description": "The client-merge path warns that stored files and environment cannot be kept, with --allow-reset.",
+  "description": "A binding changed concurrently: the service's 409 passes through.",
   "argv": [
+    "--output",
+    "json",
     "cli",
     "job",
     "contract",
@@ -12,7 +14,6 @@
     "exowner1/jobs-example@0123456789abcdef",
     "--reasoning-effort",
     "high",
-    "--allow-reset",
     "--yes"
   ],
   "fixture": {
@@ -104,7 +105,15 @@
                   "branch": "main"
                 }
               ],
-              "output": null
+              "output": null,
+              "environment": "builtin",
+              "files": [
+                {
+                  "name": "notes.md",
+                  "size": 12,
+                  "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+                }
+              ]
             }
           ],
           "max_contracts": 5
@@ -123,25 +132,38 @@
         },
         "expectedBody": {
           "program_ref": "exowner1/jobs-example@0123456789abcdef",
-          "model": "model-luna",
-          "reasoning_effort": "high",
-          "repository_url": "https://github.com/exowner1/app",
-          "repository_branch": "main",
-          "inputs": {
-            "channel": "C0123",
-            "cost_center": "ops"
-          }
+          "replace_program_ref": "exowner1/jobs-example@0123456789abcdef",
+          "reasoning_effort": "high"
         },
-        "status": 201,
+        "status": 409,
         "body": {
-          "bound": "exowner1/jobs-example@0123456789abcdef"
+          "error": "The binding changed; reload and retry.",
+          "code": "binding_changed"
         }
       }
     ]
   },
-  "exitCode": 0,
+  "exitCode": 10,
   "stdout": {
-    "text": "Attached exowner1/jobs-example@0123456789abcdef to job 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10.\n  settings: reasoning effort high; repository https://github.com/exowner1/app@main; inputs channel, cost_center\nList the job's contracts with `cli job contract list 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10`.\n"
+    "json": {
+      "interaction": "job.contracts",
+      "operation": "job.contract.attach",
+      "problem": {
+        "action": "Read the current state of the resource, reconcile the change, then retry.",
+        "boundary": "hosted-service",
+        "code": "SERVICE_WRITE_CONFLICT",
+        "details": {
+          "serviceMessage": "The binding changed; reload and retry.",
+          "serviceStatus": 409
+        },
+        "exitCode": 10,
+        "message": "The OpenProse service reported a conflicting write.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
   },
   "stderr": {
     "text": ""
