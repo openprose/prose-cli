@@ -2,7 +2,7 @@
   "id": "no-cli-help-command-json",
   "feature": "framework",
   "operation": "run.submit",
-  "description": "`prose help run submit` under the default hosted harness suggests that command's help, `prose cli run submit --help`.",
+  "description": "`prose help run submit` under the explicitly selected hosted harness suggests that command's help, `prose cli run submit --help`.",
   "argv": [
     "--output",
     "json",
@@ -46,5 +46,8 @@
       "result": null,
       "schema": "openprose.service-operation/1"
     }
+  },
+  "environment": {
+    "PROSE_HARNESS": "openprose"
   }
 }

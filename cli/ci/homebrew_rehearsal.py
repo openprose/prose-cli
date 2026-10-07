@@ -271,7 +271,7 @@ def qualify_installed_sdk(active: Path, manifest: dict[str, Any], verified: dict
         raise ValueError('Installed SDK dry run did not establish provider-free readiness')
     selection = dry.get('selection', {})
     if any(selection.get(key) != value for key, value in (('harness', 'agents-sdk'), ('adapterId', 'agents-sdk/jsonl'),
-                                                          ('transport', 'jsonl'), ('runtimeVersion', '0.1.0'), ('model', 'gpt-6.1-sol'))):
+                                                          ('transport', 'jsonl'), ('runtimeVersion', 'prose-agents-sdk 0.1.0'), ('model', 'gpt-6.1-sol'))):
         raise ValueError('Installed command did not discover the packaged SDK default')
     if dry.get('billingOwner') != 'user-provider' or dry.get('blockingError') is not None:
         raise ValueError('Installed SDK dry run changed billing or reported a blocker')

@@ -2,7 +2,7 @@
   "id": "no-cli-double-dash-forwards",
   "feature": "framework",
   "operation": "job.list",
-  "description": "`prose -- job list` always forwards to the language, with no service hint.",
+  "description": "`prose -- job list` always forwards to the language, with no service hint. This fixture explicitly selects the openprose hosted harness through PROSE_HARNESS.",
   "argv": [
     "--",
     "job",
@@ -26,5 +26,8 @@
   "forbid": [
     "`prose cli job list`"
   ],
-  "languageForwarded": true
+  "languageForwarded": true,
+  "environment": {
+    "PROSE_HARNESS": "openprose"
+  }
 }

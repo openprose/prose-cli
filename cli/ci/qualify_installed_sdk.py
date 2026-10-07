@@ -168,7 +168,7 @@ class Qualification:
         ready = self.json_command(command, ['--output=json', '--dry-run', 'run', 'missing.prose.md'], root, dict(env, OPENAI_API_KEY=AUTH_CANARY), label + '-helper-discovery')
         selection = ready.get('selection', {})
         pub.require(ready.get('schema') == 'openprose.runner-dry-run-report/1' and ready.get('wouldStartModel') is False and ready.get('readiness') == 'ready' and ready.get('blockingError') is None and ready.get('billingOwner') == 'user-provider', 'Synthetic-key dry-run must be ready without inference')
-        pub.require(all(selection.get(key) == value for key, value in {'harness': 'agents-sdk', 'adapterId': 'agents-sdk/jsonl', 'transport': 'jsonl', 'runtimeVersion': '0.1.0', 'model': 'gpt-6.1-sol'}.items()), 'Installed CLI did not discover its packaged SDK sibling')
+        pub.require(all(selection.get(key) == value for key, value in {'harness': 'agents-sdk', 'adapterId': 'agents-sdk/jsonl', 'transport': 'jsonl', 'runtimeVersion': 'prose-agents-sdk 0.1.0', 'model': 'gpt-6.1-sol'}.items()), 'Installed CLI did not discover its packaged SDK sibling')
         pub.require(not path.exists(), 'Dry-run persisted settings')
         self.checks.append({'name': label, 'status': 'pass', 'modelCalls': 0, 'settingsPath': str(path)})
 

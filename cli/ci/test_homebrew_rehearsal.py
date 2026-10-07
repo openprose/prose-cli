@@ -339,6 +339,7 @@ class NativeExerciseTests(unittest.TestCase):
                          'binaryHashes': {i: hashlib.sha256(('old-' + i).encode()).hexdigest() for i in ('bun', 'rust')}}
         self.kegs = {}; self.tapped = False; self.calls = []; self.corrupt_settings = False
         self.bad_dry_run = False
+        self.runtime_banner = 'prose-agents-sdk 0.1.0'
 
     def execute(self, argv, **kwargs):
         self.calls.append((list(argv), dict(kwargs['env'])))
@@ -401,7 +402,7 @@ class NativeExerciseTests(unittest.TestCase):
                 self.assertEqual(kwargs['env'].get('OPENAI_API_KEY'), 'provider-free-installation-canary')
                 out = json.dumps({'schema': 'openprose.runner-dry-run-report/1', 'wouldStartModel': self.bad_dry_run,
                     'readiness': 'ready', 'billingOwner': 'user-provider', 'blockingError': None,
-                    'selection': {'harness': 'agents-sdk', 'adapterId': 'agents-sdk/jsonl', 'transport': 'jsonl', 'runtimeVersion': '0.1.0', 'model': 'gpt-6.1-sol'}})
+                    'selection': {'harness': 'agents-sdk', 'adapterId': 'agents-sdk/jsonl', 'transport': 'jsonl', 'runtimeVersion': self.runtime_banner, 'model': 'gpt-6.1-sol'}})
             else:
                 self.assertNotIn('OPENAI_API_KEY', kwargs['env'])
                 out = json.dumps({'schema': 'openprose.runner-error/1', 'code': 'HARNESS_NEEDS_AUTH', 'details': {'fallbackAttempted': False}}); code = 10
@@ -441,6 +442,21 @@ class NativeExerciseTests(unittest.TestCase):
         self.bad_dry_run = True
         with self.assertRaisesRegex(ValueError, 'provider-free readiness'):
             self.exercise()
+
+    def assert_runtime_banner_refused(self, banner):
+        self.runtime_banner = banner
+        with self.assertRaisesRegex(ValueError, 'discover the packaged SDK default'):
+            self.exercise()
+        self.assertFalse((self.output / 'homebrew-rehearsal.json').exists())
+
+    def test_complete_ready_selection_rejects_bare_runtime_version(self):
+        self.assert_runtime_banner_refused('0.1.0')
+
+    def test_complete_ready_selection_rejects_wrong_runtime_version(self):
+        self.assert_runtime_banner_refused('prose-agents-sdk 9.9.9')
+
+    def test_complete_ready_selection_rejects_wrong_helper_identity(self):
+        self.assert_runtime_banner_refused('other-helper 0.1.0')
 
     def test_existing_command_is_not_replaced(self):
         self.active.write_bytes(b'existing')

@@ -2,7 +2,7 @@
   "id": "no-cli-status-json",
   "feature": "framework",
   "operation": "service.triage",
-  "description": "`prose --output json status` under the default hosted harness prints the INVOCATION_INVALID envelope with `prose cli service triage`.",
+  "description": "`prose --output json status` under the explicitly selected hosted harness prints the INVOCATION_INVALID envelope with `prose cli service triage`.",
   "argv": [
     "--output",
     "json",
@@ -43,5 +43,8 @@
       "result": null,
       "schema": "openprose.service-operation/1"
     }
+  },
+  "environment": {
+    "PROSE_HARNESS": "openprose"
   }
 }

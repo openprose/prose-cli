@@ -2,7 +2,7 @@
   "id": "no-cli-examples-list-json",
   "feature": "framework",
   "operation": "example.list",
-  "description": "`prose --output json examples list` under the default hosted harness prints the INVOCATION_INVALID envelope with `prose cli example list`.",
+  "description": "`prose --output json examples list` under the explicitly selected hosted harness prints the INVOCATION_INVALID envelope with `prose cli example list`.",
   "argv": [
     "--output",
     "json",
@@ -44,5 +44,8 @@
       "result": null,
       "schema": "openprose.service-operation/1"
     }
+  },
+  "environment": {
+    "PROSE_HARNESS": "openprose"
   }
 }

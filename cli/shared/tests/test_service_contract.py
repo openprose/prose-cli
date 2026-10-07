@@ -235,6 +235,25 @@ class ServiceContractTest(unittest.TestCase):
             self.assert_invalid("runner-error.schema.json", self.failure("SERVICE_REQUEST_REJECTED", **bad))
 
     # ------------------------------------------------------------- environments
+    def test_fixture_environment_admits_only_the_explicit_hosted_selector(self):
+        schema=deepcopy(self.documents[RUNNER/'service-fixture.schema.json'])
+        schema['$ref']='#/$defs/case'
+        case=load_json(CLI/'conformance/cases/service/framework/no-cli-help-json.json')
+        self.assertEqual('openprose',case['environment']['PROSE_HARNESS'])
+        self.assertEqual([],self.errors(schema,case))
+        for value in ('agents-sdk','mock','claude','',None,'openprose '):
+            invalid=deepcopy(case);invalid['environment']['PROSE_HARNESS']=value
+            with self.subTest(selector=value):
+                self.assertTrue(self.errors(schema,invalid))
+        invalid=deepcopy(case);invalid['environment']['UNKNOWN_CASE_ENV']='value'
+        self.assertTrue(self.errors(schema,invalid))
+        for key in ('OPENPROSE_API_KEY','OPENPROSE_API_URL','PROSE_OUTPUT','PROSE_DEBUG'):
+            allowed=deepcopy(case);allowed['environment'][key]='fixture-string'
+            with self.subTest(existing_key=key):
+                self.assertEqual([],self.errors(schema,allowed))
+                allowed['environment'][key]=1
+                self.assertTrue(self.errors(schema,allowed))
+
     def test_account_results_are_envelope_results(self):
         """`cli auth ...` and `cli org list` print the service-operation/1
         envelope; their results are closed and name no service environment."""

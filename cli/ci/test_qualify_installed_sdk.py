@@ -162,7 +162,7 @@ class InstallationQualificationTests(unittest.TestCase):
                     path = Path(env['HOME']) / '.prose/cli.toml'; path.parent.mkdir(); path.write_text('harness="agents-sdk"\n')
             elif '--dry-run' in argv:
                 if kwargs['environment'].get('OPENAI_API_KEY') == installed.AUTH_CANARY:
-                    value, code = {'schema': 'openprose.runner-dry-run-report/1', 'wouldStartModel': False, 'readiness': 'ready', 'blockingError': None, 'billingOwner': 'user-provider', 'selection': {'harness': 'agents-sdk', 'adapterId': 'agents-sdk/jsonl', 'transport': 'jsonl', 'runtimeVersion': '0.1.0', 'model': 'gpt-6.1-sol'}}, 0
+                    value, code = {'schema': 'openprose.runner-dry-run-report/1', 'wouldStartModel': False, 'readiness': 'ready', 'blockingError': None, 'billingOwner': 'user-provider', 'selection': {'harness': 'agents-sdk', 'adapterId': 'agents-sdk/jsonl', 'transport': 'jsonl', 'runtimeVersion': 'prose-agents-sdk 0.1.0', 'model': 'gpt-6.1-sol'}}, 0
                 else: value, code = {'schema': 'openprose.runner-dry-run-report/1', 'blockingError': {'code': 'HARNESS_NEEDS_AUTH'}}, 10
             else: value, code = {'schema': 'openprose.runner-error/1', 'code': 'HARNESS_NEEDS_AUTH', 'action': installed.SETUP_ACTION}, 10
             return subprocess.CompletedProcess(argv, code, json.dumps(value).encode() + b'\n', b'')
@@ -192,7 +192,13 @@ class InstallationQualificationTests(unittest.TestCase):
         self.assertEqual(q.checks, [])
 
     def test_outer_helper_discovery_requires_no_inference_and_exact_packaged_runtime(self):
-        for index, mutation in enumerate(({'wouldStartModel': True}, {'readiness': 'blocked'}, {'selection': {'harness': 'agents-sdk', 'transport': 'jsonl', 'runtimeVersion': '9.9.9'}}, {'blockingError': {'code': 'HARNESS_UNAVAILABLE'}})):
+        valid_selection = {'harness': 'agents-sdk', 'adapterId': 'agents-sdk/jsonl', 'transport': 'jsonl',
+                           'runtimeVersion': 'prose-agents-sdk 0.1.0', 'model': 'gpt-6.1-sol'}
+        mutations = [{'wouldStartModel': True}, {'readiness': 'blocked'},
+                     {'blockingError': {'code': 'HARNESS_UNAVAILABLE'}}]
+        mutations.extend({'selection': dict(valid_selection, runtimeVersion=banner)} for banner in
+                         ('0.1.0', 'prose-agents-sdk 9.9.9', 'other-helper 0.1.0'))
+        for index, mutation in enumerate(mutations):
             with self.subTest(mutation=mutation):
                 q = installed.Qualification(self.root / ('output-' + str(index)), self.node, self.npm)
                 root = q.output / 'consumer'; root.mkdir(); env = q.environment(root)

@@ -381,7 +381,7 @@ of forwarding. The same applies to a lone word that a `nounSynonyms` entry
 maps to exactly one command (`login`, `whoami`, `models`), to a verb before
 its group (`list jobs`) and to a `commandRewrites` word (`stop`, `delete`,
 `share`, `cron`). A language command that also names a service command
-(`status`, `help`, `examples`) is forwarded unless the default hosted harness,
+(`status`, `help`, `examples`) is forwarded unless the explicitly selected hosted harness,
 which runs no language command, would refuse it; `run FILE` is always
 forwarded, and `prose -- <WORDS>` always forwards.
 
@@ -2166,21 +2166,26 @@ unconsumed tokens:
   to the OpenProse language instead, put `--` before them`` (``is not a
   command`` for a synonym). The Action reads ``Insert cli before the service
   command: `prose ... cli ...`.`` (``Use `cli <command>`: ...`` for a
-  synonym). `details.suggestedArgv` is the original argv with `cli` and the
-  command words in place of the typed words, with every global kept in place.
+  synonym). `details.suggestedArgv` inserts `cli` and the corrected command
+  words. Executable service corrections retain display options, apply `--cwd`
+  to the file operand, retain `--model` only when supported, and map `--dry-run`
+  to supported `--preview` without duplication. Local harness, transport,
+  authentication and timeout globals are omitted. Alias-only corrections
+  retain the original opaque arguments and native globals.
 - **Language commands.** `grammar.intentInference.languageCommands` is the
   SPEC 7.1 list (a contract test compares them). A language command that also
   names a service command (`status` → `service triage`, `help [COMMAND]` →
   `--help`, `examples` → `example list`) is forwarded when a local harness is
-  selected. Under the default `openprose` harness, which runs no language
+  selected. Under an explicitly selected `openprose` harness, which runs no language
   command, it is the `INVOCATION_INVALID` rejection instead (reason
   ``<words> is a language command, which runs only with a local harness``).
-  `run FILE` is always forwarded: its `HOSTED_UNAVAILABLE` refusal keeps the
+  `run FILE` is always forwarded: the explicitly selected hosted harness's
+  `HOSTED_UNAVAILABLE` refusal keeps the
   frozen Action, and `details.suggestedArgv` is `prose ... cli run submit FILE
   --preview`.
 - **A file of that name.** When one of the words names an existing file or
   directory, the argv is a language command and is forwarded unchanged. If
-  the default `openprose` harness then refuses with `HOSTED_UNAVAILABLE`, the
+  an explicitly selected `openprose` harness then refuses with `HOSTED_UNAVAILABLE`, the
   Action gains ``If you meant the hosted service command, use `prose cli
   ...`.`` and `details.suggestedArgv` carries that argv.
 - **Global aliases before `cli`.** An `optionAliases` entry whose target is a

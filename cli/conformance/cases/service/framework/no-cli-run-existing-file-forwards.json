@@ -2,7 +2,7 @@
   "id": "no-cli-run-existing-file-forwards",
   "feature": "framework",
   "operation": "run.submit",
-  "description": "`prose run FILE` stays the language command: the default hosted harness refuses it with HOSTED_UNAVAILABLE (exit 10, never a fallback) and its frozen Action; in JSON its details.suggestedArgv names `cli run submit FILE --preview`.",
+  "description": "`prose run FILE` stays the language command: the explicitly selected hosted harness refuses it with HOSTED_UNAVAILABLE (exit 10, never a fallback) and its frozen Action; in JSON its details.suggestedArgv names `cli run submit FILE --preview`.",
   "files": [
     {
       "path": "hello.prose.md",
@@ -31,5 +31,8 @@
       "HOSTED_UNAVAILABLE",
       "running programs on this machine needs a local harness (`cli harness list`).\n"
     ]
+  },
+  "environment": {
+    "PROSE_HARNESS": "openprose"
   }
 }
