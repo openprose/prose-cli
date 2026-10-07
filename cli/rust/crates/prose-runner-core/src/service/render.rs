@@ -395,8 +395,8 @@ fn first_run_line(planned: &Value) -> Option<String> {
     })
 }
 
-/// The human hold line of a plan with a quote (The hold is
-/// flat, not an estimate of this run's price).
+/// The human hold line of a plan with a quote (the hold quoted for the
+/// plan's options; a reservation, not an estimate of this run's price).
 fn hold_line(planned: &Value) -> Option<String> {
     let hold = planned["quote"]["hold"]["hold_usd"].as_str()?;
     Some(format!(

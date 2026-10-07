@@ -11,6 +11,20 @@ a candidate do not establish public availability or authorize publication.
 
 ## [Unreleased]
 
+### Hosted service
+
+- Hold quotes follow the service's per-run holds. `run quote` and the
+  `run submit` plan send the given `--model`, `--reasoning-effort` and
+  `--environment`, plus `repositories=1` for any `--repo` or
+  `--commit-output`; the `job create` plan sends the spec's `model`,
+  `reasoning_effort` and `environment`, plus `repositories=1` for a
+  `repository_url` or `context_repository_url`. Nothing is defaulted, so a
+  flagless quote is unchanged. `holdBasis`, the human quote and the help no
+  longer call the hold flat.
+- `job create` webhook specs accept `model`, `reasoning_effort`,
+  `repository_url`, `repository_branch` and `output` for the connected
+  contract (the service requires `program_ref` with them).
+
 ## [0.15.0-rc.2] — 2026-10-02
 
 These are accumulated changes in the 0.15 candidate train; some capabilities

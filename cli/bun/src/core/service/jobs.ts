@@ -31,7 +31,7 @@ import { failure, invocationFailure } from "../errors";
 import { humanSafeScalar, quote as quoteText } from "../output";
 import { RunnerFailure } from "../types";
 import { readSource } from "./fs";
-import { encodeSegment, jsonObject, parseJson, requestFor, type Request } from "./http";
+import { encodeSegment, holdQuery, jsonObject, parseJson, requestFor, type Request } from "./http";
 import type { Context } from "./index";
 import { didYouMean, type Environment, type Json, type JsonObject } from "./manifest";
 import { parseOwnAllowed, parseProgramRef, pinned, resolveToRun, validSlug } from "./program-ref";
@@ -584,9 +584,27 @@ async function show(context: Context): Promise<Json> {
   return result;
 }
 
-/** The anonymous GET /run/quote hold for the confirmation plan (default environment); the price policy reference stays internal. */
-async function quote(context: Context): Promise<JsonObject> {
-  const body = await getJson(context, 0, "/run/quote");
+/** A spec key's value when it is a nonempty string (a hold option the spec gives). */
+function specString(spec: JsonObject, key: string): string | undefined {
+  const value = spec[key];
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+/**
+ * The anonymous GET /run/quote hold for the confirmation plan, quoted from the
+ * spec's model, reasoning effort, environment and bound repositories (only
+ * those the spec gives); the price policy reference stays internal.
+ */
+async function quote(context: Context, spec: JsonObject): Promise<JsonObject> {
+  const repository = (key: string): boolean => (specString(spec, key) ?? "").length > 0;
+  const request = requestFor(context.operation, 0, "/run/quote");
+  request.query.push(...holdQuery({
+    model: specString(spec, "model"),
+    reasoningEffort: specString(spec, "reasoning_effort"),
+    environment: specString(spec, "environment"),
+    repositoriesBound: repository("repository_url") || repository("context_repository_url"),
+  }));
+  const body = jsonObject(await context.send(request));
   const hold = object(body.hold ?? null, "quote.hold");
   const holdUsd = hold.hold_usd;
   if (typeof holdUsd !== "string" || !/^-?[0-9]+\.[0-9]{2}$/u.test(holdUsd)) throw protocol("quote.hold.hold_usd");
@@ -617,7 +635,7 @@ async function create(context: Context): Promise<Json> {
   const planned = context.planned(1, "/triggers", [], body);
   // A webhook with no program starts no runs: nothing is held.
   if (unpaid(context, spec)) planned.effect = "write";
-  else if (context.invocation.preview || !context.invocation.yes) planned.quote = await quote(context);
+  else if (context.invocation.preview || !context.invocation.yes) planned.quote = await quote(context, spec);
   const gate = context.gate(planned);
   if (gate.kind === "preview") return gate.result;
   const request: Request = { ...requestFor(context.operation, 1, "/triggers"), body };

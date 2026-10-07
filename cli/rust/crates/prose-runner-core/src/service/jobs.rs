@@ -1118,7 +1118,7 @@ fn create(context: &mut Context<'_>) -> Result<Value, RunnerError> {
         // A webhook with no program starts no runs: nothing is held.
         planned["effect"] = json!("write");
     } else if context.invocation.preview || !context.invocation.yes {
-        planned["quote"] = quote(context)?;
+        planned["quote"] = quote(context, &spec)?;
     }
     if let Gate::Preview(result) = context.gate(planned)? {
         return Ok(result);
@@ -1134,11 +1134,27 @@ fn create(context: &mut Context<'_>) -> Result<Value, RunnerError> {
     Ok(result)
 }
 
-/// The anonymous `GET /run/quote` hold for the confirmation plan (the
-/// default environment; the job's own environment is not sent). The price
-/// policy reference stays internal.
-fn quote(context: &mut Context<'_>) -> Result<Value, RunnerError> {
-    let body = get_json(context, 0, "/run/quote")?;
+/// The anonymous `GET /run/quote` hold for the confirmation plan. It sends
+/// the hold options the spec gives (`model`, `reasoning_effort`,
+/// `environment`, and `repositories=1` for a `repository_url` or
+/// `context_repository_url`), never defaults; the program is not read, so its
+/// declared tools are not sent. The price policy reference stays internal.
+fn quote(context: &mut Context<'_>, spec: &Map<String, Value>) -> Result<Value, RunnerError> {
+    let text = |key: &str| {
+        spec.get(key)
+            .and_then(Value::as_str)
+            .filter(|value| !value.is_empty())
+    };
+    let repositories_bound =
+        text("repository_url").is_some() || text("context_repository_url").is_some();
+    let request = super::runs::hold_query(
+        Request::from_manifest(context.operation, 0, "/run/quote"),
+        text("model"),
+        text("reasoning_effort"),
+        text("environment"),
+        repositories_bound,
+    );
+    let body = context.send(&request)?.json_object()?;
     let hold = object(body.get("hold").unwrap_or(&Value::Null), "quote.hold")?;
     let hold_usd = hold
         .get("hold_usd")

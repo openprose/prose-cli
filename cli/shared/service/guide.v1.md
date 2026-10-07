@@ -97,15 +97,20 @@ prose cli run list --limit 50 --before CURSOR --json
 
 ## What will it cost
 
-A run reserves a hold before it starts: money set aside from the wallet
-(currently $1.02), not the price. The price is known only after the run
+A run reserves a hold before it starts: money set aside from the wallet,
+not the price. The hold depends on the model, reasoning effort, environment,
+declared tools and bound repositories. The price is known only after the run
 settles: `price_cents` in `prose cli run show RUN_ID --json`, of which
 `environment_price_cents` is the environment's share. What the run did not
 use is released. Short runs usually cost a few cents.
 
 Estimate from your own history: `prose cli wallet usage` prints runs and
 prices by day, and `prose cli wallet balance` shows what is available and
-what is reserved right now. `prose cli run quote --json` reports the hold.
+what is reserved right now. `prose cli run quote --json` reports the hold for
+the `--model`, `--reasoning-effort`, `--environment`, `--repo` and
+`--commit-output` you give it. It does not read the program, so a program
+that sets its own model, effort or environment, or declares tools, can hold a
+different amount.
 
 Premium models unlock with any wallet top-up; `prose cli model list` shows
 each model's status.
@@ -194,7 +199,9 @@ A command that spends money, publishes, deletes or cannot be undone needs
 invalidates the old one now), `details.plannedRequest` (the method, what the
 request does as `description`, its non-secret inputs as `summary`: model, programRef, inputKeys,
 amount_cents, slug; and for `cli run submit`, `cli program draft` and a paid
-`cli job create` the service's flat hold quote), `details.confirmArgv` and
+`cli job create` the service's hold quote for the options or spec given, and
+for `cli program draft` the parameter-free quote),
+`details.confirmArgv` and
 `details.previewArgv`. `--preview` prints the same plan, exits 0 and changes
 nothing. An unknown `--model`, an `--environment` or `--runtime` that
 `prose cli service status --json` does not list (`environments`), an input the

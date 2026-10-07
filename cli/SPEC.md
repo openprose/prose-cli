@@ -2469,14 +2469,23 @@ sorted keys of `inputs` as `inputKeys`, `interval_seconds`, `delivery_mode`,
 `visibility`, `role`, `amount_cents`), omitted when none is present; secrets,
 program text and input values never appear. Human previews print it as
 `Summary: field=value; ...` (cents also in dollars) and `CONFIRMATION_REQUIRED`
-as `Planned summary:`; a plan with a quote prints `Hold: $X (flat hold,
-independent of program and model)`. `run submit` and `program draft` check a
+as `Planned summary:`; a plan with a quote prints `Hold: $X (set aside from
+the wallet while the run is live; not its price)`. `run submit` and `program draft` check a
 `--model` against `GET /models` (manifest request `when: "--model"`) before the
 confirmation gate: a name that is neither offered nor the default is
 `INVOCATION_INVALID` naming the three nearest offered
 models, with `suggestedArgv` the same command using the nearest; a failed
 lookup is advisory (the service decides) except an interrupt. `program draft`
-quotes the flat run hold (`GET /run/quote`, advisory) into its plan. `org
+quotes the run hold (`GET /run/quote` with no parameters, advisory) into its
+plan. The hold depends on model, reasoning effort, environment, declared tools
+and bound repositories. `run quote` and the `run submit` plan send only the
+`model`, `reasoning_effort` and `environment` the user gave, plus
+`repositories=1` for any `--repo` or `--commit-output`; the `job create` plan
+sends the spec's `model`, `reasoning_effort` and `environment`, plus
+`repositories=1` for a `repository_url` or `context_repository_url`. Nothing
+is defaulted, the program is not inspected for the quote and tools are never
+sent, so a quote does not cover the program's own run settings or declared
+tools. `org
 create` checks the service slug rule (1-63 lowercase letters, digits or
 interior hyphens; not `openprose`, `system`, `default`, `invitations` or
 UUID-shaped) before any request, suggesting a derived slug as `suggestedArgv`
@@ -2495,8 +2504,9 @@ the `--yes` help line reads `required because <confirmReason>.` and
 `CONFIRMATION_REQUIRED` carries `details.reason` `--yes is required because
 <confirmReason>`; `render_service_help.py --check` and the manifest schema
 refuse a missing, misplaced or circular reason. `run quote` results carry
-`holdBasis` and its human output says the hold is flat and the price is known
-only after settlement.
+`holdBasis` and its human output says what the hold depends on, that the
+quote covers only the options given, and that the price is known only after
+settlement.
 
 **Transport.** Requests never follow redirects and are never retried, not even
 GETs. Each operation has a transport class with bounded time and size:

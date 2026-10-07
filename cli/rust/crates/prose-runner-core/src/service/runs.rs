@@ -400,9 +400,37 @@ fn quote_fields(body: &Map<String, Value>) -> Result<Value, RunnerError> {
     Ok(json!({"hold_usd": hold_usd, "hold_cents": hold_cents, "ttl_seconds": ttl}))
 }
 
-/// `run quote` `holdBasis`: the hold is not a price estimate.
-const HOLD_BASIS: &str =
-    "flat hold, independent of program and model; a run's price is known only after it settles";
+/// `run quote` `holdBasis`: what the hold depends on and what the quote
+/// covers; the hold is not a price estimate.
+const HOLD_BASIS: &str = "depends on model, reasoning effort, environment, declared tools and repositories; quoted from the options given, without the program's own run settings or declared tools; a run's price is known only after it settles";
+
+/// The `run quote` human line naming what the hold depends on.
+const HOLD_DEPENDS_ON: &str = "Depends on: model, reasoning effort, environment, declared tools and repositories; quoted from the options given, without the program's own run settings or declared tools";
+
+/// Adds the hold options the caller gave to a `GET /run/quote` request, in
+/// manifest order. Only given options are sent, never defaults, so a quote
+/// without them stays parameter-free. Any bound repository sends
+/// `repositories=1`. The program is never read, so declared tools are not
+/// sent.
+pub(super) fn hold_query(
+    mut request: Request,
+    model: Option<&str>,
+    reasoning_effort: Option<&str>,
+    environment: Option<&str>,
+    repositories_bound: bool,
+) -> Request {
+    for (name, value) in [
+        ("model", model),
+        ("reasoning_effort", reasoning_effort),
+        ("environment", environment),
+        ("repositories", repositories_bound.then_some("1")),
+    ] {
+        if let Some(value) = value {
+            request = request.query(name, value.to_owned());
+        }
+    }
+    request
+}
 
 fn quote(context: &mut Context<'_>) -> Result<Value, RunnerError> {
     let requested = context.option("--environment").map(str::to_owned);
@@ -445,10 +473,15 @@ fn quote(context: &mut Context<'_>) -> Result<Value, RunnerError> {
             .ok_or_else(|| protocol("service status environments.default is missing or malformed"))?
             .to_owned(),
     };
-    let mut request = Request::from_manifest(context.operation, 1, "/run/quote");
-    if let Some(environment) = &requested {
-        request = request.query("environment", environment.clone());
-    }
+    let repositories_bound = !context.invocation.option_values("--repo").is_empty()
+        || context.option("--commit-output").is_some();
+    let request = hold_query(
+        Request::from_manifest(context.operation, 1, "/run/quote"),
+        context.option("--model"),
+        context.option("--reasoning-effort"),
+        requested.as_deref(),
+        repositories_bound,
+    );
     let body = context.send(&request)?.json_object()?;
     let hold = quote_fields(&body)?;
     let note = match body.get("note") {
@@ -459,10 +492,11 @@ fn quote(context: &mut Context<'_>) -> Result<Value, RunnerError> {
     let mut text = format!("Environment: {}\n", human_safe_scalar(&environment));
     let _ = writeln!(
         text,
-        "Hold: ${}, set aside from the wallet while a run is live; not its price. The same for every program and model; released within {} s when unused",
+        "Hold: ${}, set aside from the wallet while a run is live; not its price. Released within {} s when unused",
         human_safe_scalar(hold["hold_usd"].as_str().unwrap_or_default()),
         hold["ttl_seconds"]
     );
+    let _ = writeln!(text, "{HOLD_DEPENDS_ON}");
     let _ = writeln!(
         text,
         "Price: known only after a run settles; read it with `{}`",
@@ -1514,6 +1548,11 @@ struct Submission {
     session: Option<String>,
     wait_ms: u64,
     environment: Option<String>,
+    /// The hold options sent with the plan's quote: --model,
+    /// --reasoning-effort and whether any repository is bound.
+    model: Option<String>,
+    reasoning_effort: Option<String>,
+    repositories_bound: bool,
 }
 
 fn prepare_submission(context: &mut Context<'_>) -> Result<Submission, RunnerError> {
@@ -1599,6 +1638,9 @@ fn prepare_submission(context: &mut Context<'_>) -> Result<Submission, RunnerErr
         }
     }
     let inputs = parse_inputs(context)?;
+    let repositories_bound = !repositories.is_empty() || commit.is_some();
+    let quoted_model = model.clone();
+    let quoted_effort = effort.clone();
     let mut body = Map::new();
     let mut source_sha256 = None;
     if let Some(file) = &file {
@@ -1686,6 +1728,9 @@ fn prepare_submission(context: &mut Context<'_>) -> Result<Submission, RunnerErr
         session,
         wait_ms,
         environment,
+        model: quoted_model,
+        reasoning_effort: quoted_effort,
+        repositories_bound,
     })
 }
 
@@ -1982,11 +2027,14 @@ fn submit(context: &mut Context<'_>) -> Result<Value, RunnerError> {
         let placeholder = submission.session.as_deref().unwrap_or("{session}");
         let query = submit_query(placeholder, &submission.extra_query);
         let mut planned = context.planned(2, "/run", &query, Some(&submission.body));
-        let mut quote_request = Request::from_manifest(context.operation, 1, "/run/quote")
-            .class(TransportClass::Control);
-        if let Some(environment) = &submission.environment {
-            quote_request = quote_request.query("environment", environment.clone());
-        }
+        let quote_request = hold_query(
+            Request::from_manifest(context.operation, 1, "/run/quote")
+                .class(TransportClass::Control),
+            submission.model.as_deref(),
+            submission.reasoning_effort.as_deref(),
+            submission.environment.as_deref(),
+            submission.repositories_bound,
+        );
         // The quote is advisory: a failed quote never hides the plan.
         if let Ok(Ok(body)) = context
             .send(&quote_request)
