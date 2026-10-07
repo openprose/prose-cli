@@ -283,7 +283,7 @@
       }
     },
     "quoteBasis": {
-      "description": "Where each hold input came from: the request, the program's own run settings or declared tools, or the service default.",
+      "description": "Where each hold input came from: the request, the program's own run settings or declared tools, the default for the job's type, or the service default.",
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -312,6 +312,7 @@
               "enum": [
                 "request",
                 "program",
+                "job_default",
                 "default"
               ]
             }
@@ -335,6 +336,7 @@
               "enum": [
                 "request",
                 "program",
+                "job_default",
                 "default"
               ]
             }
@@ -358,6 +360,7 @@
               "enum": [
                 "request",
                 "program",
+                "job_default",
                 "default"
               ]
             }
@@ -385,6 +388,7 @@
               "enum": [
                 "request",
                 "program",
+                "job_default",
                 "default"
               ]
             }
@@ -406,6 +410,7 @@
               "enum": [
                 "request",
                 "program",
+                "job_default",
                 "default"
               ]
             }

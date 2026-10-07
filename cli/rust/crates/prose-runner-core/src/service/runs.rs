@@ -460,7 +460,7 @@ fn quote_basis(body: &Map<String, Value>) -> Result<Option<Value>, RunnerError> 
         let source = entry
             .get("source")
             .and_then(Value::as_str)
-            .filter(|source| matches!(*source, "request" | "program" | "default"))
+            .filter(|source| matches!(*source, "request" | "program" | "job_default" | "default"))
             .ok_or_else(malformed)?;
         let text = |value: &Value| {
             value

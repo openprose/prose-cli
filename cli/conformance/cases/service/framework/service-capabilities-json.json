@@ -1216,5 +1216,8 @@
       },
       "schema": "openprose.service-operation/1"
     }
+  },
+  "stderr": {
+    "text": ""
   }
 }

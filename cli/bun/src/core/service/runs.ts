@@ -330,7 +330,7 @@ const HOLD_COVERAGE = "quoted for the program and options given";
 const HOLD_BASIS = `depends on ${HOLD_DEPENDS_ON}; ${HOLD_COVERAGE} (basis names where each came from); a run's price is known only after it settles`;
 
 /** Where a quote's hold input came from. */
-const BASIS_SOURCES = ["request", "program", "default"];
+const BASIS_SOURCES = ["request", "program", "job_default", "default"];
 /** The quote basis keys, in output order. */
 const BASIS_KEYS = ["model", "reasoning_effort", "environment", "tools", "repositories"] as const;
 
