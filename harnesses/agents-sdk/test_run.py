@@ -843,6 +843,11 @@ class BudgetTest(unittest.IsolatedAsyncioTestCase):
     async def test_active_retrieval_settles_before_native_cancellation_returns(self):
         entered, cleaning, release, settled = (asyncio.Event() for _ in range(4))
         invocations = []
+        async def close():
+            self.assertTrue(settled.is_set())
+        create = AsyncMock(side_effect=AssertionError('provider request forbidden'))
+        client = SimpleNamespace(responses=SimpleNamespace(create=create),
+            base_url='https://api.openai.com/v1/', close=AsyncMock(side_effect=close))
         async def retrieval(*args):
             entered.set()
             try:
@@ -856,10 +861,11 @@ class BudgetTest(unittest.IsolatedAsyncioTestCase):
             tool = next(tool for tool in agent.tools if tool.name == 'retrieve_url')
             invocations.append(asyncio.create_task(tool.on_invoke_tool(ToolContext(context=None, tool_name='retrieve_url', tool_call_id='fixture', tool_arguments='{}'), '{"url":"https://example.invalid"}')))
             await asyncio.Future()
-        with tempfile.TemporaryDirectory() as directory, patch.object(harness.Runner, 'run', runner), patch.object(harness, 'retrieve_public', retrieval):
+        with tempfile.TemporaryDirectory() as directory, patch.object(harness.Runner, 'run', runner), patch.object(harness, 'retrieve_public', retrieval), patch.object(harness, 'AsyncOpenAI', return_value=client) as factory:
+            args = self.args(directory)
             output = io.StringIO()
             with contextlib.redirect_stdout(output):
-                task = asyncio.create_task(harness.run(self.args(directory)))
+                task = asyncio.create_task(harness.run(args))
                 try:
                     await asyncio.wait_for(entered.wait(), 1)
                     task.cancel()
@@ -880,6 +886,11 @@ class BudgetTest(unittest.IsolatedAsyncioTestCase):
             final = json.loads(output.getvalue().splitlines()[-1])
             self.assertEqual(final['error_type'], 'CancelledError')
             self.assertNotIn('shellCleanupFailures', final)
+            factory.assert_called_once_with(api_key='fixture-no-provider-access',
+                max_retries=0, timeout=args.timeout)
+            create.assert_not_called()
+            create.assert_not_awaited()
+            client.close.assert_awaited_once()
 
     async def test_native_aggregate_preserves_identical_distinct_shell_failures_once(self):
         rows = [{'phase': 'reap', 'errorType': 'OSError', 'errno': 5}]
