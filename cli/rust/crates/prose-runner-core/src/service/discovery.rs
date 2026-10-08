@@ -270,7 +270,7 @@ fn project_models(shape: &Shape<'_>, body: &Map<String, Value>) -> Result<Value,
         "default_model",
     )?;
     let mut result = json!({"models": models, "default_model": default});
-    if let Some(catalog) = catalog(body) {
+    if let Some(catalog) = catalog(body, true) {
         result["catalog"] = Value::Array(catalog);
     }
     Ok(result)
@@ -289,8 +289,9 @@ const DEPRECATED: &str = "deprecated";
 /// newer one may add statuses: a missing or non-list catalog is `None`, the
 /// first 64 entries are read, an entry without a model `id` or a status
 /// token, a repeated id or a `deprecated` model is skipped, and an invalid
-/// optional field is left out (identical in the Bun product).
-fn catalog(body: &Map<String, Value>) -> Option<Vec<Value>> {
+/// optional field is left out (identical in the Bun product). A listing also
+/// skips `hidden` models: they are accepted when named but never shown.
+fn catalog(body: &Map<String, Value>, listing: bool) -> Option<Vec<Value>> {
     let entries = body.get("catalog")?.as_array()?;
     let mut projected: Vec<Value> = Vec::new();
     for entry in entries.iter().take(64) {
@@ -309,7 +310,10 @@ fn catalog(body: &Map<String, Value>) -> Option<Vec<Value>> {
         ) else {
             continue;
         };
-        if status == DEPRECATED || projected.iter().any(|known| known["id"] == id) {
+        if status == DEPRECATED
+            || (listing && status == HIDDEN)
+            || projected.iter().any(|known| known["id"] == id)
+        {
             continue;
         }
         let mut item = json!({"id": id, "status": status});
@@ -409,21 +413,6 @@ fn models_human(result: &Value) -> String {
         }
         text.push_str(&render::next_line(&TOPUP));
     }
-    let hidden = with_status(HIDDEN);
-    if !hidden.is_empty() {
-        text.push_str("Also accepted (not recommended):\n");
-        for entry in hidden {
-            let id = human_safe_scalar(entry["id"].as_str().unwrap_or_default());
-            match entry["successor"].as_str() {
-                Some(successor) => {
-                    let _ = writeln!(text, "  {id} \u{2192} use {}", human_safe_scalar(successor));
-                }
-                None => {
-                    let _ = writeln!(text, "  {id}");
-                }
-            }
-        }
-    }
     text.push_str(&render::next_line(&["run", "quote"]));
     text
 }
@@ -472,7 +461,7 @@ pub(super) fn premium_in_catalog(
     model: &str,
     mode: crate::OutputMode,
 ) -> Option<RunnerError> {
-    let entries = catalog(body)?;
+    let entries = catalog(body, false)?;
     let entry = entries.iter().find(|entry| entry["id"] == model)?;
     (entry["status"] == PREMIUM).then(|| {
         premium_refusal(
@@ -488,7 +477,7 @@ pub(super) fn premium_in_catalog(
 /// Whether the `/models` catalog lists `model` as one the service accepts
 /// (any status but premium; retired models are never listed).
 pub(super) fn accepted_in_catalog(body: &Map<String, Value>, model: &str) -> bool {
-    catalog(body).is_some_and(|entries| {
+    catalog(body, false).is_some_and(|entries| {
         entries
             .iter()
             .any(|entry| entry["id"] == model && entry["status"] != PREMIUM)
@@ -1018,9 +1007,9 @@ mod tests {
             json!([
                 {"id": "model-astra", "status": "paid_top_up", "tier": "premium", "summary": "Big."},
                 {"id": "model-sol", "status": "available"},
-                {"id": "model-sol-legacy", "status": "hidden", "successor": "model-sol"},
             ])
         );
+        // Hidden models are never listed but stay accepted when named.
         assert!(accepted_in_catalog(&body, "model-sol-legacy"));
         assert!(!accepted_in_catalog(&body, "model-astra"));
         assert!(!accepted_in_catalog(&body, "model-old"));

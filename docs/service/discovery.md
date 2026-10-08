@@ -140,13 +140,13 @@ Next: prose cli run quote
 A newer service also sends `catalog`: every model it names with a `status`.
 The CLI projects each entry through an allowlist (`id`, `status`, `tier`,
 `summary`, `successor`) into `result.catalog`, skips entries without a valid
-model id or status and never shows a `deprecated` model; without a catalog
+model id or status and never shows a `deprecated` or `hidden` model; without a catalog
 (older servers) the output above is unchanged. No model id is built into the
 CLI: every line comes from the response. With a catalog, human mode prints
 sections: the models this account can run (`models`, default marked), the
-premium models (`paid_top_up`) with their summary and a top-up preview, and
-the older ids the service still accepts (`hidden`) with the model to use
-instead.
+premium models (`paid_top_up`) with their summary and a top-up preview.
+Older ids the service still accepts (`hidden`) are not listed anywhere; they
+keep working when named, for example `--model` or a job spec's `model`.
 
 ```text
 Available:
@@ -155,8 +155,6 @@ Available:
 Premium — unlocks with any wallet top-up:
   model-astra: Most capable model for hard, long tasks. Higher rate per run. Unlocks with any wallet top-up.
 Next: prose cli wallet topup --amount-cents 500 --preview
-Also accepted (not recommended):
-  model-sol-legacy → use model-sol
 Next: prose cli run quote
 ```
 
