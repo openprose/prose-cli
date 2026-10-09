@@ -351,7 +351,7 @@ prose cli job deliveries JOB_ID --json
 ```
 
 `result.endpoint` and `result.signing_secret` appear only in the create result
-(and in `cli job rotate-secret`); store them then. `result.endpointUrl` is the
+(and in `cli job rotate-secret`); store them then. `result.endpoint_url` is the
 absolute URL to configure in the sender; `cli job show` repeats it. `prose cli job create --help`
 lists the schedule and webhook spec keys; `prose cli job list --json` lists the
 job types. The keys each type accepts are the `spec` of `job.create` in
@@ -359,3 +359,27 @@ job types. The keys each type accepts are the `spec` of `job.create` in
 request and every problem is reported at once in `details.violations`. A
 webhook with no `program_ref` starts no runs, so its plan has effect `write`
 and no hold.
+
+A sender POSTs the event as JSON (`Content-Type: application/json`, at most
+256 KiB) to the endpoint URL. A webhook created without `receiver` checks two
+headers:
+
+- `X-OpenProse-Delivery`: a new id for each event, 1 to 200 letters, digits,
+  `.`, `_`, `:` or `-`, starting with a letter or digit. A retry sends the
+  same id and the same body.
+- `X-OpenProse-Signature`: `sha256=` and the lowercase hex HMAC-SHA256, keyed
+  with the signing secret, of the delivery id, one newline and the exact body
+  bytes. Sign the bytes you send; do not reserialize the body after signing.
+
+```sh
+sig=$(printf '%s\n%s' "$DELIVERY_ID" "$BODY" | openssl dgst -sha256 -hmac "$SIGNING_SECRET" | sed 's/^.* //')
+curl -X POST "$ENDPOINT_URL" -H 'Content-Type: application/json' \
+  -H "X-OpenProse-Delivery: $DELIVERY_ID" -H "X-OpenProse-Signature: sha256=$sig" \
+  --data-binary "$BODY"
+```
+
+`202` with `"accepted":true` means the event was accepted, not that a run
+finished; `"test_only":true` means no run was started. A missing or malformed
+delivery id, or a body that is not JSON, is `400`; a body over 256 KiB is
+`413`; a wrong signature is `401`. `prose cli job deliveries JOB_ID --json`
+lists the events received, including those rejected for a wrong signature.
