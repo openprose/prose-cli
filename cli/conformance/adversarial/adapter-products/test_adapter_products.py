@@ -631,7 +631,6 @@ class AdapterProductAdversary(unittest.TestCase):
                     environment, canaries = self.make_environment(
                         temporary,
                         traps,
-                        {"PROSE_AUTH_PROFILE": self.auth_profile(adapter_id)},
                     )
                     harness, transport = adapter_id.split("/", 1)
                     globals_ = (
@@ -644,6 +643,8 @@ class AdapterProductAdversary(unittest.TestCase):
                         [
                             "--harness",
                             harness,
+                            "--auth-profile",
+                            self.auth_profile(adapter_id),
                             "--transport",
                             transport,
                             *globals_,
@@ -699,7 +700,6 @@ class AdapterProductAdversary(unittest.TestCase):
                     environment, canaries = self.make_environment(
                         temporary,
                         traps,
-                        {"PROSE_AUTH_PROFILE": self.auth_profile(adapter_id)},
                     )
                     harness, transport = adapter_id.split("/", 1)
                     globals_ = (
@@ -712,6 +712,8 @@ class AdapterProductAdversary(unittest.TestCase):
                         [
                             "--harness",
                             harness,
+                            "--auth-profile",
+                            self.auth_profile(adapter_id),
                             "--transport",
                             transport,
                             *globals_,

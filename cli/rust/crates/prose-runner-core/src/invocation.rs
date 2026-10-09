@@ -62,6 +62,9 @@ pub enum RunnerCommand {
     HarnessUse(String),
     CleanupPrime(String),
     ConfigExplain,
+    ConfigExplainTarget(Vec<String>),
+    ConfigMigrate,
+    ConfigUnset(Vec<String>),
     AuthStatus,
     AuthLogin,
     AuthLogout,
@@ -487,10 +490,10 @@ fn parse_runner_command(
         {
             if !matches!(
                 harness_id.as_str(),
-                "openprose" | "prime" | "omp" | "codex" | "claude"
+                "openprose" | "agents-sdk" | "prime" | "omp" | "codex" | "claude"
             ) {
                 return Err(RunnerError::invocation(
-                    "Harness selection must be one of openprose, prime, omp, codex, or claude.",
+                    "Harness selection must be one of openprose, agents-sdk, prime, omp, codex, or claude.",
                 ));
             }
             (RunnerCommand::HarnessUse(harness_id.clone()), tail)
@@ -499,7 +502,50 @@ fn parse_runner_command(
             (RunnerCommand::CleanupPrime(handle.clone()), tail)
         }
         [config, explain, tail @ ..] if config == "config" && explain == "explain" => {
+            if let Some(separator) = tail.iter().position(|word| word == "--") {
+                let json = match &tail[..separator] {
+                    [] => false,
+                    [flag] if flag == "--json" => true,
+                    _ => {
+                        return Err(RunnerError::invocation(
+                            "Config explain accepts only --json before the target separator.",
+                        ));
+                    }
+                };
+                if *globals != GlobalFlags::default() {
+                    return Err(RunnerError::invocation(
+                        "Pass target runner options after the config explain separator.",
+                    ));
+                }
+                let target = parse_invocation(tail[separator + 1..].iter().cloned())?;
+                let Action::Forward { argv, .. } = target.action else {
+                    return Err(RunnerError::invocation(
+                        "Config explain target must be a language invocation, not a runner operation.",
+                    ));
+                };
+                *globals = target.globals;
+                return Ok(Action::Runner {
+                    command: RunnerCommand::ConfigExplainTarget(argv),
+                    json,
+                });
+            }
             (RunnerCommand::ConfigExplain, tail)
+        }
+        [config, migrate, tail @ ..] if config == "config" && migrate == "migrate" => {
+            (RunnerCommand::ConfigMigrate, tail)
+        }
+        [config, unset, tail @ ..] if config == "config" && unset == "unset" => {
+            let json = tail.last().is_some_and(|flag| flag == "--json");
+            let keys = if json { &tail[..tail.len() - 1] } else { tail };
+            if keys.is_empty() || keys.iter().any(|key| key.starts_with('-')) {
+                return Err(RunnerError::invocation(
+                    "Config unset requires one or more configuration file keys.",
+                ));
+            }
+            return Ok(Action::Runner {
+                command: RunnerCommand::ConfigUnset(keys.to_vec()),
+                json,
+            });
         }
         [org, list, tail @ ..] if org == "org" && list == "list" => (RunnerCommand::OrgList, tail),
         [auth, status, tail @ ..] if auth == "auth" && status == "status" => {
@@ -664,6 +710,188 @@ fn known_runner_help_path(args: &[String]) -> bool {
 mod tests {
     use super::*;
 
+    #[test]
+    fn service_word_corrections_follow_the_shared_parser_oracle() {
+        let oracle: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../../shared/fixtures/service-word-corrections.json"
+        ))
+        .unwrap();
+        for case in oracle["cases"].as_array().unwrap() {
+            let words = |value: &serde_json::Value| {
+                value
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|word| word.as_str().unwrap().to_owned())
+                    .collect::<Vec<_>>()
+            };
+            let original = words(&case["argv"]);
+            if !case["rejectedOriginal"].is_null() {
+                let error = parse_invocation(original.clone()).unwrap_err();
+                assert_eq!(error.code, crate::ErrorCode::InvocationInvalid);
+                assert_eq!(
+                    error.details.as_ref().unwrap()["reason"],
+                    case["rejectedOriginal"]["reason"]
+                );
+                assert!(case["suggestedArgv"].is_null());
+                assert!(case["follow"].is_null());
+                assert_eq!(original, words(&case["originalArgvPreserved"]));
+                continue;
+            }
+            let parsed = parse_invocation(original.clone()).unwrap();
+            let suggested = match parsed.action {
+                Action::Forward {
+                    argv, service_hint, ..
+                } => {
+                    if case["boundary"] == "alias-only" {
+                        assert_eq!(
+                            argv,
+                            strings(&["prose", "--format", "json", "opaque-word", "opaque task"])
+                        );
+                    } else if !case["languageArgv"].is_null() {
+                        assert_eq!(argv, words(&case["languageArgv"]), "{}", case["id"]);
+                    } else {
+                        let at = original
+                            .iter()
+                            .position(|word| word == "run" || word == "help")
+                            .unwrap();
+                        let mut expected = vec!["prose".to_owned()];
+                        expected.extend_from_slice(&original[at..]);
+                        assert_eq!(argv, expected, "{}", case["id"]);
+                    }
+                    service_hint.unwrap()
+                }
+                Action::Runner {
+                    command:
+                        RunnerCommand::Service(crate::service::ServiceCommand::Invalid(invalid)),
+                    ..
+                } => {
+                    let Some(crate::service::Correction::Argv { argv, .. }) = invalid.correction
+                    else {
+                        panic!("missing correction: {}", case["id"]);
+                    };
+                    argv
+                }
+                other => panic!("unexpected action: {other:?}"),
+            };
+            assert_eq!(original, words(&case["originalArgvPreserved"]));
+            assert_eq!(suggested, words(&case["suggestedArgv"]), "{}", case["id"]);
+            let follow = parse_invocation(suggested.clone()).unwrap();
+            if case["follow"]["kind"] == "language" {
+                let Action::Forward { argv, .. } = follow.action else {
+                    panic!("expected language");
+                };
+                assert_eq!(argv, words(&case["follow"]["argv"]));
+                assert_eq!(
+                    follow.globals.harness.as_deref(),
+                    case["follow"]["global"]["harness"].as_str()
+                );
+            } else if case["follow"]["kind"] == "help" {
+                let Action::Runner {
+                    command: RunnerCommand::Service(crate::service::ServiceCommand::Help(text)),
+                    ..
+                } = follow.action
+                else {
+                    panic!("expected service help");
+                };
+                assert!(!text.is_empty());
+                assert_eq!(
+                    follow.globals.no_color,
+                    case["follow"]["globalDisplay"]["noColor"]
+                        .as_bool()
+                        .unwrap()
+                );
+                assert_eq!(
+                    follow.globals.verbose,
+                    case["follow"]["globalDisplay"]["verbose"]
+                        .as_bool()
+                        .unwrap()
+                );
+            } else if case["follow"]["kind"] == "account" {
+                assert!(matches!(
+                    follow.action,
+                    Action::Runner {
+                        command: RunnerCommand::OrgList,
+                        ..
+                    }
+                ));
+                assert_eq!(case["follow"]["operation"], "org-list");
+                assert_eq!(case["follow"]["manifestOperation"], "org.list");
+                assert_eq!(
+                    follow.globals.no_color,
+                    case["follow"]["globalDisplay"]["noColor"]
+                        .as_bool()
+                        .unwrap()
+                );
+                assert_eq!(
+                    follow.globals.verbose,
+                    case["follow"]["globalDisplay"]["verbose"]
+                        .as_bool()
+                        .unwrap()
+                );
+                assert!(follow.globals.harness.is_none());
+                assert!(follow.globals.cwd.is_none());
+                assert!(follow.globals.model.is_none());
+                assert!(!follow.globals.dry_run);
+            } else {
+                let invocation = match follow.action {
+                    Action::Runner {
+                        command:
+                            RunnerCommand::Service(crate::service::ServiceCommand::Invoke(invocation)),
+                        ..
+                    } => invocation,
+                    other => panic!(
+                        "correction did not parse as a service operation: {} {other:?}",
+                        case["id"]
+                    ),
+                };
+                assert!(
+                    invocation.error.is_none(),
+                    "{}: {:?}",
+                    case["id"],
+                    invocation.error
+                );
+                assert_eq!(
+                    invocation.operation,
+                    case["follow"]["operation"].as_str().unwrap()
+                );
+                assert_eq!(
+                    serde_json::to_value(invocation.arguments).unwrap(),
+                    case["follow"]["arguments"]
+                );
+                assert_eq!(
+                    serde_json::to_value(invocation.options).unwrap(),
+                    case["follow"]["options"]
+                );
+                assert_eq!(
+                    serde_json::to_value(invocation.flags).unwrap(),
+                    case["follow"]["flags"]
+                );
+                assert_eq!(
+                    invocation.preview,
+                    case["follow"]["preview"].as_bool().unwrap()
+                );
+                assert_eq!(
+                    follow.globals.no_color,
+                    case["follow"]["globalDisplay"]["noColor"]
+                        .as_bool()
+                        .unwrap()
+                );
+                assert_eq!(
+                    follow.globals.verbose,
+                    case["follow"]["globalDisplay"]["verbose"]
+                        .as_bool()
+                        .unwrap()
+                );
+                assert!(follow.globals.harness.is_none());
+                assert!(follow.globals.cwd.is_none());
+                assert!(follow.globals.model.is_none());
+                assert!(!follow.globals.dry_run);
+            }
+            assert_eq!(follow.globals.output, Some(OutputMode::Json));
+        }
+    }
+
     /// The retired service-selection option, spelled so the public-surface
     /// scan does not match this negative test.
     const RETIRED_OPTION: &str = concat!("--service-", "environment");
@@ -720,7 +948,7 @@ mod tests {
             ),
             (
                 vec!["cli", "harness", "use", "nope"],
-                "Harness selection must be one of openprose, prime, omp, codex, or claude.",
+                "Harness selection must be one of openprose, agents-sdk, prime, omp, codex, or claude.",
             ),
         ] {
             assert_invocation_error(&args, reason);
@@ -1012,14 +1240,12 @@ mod tests {
             parsed.action,
             Action::Forward {
                 argv: strings(&["prose", "run", "submit", "hello.prose"]),
-                service_hint: Some(strings(&[
-                    "--cwd",
-                    &cwd,
-                    "cli",
-                    "run",
-                    "submit",
-                    "hello.prose"
-                ])),
+                service_hint: Some(vec![
+                    "cli".to_owned(),
+                    "run".to_owned(),
+                    "submit".to_owned(),
+                    format!("{cwd}/hello.prose")
+                ]),
                 hosted_rejection: None,
                 hint_in_details_only: false,
             }

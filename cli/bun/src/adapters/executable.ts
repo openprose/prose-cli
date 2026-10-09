@@ -1,8 +1,8 @@
 import codexCompatibilityJson from "../../../shared/capabilities/adapters/codex-compatibility.v1.json" with { type: "json" };
 import { buildVersionProbeEnvironment } from "../supervision/environment";
-import { access } from "node:fs/promises";
+import { access, lstat, realpath } from "node:fs/promises";
 import { constants } from "node:fs";
-import { delimiter, isAbsolute, join } from "node:path";
+import { delimiter, dirname, isAbsolute, join } from "node:path";
 import { failure } from "../core/errors";
 import { probeExecutableCommand, probeExecutableVersion, resolveExecutable } from "../supervision/process";
 import { installedAdapterDefinition } from "./recipes";
@@ -18,12 +18,24 @@ export interface ResolveInstalledExecutableInput {
   wrapperExecutable?: string;
   platform?: NodeJS.Platform;
   arch?: NodeJS.Architecture;
+  /** Explicit source/test discovery only; production never falls back to PATH. */
+  allowPathDiscovery?: boolean;
 }
 
 export async function resolveInstalledExecutable(input: ResolveInstalledExecutableInput): Promise<string> {
   assertInstalledAdapterPlatform(input.adapterId, { platform: input.platform, arch: input.arch });
   const definition = installedAdapterDefinition(input.adapterId);
   if (input.explicitPath !== undefined) return resolveExecutable(input.explicitPath, input.wrapperExecutable);
+  if(input.adapterId==="agents-sdk/jsonl" && input.allowPathDiscovery!==true) {
+    try {
+      const wrapper=await realpath(input.wrapperExecutable ?? process.execPath);
+      const sibling=join(dirname(wrapper),"prose-agents-sdk"),info=await lstat(sibling);
+      if(!info.isFile()||info.isSymbolicLink())throw new Error("SDK sibling is not a regular file.");
+      return await resolveExecutable(sibling,wrapper);
+    }catch {
+      throw failure("HARNESS_UNAVAILABLE",{adapterId:input.adapterId,executableNames:definition.recipe.identity.executableNames,admittedVersions:definition.recipe.support.admittedVersions,repairCommand:definition.recipe.support.repairCommand,fallbackAttempted:false});
+    }
+  }
   const path = input.ambient.PATH;
   if (path === undefined || path.length === 0) {
     throw failure("HARNESS_UNAVAILABLE", {

@@ -16,7 +16,7 @@ jobs:
       matrix:
         os: [ubuntu-22.04, ubuntu-22.04-arm, macos-15, macos-15-intel]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
@@ -52,6 +52,7 @@ jobs:
           # resolver checks this exact cwd filename before attempting a fetch.
           if [ "$RUNNER_OS" = macOS ] && [ "$RUNNER_ARCH" = X64 ]; then
             cp "$(command -v bun)" bun-darwin-x64-baseline-v1.3.5
+            cp "$(command -v bun)" cli/bun/bun-darwin-x64-baseline-v1.3.5
           fi
           rustup toolchain install 1.87.0 --profile minimal
           rustup default 1.87.0
@@ -59,6 +60,17 @@ jobs:
           python3 -m pip install --require-hashes --only-binary=:all: -r cli/ci/requirements-test.txt
           cd cli/bun
           bun install --frozen-lockfile --ignore-scripts
+      - name: Prepare the pinned full Linux SDK Python archive
+        if: runner.os == 'Linux'
+        env:
+          SDK_PLATFORM: ${{ runner.arch == 'ARM64' && 'linux-arm64-gnu' || 'linux-x64-gnu' }}
+        run: timeout --kill-after=1s 130s python3 cli/ci/prepare_agents_sdk_linux.py --platform "$SDK_PLATFORM" --out "$RUNNER_TEMP/agents-sdk-python-full.tar.zst"
+      - name: Prepare the separately locked Agents SDK build interpreter
+        run: |
+          uv venv --python 3.10.20 --seed "$RUNNER_TEMP/agents-sdk-python"
+          "$RUNNER_TEMP/agents-sdk-python/bin/python3" -m pip install --require-hashes --only-binary=:all: -r harnesses/agents-sdk/requirements-build.txt
+      - name: Test the actual pinned Agents SDK runtime without provider credentials
+        run: '"$RUNNER_TEMP/agents-sdk-python/bin/python3" -m unittest discover -s harnesses/agents-sdk -p test_run.py'
       - name: Check the public surface
         # prose-cli is a public user client: no internal service detail or
         # developer-only surface in tracked files, release help or binaries.
@@ -100,9 +112,36 @@ jobs:
           python3 -m unittest discover -s cli/ci -p test_assemble_kernel_rc.py
           python3 -m unittest discover -s cli/ci -p test_kernel_rc_evidence.py
           python3 -m unittest discover -s cli/ci -p test_sign_macos.py
+          python3 -m unittest discover -s cli/ci -p test_build_agents_sdk.py
+          python3 -m unittest discover -s cli/ci -p test_build_kernel_rc.py
+          python3 -m unittest discover -s cli/ci -p test_fetch_previous_release.py
+          python3 -m unittest discover -s cli/ci -p test_qualify_installed_sdk.py
+          python3 -m unittest cli.ci.test_package_local.PackagedSdkArtifactTests
+          python3 -m unittest discover -s cli/ci -p test_dependency_evidence.py
+          python3 -m unittest discover -s cli/ci -p test_check_workflows.py
           python3 -m unittest discover -s cli/ci -p test_rehearse_npm_identity.py
       - name: Build, package and exercise fresh standalone and npm installations
         run: python3 cli/ci/rehearse_release.py --output "$RUNNER_TEMP/cli-rehearsal" --trials 1
+      - name: Build and verify production SDK standalone and npm installations
+        # This RC version is an unpublished construction fixture. Live model
+        # qualification and reviewed publication remain separate gates.
+        env:
+          RC_VERSION: '0.15.0-rc.4'
+        run: python3 cli/ci/build_kernel_rc.py --version "$RC_VERSION" --out "$RUNNER_TEMP/kernel-rc" --agents-sdk-python "$RUNNER_TEMP/agents-sdk-python/bin/python3" --agents-sdk-linux-python-archive "$RUNNER_TEMP/agents-sdk-python-full.tar.zst"
+      - name: Fetch pinned genuine previous release inputs
+        env:
+          UPGRADE_PLATFORM: ${{ matrix.os == 'ubuntu-22.04' && 'linux-x64-gnu' || matrix.os == 'ubuntu-22.04-arm' && 'linux-arm64-gnu' || matrix.os == 'macos-15-intel' && 'darwin-x64' || 'darwin-arm64' }}
+        run: python3 cli/ci/fetch_previous_release.py --platform "$UPGRADE_PLATFORM" --out "$RUNNER_TEMP/previous-rc3"
+      - name: Qualify actual SDK installations and genuine upgrades
+        env:
+          RC_VERSION: '0.15.0-rc.4'
+          EXPECTED_SOURCE: ${{ github.sha }}
+        run: |
+          python3 cli/ci/qualify_installed_sdk.py \
+            --candidate-root "$RUNNER_TEMP/kernel-rc" --source "$EXPECTED_SOURCE" --version "$RC_VERSION" \
+            --previous-release "$RUNNER_TEMP/previous-rc3" \
+            --node "$(command -v node)" --npm "$(command -v npm)" \
+            --out "$RUNNER_TEMP/kernel-rc/installed-qualification"
       - name: Test Homebrew candidate archive admission
         run: python3 -m unittest discover -s cli/ci -p test_homebrew_rehearsal.py
       - uses: Homebrew/actions/setup-homebrew@dc7099b3e807f1e2ecc61f3ecabc840eedd5586a
@@ -111,6 +150,16 @@ jobs:
           "$RUNNER_TEMP/distribution-python/bin/python3" cli/ci/homebrew_rehearsal.py
           --rehearsal "$RUNNER_TEMP/cli-rehearsal"
           --output "$RUNNER_TEMP/cli-homebrew-rehearsal"
+      - name: Rehearse Homebrew against the production SDK archives
+        env:
+          RC_VERSION: '0.15.0-rc.4'
+          EXPECTED_SOURCE: ${{ github.sha }}
+        run: |
+          "$RUNNER_TEMP/distribution-python/bin/python3" cli/ci/homebrew_rehearsal.py \
+            --kernel-rc "$RUNNER_TEMP/kernel-rc" \
+            --expected-source "$EXPECTED_SOURCE" --expected-version "$RC_VERSION" \
+            --previous-release "$RUNNER_TEMP/previous-rc3" \
+            --output "$RUNNER_TEMP/kernel-rc/homebrew"
       - name: Retain rehearsal evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -119,5 +168,21 @@ jobs:
           path: |
             ${{ runner.temp }}/cli-rehearsal
             ${{ runner.temp }}/cli-homebrew-rehearsal
+            ${{ runner.temp }}/kernel-rc/agents-sdk
+            ${{ runner.temp }}/kernel-rc/package
+            ${{ runner.temp }}/kernel-rc/logs
+            ${{ runner.temp }}/kernel-rc/agents-sdk-native/*.json
+            ${{ runner.temp }}/kernel-rc/agents-sdk-native/*.log
+            ${{ runner.temp }}/kernel-rc/agents-sdk-native/*cleanup-error.txt
+            ${{ runner.temp }}/kernel-rc/agents-sdk-native/supplier
+            ${{ runner.temp }}/kernel-rc/agents-sdk-native/frozen
+            ${{ runner.temp }}/kernel-rc/agents-sdk-native/python-full/python/PYTHON.json
+            ${{ runner.temp }}/kernel-rc/agents-sdk-native/python-full/python/licenses
+            ${{ runner.temp }}/kernel-rc/agents-sdk-runtime/runtime-report.json
+            ${{ runner.temp }}/kernel-rc/agents-sdk-runtime/job/*.log
+            ${{ runner.temp }}/kernel-rc/build-report.json
+            ${{ runner.temp }}/kernel-rc/homebrew
+            ${{ runner.temp }}/kernel-rc/installed-qualification
+            ${{ runner.temp }}/previous-rc3
           retention-days: 14
           if-no-files-found: warn

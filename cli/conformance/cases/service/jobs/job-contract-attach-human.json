@@ -20,6 +20,72 @@
     "storeAvailable": true,
     "exchanges": [
       {
+        "method": "GET",
+        "path": "/triggers/3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10",
+        "status": 200,
+        "body": {
+          "trigger": {
+            "id": "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10",
+            "type": "webhook",
+            "name": null,
+            "internalRef": "opaque-1",
+            "url": null,
+            "intervalSeconds": null,
+            "mode": null,
+            "repositoryId": null,
+            "repositoryFullName": null,
+            "repositoryBranch": null,
+            "contextRepositoryId": null,
+            "contextRepositoryFullName": null,
+            "contextRepositoryBranch": null,
+            "createdAt": 1790212421024,
+            "adopted": false
+          },
+          "status": {
+            "configured": true,
+            "active": true,
+            "receiver": {
+              "profile": "openprose"
+            },
+            "receiverSecretConfigured": false,
+            "reply": null,
+            "replySecretConfigured": false,
+            "replies": [],
+            "replyDeliveries": [],
+            "deliveryMode": "test",
+            "secretRotatedAt": 1790212422203,
+            "lastEventAt": null,
+            "lastRunId": null,
+            "lastError": null,
+            "counts": {
+              "pending": 0,
+              "pending_funds": 0,
+              "claimed": 0,
+              "completed": 0,
+              "failed": 0,
+              "billing_pending": 0,
+              "ambiguous": 0
+            }
+          },
+          "endpoint": "/webhooks/triggers/3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10"
+        },
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/triggers/3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10/contracts",
+        "status": 200,
+        "body": {
+          "contracts": [],
+          "max_contracts": 5
+        },
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        }
+      },
+      {
         "method": "POST",
         "path": "/triggers/3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10/contracts",
         "status": 201,

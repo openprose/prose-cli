@@ -97,15 +97,20 @@ prose cli run list --limit 50 --before CURSOR --json
 
 ## What will it cost
 
-A run reserves a hold before it starts: money set aside from the wallet
-(currently $1.02), not the price. The price is known only after the run
+A run reserves a hold before it starts: money set aside from the wallet,
+not the price. The hold depends on the model, reasoning effort, environment,
+declared tools and bound repositories. The price is known only after the run
 settles: `price_cents` in `prose cli run show RUN_ID --json`, of which
 `environment_price_cents` is the environment's share. What the run did not
 use is released. Short runs usually cost a few cents.
 
 Estimate from your own history: `prose cli wallet usage` prints runs and
 prices by day, and `prose cli wallet balance` shows what is available and
-what is reserved right now. `prose cli run quote --json` reports the hold.
+what is reserved right now. `prose cli run quote FILE --json` (or `--from
+OWNER/SLUG`) reports the hold for that program, including its own run
+settings and declared tools; `--model`, `--reasoning-effort`, `--environment`,
+`--repo` and `--commit-output` override them. `result.basis` names where each
+value came from (request, program or default).
 
 Premium models unlock with any wallet top-up; `prose cli model list` shows
 each model's status.
@@ -194,7 +199,9 @@ A command that spends money, publishes, deletes or cannot be undone needs
 invalidates the old one now), `details.plannedRequest` (the method, what the
 request does as `description`, its non-secret inputs as `summary`: model, programRef, inputKeys,
 amount_cents, slug; and for `cli run submit`, `cli program draft` and a paid
-`cli job create` the service's flat hold quote), `details.confirmArgv` and
+`cli job create` the service's hold quote for that program and the options or
+spec given, and for `cli program draft` the parameter-free quote),
+`details.confirmArgv` and
 `details.previewArgv`. `--preview` prints the same plan, exits 0 and changes
 nothing. An unknown `--model`, an `--environment` or `--runtime` that
 `prose cli service status --json` does not list (`environments`), an input the
@@ -351,7 +358,7 @@ prose cli job deliveries JOB_ID --json
 ```
 
 `result.endpoint` and `result.signing_secret` appear only in the create result
-(and in `cli job rotate-secret`); store them then. `result.endpointUrl` is the
+(and in `cli job rotate-secret`); store them then. `result.endpoint_url` is the
 absolute URL to configure in the sender; `cli job show` repeats it. `prose cli job create --help`
 lists the schedule and webhook spec keys; `prose cli job list --json` lists the
 job types. The keys each type accepts are the `spec` of `job.create` in
@@ -359,3 +366,27 @@ job types. The keys each type accepts are the `spec` of `job.create` in
 request and every problem is reported at once in `details.violations`. A
 webhook with no `program_ref` starts no runs, so its plan has effect `write`
 and no hold.
+
+A sender POSTs the event as JSON (`Content-Type: application/json`, at most
+256 KiB) to the endpoint URL. A webhook created without `receiver` checks two
+headers:
+
+- `X-OpenProse-Delivery`: a new id for each event, 1 to 200 letters, digits,
+  `.`, `_`, `:` or `-`, starting with a letter or digit. A retry sends the
+  same id and the same body.
+- `X-OpenProse-Signature`: `sha256=` and the lowercase hex HMAC-SHA256, keyed
+  with the signing secret, of the delivery id, one newline and the exact body
+  bytes. Sign the bytes you send; do not reserialize the body after signing.
+
+```sh
+sig=$(printf '%s\n%s' "$DELIVERY_ID" "$BODY" | openssl dgst -sha256 -hmac "$SIGNING_SECRET" | sed 's/^.* //')
+curl -X POST "$ENDPOINT_URL" -H 'Content-Type: application/json' \
+  -H "X-OpenProse-Delivery: $DELIVERY_ID" -H "X-OpenProse-Signature: sha256=$sig" \
+  --data-binary "$BODY"
+```
+
+`202` with `"accepted":true` means the event was accepted, not that a run
+finished; `"test_only":true` means no run was started. A missing or malformed
+delivery id, or a body that is not JSON, is `400`; a body over 256 KiB is
+`413`; a wrong signature is `401`. `prose cli job deliveries JOB_ID --json`
+lists the events received, including those rejected for a wrong signature.

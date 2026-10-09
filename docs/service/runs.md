@@ -4,7 +4,7 @@
 
 | Command | What it does | `--yes` |
 | --- | --- | --- |
-| `cli run quote [--environment ENV]` | The wallet hold a run reserves while live (price-free: holds only). `ENV` must be advertised by `/health`. | no |
+| `cli run quote [FILE\|- \| --from OWNER/SLUG[@REV]] [--model MODEL] [--reasoning-effort EFFORT] [--environment ENV] [--repo OWNER/NAME[@BRANCH]]...` | The wallet hold a run reserves while live (price-free: holds only), priced for the program when one is given and for the options given. `ENV` must be advertised by `/health`. | no |
 | `cli run submit FILE\|- \| --from OWNER/SLUG[@REV] [options]` | Submit and stream until the run finishes, `--detach`, the `--wait` deadline, or an interrupt. | **yes** |
 | `cli run watch RUN_ID [--after N] [--wait DUR] [--session UUID]` | Replay events after sequence `N`, then follow live. Without a live session on this machine, report an ended run's outcome from its record. | no |
 | `cli run input RUN_ID TEXT [--id UUID] [--session UUID]` | Queue an instruction for a live run. A run that already ended is refused (`SERVICE_WRITE_CONFLICT`, not retryable), from any machine. | **yes** |
@@ -20,10 +20,10 @@ prose cli run quote --json
 
 ```json
 {"schema":"openprose.service-operation/1","operation":"run.quote","interaction":"run.quote",
- "result":{"environment":"builtin","hold":{"hold_usd":"1.02","hold_cents":102,"ttl_seconds":900},"holdBasis":"flat hold, independent of program and model; a run's price is known only after it settles","note":"Unused hold is released when the run settles."},"problem":null}
+ "result":{"environment":"builtin","hold":{"hold_usd":"1.02","hold_cents":102,"ttl_seconds":900},"holdBasis":"depends on model, reasoning effort, environment, declared tools and repositories; quoted for the program and options given (basis names where each came from); a run's price is known only after it settles","note":"Unused hold is released when the run settles."},"problem":null}
 ```
 
-The quote is the hold, not the price: a flat hold, independent of program and model (`result.holdBasis` says so, and human output adds a `Price:` line naming `run show`); the settled price appears in the finished run (`price_cents`). An unknown `--environment` is rejected before `/run/quote` is called (`INVOCATION_INVALID`, naming the advertised environments).
+The quote is the hold, not the price (human output adds a `Price:` line naming `run show`); the settled price appears in the finished run (`price_cents`). The hold depends on the model, reasoning effort, environment, declared tools and bound repositories. With FILE or `--from`, the service prices that program, including its own run settings and declared tools: `run quote FILE` posts the program (as `run submit` would, without inputs) and `run quote --from OWNER/SLUG[@REV]` names it (a bare SLUG or `@N` is resolved first). `--model`, `--reasoning-effort`, `--environment`, `--repo` and `--commit-output` override the program's values; without a program only they are sent, and with none of them it is the parameter-free quote for the service's defaults. `result.basis` names each value and its source (`request`, `program` or `default`), and `result.environment` is then the basis environment. A program the caller cannot read is `SERVICE_RESOURCE_NOT_FOUND`. An unknown `--environment` is rejected before `/run/quote` is called (`INVOCATION_INVALID`, naming the advertised environments).
 
 ## Submit
 
@@ -31,7 +31,7 @@ The quote is the hold, not the price: a flat hold, independent of program and mo
 prose cli run submit hello.prose.md --model model-luna --yes --output jsonl
 ```
 
-- **Without `--yes`** nothing is sent: exit 2 `CONFIRMATION_REQUIRED` with `details.plannedRequest` (method, `description`, body SHA-256 and size, effect `money`; never the service route) plus `plannedRequest.quote` (the current flat hold), `plannedRequest.summary` (the non-secret body fields: `model`, `reasoning_effort`, `programRef` for `--from`, and `inputKeys`, the sorted input names without values), `details.reason` (what `--yes` does: reserve the hold and start a paid run), and `details.confirmArgv` / `details.previewArgv` — the same command with `--yes` or `--preview`. `--preview` prints the same plan and exits 0.
+- **Without `--yes`** nothing is sent: exit 2 `CONFIRMATION_REQUIRED` with `details.plannedRequest` (method, `description`, body SHA-256 and size, effect `money`; never the service route) plus `plannedRequest.quote` (the service's hold for the exact submission: the plan's body is sent to the quote), `plannedRequest.summary` (the non-secret body fields: `model`, `reasoning_effort`, `programRef` for `--from`, and `inputKeys`, the sorted input names without values), `details.reason` (what `--yes` does: reserve the hold and start a paid run), and `details.confirmArgv` / `details.previewArgv` — the same command with `--yes` or `--preview`. `--preview` prints the same plan and exits 0.
 - **Source:** a local file (at most 1 MiB of UTF-8, not blank), `-` for standard input, or `--from OWNER/SLUG[@REV]` (without `@REV` the latest revision is resolved and a pinned `program_ref` is sent). URLs are refused.
 - **Inputs:** `--input KEY=VALUE`, `--input KEY=@FILE` (UTF-8, at most 1 MiB) and `--inputs-file FILE` (a JSON object of strings). `--input` overrides a key from `--inputs-file`; the same `--input` key twice is an error. The whole submission is at most 8 MiB.
 - **Model and placement:** `--model`, `--reasoning-effort`, `--environment`, `--runtime` (see `cli model list`). A `--model` is checked against `GET /models` before the confirmation gate: a name that is not offered and not the default is `INVOCATION_INVALID` listing the three nearest offered models, with `details.suggestedArgv` retrying with the nearest; if the lookup itself fails the service decides.

@@ -175,8 +175,13 @@ class ServiceContractTest(unittest.TestCase):
         self.assert_invalid(self.result_ref("model.list"), {"models": [], "default_model": "model-sol", "hidden": []})
 
     # ----------------------------------------------------------------- taxonomy
-    def test_taxonomy_grows_additively_to_43_codes_with_parity(self):
-        self.assertEqual(43, len(self.taxonomy))
+    def test_taxonomy_grows_additively_to_44_codes_with_parity(self):
+        self.assertEqual(44, len(self.taxonomy))
+        retrieval = self.taxonomy["KERNEL_RETRIEVAL_FAILED"]
+        self.assertEqual((retrieval["boundary"], retrieval["exitCode"], retrieval["retryable"]),
+                         ("image", 20, False))
+        self.assertIn("https://pkg.prose.md", retrieval["action"])
+        self.assertNotEqual(retrieval["action"], self.taxonomy["IMAGE_INVALID"]["action"])
         for code, exit_code in NEW_CODES.items():
             self.assertEqual(exit_code, self.taxonomy[code]["exitCode"], code)
         schema = load_json(SCHEMAS / "runner-error.schema.json")
@@ -190,7 +195,10 @@ class ServiceContractTest(unittest.TestCase):
                 self.assertEqual(value, self.taxonomy[code][field], (code, field))
         for record in self.taxonomy.values():
             self.assertNotIn("prose cli", record["action"])
-            self.assert_valid("runner-error.schema.json", {"schema": "openprose.runner-error/1", **record})
+            sample = {"schema": "openprose.runner-error/1", **record}
+            if record["code"] == "KERNEL_RETRIEVAL_FAILED":
+                sample["details"] = load_json(SHARED / "fixtures" / "kernel-startup" / "release.json")["retrievalFailures"][3]["error"]["details"]
+            self.assert_valid("runner-error.schema.json", sample)
 
     def test_hosted_unavailable_text_is_unchanged(self):
         self.assertEqual(HOSTED_UNAVAILABLE, self.taxonomy["HOSTED_UNAVAILABLE"])
@@ -235,6 +243,25 @@ class ServiceContractTest(unittest.TestCase):
             self.assert_invalid("runner-error.schema.json", self.failure("SERVICE_REQUEST_REJECTED", **bad))
 
     # ------------------------------------------------------------- environments
+    def test_fixture_environment_admits_only_the_explicit_hosted_selector(self):
+        schema=deepcopy(self.documents[RUNNER/'service-fixture.schema.json'])
+        schema['$ref']='#/$defs/case'
+        case=load_json(CLI/'conformance/cases/service/framework/no-cli-help-json.json')
+        self.assertEqual('openprose',case['environment']['PROSE_HARNESS'])
+        self.assertEqual([],self.errors(schema,case))
+        for value in ('agents-sdk','mock','claude','',None,'openprose '):
+            invalid=deepcopy(case);invalid['environment']['PROSE_HARNESS']=value
+            with self.subTest(selector=value):
+                self.assertTrue(self.errors(schema,invalid))
+        invalid=deepcopy(case);invalid['environment']['UNKNOWN_CASE_ENV']='value'
+        self.assertTrue(self.errors(schema,invalid))
+        for key in ('OPENPROSE_API_KEY','OPENPROSE_API_URL','PROSE_OUTPUT','PROSE_DEBUG'):
+            allowed=deepcopy(case);allowed['environment'][key]='fixture-string'
+            with self.subTest(existing_key=key):
+                self.assertEqual([],self.errors(schema,allowed))
+                allowed['environment'][key]=1
+                self.assertTrue(self.errors(schema,allowed))
+
     def test_account_results_are_envelope_results(self):
         """`cli auth ...` and `cli org list` print the service-operation/1
         envelope; their results are closed and name no service environment."""
@@ -399,11 +426,11 @@ class ServiceContractTest(unittest.TestCase):
         self.assert_valid(self.result_ref("job.create"), {**show, "endpoint": "/webhooks/triggers/x", "endpoint_url": url, "signing_secret": "s"})
         self.assert_valid(self.result_ref("job.rotate-secret"), {"id": show["job"]["id"], "endpoint": "/webhooks/triggers/x", "endpoint_url": url, "signing_secret": "s"})
         self.assert_invalid(self.result_ref("job.show"), {**show, "endpoint_url": "http://example.invalid/webhooks/triggers/x"})
-        self.assert_valid(self.result_ref("job.list"), {"jobs": [show["job"]], "max_jobs": 5, "job_limit": {"kind": "unlimited"}, "types": []})
+        self.assert_valid(self.result_ref("job.list"), {"jobs": [show["job"]], "max_jobs": None, "job_limit": {"kind": "unlimited"}, "types": []})
         # Job output uses the user noun and snake_case; service internals never appear.
         for internal in ({"internalRef": "opaque-1"}, {"adopted": True}, {"context_repository_id": 7}, {"createdAt": 1}):
             self.assert_invalid(self.result_ref("job.list"), {"jobs": [{**show["job"], **internal}],
-                                                             "max_jobs": 5, "job_limit": {"kind": "unlimited"}, "types": []})
+                                                             "max_jobs": None, "job_limit": {"kind": "unlimited"}, "types": []})
         self.assert_invalid(self.result_ref("job.list"), {"triggers": [show["job"]], "max_triggers": 5,
                                                          "trigger_limit": {"kind": "unlimited"}, "types": []})
 
@@ -878,7 +905,7 @@ class ServiceContractTest(unittest.TestCase):
         for operation_id in ("service.status", "run.quote", "run.list", "run.show", "wallet.balance", "org.list", "job.contract.list"):
             self.assertFalse(self.operations[operation_id]["confirm"], operation_id)
         submit = self.operations["run.submit"]
-        post = next(r for r in submit["requests"] if r["method"] == "POST")
+        post = next(r for r in submit["requests"] if r["method"] == "POST" and r["path"] == "/run")
         # Always live; placement and repository intent are optional query
         # templates because the service reads them from the query.
         self.assertEqual({"live": "1", "session": "{session}", "environment": "{environment}", "runtime": "{runtime}",
@@ -1043,6 +1070,15 @@ class ServiceContractTest(unittest.TestCase):
         with self.assertRaises(sync.SyncError):
             sync.validate_export((json.dumps(dict(upstream, schema="openprose.service-operations/1"),
                                              indent=2) + "\n").encode())
+        # The service's public projection (/2) has no principals table; it
+        # projects to the same bytes, and a non-public principal is refused.
+        public = {key: value for key, value in upstream.items() if key != "principals"}
+        public["schema"] = "openprose.example-interactions/2"
+        self.assertEqual(data, sync.project(sync.validate_export((json.dumps(public, indent=2) + "\n").encode()),
+                                            self.manifest))
+        public["interactions"][0] = dict(public["interactions"][0], principal="not-public")
+        with self.assertRaises(sync.SyncError):
+            sync.validate_export((json.dumps(public, indent=2) + "\n").encode())
         # An export missing a public field is refused.
         missing = json.loads(data)
         del missing["interactions"][0]["agent"]

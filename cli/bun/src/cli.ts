@@ -4,7 +4,7 @@ import { runWeaveHost, writeHostBytes, stopHostOutput } from "./core/weave-host"
 import { PUBLISHED_KERNEL_STARTUP } from "./core/build";
 import { publishedKernel } from "./core/kernel-startup";
 import {nativeOutputLimits} from "./adapters/output-budget";
-import {nativeLimits} from "./adapters/sdk-limits";
+import {nativeLimits,sdkSetupFailureAction} from "./adapters/sdk-limits";
 import { nativeConfiguration } from "./adapters/native-profile";
 import { parseEntrypoint, inferOutputMode, isValueOption } from "./core/args";
 import { embeddedRuntimeImage } from "./assets/sentinel";
@@ -12,7 +12,7 @@ import runnerHelp from "../../conformance/cases/fixtures/runner-help.txt" with {
 import dryRunTemplate from "../../shared/fixtures/human/dry-run.v1.txt" with { type: "text" };
 import deterministicMockDescriptor from "../../shared/fixtures/transport/deterministic-mock-adapter.json" with { type: "json" };
 import fakeProcessDescriptor from "../../shared/fixtures/transport/mock-adapter.json" with { type: "json" };
-import { resolveConfiguration, writeUserHarnessSelection } from "./core/config";
+import { resolveConfiguration, writeUserHarnessSelection, mutateUserConfiguration, prepareUserConfigurationMutation } from "./core/config";
 import { serviceEnvironment } from "./core/service/endpoint";
 import { failure } from "./core/errors";
 import { argvErrorOutcome, runService } from "./core/service/index";
@@ -148,7 +148,35 @@ export async function runCli(args: readonly string[], dependencies: CliDependenc
       return await runPrimeCleanup(parsed.value, mode, dependencies);
     }
 
-    const config = await resolveConfiguration(parsed.global, dependencies);
+    // Set the operation rendering mode before resolution so partial errors retain JSON.
+    if(parsed.kind === "operation" && parsed.json) mode="json";
+    let config: EffectiveConfiguration;
+    if(parsed.kind === "operation" && ["config-migrate","config-unset"].includes(parsed.operation)) {
+      const preflight=await prepareUserConfigurationMutation(dependencies);
+      let mutation: NonNullable<EffectiveConfiguration["mutation"]>;
+      try {mutation=await mutateUserConfiguration(preflight,parsed.operation === "config-migrate" ? "migrate" : "unset",parsed.configKeys ?? []);}
+      catch(caught) {
+        if(caught instanceof RunnerFailure && caught.code === "CONFIG_INVALID") {
+          let explanation=configurationExplanation(preflight);
+          try {explanation=configurationExplanation(await resolveConfiguration(parsed.global,dependencies));}
+          catch(contextError) {
+            if(contextError instanceof RunnerFailure && contextError.details?.configurationExplanation!==undefined)explanation=contextError.details.configurationExplanation as Record<string,unknown>;
+          }
+          const diagnostics=Array.isArray(explanation.diagnostics)?explanation.diagnostics:[];
+          explanation.diagnostics=[...diagnostics,{code:"CONFIG_INVALID",severity:"error",source:String(caught.details?.source ?? preflight.userConfigPath),reason:String(caught.details?.reason ?? "Runner configuration is invalid.")}];
+          explanation.runtime={transport:null,permissionMode:null,authProfile:null,billingOwner:null,nativeLimits:null,nativeOutputLimits:null};
+          throw failure("CONFIG_INVALID",{...(caught.details ?? {}),configurationExplanation:explanation});
+        }
+        throw caught;
+      }
+      try {config=await resolveConfiguration(parsed.global,dependencies);}
+      catch(caught) {if(caught instanceof RunnerFailure && caught.code === "CONFIG_INVALID")throw failure("CONFIG_INVALID",{...(caught.details ?? {}),mutation});throw caught;}
+      config.mutation=mutation;
+    } else {
+      const resolutionFlags={...parsed.global};
+      if(parsed.kind==="operation"&&parsed.operation==="harness-use"){delete resolutionFlags.model;delete resolutionFlags.authProfile;}
+      config=await resolveConfiguration(resolutionFlags,{...dependencies,...(parsed.kind === "operation"&&parsed.targetArgv!==undefined ? {targetArgv:parsed.targetArgv}:{}),...(parsed.kind==="operation"&&parsed.operation==="harness-use"?{validateSelection:()=>validateUserHarnessSelection(parsed.value!,parsed.global)}:{})});
+    }
     // The default hosted harness runs no language command, so a language
     // command word that also names a service command is that rejection.
     if (hostedRejection !== undefined && config.values.harness === "openprose" && parsed.global.dryRun !== true) {
@@ -157,6 +185,10 @@ export async function runCli(args: readonly string[], dependencies: CliDependenc
     mode = parsed.kind === "operation" && parsed.json ? "json" : config.values.output;
     if (parsed.kind === "operation") {
       return await runOperation(parsed.operation, parsed.value, parsed.global, config, mode, dependencies);
+    }
+    if(config.values.harness==="agents-sdk" && parsed.global.dryRun!==true) {
+      negotiateTransport(selectHarness(config),config.values.transport);
+      buildInstalledAdapterEnvironment({definition:installedAdapterDefinition("agents-sdk/jsonl"),ambient:dependencies.env,credentialGroup:selectedCredentialGroup("agents-sdk/jsonl",config.values.authProfile),...(dependencies.platform===undefined?{}:{platform:dependencies.platform})});
     }
 
     const image = PUBLISHED_KERNEL_STARTUP && dependencies.imageBundle === undefined && ["codex", "claude", "prime", "omp", "agents-sdk"].includes(config.values.harness)
@@ -235,11 +267,15 @@ async function runOperation(
           ? "Route: cached-chatgpt-login (Codex default; not saved)"
           : operationValue === "claude"
             ? "Route: claude-subscription (Claude default; not saved)"
+            : operationValue === "agents-sdk"
+              ? "Route: openai-api-key (Agents SDK default; not saved)"
             : "Route: OpenProse account (external route cleared)";
       const savedModel = selection.model !== null
         ? `Model: ${humanSafeScalar(selection.model)} (saved)`
         : operationValue === "codex" || operationValue === "claude"
           ? "Model: harness default (not saved)"
+          : operationValue === "agents-sdk"
+            ? "Model: gpt-6.1-sol (Agents SDK default; not saved)"
           : "Model: OpenProse default (external model cleared)";
       dependencies.writeStdout([
         `Default harness: ${humanSafeScalar(operationValue)} (${changed ? "updated" : "already selected"})`,
@@ -252,7 +288,7 @@ async function runOperation(
     } else dependencies.writeStdout(jsonLine(report));
     return 0;
   }
-  if (operation === "config-explain") {
+  if (["config-explain","config-migrate","config-unset"].includes(operation)) {
     if (mode === "human") dependencies.writeStdout(humanConfiguration(config));
     else dependencies.writeStdout(jsonLine(configurationExplanation(config)));
     return 0;
@@ -445,7 +481,8 @@ function validateUserHarnessSelection(
   if (authProfile !== null && definition.credentialGroups[authProfile] === undefined) {
     throw failure("CONFIG_INVALID", {
       adapterId,
-      reason: `Unknown auth_profile for ${adapterId}: ${authProfile}.`,
+      source:"--auth-profile",
+      reason: "Authentication profile is incompatible with the selected harness.",
       supportedAuthProfiles: Object.keys(definition.credentialGroups),
     });
   }
@@ -879,6 +916,7 @@ async function runInstalledProbeInvocation(
     });
     const options: ProviderFreeAdapterOptions = {
       adapterId,
+      ...(adapterId==="agents-sdk/jsonl"?{model:config.values.model,outputContract:config.values.outputContract??"image-envelope",...(config.values.nativeMaxTurns===undefined?{}:{nativeMaxTurns:config.values.nativeMaxTurns}),...(config.values.nativeTimeout===undefined?{}:{nativeTimeout:config.values.nativeTimeout}),...(config.values.nativeToolTimeout===undefined?{}:{nativeToolTimeout:config.values.nativeToolTimeout})}:{}),
       executable: probe.executable,
       observationPath: probe.observationPath,
       credentialGroup: probe.credentialGroup,
@@ -910,17 +948,18 @@ async function runInstalledProbeInvocation(
   if (outcome.publicStderr.length > 0) {
     dependencies.writeStderr(mode === "human" ? humanSafeMultiline(outcome.publicStderr) : outcome.publicStderr);
   }
-  const attemptedError = outcome.process.error === null
+  let attemptedError = outcome.process.error === null
     ? failure("SEMANTIC_STATUS_UNKNOWN", {
       adapterId,
       admissionStatus: "blocked",
       transportTerminalObserved: true,
       fallbackAttempted: false,
     })
-    : failure(
-      outcome.process.error.code,
-      installedProcessFailureDetails(outcome.process, adapterId),
-    );
+    : installedProcessFailure(outcome.process,adapterId);
+  if(outcome.sdkObservations!==undefined) {
+    const {schema:_,...shape}=attemptedError.toJSON();
+    attemptedError=new RunnerFailure({...shape,details:{...attemptedError.details,...outcome.sdkObservations}});
+  }
   const terminalAt = dependencies.clock.now();
   const baseEvents = processEvents(
     invocation.invocationId,
@@ -952,6 +991,7 @@ async function runInstalledProbeInvocation(
     deliveredImageSha256: outcome.plan.imageSha256,
     renderedPayloadSha256: outcome.plan.renderedPayloadSha256,
   });
+  if(outcome.sdkObservations!==undefined)Object.assign(result,outcome.sdkObservations);
   emitAttemptFailure(result, attemptedError, mode, invocation.invocationId, baseEvents, dependencies);
   return attemptedError.exitCode;
 }
@@ -996,6 +1036,7 @@ async function prepareInstalledAdapter(
     }
   }
   const credentialGroup = selectedCredentialGroup(adapterId, config.values.authProfile);
+  if(adapterId==="agents-sdk/jsonl")buildInstalledAdapterEnvironment({definition,ambient:dependencies.env,credentialGroup,...(dependencies.platform===undefined?{}:{platform:dependencies.platform})});
   const executable = await resolveInstalledExecutable({
     adapterId,
     ambient: dependencies.env,
@@ -1153,10 +1194,7 @@ async function runInstalledInvocation(
   }
   let attemptedError = outcome.process.error === null
     ? null
-    : failure(
-      outcome.process.error.code,
-      installedProcessFailureDetails(outcome.process, readiness.adapterId),
-    );
+    : installedProcessFailure(outcome.process,readiness.adapterId);
   let terminalEnvelope: Record<string, unknown> | null = null;
   const nativeOutput = config.values.outputContract === "native";
   if (attemptedError === null && !nativeOutput) {
@@ -1165,6 +1203,10 @@ async function runInstalledInvocation(
     } catch (caught) {
       attemptedError = normalizeFailure(caught);
     }
+  }
+  if(attemptedError!==null && outcome.sdkObservations!==undefined) {
+    const {schema:_,...shape}=attemptedError.toJSON();
+    attemptedError=new RunnerFailure({...shape,details:{...attemptedError.details,...outcome.sdkObservations}});
   }
   const terminalAt = dependencies.clock.now();
   const baseEvents = processEvents(
@@ -1199,6 +1241,7 @@ async function runInstalledInvocation(
     renderedPayloadSha256: outcome.plan.renderedPayloadSha256,
   });
   if(outcome.nativeConfiguration) result.nativeConfiguration=outcome.nativeConfiguration;
+  if(outcome.sdkObservations!==undefined)Object.assign(result,outcome.sdkObservations);
   if (attemptedError !== null) {
     humanOutput.stream?.abort();
     emitAttemptFailure(result, attemptedError, mode, invocation.invocationId, baseEvents, dependencies);
@@ -1286,6 +1329,16 @@ function processEvents(
     signal: outcome.signal,
   }));
   return records;
+}
+
+function installedProcessFailure(process:ProcessSupervisionResult,adapterId:InstalledAdapterId):RunnerFailure {
+  const problem=failure(process.error!.code,installedProcessFailureDetails(process,adapterId));
+  if(problem.code!=="HARNESS_FAILED"||adapterId!=="agents-sdk/jsonl")return problem;
+  const nativeFailure=problem.details?.nativeFailure;
+  const action=nativeFailure!==null&&typeof nativeFailure==="object"&&!Array.isArray(nativeFailure)?sdkSetupFailureAction(nativeFailure as Record<string,unknown>):undefined;
+  if(action===undefined)return problem;
+  const {schema:_schema,...shape}=problem.toJSON();
+  return new RunnerFailure({...shape,action});
 }
 
 export function installedProcessFailureDetails(
@@ -1639,7 +1692,7 @@ function configurationProvenance(config: EffectiveConfiguration): Array<Record<s
       key,
       source: source(config.sources[key]?.kind ?? "default"),
       location: config.sources[key]?.location ?? "built-in",
-      redacted: key === "authProfile",
+      redacted: false,
     })),
   ];
 }

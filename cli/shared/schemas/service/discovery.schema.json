@@ -60,7 +60,7 @@
           "$ref": "common.schema.json#/$defs/modelId"
         },
         "catalog": {
-          "description": "Every model the service names with its status, projected through an allowlist: `available` (listed in models), `paid_top_up` (premium: unlocks with any wallet top-up), `hidden` (still accepted, not recommended; `successor` names the model to use) or a newer status. Absent when the service sends no catalog; retired models are never listed.",
+          "description": "Every model the service names with its status, projected through an allowlist: `available` (listed in models), `paid_top_up` (premium: unlocks with any wallet top-up), or a newer status. Absent when the service sends no catalog; `hidden` models (still accepted when named) and retired models are never listed.",
           "type": "array",
           "maxItems": 64,
           "items": {
@@ -491,6 +491,7 @@
                     "problem",
                     "total",
                     "max",
+                    "limit",
                     "jobs"
                   ],
                   "properties": {
@@ -510,7 +511,11 @@
                           "type": "integer",
                           "minimum": 0
                         }
-                      ]
+                      ],
+                      "description": "The account's maximum number of jobs when limited; null when unlimited or unavailable."
+                    },
+                    "limit": {
+                      "$ref": "jobs.schema.json#/$defs/jobLimit"
                     },
                     "jobs": {
                       "type": "array",

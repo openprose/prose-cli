@@ -687,6 +687,31 @@ def _validate_package_checksums(
         )
 
 
+
+def _archive_members_for_sdk(data, name):
+    members = {}; portable = set(); total = 0
+    try:
+        with tarfile.open(fileobj=io.BytesIO(data), mode='r:gz') as archive:
+            for member in archive:
+                if (len(members) >= MAX_ARCHIVE_MEMBERS or not _safe_archive_name(member.name)
+                        or member.name.casefold() in portable or not member.isfile()
+                        or not 0 <= member.size <= MAX_FILE_BYTES):
+                    raise _error('UNSAFE_ARCHIVE', 'Unsafe SDK archive member: ' + name)
+                portable.add(member.name.casefold()); total += member.size
+                if total > MAX_ARCHIVE_BYTES:
+                    raise _error('UNSAFE_ARCHIVE', 'SDK archive exceeds expanded bound: ' + name)
+                stream = archive.extractfile(member)
+                if stream is None:
+                    raise _error('UNSAFE_ARCHIVE', 'SDK archive member cannot be read: ' + name)
+                content = stream.read(MAX_FILE_BYTES + 1)
+                if len(content) != member.size:
+                    raise _error('UNSAFE_ARCHIVE', 'SDK archive member length differs: ' + name)
+                members[member.name] = content
+    except tarfile.TarError:
+        raise _error('UNSAFE_ARCHIVE', 'Malformed SDK archive: ' + name) from None
+    return members
+
+
 def _capture_image_and_channel(
     snapshot: dict[str, bytes],
     *,
@@ -697,7 +722,7 @@ def _capture_image_and_channel(
     manifest = _parse_package_json(
         snapshot["release-manifest.json"], "release-manifest.json"
     )
-    if set(manifest) != RELEASE_MANIFEST_KEYS:
+    if set(manifest) not in (RELEASE_MANIFEST_KEYS, RELEASE_MANIFEST_KEYS | {"agentsSdk"}):
         raise _error(
             "MALFORMED_PACKAGE_METADATA",
             "release-manifest.json top-level keys are not exact",
@@ -713,6 +738,12 @@ def _capture_image_and_channel(
             "PACKAGE_IDENTITY_MISMATCH",
             "capture accepts only alpha or release package modes",
         )
+    if mode == "release":
+        import kernel_rc_evidence as custody
+        try:
+            custody.validate_sdk_archives(manifest, lambda name: _archive_members_for_sdk(snapshot[name], name))
+        except (ValueError, KeyError, TypeError) as error:
+            raise _error("PACKAGE_IDENTITY_MISMATCH", str(error)) from None
     for field, supplied in (
         ("version", version),
         ("platform", platform_id),

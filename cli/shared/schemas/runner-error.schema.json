@@ -27,6 +27,7 @@
         "HARNESS_NEEDS_AUTH",
         "TRANSPORT_UNSUPPORTED",
         "PROMPT_CHANNEL_UNSUPPORTED",
+        "KERNEL_RETRIEVAL_FAILED",
         "IMAGE_INVALID",
         "IMAGE_TOO_LARGE",
         "RECURSIVE_INVOCATION",
@@ -111,6 +112,12 @@
         "adapterDiagnostic": {
           "$ref": "adapter-diagnostic.schema.json"
         },
+        "usageObservation": {
+          "$ref": "sdk-observation.schema.json#/$defs/usageObservation"
+        },
+        "modelIdentity": {
+          "$ref": "sdk-observation.schema.json#/$defs/modelIdentity"
+        },
         "nativeFailure": {
           "$ref": "native-failure.schema.json"
         },
@@ -184,6 +191,7 @@
             "organization_not_found",
             "paid_model_required",
             "paid_top_up_required",
+            "program_not_found",
             "provider_tier_unavailable",
             "rate_limited",
             "reserved_slug",
@@ -300,7 +308,10 @@
         },
         "processResource": {
           "description": "The owned process service whose settlement failed; contains no machine path.",
-          "enum": ["owned-prime-harness-service", "owned-private-transport-files"]
+          "enum": [
+            "owned-prime-harness-service",
+            "owned-private-transport-files"
+          ]
         },
         "resource": {
           "description": "The resource a SERVICE_RESOURCE_NOT_FOUND names: its kind (from the operation's manifest notFound entry, or the handler) and the identifier as the caller gave it.",
@@ -333,6 +344,198 @@
     }
   },
   "allOf": [
+    {
+      "if": {
+        "properties": {
+          "code": {
+            "const": "KERNEL_RETRIEVAL_FAILED"
+          }
+        },
+        "required": [
+          "code"
+        ]
+      },
+      "then": {
+        "required": [
+          "details"
+        ],
+        "properties": {
+          "boundary": {
+            "const": "image"
+          },
+          "exitCode": {
+            "const": 20
+          },
+          "message": {
+            "const": "The published OpenProse kernel could not be retrieved."
+          },
+          "action": {
+            "const": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used."
+          },
+          "details": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "reason",
+              "stage",
+              "failureKind",
+              "origin"
+            ],
+            "properties": {
+              "reason": {
+                "type": "string"
+              },
+              "stage": {
+                "enum": [
+                  "entry",
+                  "descriptor",
+                  "inventory",
+                  "kernel"
+                ]
+              },
+              "failureKind": {
+                "enum": [
+                  "transport",
+                  "http"
+                ]
+              },
+              "origin": {
+                "const": "https://pkg.prose.md"
+              },
+              "httpStatus": {
+                "type": "integer",
+                "minimum": 100,
+                "maximum": 599,
+                "not": {
+                  "const": 200
+                }
+              }
+            }
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "details": {
+                  "properties": {
+                    "failureKind": {
+                      "const": "transport"
+                    }
+                  },
+                  "required": [
+                    "failureKind"
+                  ]
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "retryable": {
+                  "const": true
+                },
+                "details": {
+                  "properties": {
+                    "reason": {
+                      "const": "Published kernel transport or response read failed."
+                    }
+                  },
+                  "not": {
+                    "required": [
+                      "httpStatus"
+                    ]
+                  }
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "details": {
+                  "required": [
+                    "httpStatus"
+                  ],
+                  "properties": {
+                    "reason": {
+                      "const": "Published kernel HTTP request failed."
+                    }
+                  }
+                }
+              },
+              "allOf": [
+                {
+                  "if": {
+                    "properties": {
+                      "details": {
+                        "properties": {
+                          "httpStatus": {
+                            "enum": [
+                              408,
+                              429,
+                              500,
+                              502,
+                              503,
+                              504
+                            ]
+                          }
+                        },
+                        "required": [
+                          "httpStatus"
+                        ]
+                      }
+                    }
+                  },
+                  "then": {
+                    "properties": {
+                      "retryable": {
+                        "const": true
+                      }
+                    }
+                  },
+                  "else": {
+                    "properties": {
+                      "retryable": {
+                        "const": false
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "details": {
+                  "properties": {
+                    "stage": {
+                      "const": "entry"
+                    },
+                    "failureKind": {
+                      "const": "http"
+                    }
+                  },
+                  "required": [
+                    "stage",
+                    "failureKind"
+                  ]
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "details": {
+                  "properties": {
+                    "httpStatus": {
+                      "minimum": 400
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
     {
       "if": {
         "properties": {

@@ -61,6 +61,14 @@ export interface EffectiveConfiguration {
   sources: { [K in keyof EffectiveValues]: ValueSource };
   projectConfigPath: string | null;
   userConfigPath: string;
+  legacyConfigPath?: string | null;
+  activeUserConfigPath?: string | null;
+  target?: { argv: string[] } | null;
+  locations?: Array<{ role: "user" | "legacy-user" | "project"; path: string; present: boolean; selected: boolean }>;
+  candidates?: Record<string, Array<{ value: unknown; source: ValueSource; selected: boolean }>>;
+  diagnostics?: Array<{ code: string; severity: "warning" | "error"; source: string; reason: string }>;
+  runtime?: { transport: string | null; permissionMode: string | null; authProfile: string | null; billingOwner: string | null; nativeLimits: Record<string,number> | null; nativeOutputLimits: Record<string,number|boolean> | null };
+  mutation?: { operation: "migrate" | "unset"; changed: boolean; path: string; sourcePath: string | null; keys: string[] };
 }
 
 export type RunnerOperation =
@@ -70,6 +78,8 @@ export type RunnerOperation =
   | "harness-use"
   | "prime-cleanup"
   | "config-explain"
+  | "config-migrate"
+  | "config-unset"
   | "auth-status"
   | "auth-login"
   | "auth-logout"
@@ -79,7 +89,7 @@ export type ParsedEntrypoint =
   | { kind: "weave"; global: GlobalFlags; argv: string[] }
   | { kind: "help"; global: GlobalFlags }
   | { kind: "version"; global: GlobalFlags }
-  | { kind: "operation"; global: GlobalFlags; operation: RunnerOperation; json: boolean; value?: string; packageCommand?: import("./package-args").PackageCommand }
+  | { kind: "operation"; global: GlobalFlags; operation: RunnerOperation; json: boolean; value?: string; targetArgv?: string[]; configKeys?: string[]; packageCommand?: import("./package-args").PackageCommand }
   | { kind: "service"; global: GlobalFlags; command: import("./service/manifest").ServiceCommand }
   /** `redirect`: the words also name a service command; rejected unless an operand exists on disk, else a HOSTED_UNAVAILABLE hint. */
   | { kind: "language"; global: GlobalFlags; argv: string[]; redirect?: import("./service/manifest").CliRedirect };
@@ -118,6 +128,7 @@ export type RunnerErrorCode =
   | "HARNESS_NEEDS_AUTH"
   | "TRANSPORT_UNSUPPORTED"
   | "PROMPT_CHANNEL_UNSUPPORTED"
+  | "KERNEL_RETRIEVAL_FAILED"
   | "IMAGE_INVALID"
   | "IMAGE_TOO_LARGE"
   | "RECURSIVE_INVOCATION"

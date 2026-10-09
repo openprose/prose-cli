@@ -1,6 +1,49 @@
 import { describe, expect, test } from "bun:test";
 import { inferOutputMode, parseEntrypoint } from "../src/core/args";
 import { readFileSync } from "node:fs";
+import corrections from "../../shared/fixtures/service-word-corrections.json";
+import {parseService} from "../src/core/service/manifest";
+
+test("service word corrections follow through both pure parsers without changing opaque argv",()=>{
+  for(const sample of corrections.cases){
+    const original=[...sample.argv];
+    if("rejectedOriginal" in sample&&sample.rejectedOriginal!==undefined){
+      let caught:unknown;try{parseEntrypoint(original);}catch(error){caught=error;}
+      expect(caught).toMatchObject({code:sample.rejectedOriginal.code,details:{reason:sample.rejectedOriginal.reason}});
+      expect(original).toEqual(sample.originalArgvPreserved);continue;
+    }
+    if(sample.follow===undefined||sample.suggestedArgv===undefined)throw new Error("complete follow oracle expected");
+    const parsed=parseEntrypoint(original);
+    expect(original).toEqual(sample.originalArgvPreserved);
+    expect(parsed.kind).toBe("language");
+    if(parsed.kind!=="language")throw new Error("language boundary expected");
+    expect(parsed.redirect?.argv).toEqual(sample.suggestedArgv);
+    if("languageArgv" in sample)expect(parsed.argv).toEqual(sample.languageArgv);
+    const followed=parseEntrypoint(sample.suggestedArgv);
+    if(sample.follow.kind==="help"){
+      expect(followed).toMatchObject({kind:"service",command:{kind:"help"}});
+      const service=parseService(sample.suggestedArgv.slice(sample.suggestedArgv.indexOf("cli")+1),sample.suggestedArgv);
+      expect(service.kind).toBe("help");
+      if(service.kind!=="help")throw new Error("specific service help expected");
+      expect(service.text).toContain("cli run submit");
+      expect({kind:"help",command:sample.suggestedArgv.slice(sample.suggestedArgv.indexOf("cli"),-1),globalDisplay:{output:followed.global.output??"human",noColor:followed.global.color===false,verbose:followed.global.verbose===true}} as unknown).toEqual(sample.follow);
+    }
+    else if(sample.follow.kind==="account")expect(followed).toMatchObject({kind:"operation",operation:"org-list"});
+    else expect(String(followed.kind)).toBe(sample.follow.kind);
+    if(followed.kind==="language"){expect(followed.argv).toEqual((sample.follow as any).argv);expect(followed.global).toEqual((sample.follow as any).global);}
+    else if(sample.follow.kind==="account"&&followed.kind==="operation"){
+      expect(parseService(["org","list"],sample.suggestedArgv).kind).toBe("invalid");
+      expect({kind:"account",operation:followed.operation,manifestOperation:"org.list",arguments:{},options:{},flags:[],preview:false,globalDisplay:{output:followed.global.output??"human",noColor:followed.global.color===false,verbose:followed.global.verbose===true}} as unknown).toEqual(sample.follow);
+    }
+    else if(sample.follow.kind==="service"){
+      const service=parseService(sample.suggestedArgv.slice(sample.suggestedArgv.indexOf("cli")+1),sample.suggestedArgv);
+      expect(service.kind).toBe("invoke");
+      if(service.kind!=="invoke")throw new Error("executable service correction expected");
+      expect(service.invocation.error).toBeUndefined();
+      expect({kind:"service",operation:service.invocation.operation,arguments:Object.fromEntries(service.invocation.arguments),options:Object.fromEntries(service.invocation.options),flags:[...service.invocation.flags],preview:service.invocation.preview,globalDisplay:{output:followed.global.output??"human",noColor:followed.global.color===false,verbose:followed.global.verbose===true}} as unknown).toEqual(sample.follow);
+    }
+  }
+});
 
 const invocationAction = "Review the runner syntax with the --help option, place global options before cli, and retry the command.";
 
@@ -58,7 +101,7 @@ describe("runner-global parsing", () => {
     for (const [args, reason] of [
       [["--output=machine", "cli", "doctor"], 'invalid output mode "machine"; expected human, json, or jsonl'],
       [["--model", "one", "--model", "two", "cli", "doctor"], "runner option --model was specified more than once"],
-      [["cli", "harness", "use", "nope"], "Harness selection must be one of openprose, prime, omp, codex, or claude."],
+      [["cli", "harness", "use", "nope"], "Harness selection must be one of openprose, agents-sdk, prime, omp, codex, or claude."],
     ] as const) {
       expectInvocationFailure(args, reason);
     }
@@ -404,4 +447,16 @@ test("native output is an explicit transport option",()=>{
 test("Codex compatibility is explicit and cannot be duplicated", () => {
   expect(parseEntrypoint(["--harness","codex","--codex-compatibility=probe","run"]).global).toMatchObject({harness:"codex",codexCompatibility:"probe"});
   expect(() => parseEntrypoint(["--codex-compatibility","probe","--codex-compatibility","qualified","run"])).toThrow();
+});
+
+test("configuration target explanation reuses global parsing and preserves opaque argv",()=>{
+  expect(parseEntrypoint(["cli","config","explain","--json","--","--cwd","work space","--harness","agents-sdk","run","--model","opaque"])).toEqual({kind:"operation",operation:"config-explain",json:true,global:{cwd:"work space",harness:"agents-sdk"},targetArgv:["prose","run","--model","opaque"]});
+  expect(inferOutputMode(["cli","config","explain","--json","--","--harness","agents-sdk","run","x"])).toBe("json");
+});
+test("configuration target explanation rejects absent targets and nested operations",()=>{
+  for(const argv of [["cli","config","explain","--json","--"],["cli","config","explain","--","cli","doctor"],["cli","config","explain","--","--version"],["--cwd","x","cli","config","explain","--","run","x"]]) expect(()=>parseEntrypoint(argv)).toThrow();
+});
+test("configuration mutation accepts only known key operands",()=>{
+  expect(parseEntrypoint(["cli","config","unset","model","auth_profile","--json"])).toMatchObject({operation:"config-unset",json:true,configKeys:["model","auth_profile"]});
+  for(const argv of [["cli","config","unset"],["cli","config","unset","api_key"],["cli","config","migrate","extra"]])expect(()=>parseEntrypoint(argv)).toThrow();
 });

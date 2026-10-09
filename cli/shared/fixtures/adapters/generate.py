@@ -176,9 +176,12 @@ def expected_outputs() -> dict[Path, bytes]:
                 "source": "cli/shared/image/echo-v0/manifest.json#modelVisibleBytes",
                 "mode": "0600", "byteLength": len(image), "sha256": sha256(image),
             }]
+            sdk_observation = load_json(ADAPTERS / "sdk-production.json")["observation"]
             scenario["fakeStdout"] = [
                 {"type": "start", "model": "fixture", "cwd": "fixture"},
-                {"type": "final", "output": assistant_text},
+                {"type": "final", "output": assistant_text,
+                 "usageObservation": sdk_observation["completedUsage"],
+                 "modelIdentity": sdk_observation["modelIdentity"]},
             ]
         elif adapter_id in {"claude/print-stream-json", "omp/rpc"}:
             scenario["files"] = [
@@ -250,8 +253,10 @@ def expected_outputs() -> dict[Path, bytes]:
                     },
                 ]
         scenario["expectedLanguageTerminal"] = terminal
+        # Preserve the reviewed SDK scenario's ASCII-escaped byte serialization.
+        # Other adapters retain their existing UTF-8 serialization.
         outputs[path] = (
-            json.dumps(scenario, ensure_ascii=False, indent=2).encode("utf-8") + b"\n"
+            json.dumps(scenario, ensure_ascii=(adapter_id == "agents-sdk/jsonl"), indent=2).encode("utf-8") + b"\n"
         )
     return outputs
 

@@ -79,49 +79,6 @@ pub const HELP: &str = include_str!("../../../../conformance/cases/fixtures/runn
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct ConfigReport<'a> {
-    schema: &'static str,
-    cwd: crate::config::Sourced<String>,
-    project_config_path: Option<String>,
-    user_config_path: String,
-    values: ConfigValuesReport<'a>,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct ConfigValuesReport<'a> {
-    harness: &'a crate::config::Sourced<String>,
-    transport: &'a crate::config::Sourced<String>,
-    model: &'a crate::config::Sourced<Option<String>>,
-    timeout: &'a crate::config::Sourced<String>,
-    output: &'a crate::config::Sourced<OutputMode>,
-    color: &'a crate::config::Sourced<bool>,
-    verbose: &'a crate::config::Sourced<bool>,
-    auth_profile: &'a crate::config::Sourced<Option<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    output_contract: Option<&'a crate::config::Sourced<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    permission_mode: Option<&'a crate::config::Sourced<Option<String>>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    codex_compatibility: Option<&'a crate::config::Sourced<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    native_profile: Option<&'a crate::config::Sourced<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    native_max_turns: Option<&'a crate::config::Sourced<Option<String>>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    native_timeout: Option<&'a crate::config::Sourced<Option<String>>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    native_tool_timeout: Option<&'a crate::config::Sourced<Option<String>>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    native_output_bytes: Option<&'a crate::config::Sourced<Option<String>>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    native_add_dirs: Option<&'a crate::config::Sourced<Vec<String>>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    native_allow_tools: Option<&'a crate::config::Sourced<Vec<String>>>,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
 struct HarnessStatus {
     id: &'static str,
     runtime: &'static str,
@@ -341,7 +298,11 @@ pub fn action_output_mode(parsed: &ParsedInvocation, config: &EffectiveConfig) -
     }
 }
 
-fn validate_harness_selection(harness: &str, flags: &GlobalFlags) -> Result<(), RunnerError> {
+/// Validate the explicitly requested saved bundle without ambient execution configuration.
+///
+/// # Errors
+/// Returns invocation/configuration errors for incomplete or incompatible selections.
+pub fn validate_harness_selection(harness: &str, flags: &GlobalFlags) -> Result<(), RunnerError> {
     if harness == "openprose" {
         if flags.model.is_some() || flags.auth_profile.is_some() {
             return Err(RunnerError::catalog(ErrorCode::ConfigInvalid).with_detail(
@@ -385,7 +346,7 @@ fn validate_harness_selection(harness: &str, flags: &GlobalFlags) -> Result<(), 
                 .with_detail("adapterId", adapter.id())
                 .with_detail(
                     "reason",
-                    format!("Unknown auth_profile for {}: {profile}.", adapter.id()),
+                    "Authentication profile is incompatible with the selected harness.",
                 )
                 .with_detail("supportedAuthProfiles", adapter.auth_profiles()));
         }
@@ -464,14 +425,10 @@ fn execute_runner_command(
     ids: &dyn IdSource,
 ) -> CommandOutcome {
     match command {
-        RunnerCommand::ConfigExplain => {
-            let report = config_report(config);
-            if mode == OutputMode::Human {
-                CommandOutcome::human(render_config_human(config), "", 0)
-            } else {
-                CommandOutcome::json(report, 0)
-            }
-        }
+        RunnerCommand::ConfigExplain
+        | RunnerCommand::ConfigExplainTarget(_)
+        | RunnerCommand::ConfigMigrate
+        | RunnerCommand::ConfigUnset(_) => configuration_outcome(config, mode),
         RunnerCommand::Doctor => {
             if let Err(error) = validate_selected_transport(config) {
                 return error_outcome(error, mode, clock, ids);
@@ -633,6 +590,9 @@ fn execute_runner_command(
                     Some(profile) => {
                         format!("Route: {} (saved)\n", human_safe_scalar(profile))
                     }
+                    None if harness == "agents-sdk" => {
+                        "Route: openai-api-key (Agents SDK default; not saved)\n".to_owned()
+                    }
                     None if harness == "codex" => {
                         "Route: cached-chatgpt-login (Codex default; not saved)\n".to_owned()
                     }
@@ -643,6 +603,9 @@ fn execute_runner_command(
                 };
                 let saved_model = match flags.model.as_deref() {
                     Some(model) => format!("Model: {} (saved)\n", human_safe_scalar(model)),
+                    None if harness == "agents-sdk" => {
+                        "Model: gpt-6.1-sol (Agents SDK default; not saved)\n".to_owned()
+                    }
                     None if matches!(harness.as_str(), "codex" | "claude") => {
                         "Model: harness default (not saved)\n".to_owned()
                     }
@@ -808,6 +771,27 @@ fn supported_transports(harness: &str) -> Option<&'static [&'static str]> {
             | installed_adapters::InstalledAdapter::OmpRpc => &["rpc"][..],
         }),
     }
+}
+
+/// Checks SDK credentials before image acquisition or native helper discovery.
+///
+/// # Errors
+///
+/// Returns the existing transport/configuration error for an invalid SDK route,
+/// or `HARNESS_NEEDS_AUTH` for a missing or blank API key. No process is started.
+pub fn sdk_credential_preflight(
+    config: &EffectiveConfig,
+    ambient: &[(std::ffi::OsString, std::ffi::OsString)],
+) -> Result<(), RunnerError> {
+    if config.harness.value != "agents-sdk" {
+        return Ok(());
+    }
+    validate_selected_transport(config)?;
+    let adapter = installed_adapters::InstalledAdapter::AgentsSdkJsonl;
+    let group = selected_auth_group(adapter, config)?;
+    installed_adapters::auth_readiness(adapter, &group, ambient)
+        .map(|_| ())
+        .map_err(|error| error.with_detail("fallbackAttempted", false))
 }
 
 fn validate_selected_transport(config: &EffectiveConfig) -> Result<(), RunnerError> {
@@ -1277,6 +1261,8 @@ struct InstalledRunObserver<'a> {
     auth_source_failed: bool,
     sdk: bool,
     native_failure: Option<Value>,
+    sdk_observations: Value,
+    sdk_requested_model: Option<String>,
     capture: Option<NativeCapture>,
     human: Option<InstalledHumanStream<'a>>,
     omp: Option<OmpStagedController>,
@@ -1295,6 +1281,13 @@ impl std::fmt::Debug for InstalledRunObserver<'_> {
 
 impl RecordObserver for InstalledRunObserver<'_> {
     fn observe_parsed(&mut self, record: &Value) -> Result<(), SupervisorFailure> {
+        if self.sdk {
+            crate::sdk_observation::update(
+                &mut self.sdk_observations,
+                record,
+                self.sdk_requested_model.as_deref(),
+            );
+        }
         if self.sdk && record.get("type").and_then(Value::as_str) == Some("error") {
             self.native_failure = Some(installed_adapters::sdk_native_failure(record));
         }
@@ -1691,7 +1684,7 @@ fn selected_auth_group(
                 .with_detail("adapterId", adapter.id())
                 .with_detail(
                     "reason",
-                    format!("Unknown auth_profile for {}: {profile}.", adapter.id()),
+                    "Authentication profile is incompatible with the selected harness.",
                 )
                 .with_detail("supportedAuthProfiles", adapter.auth_profiles()));
         }
@@ -1776,6 +1769,19 @@ fn inspect_installed_adapter(
         }
     };
     let ambient = env::vars_os().collect::<Vec<_>>();
+    if adapter == installed_adapters::InstalledAdapter::AgentsSdkJsonl {
+        if let Err(problem) = installed_adapters::auth_readiness(adapter, &auth_group, &ambient) {
+            return InstalledAdapterDiscovery {
+                executable: None,
+                version: None,
+                runtime_prerequisites: Vec::new(),
+                environment: None,
+                auth_group: Some(auth_group),
+                auth_readiness: "missing",
+                problem: Some(problem.with_detail("fallbackAttempted", false)),
+            };
+        }
+    }
     let search_path = ambient
         .iter()
         .find(|(name, _)| name == std::ffi::OsStr::new("PATH"))
@@ -1956,7 +1962,7 @@ fn inspect_installed_adapter(
     }
 }
 
-fn is_fully_qualified_provider_model(model: &str) -> bool {
+pub(crate) fn is_fully_qualified_provider_model(model: &str) -> bool {
     let mut segments = model.split('/');
     let Some(provider) = segments.next() else {
         return false;
@@ -2319,6 +2325,8 @@ fn execute_installed_adapter(
         auth_source_failed: false,
         sdk: adapter == installed_adapters::InstalledAdapter::AgentsSdkJsonl,
         native_failure: None,
+        sdk_observations: json!({}),
+        sdk_requested_model: config.model.value.clone(),
         capture,
         human: human_stream,
         omp: omp_controller,
@@ -2480,6 +2488,7 @@ fn execute_installed_adapter(
                 &invocation_id,
                 failure,
                 run_observer.native_failure.clone(),
+                &run_observer.sdk_observations,
                 detected_version.as_deref(),
                 rendered_payload_digest.as_deref(),
                 config,
@@ -2747,6 +2756,11 @@ fn installed_adapter_success_result(
     if let Some(native) = native_configuration(config, Some(&outcome.records)) {
         result["nativeConfiguration"] = native;
     }
+    if adapter == installed_adapters::InstalledAdapter::AgentsSdkJsonl {
+        let observations =
+            crate::sdk_observation::from_records(&outcome.records, config.model.value.as_deref());
+        crate::sdk_observation::apply(&mut result, &observations);
+    }
     match mode {
         OutputMode::Human => {
             let remaining = &terminal.visible_text[human_stream_settlement.emitted_prefix_bytes..];
@@ -2887,6 +2901,7 @@ fn installed_adapter_failure_result(
     invocation_id: &str,
     failure: SupervisorFailure,
     native_failure: Option<Value>,
+    sdk_observations: &Value,
     detected_version: Option<&str>,
     rendered_payload_digest: Option<&str>,
     config: &EffectiveConfig,
@@ -2939,6 +2954,11 @@ fn installed_adapter_failure_result(
     if let Some(diagnostic) = native_failure {
         error = error.with_detail("nativeFailure", diagnostic);
     }
+    for key in ["usageObservation", "modelIdentity"] {
+        if let Some(value) = sdk_observations.get(key) {
+            error = error.with_detail(key, value.clone());
+        }
+    }
     render_installed_failure(
         adapter,
         task,
@@ -2984,6 +3004,40 @@ fn render_installed_failure(
     clock: &dyn Clock,
     native_records: Option<&[Value]>,
 ) -> CommandOutcome {
+    let mut error = error;
+    if adapter == installed_adapters::InstalledAdapter::AgentsSdkJsonl {
+        let observations = crate::sdk_observation::from_records(
+            native_records.unwrap_or(&[]),
+            config.model.value.as_deref(),
+        );
+        for key in ["usageObservation", "modelIdentity"] {
+            if error
+                .details
+                .as_ref()
+                .and_then(|details| details.get(key))
+                .is_none()
+            {
+                if let Some(value) = observations.get(key) {
+                    error = error.with_detail(key, value.clone());
+                }
+            }
+        }
+    }
+    if adapter == installed_adapters::InstalledAdapter::AgentsSdkJsonl
+        && error.code == ErrorCode::HarnessFailed
+    {
+        if let Some(action) = error
+            .details
+            .as_ref()
+            .and_then(|details| details.get("nativeFailure"))
+            .filter(|diagnostic| diagnostic.get("kind").and_then(Value::as_str) == Some("setup"))
+            .and_then(|diagnostic| diagnostic.get("setupReason"))
+            .and_then(Value::as_str)
+            .and_then(installed_adapters::sdk_setup_action)
+        {
+            action.clone_into(&mut error.action);
+        }
+    }
     let timestamp = clock.now_rfc3339();
     let invocation = installed_invocation(adapter, task, task_digest, invocation_id, config, image);
     let invocation_digest = sha256_hex(&serde_json::to_vec(&invocation).expect("invocation JSON"));
@@ -3044,6 +3098,10 @@ fn render_installed_failure(
     }
     if let Some(native) = native_configuration(config, native_records) {
         result["nativeConfiguration"] = native;
+    }
+    if adapter == installed_adapters::InstalledAdapter::AgentsSdkJsonl {
+        let observations = result["error"]["details"].clone();
+        crate::sdk_observation::apply(&mut result, &observations);
     }
     match mode {
         OutputMode::Human => CommandOutcome::human(
@@ -4011,7 +4069,7 @@ fn config_source_entries(config: &EffectiveConfig) -> Vec<Value> {
         config_source_entry("output", &config.output.source, false),
         config_source_entry("color", &config.color.source, false),
         config_source_entry("verbose", &config.verbose.source, false),
-        config_source_entry("authProfile", &config.auth_profile.source, true),
+        config_source_entry("authProfile", &config.auth_profile.source, false),
     ];
     for (key, source) in [
         ("outputContract", &config.output_contract.source),
@@ -4424,66 +4482,17 @@ fn event(
     })
 }
 
-fn config_report(config: &EffectiveConfig) -> ConfigReport<'_> {
-    ConfigReport {
-        schema: "openprose.configuration-explanation/1",
-        cwd: crate::config::Sourced {
-            value: config.cwd.display().to_string(),
-            source: config.cwd_source.clone(),
-        },
-        project_config_path: config
-            .project_config
-            .as_ref()
-            .map(|path| path.display().to_string()),
-        user_config_path: config
-            .user_config
-            .as_ref()
-            .map(|path| path.display().to_string())
-            .expect("resolved configuration always has a user config candidate"),
-        values: ConfigValuesReport {
-            harness: &config.harness,
-            transport: &config.transport,
-            model: &config.model,
-            timeout: &config.timeout,
-            output: &config.output,
-            color: &config.color,
-            verbose: &config.verbose,
-            auth_profile: &config.auth_profile,
-            codex_compatibility: (config.codex_compatibility.source.kind
-                != ConfigSourceKind::Default)
-                .then_some(&config.codex_compatibility),
-            output_contract: (config.output_contract.source.kind != ConfigSourceKind::Default)
-                .then_some(&config.output_contract),
-            permission_mode: (config.permission_mode.source.kind != ConfigSourceKind::Default)
-                .then_some(&config.permission_mode),
-            native_max_turns: config
-                .native_max_turns
-                .value
-                .as_ref()
-                .map(|_| &config.native_max_turns),
-            native_timeout: config
-                .native_timeout
-                .value
-                .as_ref()
-                .map(|_| &config.native_timeout),
-            native_tool_timeout: config
-                .native_tool_timeout
-                .value
-                .as_ref()
-                .map(|_| &config.native_tool_timeout),
-            native_output_bytes: config
-                .native_output_bytes
-                .value
-                .as_ref()
-                .map(|_| &config.native_output_bytes),
-            native_profile: (config.native_profile.source.kind != ConfigSourceKind::Default)
-                .then_some(&config.native_profile),
-            native_add_dirs: (config.native_add_dirs.source.kind != ConfigSourceKind::Default)
-                .then_some(&config.native_add_dirs),
-            native_allow_tools: (config.native_allow_tools.source.kind
-                != ConfigSourceKind::Default)
-                .then_some(&config.native_allow_tools),
-        },
+fn config_report(config: &EffectiveConfig) -> Value {
+    crate::config::configuration_explanation(config)
+}
+
+/// Renders pure configuration diagnostics without acquiring or probing an image.
+#[must_use]
+pub fn configuration_outcome(config: &EffectiveConfig, mode: OutputMode) -> CommandOutcome {
+    if mode == OutputMode::Human {
+        CommandOutcome::human(render_config_human(config), "", 0)
+    } else {
+        CommandOutcome::json(config_report(config), 0)
     }
 }
 
@@ -4508,32 +4517,49 @@ fn render_config_human(config: &EffectiveConfig) -> String {
         human_safe_scalar(config.auth_profile.value.as_deref().unwrap_or("unset")),
         source_label(&config.auth_profile.source),
     );
-    for (name, value, source) in [
-        (
-            "codexCompatibility",
-            config.codex_compatibility.value.as_str(),
-            &config.codex_compatibility.source,
-        ),
-        (
-            "outputContract",
-            config.output_contract.value.as_str(),
-            &config.output_contract.source,
-        ),
-        (
-            "permissionMode",
-            config.permission_mode.value.as_deref().unwrap_or("unset"),
-            &config.permission_mode.source,
-        ),
-    ] {
-        if source.kind != ConfigSourceKind::Default {
-            let _ = writeln!(
-                output,
-                "{} = {} ({})",
-                name,
-                human_safe_scalar(value),
-                source_label(source)
-            );
+    let report = config_report(config);
+    for (name, setting) in report["values"]
+        .as_object()
+        .expect("configuration settings")
+    {
+        if matches!(
+            name.as_str(),
+            "harness"
+                | "transport"
+                | "model"
+                | "timeout"
+                | "output"
+                | "color"
+                | "verbose"
+                | "authProfile"
+        ) {
+            continue;
         }
+        let _ = writeln!(
+            output,
+            "{} = {} ({})",
+            name,
+            human_safe_scalar(&setting["value"].to_string()),
+            human_safe_scalar(setting["source"]["location"].as_str().unwrap_or("built-in"))
+        );
+    }
+    for location in &config.locations {
+        let _ = writeln!(
+            output,
+            "{}: {} (present: {}, selected: {})",
+            location["role"].as_str().unwrap_or("configuration"),
+            human_safe_scalar(location["path"].as_str().unwrap_or("unavailable")),
+            location["present"],
+            location["selected"]
+        );
+    }
+    for diagnostic in &config.diagnostics {
+        let _ = writeln!(
+            output,
+            "{}: {}",
+            diagnostic["code"].as_str().unwrap_or("CONFIGURATION"),
+            human_safe_scalar(diagnostic["reason"].as_str().unwrap_or(""))
+        );
     }
     output
 }
@@ -4733,14 +4759,27 @@ mod tests {
         model: Option<&str>,
         auth_profile: &str,
     ) -> EffectiveConfig {
+        // Transport inspection tests deliberately exercise invalid bundles. Resolve
+        // a coherent baseline, then inject the inspected values at that boundary.
+        let adapter = installed_adapters::for_harness(harness).unwrap();
+        let safe_model = model.filter(|model| {
+            !matches!(harness, "prime" | "omp") || is_fully_qualified_provider_model(model)
+        });
         let flags = GlobalFlags {
             harness: Some(harness.to_owned()),
             transport: Some(transport.to_owned()),
-            model: model.map(str::to_owned),
-            auth_profile: Some(auth_profile.to_owned()),
+            model: safe_model.map(str::to_owned),
+            auth_profile: Some(
+                if adapter.auth_profiles().contains(&auth_profile) {
+                    auth_profile
+                } else {
+                    adapter.default_probe_auth_group()
+                }
+                .to_owned(),
+            ),
             ..GlobalFlags::default()
         };
-        crate::config::resolve_config(
+        let mut config = crate::config::resolve_config(
             &flags,
             &crate::config::SystemContext {
                 current_dir: root.to_owned(),
@@ -4751,7 +4790,10 @@ mod tests {
                 platform: crate::config::Platform::current(),
             },
         )
-        .unwrap()
+        .unwrap();
+        config.model.value = model.map(str::to_owned);
+        config.auth_profile.value = Some(auth_profile.to_owned());
+        config
     }
 
     #[test]
@@ -4792,6 +4834,8 @@ mod tests {
             auth_source_failed: false,
             sdk: true,
             native_failure: None,
+            sdk_observations: json!({}),
+            sdk_requested_model: Some("gpt-6.1-sol".to_owned()),
             capture: None,
             human: None,
             omp: None,
@@ -4808,6 +4852,60 @@ mod tests {
             .observe_parsed(&json!({"type":"error","error_type":"MaxTurnsExceeded"}))
             .unwrap();
         assert!(observer.native_failure.is_none());
+    }
+
+    #[test]
+    fn sdk_failure_preserves_observer_identity_newer_than_retained_records() {
+        struct FixedClock;
+        impl Clock for FixedClock {
+            fn now_rfc3339(&self) -> String {
+                "2026-10-06T12:00:00.000Z".to_owned()
+            }
+        }
+        let temp = TempDir::new().unwrap();
+        let config = installed_config(
+            temp.path(),
+            "agents-sdk",
+            "jsonl",
+            Some("gpt-6.1-sol"),
+            "openai-api-key",
+        );
+        let earlier = json!({"type":"tool_result","modelIdentity":{"requested":"gpt-6.1-sol","observed":["model-a"],"serviceTier":{"requested":"default","observed":["default"]}}});
+        let newer = json!({"type":"error","modelIdentity":{"requested":"gpt-6.1-sol","observed":["model-a","model-b"],"serviceTier":{"requested":"default","observed":["default","priority"]}}});
+        let observed = crate::sdk_observation::from_records(
+            &[earlier.clone(), newer],
+            config.model.value.as_deref(),
+        );
+        let error = RunnerError::catalog(ErrorCode::HarnessFailed)
+            .with_detail("modelIdentity", observed["modelIdentity"].clone());
+        let outcome = render_installed_failure(
+            installed_adapters::InstalledAdapter::AgentsSdkJsonl,
+            &json!({}),
+            "task",
+            "invocation",
+            error,
+            true,
+            false,
+            Some(1),
+            None,
+            Some("0.1.0"),
+            None,
+            String::new(),
+            &config,
+            &sentinel_image(),
+            OutputMode::Json,
+            &FixedClock,
+            Some(&[earlier]),
+        );
+        let crate::output::Payload::JsonWithDiagnostic { value, .. } = outcome.payload else {
+            panic!("expected JSON failure");
+        };
+        assert_eq!(value["modelIdentity"], observed["modelIdentity"]);
+        assert_eq!(
+            value["error"]["details"]["modelIdentity"],
+            observed["modelIdentity"]
+        );
+        assert_eq!(value["usage"], json!({"status":"unavailable"}));
     }
 
     #[test]
@@ -4828,7 +4926,12 @@ mod tests {
         assert_eq!(config.output_contract.value, "image-envelope");
         assert!(config.permission_mode.value.is_none());
         for k in fixture["defaultsOmitted"].as_array().unwrap() {
-            assert!(base["values"].get(k.as_str().unwrap()).is_none());
+            assert!(base["values"].get(k.as_str().unwrap()).is_some());
+            assert!(
+                !config_source_entries(&config)
+                    .iter()
+                    .any(|entry| entry["key"] == *k)
+            );
         }
         for case in fixture["cases"].as_array().unwrap() {
             config.output_contract.value = case["outputContract"].as_str().unwrap().into();
@@ -4852,6 +4955,36 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn sdk_preflight_requires_nonblank_key_and_preserves_other_routes() {
+        let temp = TempDir::new().unwrap();
+        let mut config = installed_config(
+            temp.path(),
+            "agents-sdk",
+            "jsonl",
+            Some("gpt-6.1-sol"),
+            "openai-api-key",
+        );
+        for ambient in [Vec::new(), vec![("OPENAI_API_KEY".into(), "  ".into())]] {
+            let error = sdk_credential_preflight(&config, &ambient).unwrap_err();
+            assert_eq!(error.code, ErrorCode::HarnessNeedsAuth);
+            assert_eq!(error.details.as_ref().unwrap()["fallbackAttempted"], false);
+            assert_eq!(
+                error.action,
+                "Set OPENAI_API_KEY to an OpenAI API key in the process environment, then retry. No model request was sent."
+            );
+        }
+        assert!(
+            sdk_credential_preflight(
+                &config,
+                &[("OPENAI_API_KEY".into(), "fixture-no-provider-key".into())]
+            )
+            .is_ok()
+        );
+        config.harness.value = "claude".into();
+        assert!(sdk_credential_preflight(&config, &[]).is_ok());
     }
 
     #[test]
@@ -4945,6 +5078,8 @@ mod tests {
             auth_source_failed: false,
             sdk: false,
             native_failure: None,
+            sdk_observations: json!({}),
+            sdk_requested_model: Some("gpt-6.1-sol".to_owned()),
             capture: None,
             human: None,
             omp: None,
@@ -5028,10 +5163,9 @@ mod tests {
             );
             assert_eq!(
                 problem.details.unwrap().get("reason"),
-                Some(&Value::String(format!(
-                    "Unknown auth_profile for {}: unsupported-profile.",
-                    adapter.id()
-                ))),
+                Some(&Value::String(
+                    "Authentication profile is incompatible with the selected harness.".to_owned()
+                )),
                 "{}",
                 adapter.id()
             );

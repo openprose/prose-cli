@@ -2,7 +2,7 @@
   "id": "model-list-catalog-human",
   "feature": "discovery",
   "operation": "model.list",
-  "description": "With a /models catalog, human `model list` prints the models this account can run (default marked), the premium models any wallet top-up unlocks with their summary and a top-up preview, and the older ids still accepted with the model to use instead. No model id is built in: every line comes from the response.",
+  "description": "With a /models catalog, human `model list` prints the models this account can run (default marked) and the premium models any wallet top-up unlocks with their summary and a top-up preview; hidden models, still accepted when named, are not listed. No model id is built in: every line comes from the response.",
   "argv": [
     "cli",
     "model",
@@ -59,6 +59,6 @@
   },
   "exitCode": 0,
   "stdout": {
-    "text": "Available:\n  model-sol (default)\n  model-luna\nPremium — unlocks with any wallet top-up:\n  model-astra: Most capable model for hard, long tasks. Higher rate per run. Unlocks with any wallet top-up.\nNext: prose cli wallet topup --amount-cents 500 --preview\nAlso accepted (not recommended):\n  model-sol-legacy → use model-sol\nNext: prose cli run quote\n"
+    "text": "Available:\n  model-sol (default)\n  model-luna\nPremium — unlocks with any wallet top-up:\n  model-astra: Most capable model for hard, long tasks. Higher rate per run. Unlocks with any wallet top-up.\nNext: prose cli wallet topup --amount-cents 500 --preview\nNext: prose cli run quote\n"
   }
 }

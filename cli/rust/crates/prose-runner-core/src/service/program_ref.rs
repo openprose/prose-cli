@@ -345,13 +345,15 @@ pub fn resolve_rev_number(
 /// pass), and a latest reference reads the newest `rev_id`. Another owner's
 /// pinned reference is checked by the service. `list` and `read` are the
 /// operation's `GET /programs/{slug}/revisions` and `GET /p/{owner}/{slug}`
-/// request indexes; `option` is the argv option the reference came from, so
-/// a fix is a corrected argv.
+/// request indexes; without a `read` request a latest reference of the
+/// caller's own program pins its newest listed revision, and another owner's
+/// latest reference stays `owner/slug`. `option` is the argv option the
+/// reference came from, so a fix is a corrected argv.
 pub fn resolve_to_run(
     context: &mut Context<'_>,
     reference: &mut ProgramRef,
     list: usize,
-    read: usize,
+    read: Option<usize>,
     option: Option<&str>,
     verify_pinned: bool,
 ) -> Result<String, RunnerError> {
@@ -415,6 +417,14 @@ pub fn resolve_to_run(
                         }
                         return Err(no_revision(context, &name, &slug, &rev, &revisions));
                     }
+                } else if reference.rev.is_none() && read.is_none() {
+                    // The listing is newest first.
+                    let newest = revisions
+                        .first()
+                        .and_then(|item| item["rev_id"].as_str())
+                        .filter(|rev| valid_rev(rev))
+                        .ok_or_else(|| RunnerError::catalog(ErrorCode::ServiceProtocolInvalid))?;
+                    reference.rev = Some(newest.to_owned());
                 }
             }
             _ => {
@@ -440,8 +450,12 @@ pub fn resolve_to_run(
             }
         }
     }
-    let (pinned, _) = resolve(context, reference, read)?;
-    Ok(pinned)
+    match read {
+        Some(read) => Ok(resolve(context, reference, read)?.0),
+        None => Ok(reference
+            .pinned()
+            .unwrap_or_else(|| format!("{}/{}", reference.owner, reference.slug))),
+    }
 }
 
 /// `SERVICE_RESOURCE_NOT_FOUND` for a revision the caller's program does not

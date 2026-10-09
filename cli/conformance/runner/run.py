@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import argparse
 from copy import deepcopy
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import hashlib
 import json
 import os
@@ -50,6 +50,7 @@ BUN_RUNTIME_FIXTURE = (
     b"raise SystemExit(64)\n"
 )
 INSTALLED_ADAPTER_EXECUTABLES = {
+    "agents-sdk/jsonl": "prose-agents-sdk",
     "codex/exec-json": "codex",
     "claude/print-stream-json": "claude",
     "prime/rpc": "prime-agent",
@@ -83,9 +84,9 @@ NODE_COMMONJS_SNAPSHOT_BOOTSTRAP = """
 const fs = require("node:fs");
 const path = require("node:path");
 const Module = require("node:module");
-const [snapshot, sourceFilename, ...opaqueArgv] = process.argv.slice(1);
+const [snapshot, sourceFilename, launchFilename, ...opaqueArgv] = process.argv.slice(1);
 if (!snapshot || !sourceFilename) throw new Error("missing conformance snapshot context");
-process.argv = [process.execPath, sourceFilename, ...opaqueArgv];
+process.argv = [process.execPath, launchFilename, ...opaqueArgv];
 const candidate = new Module(sourceFilename, module);
 candidate.filename = sourceFilename;
 candidate.paths = Module._nodeModulePaths(path.dirname(sourceFilename));
@@ -102,6 +103,9 @@ class Product:
     execution_executable: Path | None = None
     execution_interpreter: Path | None = None
     execution_source_context: Path | None = None
+    npm_context: dict[str, Any] | None = None
+    execution_launch_path: Path | None = None
+    sdk_source_evidence: dict[str, Any] | None = None
 
     @property
     def expected_runner_name(self) -> str:
@@ -118,6 +122,7 @@ class Product:
                 "--",
                 str(executable),
                 str(self.execution_source_context),
+                str(self.execution_launch_path or self.execution_source_context),
                 *arguments,
             ]
         return [
@@ -154,6 +159,8 @@ class Observation:
     process_settled: bool = True
     stdout_truncated: bool = False
     stderr_truncated: bool = False
+    configuration_before: dict[str, tuple[str, str]] | None = None
+    sdk_fixture: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -405,6 +412,8 @@ def snapshot_product(
         executable,
         interpreter,
         source_context,
+        product.npm_context,
+        sdk_source_evidence=product.sdk_source_evidence,
     )
 
 
@@ -622,7 +631,7 @@ def make_report(
     differential_total = differential_passed + differential_failed
     total = candidate_total + differential_total
     failed = candidate_failed + differential_failed
-    return {
+    report = {
         "schema": "openprose.mechanical-conformance-report/1",
         "phase": phase,
         "caseIds": list(case_ids),
@@ -654,6 +663,21 @@ def make_report(
             "releaseAdmission": False,
         },
     }
+
+    evidence = {}
+    references = {}
+    for product, _ in candidates:
+        if product.sdk_source_evidence is not None:
+            digest = product.sdk_source_evidence['agentsSdk']['receiptSha256']
+            if digest in evidence and evidence[digest] != product.sdk_source_evidence:
+                raise ValueError('SDK source receipt has conflicting identities')
+            evidence[digest] = product.sdk_source_evidence
+            references[product.name] = digest
+    if evidence:
+        report['sdkSourceCustody'] = {'evidence': evidence, 'candidateReferences': references,
+            'fixtureHelperSha256': sha256(INSTALLED_ADAPTER_HARNESS.read_bytes()),
+            'helperSubstitution': 'provider-free-oracle', 'productionSdkExecuted': False}
+    return report
 
 
 def _exact_keys(value: Any, expected: set[str], path: str) -> list[str]:
@@ -794,7 +818,7 @@ def validate_report(report: Any) -> list[str]:
             "validations",
             "failures",
             "claims",
-        },
+        } | ({"sdkSourceCustody"} if isinstance(report, dict) and "sdkSourceCustody" in report else set()),
         "$",
     )
     if failures:
@@ -983,6 +1007,39 @@ def validate_report(report: Any) -> list[str]:
             failures.append(
                 "$.failures must contain exactly one bounded record per failed validation"
             )
+
+    if 'sdkSourceCustody' in report:
+        source = report['sdkSourceCustody']
+        shape = _exact_keys(source, {'evidence', 'candidateReferences', 'fixtureHelperSha256', 'helperSubstitution', 'productionSdkExecuted'}, '$.sdkSourceCustody')
+        failures.extend(shape)
+        if not shape:
+            if source['helperSubstitution'] != 'provider-free-oracle' or source['productionSdkExecuted'] is not False or not isinstance(source['fixtureHelperSha256'], str) or not re.fullmatch('[0-9a-f]{64}', source['fixtureHelperSha256']):
+                failures.append('$.sdkSourceCustody overstates fixture execution')
+            evidence, references = source['evidence'], source['candidateReferences']
+            if not isinstance(evidence, dict) or not evidence or len(evidence) > len(labels) or not isinstance(references, dict) or not references or not set(references) <= set(labels) or not all(isinstance(d, str) for d in references.values()) or set(references.values()) != set(evidence):
+                failures.append('$.sdkSourceCustody references are invalid')
+            else:
+                expected = {'path', 'byteLength', 'sha256', 'receiptSha256', 'noticesSha256', 'python', 'pyinstaller', 'version', 'discovery', 'selfTest', 'toolSelfTest', 'dependencyLockSha256'}
+                for digest, row in evidence.items():
+                    if _exact_keys(row, {'platform', 'agentsSdk', 'payloadSha256'}, '$.sdkSourceCustody evidence') or not isinstance(digest, str) or not re.fullmatch('[0-9a-f]{64}', digest):
+                        failures.append('$.sdkSourceCustody evidence shape differs'); continue
+                    sdk = row['agentsSdk']
+                    if not isinstance(sdk, dict) or set(sdk) != expected or sdk.get('receiptSha256') != digest:
+                        failures.append('$.sdkSourceCustody receipt reference differs')
+                    else:
+                        ci = str(CLI / 'ci')
+                        if ci not in sys.path: sys.path.insert(0, ci)
+                        import kernel_rc_evidence as sdk_policy
+                        if (sdk['path'] != 'prose-agents-sdk' or type(sdk['byteLength']) is not int or
+                            not 0 < sdk['byteLength'] <= MAX_CANDIDATE_BYTES or
+                            any(not isinstance(sdk[k], str) or not re.fullmatch('[0-9a-f]{64}', sdk[k])
+                                for k in ('sha256', 'receiptSha256', 'noticesSha256', 'dependencyLockSha256')) or
+                            sdk['python'] != '3.10.20' or sdk['pyinstaller'] != '6.22.3' or sdk['version'] != '0.1.0' or
+                            sdk['discovery'] != 'canonical-cli-sibling' or sdk['selfTest'] != sdk_policy.SDK_IMPORT_TEST or
+                            sdk['toolSelfTest'] != sdk_policy.SDK_TOOL_TEST):
+                            failures.append('$.sdkSourceCustody source SDK policy differs')
+                    if not isinstance(row['platform'], str) or row['platform'] not in {'darwin-arm64', 'darwin-x64', 'linux-arm64-gnu', 'linux-x64-gnu'} or not isinstance(row['payloadSha256'], str) or (row['platform'].startswith('darwin-') and not re.fullmatch('[0-9a-f]{64}', row['payloadSha256'])) or (row['platform'].startswith('linux-') and row['payloadSha256'] != 'not-applicable'):
+                        failures.append('$.sdkSourceCustody platform/payload differs')
 
     claims = report["claims"]
     claim_failures = _exact_keys(
@@ -1469,6 +1526,456 @@ def hermetic_environment(root: Path, additions: dict[str, str]) -> dict[str, str
     return environment
 
 
+CONFIGURATION_FIXTURE = CLI / "shared/fixtures/config/production-v2.json"
+CONFIGURATION_CASE_IDS = [f"operations.config-production-{n:02}" for n in range(1, 13)]
+
+
+def configuration_path(workspace: Path, relative: str) -> Path:
+    """Refuse traversal and symlinks, even if a link currently stays in the root."""
+    if not isinstance(relative, str) or not relative or "\\" in relative:
+        raise ValueError("configuration fixture path must be a safe relative path")
+    parts = relative.split("/")
+    if any(part in {"", ".", ".."} or ":" in part for part in parts):
+        raise ValueError("configuration fixture path leaves product workspace")
+    root = workspace.resolve()
+    path = root
+    for part in parts:
+        path = path / part
+        if path.is_symlink():
+            raise ValueError("configuration fixture path contains a symlink")
+    return path
+
+
+def load_configuration_setup(case: dict[str, Any]) -> dict[str, Any] | None:
+    reference = case.get("controls", {}).get("configurationFixture")
+    if reference is None:
+        return None
+    if reference != case.get("id") or reference not in CONFIGURATION_CASE_IDS:
+        raise ValueError("configurationFixture must reference its matching closed case")
+    if any(key in case["controls"] for key in ("fakeHarness", "installedAdapter")):
+        raise ValueError("configurationFixture cannot start a fake or installed harness")
+    corpus = json.loads(CONFIGURATION_FIXTURE.read_text("utf-8"))
+    if set(corpus) != {"schema", "summary", "cases"} or corpus["schema"] != "openprose.configuration-production-corpus/2":
+        raise ValueError("invalid closed configuration fixture corpus")
+    if [record.get("id") for record in corpus["cases"]] != CONFIGURATION_CASE_IDS:
+        raise ValueError("configuration fixture corpus must contain exactly twelve ordered cases")
+    for record in corpus["cases"]:
+        if set(record) != {"id", "setup"}:
+            raise ValueError("invalid configuration fixture record")
+        setup = record["setup"]
+        if set(setup) != {"files", "directories", "checks"}:
+            raise ValueError("invalid configuration fixture setup")
+        checks = setup["checks"]
+        if not isinstance(checks, dict) or set(checks) - {"unchangedFiles", "files", "absent", "outputAbsent"}:
+            raise ValueError("invalid configuration fixture checks")
+        for files in (setup["files"], checks.get("files", {})):
+            if not isinstance(files, dict) or any(not isinstance(value, str) for value in files.values()):
+                raise ValueError("configuration fixture files must contain UTF-8 strings")
+        unchanged = checks.get("unchangedFiles", False)
+        if type(unchanged) is not bool and not isinstance(unchanged, list):
+            raise ValueError("unchangedFiles must be a boolean or selected path list")
+        for paths in (setup["directories"], checks.get("absent", []), checks.get("outputAbsent", []), unchanged if isinstance(unchanged, list) else []):
+            if not isinstance(paths, list) or any(not isinstance(value, str) or not value for value in paths) or len(paths) != len(set(paths)):
+                raise ValueError("configuration fixture lists must contain unique nonempty strings")
+        if isinstance(unchanged, list) and any(path not in setup["files"] for path in unchanged):
+            raise ValueError("unchangedFiles must select existing setup files")
+    return next(record["setup"] for record in corpus["cases"] if record["id"] == reference)
+
+
+def configuration_snapshot(workspace: Path) -> dict[str, tuple[str, str]]:
+    """Bounded byte/type oracle; no symlink traversal or provider involvement."""
+    snapshot: dict[str, tuple[str, str]] = {}
+    total_bytes = 0
+    pending = [workspace.resolve()]
+    while pending:
+        directory = pending.pop()
+        for path in directory.iterdir():
+            relative = path.relative_to(workspace.resolve()).as_posix()
+            mode = path.lstat().st_mode
+            if stat.S_ISLNK(mode):
+                snapshot[relative] = ("symlink", os.readlink(path))
+            elif stat.S_ISDIR(mode):
+                snapshot[relative] = ("directory", "")
+                pending.append(path)
+            elif stat.S_ISREG(mode):
+                size = path.stat().st_size
+                total_bytes += size
+                if total_bytes > MAX_CAPTURE_BYTES:
+                    raise ValueError("configuration effects exceed bounded snapshot bytes")
+                with path.open("rb") as source:
+                    content = source.read(size + 1)
+                if len(content) != size:
+                    raise ValueError("configuration file changed during bounded snapshot")
+                snapshot[relative] = ("file", sha256(content))
+            else:
+                snapshot[relative] = ("nonregular", "")
+            if len(snapshot) > 1024:
+                raise ValueError("configuration effects exceed bounded snapshot entries")
+    return snapshot
+
+
+def prepare_configuration(workspace: Path, setup: dict[str, Any]) -> dict[str, tuple[str, str]]:
+    # Validate every path before creating anything.
+    checks = setup["checks"]
+    unchanged = checks.get("unchangedFiles", False)
+    paths = [*setup["directories"], *setup["files"], *checks.get("files", {}), *checks.get("absent", []), *(unchanged if isinstance(unchanged, list) else [])]
+    for relative in paths:
+        configuration_path(workspace, relative)
+    for relative in setup["directories"]:
+        configuration_path(workspace, relative).mkdir(parents=True, exist_ok=True)
+    for relative, value in setup["files"].items():
+        path = configuration_path(workspace, relative)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("xb") as output:
+            output.write(value.encode("utf-8"))
+    return configuration_snapshot(workspace)
+
+
+def validate_configuration_effects(observation: Observation) -> list[str]:
+    setup = load_configuration_setup(observation.case)
+    if setup is None:
+        return []
+    if observation.workspace is None or observation.configuration_before is None:
+        return ["configuration effects lack an isolated pre-execution snapshot"]
+    workspace = observation.workspace
+    checks = setup["checks"]
+    failures: list[str] = []
+    try:
+        after = configuration_snapshot(workspace)
+        unchanged = checks.get("unchangedFiles", False)
+        if unchanged is True and after != observation.configuration_before:
+            failures.append("configuration effects changed the protected workspace tree")
+        elif isinstance(unchanged, list):
+            for relative in unchanged:
+                if after.get(relative) != observation.configuration_before.get(relative):
+                    failures.append(f"configuration effects changed protected file: {relative}")
+        for relative, value in checks.get("files", {}).items():
+            path = configuration_path(workspace, relative)
+            if not path.is_file() or path.read_bytes() != value.encode("utf-8"):
+                failures.append(f"configuration effects expected exact file bytes: {relative}")
+        for relative in checks.get("absent", []):
+            path = configuration_path(workspace, relative)
+            if path.exists():
+                failures.append(f"configuration effects expected absent path: {relative}")
+    except (OSError, ValueError) as error:
+        failures.append(f"configuration effects cannot be checked safely: {error}")
+    for sentinel in checks.get("outputAbsent", []):
+        if any(sentinel.encode("utf-8") in stream for stream in (observation.stdout, observation.stderr)):
+            failures.append("configuration output exposed a forbidden fixture sentinel")
+    return failures
+
+
+def isolate_workspace(workspace: Path) -> None:
+    """Make project discovery stop at the product-owned root, retaining nested ancestry."""
+    workspace.mkdir(parents=True, exist_ok=True)
+    boundary = workspace / ".git"
+    if boundary.is_symlink():
+        raise ValueError("mechanical workspace Git boundary cannot be a symlink")
+    if not boundary.exists():
+        boundary.mkdir()
+    elif not boundary.is_dir() and not boundary.is_file():
+        raise ValueError("mechanical workspace Git boundary must be a directory or file")
+
+
+def npm_context_paths(context: dict[str, Any]) -> dict[str, Path]:
+    if not isinstance(context,dict) or set(context) != {'prefix','platform','files'} or not isinstance(context['platform'],str) or context['platform'] not in {'darwin-arm64','darwin-x64','linux-arm64-gnu','linux-x64-gnu'}:
+        raise ValueError('SDK npm context must be an explicit closed native platform')
+    if not isinstance(context['prefix'],str):
+        raise ValueError('SDK npm context prefix must be a string')
+    prefix=Path(context['prefix'])
+    if not prefix.is_absolute() or prefix.resolve()!=prefix or prefix.is_symlink() or not prefix.is_dir():
+        raise ValueError('SDK npm context prefix must be a regular absolute directory')
+    meta='lib/node_modules/@openprose/prose-cli'
+    platform='lib/node_modules/@openprose/prose-cli-'+context['platform']
+    required={'metaManifest':meta+'/package.json','launcher':meta+'/bin/prose.js',
+              'platformManifest':platform+'/package.json','native':platform+'/bin/prose'}
+    files=context['files']
+    if not isinstance(files,dict) or set(files)!=set(required):
+        raise ValueError('SDK npm context closure is incomplete')
+    paths={}
+    for key,relative in required.items():
+        row=files[key]
+        if not isinstance(row,dict) or set(row)!={'path','byteLength','sha256'} or row['path']!=relative or type(row['byteLength']) is not int or not 0<row['byteLength']<=256*1024*1024 or not isinstance(row['sha256'],str) or not re.fullmatch('[0-9a-f]{64}',row['sha256']):
+            raise ValueError('SDK npm context file identity is malformed')
+        path=prefix/relative
+        for member in (path,*path.parents):
+            if member==prefix.parent:
+                break
+            if member.is_symlink():
+                raise ValueError('SDK npm context closure contains a symlink')
+        if not path.is_file() or path.stat().st_size!=row['byteLength'] or sha256(path.read_bytes())!=row['sha256']:
+            raise ValueError('SDK npm context file bytes changed: '+key)
+        paths[key]=path
+    manifest=json.loads(paths['platformManifest'].read_text('utf-8'))
+    meta_manifest=json.loads(paths['metaManifest'].read_text('utf-8'))
+    native=files['native']
+    cohort=meta_manifest.get('openproseCohort') if isinstance(meta_manifest,dict) else None
+    if not isinstance(manifest,dict) or not isinstance(cohort,dict) or cohort!=manifest.get('openproseCohort') or cohort.get('schema') not in {'openprose.npm-cohort/1','openprose.npm-cohort/2','openprose.npm-cohort/3'}:
+        raise ValueError('SDK npm metadata has a mismatched cohort')
+    version=cohort.get('version')
+    revision=cohort.get('sourceRevision')
+    if not isinstance(version,str) or not isinstance(revision,str) or not revision or not isinstance(cohort.get('admittedPlatforms'),list) or context['platform'] not in cohort['admittedPlatforms']:
+        raise ValueError('SDK npm cohort identity is incomplete')
+    alias=cohort['schema']=='openprose.npm-cohort/3'
+    core,separator,prerelease=version.partition('-')
+    child_version=(core+'-0.'+prerelease+'-'+context['platform'] if separator else version+'-'+context['platform']) if alias else version
+    child_name='@openprose/prose-cli' if alias else '@openprose/prose-cli-'+context['platform']
+    dependency=('npm:@openprose/prose-cli@'+child_version) if alias else version
+    launcher_identity={'path':'bin/prose.js','sha256':files['launcher']['sha256'],'byteLength':files['launcher']['byteLength']}
+    if (manifest.get('name')!=child_name or manifest.get('version')!=child_version or manifest.get('openprosePlatform')!=context['platform'] or manifest.get('openproseSourceRevision')!=revision or manifest.get('openproseBinary')!='bin/prose' or manifest.get('openproseBinarySha256')!=native['sha256'] or manifest.get('openproseBinaryByteLength')!=native['byteLength'] or meta_manifest.get('name')!='@openprose/prose-cli' or meta_manifest.get('version')!=version or meta_manifest.get('type')!='commonjs' or meta_manifest.get('bin')!={'prose':'bin/prose.js'} or meta_manifest.get('openproseLauncher')!=launcher_identity or not isinstance(meta_manifest.get('optionalDependencies'),dict) or meta_manifest['optionalDependencies'].get('@openprose/prose-cli-'+context['platform'])!=dependency):
+        raise ValueError('SDK npm platform metadata does not bind its compiled child')
+    with paths['native'].open('rb') as stream:
+        magic=stream.read(4)
+    if magic not in (b'\x7fELF',b'\xcf\xfa\xed\xfe',b'\xfe\xed\xfa\xcf',b'\xca\xfe\xba\xbe',b'\xbe\xba\xfe\xca'):
+        raise ValueError('SDK npm child must be a native compiled candidate')
+    return paths
+
+
+def attach_npm_contexts(products: list[Product], specifications: list[list[str]]) -> list[Product]:
+    contexts={}
+    for label,encoded in specifications:
+        if label in contexts or label not in {product.name for product in products}:
+            raise ValueError('SDK npm context label is duplicate or unknown')
+        contexts[label]=json.loads(encoded)
+    for product in products:
+        if product.name in contexts:
+            if product.interpreter is None or product.expected_runner_name!='bun':
+                raise ValueError('SDK npm context requires an explicit Bun launcher interpreter')
+            npm_context_paths(contexts[product.name])
+    return [replace(product,npm_context=contexts.get(product.name,product.npm_context)) for product in products]
+
+
+def attach_sdk_sources(products, specifications):
+    """Authenticate an explicitly supplied production surface once, never execute it."""
+    if not specifications:
+        return products
+    ci = str(CLI / 'ci')
+    if ci not in sys.path:
+        sys.path.insert(0, ci)
+    import publication as publication_custody
+    import kernel_rc_evidence as sdk_custody
+    import sdk_native_inventory as inventory
+    contexts = {}
+    names = {p.name for p in products}
+    for label, encoded in specifications:
+        if label not in names or label in contexts or len(encoded.encode()) > 2 * 1024 * 1024:
+            raise ValueError('Invalid or duplicate SDK source context')
+        context = json.loads(encoded, object_pairs_hook=publication_custody.object_pairs)
+        if not isinstance(context, dict) or set(context) != {'directory', 'platform', 'agentsSdk'}:
+            raise ValueError('Closed explicit SDK source context required')
+        if not isinstance(context['platform'], str) or context['platform'] not in publication_custody.PLATFORMS:
+            raise ValueError('Unsupported SDK source platform')
+        contexts[label] = context
+    result = []
+    for product in products:
+        if product.name not in contexts:
+            result.append(product); continue
+        context = contexts[product.name]
+        if not isinstance(context['directory'], str):
+            raise ValueError('SDK source directory must be an absolute canonical directory')
+        directory = Path(context['directory'])
+        if not directory.is_absolute() or directory.resolve(strict=True) != directory or any(p.is_symlink() for p in (directory, *directory.parents)):
+            raise ValueError('SDK source directory must be an absolute canonical directory')
+        native = npm_context_paths(product.npm_context)['native'] if product.npm_context else product.executable.resolve(strict=True)
+        if directory / 'prose' != native:
+            raise ValueError('SDK source context differs from authenticated native candidate')
+        files = {}
+        for name in ('prose', 'prose-agents-sdk', 'agents-sdk-build.json', 'AGENTS-SDK-NOTICES.txt'):
+            path = directory / name
+            limit = 2 * 1024 * 1024 if name == 'agents-sdk-build.json' else (8 * 1024 * 1024 if name == 'AGENTS-SDK-NOTICES.txt' else MAX_CANDIDATE_BYTES)
+            if path.is_symlink() or not path.is_file() or not 0 < path.stat().st_size <= limit:
+                raise ValueError('SDK source sibling is not regular and bounded')
+            files[name] = (path.read_bytes(), stat.S_IMODE(path.stat().st_mode))
+        receipt = json.loads(files['agents-sdk-build.json'][0], object_pairs_hook=publication_custody.object_pairs)
+        table = {'files': {'source/' + n: v for n, v in files.items()}, 'directories': {}, 'symlinks': {}}
+        if context['platform'].startswith('darwin-'):
+            view = inventory.read_macos_payload(directory, receipt['payload'], receipt['architecture'])
+            for kind, values in view.items():
+                table[kind].update({'source/' + n: v for n, v in values.items()})
+        sdk_custody.validate_sdk_archive_table(context, table)
+        evidence = {'platform': context['platform'], 'agentsSdk': context['agentsSdk'],
+                    'payloadSha256': sha256(canonical_json(receipt['payload'])) if 'payload' in receipt else 'not-applicable'}
+        result.append(replace(product, sdk_source_evidence=evidence))
+    return result
+
+
+def prepare_sdk_installation(product: Product, case: dict[str, Any], workspace: Path,
+                             environment_root: Path) -> tuple[Product, dict[str, Any], Path]:
+    """Exercise real sibling discovery using an exact native candidate byte copy."""
+    workspace = workspace.resolve()
+    environment_root = environment_root.resolve()
+    interpreted=product.interpreter is not None or product.execution_interpreter is not None
+    if interpreted and product.npm_context is None:
+        raise ValueError("SDK installation cases require a native compiled candidate")
+    oracle = json.loads((CLI / 'shared/fixtures/adapters/sdk-production.json').read_text('utf-8'))
+    entries = [entry for entry in oracle['cases'] if entry['id'] == case['id']]
+    if len(entries) != 1:
+        raise ValueError("SDK installation case must reference its closed shared oracle")
+    fixture = entries[0]
+    control = case['controls']['installedAdapter']
+    if control.get('sdkScenario') != fixture['scenario'] or control.get('sdkInstallation') != fixture['installation']:
+        raise ValueError("SDK installation controls differ from the shared oracle")
+    install = environment_root / 'relocated installation' / 'real bin'
+    install.mkdir(parents=True, exist_ok=False)
+    source = product.execution_executable or product.executable
+    npm_paths=None
+    if interpreted:
+        npm_paths=npm_context_paths(product.npm_context)
+        if product.execution_source_context != npm_paths['launcher'].resolve() or not _uses_node_commonjs_source_context(npm_paths['launcher'],product.execution_interpreter or product.interpreter):
+            raise ValueError('SDK npm context requires the exact authenticated CommonJS launcher')
+        if source.read_bytes()!=npm_paths['launcher'].read_bytes():
+            raise ValueError('SDK npm launcher snapshot differs from its authenticated source')
+        prefix=install/'npm-prefix'
+        for key in ('metaManifest','launcher','platformManifest'):
+            destination=prefix/product.npm_context['files'][key]['path']
+            destination.parent.mkdir(parents=True,exist_ok=True)
+            shutil.copyfile((product.execution_executable or product.executable) if key=='launcher' else npm_paths[key],destination)
+        native=prefix/product.npm_context['files']['native']['path']
+        source=npm_paths['native']
+    else:
+        native = install / 'prose'
+    native.parent.mkdir(parents=True,exist_ok=True)
+    shutil.copyfile(source, native)
+    native.chmod(0o700)
+    helper = native.parent / 'prose-agents-sdk'
+    shutil.copyfile(INSTALLED_ADAPTER_HARNESS, helper)
+    helper.chmod(0o700)
+    poison = environment_root / 'foreign-path'
+    poison.mkdir()
+    shutil.copyfile(INSTALLED_ADAPTER_HARNESS, poison / 'prose-agents-sdk')
+    (poison / 'prose-agents-sdk').chmod(0o700)
+    (poison / 'python3').symlink_to(Path(sys.executable).resolve())
+    launcher_context=(prefix/product.npm_context['files']['launcher']['path']) if interpreted else None
+    launch_target=launcher_context if interpreted else native
+    if fixture['installation'] == 'symlink':
+        shim = environment_root / 'user bin'
+        shim.mkdir()
+        target = shim / 'prose'
+        target.symlink_to(launch_target)
+    else:
+        target = launch_target
+    if fixture['userConfig'] is not None:
+        user = workspace / 'home/.prose/cli.toml'
+        user.parent.mkdir(parents=True)
+        user.write_bytes(fixture['userConfig'].encode('utf-8'))
+    usage = deepcopy(oracle['observation']['failureUsage' if fixture['scenario']=='failure' else 'completedUsage'])
+    identity = deepcopy(oracle['observation']['modelIdentity'])
+    if fixture['scenario'] == 'tainted':
+        usage['unknown'] = 'sdk-unrecognized-secret-sentinel'
+        usage['observedTokenTotals'].update(unknown='sdk-unrecognized-secret-sentinel', **{'input_tokens_details.cached_tokens': -0.0, 'input_tokens_details.cache_write_tokens': -1, 'output_tokens_details.reasoning_tokens': True})
+        identity['requested'] = 'sdk-unrecognized-secret-sentinel'
+        identity['observed'].append('sdk-unrecognized-secret-sentinel\nunsafe')
+        identity['serviceTier']['requested'] = 'sdk-unrecognized-secret-sentinel'
+        identity['serviceTier']['observed'].append('sdk-unrecognized-secret-sentinel')
+    limits = {**oracle['nativeLimits'], **fixture.get('rawLimitsOverrides', {})}
+    setup = dict(scenario=fixture['scenario'],expectedHelper=str(helper.resolve()),model=oracle['defaults']['model'],limits=limits,usageObservation=usage,modelIdentity=identity,wireNumberLexemes=fixture.get('wireNumberLexemes', {}),errorType=fixture.get('rawErrorType','ExecutionError'),setupReason=fixture.get('rawSetupReason'),errorMessage=fixture.get('rawMessage','safe fixture failure'))
+    (workspace / '.sdk-compatibility-fixture.json').write_text(json.dumps(setup), encoding='utf-8')
+    execution = Product(product.name, product.executable, product.runner_name,
+                        product.interpreter, (product.execution_executable or product.executable) if interpreted else target, product.execution_interpreter,
+                        launcher_context, product.npm_context, target if interpreted else None, product.sdk_source_evidence)
+    fixture = {**fixture, 'nativePath': str(native), 'nativeSha256': sha256(source.read_bytes()),
+               'fixtureHelperSha256': sha256(INSTALLED_ADAPTER_HARNESS.read_bytes()),
+               'helperSubstitution': 'provider-free-oracle', 'productionSdkExecuted': False}
+    if product.sdk_source_evidence is not None:
+        fixture['productionSdkSourceRef'] = product.sdk_source_evidence['agentsSdk']['receiptSha256']
+    if interpreted:
+        fixture['npmContext']=product.npm_context
+        fixture['npmCloneFiles']=[{'path':str(prefix/row['path']),'sha256':row['sha256'],'byteLength':row['byteLength']} for row in product.npm_context['files'].values()]
+    preflight=validate_sdk_effects(Observation(product,case,0,b'',b'',workspace=workspace,sdk_fixture=fixture))
+    if preflight:
+        raise ValueError('; '.join(preflight))
+    return execution, fixture, poison
+
+
+def validate_sdk_effects(observation: Observation) -> list[str]:
+    fixture = observation.sdk_fixture
+    if fixture is None:
+        return []
+    workspace = observation.workspace
+    failures = []
+    if workspace is None:
+        return ['SDK fixture lacks its isolated workspace']
+    try:
+        if sha256(Path(fixture['nativePath']).read_bytes()) != fixture['nativeSha256']:
+            failures.append('SDK relocated candidate bytes changed during execution')
+        if (fixture.get('helperSubstitution') != 'provider-free-oracle' or fixture.get('productionSdkExecuted') is not False
+                or sha256((Path(fixture['nativePath']).parent / 'prose-agents-sdk').read_bytes()) != fixture['fixtureHelperSha256']):
+            failures.append('SDK fixture helper substitution bytes changed')
+        if (workspace / '.sdk-wrong-helper-used').exists():
+            failures.append('SDK discovery used a foreign PATH helper')
+        if fixture['noProbe'] and (workspace / '.sdk-harness-probed').exists():
+            failures.append('Pure SDK configuration operation probed a helper')
+        if fixture['noStart'] and (workspace / '.sdk-harness-started').exists():
+            failures.append('SDK helper started for a provider-free setup/configuration failure')
+        if fixture['userConfig'] is not None and (workspace / 'home/.prose/cli.toml').read_bytes() != fixture['userConfig'].encode('utf-8'):
+            failures.append('SDK default upgrade changed an explicit alternative harness preference')
+    except OSError:
+        failures.append('SDK fixture effect bytes unavailable')
+    if 'npmContext' in fixture:
+        try:
+            npm_context_paths(fixture['npmContext'])
+            for row in fixture['npmCloneFiles']:
+                path=Path(row['path'])
+                if any(member.is_symlink() for member in (path,*path.parents)) or not path.is_file() or path.stat().st_size!=row['byteLength'] or sha256(path.read_bytes())!=row['sha256']:
+                    failures.append('SDK npm relocated closure bytes changed')
+        except (OSError,ValueError,TypeError,KeyError):
+            failures.append('SDK npm original closure custody changed')
+    for group in fixture.get('absentObservationGroups', []):
+        parsed = observation.parsed
+        error = parsed.get('error') if isinstance(parsed, dict) else None
+        details = error.get('details') if isinstance(error, dict) else None
+        if isinstance(parsed, dict) and (group in parsed or (isinstance(details, dict) and group in details)):
+            failures.append('SDK malformed observation group was retained: ' + group)
+    for path in fixture.get('absentResultPaths', []):
+        current = observation.parsed
+        present = True
+        for key in path:
+            if not isinstance(current, dict) or key not in current:
+                present = False
+                break
+            current = current[key]
+        if present:
+            failures.append('SDK malformed result field was retained: $.' + '.'.join(path))
+    for sentinel in fixture['outputAbsent']:
+        if any(sentinel.encode('utf-8') in stream for stream in (observation.stdout, observation.stderr)):
+            failures.append('SDK output exposed a forbidden raw-observation sentinel')
+    return failures
+
+
+def expand_fixture_global_cwd(arguments: list[str], workspace: Path) -> list[str]:
+    # The shared configuration manifest owns option names. Only a runner cwd
+    # macro before the language freeze point is expanded; task bytes stay opaque.
+    schema=json.loads((CLI/'shared/schemas/configuration-explanation.schema.json').read_text('utf-8'))
+    keys=schema['properties']['values']['properties']
+    exceptions={'nativeAddDirs':'--native-add-dir','nativeAllowTools':'--native-allow-tool'}
+    values={'--cwd'}
+    for key in keys:
+        if key not in ('color','verbose'):
+            values.add(exceptions.get(key,'--'+re.sub(r'([A-Z])',lambda match:'-'+match.group(1).lower(),key)))
+    flags={'--no-color','--verbose','--dry-run'}
+    expanded=list(arguments)
+    index=0
+    while index<len(expanded):
+        token=expanded[index]
+        name,separator,value=token.partition('=')
+        if name in values:
+            if separator:
+                if name=='--cwd':
+                    expanded[index]=name+'='+value.replace('{{WORKSPACE}}',str(workspace.resolve()))
+                index+=1
+            else:
+                if index+1>=len(expanded):
+                    break
+                if name=='--cwd':
+                    expanded[index+1]=expanded[index+1].replace('{{WORKSPACE}}',str(workspace.resolve()))
+                index+=2
+        elif token in flags:
+            index+=1
+        else:
+            break
+    return expanded
+
+
 def execute(
     product: Product,
     case: dict[str, Any],
@@ -1476,10 +1983,17 @@ def execute(
     workspace: Path,
 ) -> Observation:
     canonical_workspace = workspace.resolve()
+    configuration_setup = load_configuration_setup(case)
     cwd_text = case["invocation"]["cwd"].replace(
         "{{WORKSPACE}}", str(canonical_workspace)
     )
     cwd = Path(cwd_text)
+    if configuration_setup is not None:
+        try:
+            cwd.resolve().relative_to(canonical_workspace)
+        except ValueError as error:
+            raise ValueError("configuration fixture cwd leaves product workspace") from error
+    isolate_workspace(canonical_workspace)
     cwd.mkdir(parents=True, exist_ok=True)
     additions = {
         key: value.replace("{{WORKSPACE}}", str(canonical_workspace))
@@ -1490,6 +2004,8 @@ def execute(
     if fake is not None and installed_adapter is not None:
         raise ValueError("a case cannot select both fakeHarness and installedAdapter")
     observation_path: Path | None = None
+    execution_product = product
+    sdk_fixture = None
     if fake is not None:
         observation_path = environment_root / "fake-observation.json"
         descendant_path = environment_root / "descendants.json"
@@ -1507,7 +2023,11 @@ def execute(
             additions["OPENPROSE_CONFORMANCE_CANCEL_AFTER_MS"] = str(
                 fake["cancelAfterMs"]
             )
-    if installed_adapter is not None:
+    if installed_adapter is not None and installed_adapter["adapterId"] == "agents-sdk/jsonl":
+        execution_product, sdk_fixture, poison = prepare_sdk_installation(product, case, canonical_workspace, environment_root)
+        additions["PATH"] = str(poison)
+        observation_path = canonical_workspace / ".sdk-harness-started"
+    elif installed_adapter is not None:
         adapter_id = installed_adapter["adapterId"]
         executable_name = INSTALLED_ADAPTER_EXECUTABLES[adapter_id]
         harness_bin = environment_root / "installed-adapter-bin"
@@ -1532,10 +2052,12 @@ def execute(
         if adapter_id in {"prime/rpc", "omp/rpc"}:
             additions["OPENROUTER_API_KEY"] = "fixture-provider-free-openrouter-key"
     environment = hermetic_environment(environment_root, additions)
+    configuration_before = (prepare_configuration(canonical_workspace, configuration_setup)
+                            if configuration_setup is not None else None)
     for name in case["controls"].get("omitEnvironment", []):
         environment.pop(name, None)
     completed = run_owned_process(
-        product.execution_argv(case["invocation"]["argv"]),
+        execution_product.execution_argv(expand_fixture_global_cwd(case["invocation"]["argv"], canonical_workspace)),
         cwd=cwd,
         environment=environment,
         timeout_seconds=15,
@@ -1551,6 +2073,8 @@ def execute(
         process_settled=completed.settled,
         stdout_truncated=completed.stdout_truncated,
         stderr_truncated=completed.stderr_truncated,
+        configuration_before=configuration_before,
+        sdk_fixture=sdk_fixture,
     )
 
 
@@ -1824,7 +2348,10 @@ def validate_output(observation: Observation, contracts: ContractRegistry) -> li
                         f"exact JSON fixture {expected['resultFixture']}: {difference}"
                     )
         if "errorCode" in expected:
-            error_record = result.get("error")
+            error_record = (
+                result if result.get("schema") == "openprose.runner-error/1"
+                else result.get("error")
+            )
             if (
                 error_record is None
                 and result.get("schema") == "openprose.runner-dry-run-report/1"
@@ -1914,6 +2441,8 @@ def validate_output(observation: Observation, contracts: ContractRegistry) -> li
                 f"wanted {sha256(effect['utf8'].encode('utf-8'))}, "
                 f"got {sha256(actual.encode('utf-8'))}"
             )
+    failures.extend(validate_configuration_effects(observation))
+    failures.extend(validate_sdk_effects(observation))
     return failures
 
 
@@ -2047,6 +2576,8 @@ def main(argv: list[str] | None = None) -> int:
             "the interpreter bytes are bound into the report"
         ),
     )
+    parser.add_argument('--candidate-sdk-source',action='append',nargs=2,default=[],metavar=('LABEL','JSON'),help='Explicit production SDK source custody; fixtures deliberately substitute the provider-free oracle')
+    parser.add_argument('--candidate-npm-context',action='append',nargs=2,default=[],metavar=('LABEL','JSON'),help='Explicit benchmark-bound npm native child closure for SDK installation fixtures')
     args = parser.parse_args(argv)
     if args.candidate and (args.rust is not None or args.bun is not None):
         parser.error("--candidate cannot be combined with --rust or --bun")
@@ -2066,6 +2597,8 @@ def main(argv: list[str] | None = None) -> int:
             ]
         )
         products = attach_candidate_interpreters(products, args.candidate_interpreter)
+        products = attach_npm_contexts(products,args.candidate_npm_context)
+        products = attach_sdk_sources(products,args.candidate_sdk_source)
     except ValueError as error:
         parser.error(str(error))
     verified_products: list[Product] = []
@@ -2081,6 +2614,8 @@ def main(argv: list[str] | None = None) -> int:
                 if product.interpreter is not None
                 else None
             ),
+            npm_context=product.npm_context,
+            sdk_source_evidence=product.sdk_source_evidence,
         )
         try:
             identity = capture_candidate_identity(verified)

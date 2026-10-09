@@ -3240,6 +3240,15 @@ pub fn resolve_executable(
     adapter: InstalledAdapter,
     search_path: Option<&OsStr>,
 ) -> Option<PathBuf> {
+    if adapter == InstalledAdapter::AgentsSdkJsonl {
+        let cli = std::env::current_exe().ok()?.canonicalize().ok()?;
+        let sibling = cli.parent()?.join("prose-agents-sdk");
+        let metadata = fs::symlink_metadata(&sibling).ok()?;
+        return (metadata.is_file()
+            && !metadata.file_type().is_symlink()
+            && is_executable(&metadata))
+        .then_some(sibling);
+    }
     resolve_named_executable(adapter.executable_names(), search_path)
 }
 
@@ -3454,7 +3463,12 @@ pub fn auth_readiness(
     }
     let nonempty = |expected: &str| {
         ambient.iter().any(|(name, value)| {
-            environment_name_matches(name, expected) && !value.as_os_str().is_empty()
+            environment_name_matches(name, expected)
+                && if adapter == InstalledAdapter::AgentsSdkJsonl {
+                    !value.to_string_lossy().trim().is_empty()
+                } else {
+                    !value.as_os_str().is_empty()
+                }
         })
     };
     let present = match (adapter, auth_group) {
@@ -3472,9 +3486,13 @@ pub fn auth_readiness(
     if present {
         Ok("unknown")
     } else {
-        Err(RunnerError::catalog(ErrorCode::HarnessNeedsAuth)
+        let mut error = RunnerError::catalog(ErrorCode::HarnessNeedsAuth)
             .with_detail("adapterId", adapter.id())
-            .with_detail("authProfile", auth_group))
+            .with_detail("authProfile", auth_group);
+        if adapter == InstalledAdapter::AgentsSdkJsonl {
+            "Set OPENAI_API_KEY to an OpenAI API key in the process environment, then retry. No model request was sent.".clone_into(&mut error.action);
+        }
+        Err(error)
     }
 }
 
@@ -4677,6 +4695,48 @@ mod tests {
             .code,
             ErrorCode::HarnessIncompatible
         );
+    }
+
+    #[test]
+    fn packaged_sdk_admission_rejects_unbuilt_linux_abis() {
+        for arch in ["aarch64", "x86_64"] {
+            let sdk = InstalledAdapter::AgentsSdkJsonl;
+            assert!(
+                assert_platform_supported(
+                    sdk,
+                    HostPlatform {
+                        os: "macos",
+                        arch,
+                        libc: None
+                    }
+                )
+                .is_ok()
+            );
+            assert!(
+                assert_platform_supported(
+                    sdk,
+                    HostPlatform {
+                        os: "linux",
+                        arch,
+                        libc: Some("gnu")
+                    }
+                )
+                .is_ok()
+            );
+            for libc in [None, Some("musl")] {
+                let error = assert_platform_supported(
+                    sdk,
+                    HostPlatform {
+                        os: "linux",
+                        arch,
+                        libc,
+                    },
+                )
+                .unwrap_err();
+                assert_eq!(error.code, ErrorCode::HarnessIncompatible);
+                assert_eq!(error.details.unwrap()["fallbackAttempted"], false);
+            }
+        }
     }
 
     #[test]
@@ -7466,6 +7526,21 @@ fn claude_correlated_shutdown_requires_closed_known_native_tasks() {
     }
 }
 
+pub(crate) fn sdk_setup_action(reason: &str) -> Option<&'static str> {
+    match reason {
+        "credential-or-permission" => Some(
+            "Check OPENAI_API_KEY and this account's permission to use the configured model, then retry. No fallback was selected.",
+        ),
+        "model-unavailable" => Some(
+            "Choose a model available to this OpenAI account or restore access to the configured model, then retry. No fallback was selected.",
+        ),
+        "local-input" => Some(
+            "Check the working directory, instruction and credential file paths, file permissions and configured input-byte limit, then retry.",
+        ),
+        _ => None,
+    }
+}
+
 pub(crate) fn sdk_native_failure(record: &Value) -> Value {
     let kind = match record.get("error_type").and_then(Value::as_str) {
         Some("MaxTurnsExceeded") => "max-turns",
@@ -7473,6 +7548,16 @@ pub(crate) fn sdk_native_failure(record: &Value) -> Value {
         _ => "execution",
     };
     let mut result = json!({"kind":kind});
+    if record.get("error_type").and_then(Value::as_str) == Some("SetupError") {
+        if let Some(reason) = record
+            .get("setup_reason")
+            .and_then(Value::as_str)
+            .filter(|reason| sdk_setup_action(reason).is_some())
+        {
+            result["kind"] = json!("setup");
+            result["setupReason"] = json!(reason);
+        }
+    }
     if let Some(n) = record
         .get("elapsed_seconds")
         .and_then(Value::as_f64)
@@ -7482,7 +7567,7 @@ pub(crate) fn sdk_native_failure(record: &Value) -> Value {
     }
     if let Some(l) = record
         .get("limits")
-        .filter(|l| l.as_object().is_some_and(|m| m.len() == 4))
+        .filter(|l| l.as_object().is_some_and(|m| m.len() == 4 || m.len() == 11))
     {
         let ints = ["maxTurns", "maxOutputTokens"].iter().all(|k| {
             l.get(k).and_then(Value::as_f64).is_some_and(|n| {
@@ -7494,7 +7579,26 @@ pub(crate) fn sdk_native_failure(record: &Value) -> Value {
                 .and_then(Value::as_f64)
                 .is_some_and(|n| n.is_finite() && n > 0.0 && n <= 9_007_199_254_740.99)
         });
-        if ints && times {
+        let expanded = l.as_object().is_some_and(|m| m.len() == 4)
+            || [
+                "maxAggregateRequests",
+                "maxAggregateHostedWebCalls",
+                "maxAggregateFunctionTools",
+                "maxObservedTotalTokens",
+                "maxRequestInputBytes",
+                "maxChildren",
+                "maxChildDepth",
+            ]
+            .iter()
+            .all(|key| {
+                l.get(key).and_then(Value::as_f64).is_some_and(|n| {
+                    n.is_finite() && n > 0.0 && n.fract() == 0.0 && n <= 9_007_199_254_740_991.0
+                })
+            });
+        let child_constants = l.as_object().is_some_and(|m| m.len() == 4)
+            || (l.get("maxChildren").and_then(Value::as_f64) == Some(8.0)
+                && l.get("maxChildDepth").and_then(Value::as_f64) == Some(1.0));
+        if ints && times && expanded && child_constants {
             result["limits"] = l.clone();
         }
     }
@@ -7505,15 +7609,27 @@ pub(crate) fn sdk_native_failure(record: &Value) -> Value {
 mod sdk_budget_diagnostic_tests {
     use super::*;
     #[test]
+    fn integral_decimal_native_limits_are_admitted() {
+        let record: Value = serde_json::from_str(r#"{"limits":{"maxTurns":2e1,"timeoutSeconds":180.0,"toolTimeoutSeconds":3e1,"maxOutputTokens":12000.0,"maxAggregateRequests":20.0,"maxAggregateHostedWebCalls":2e1,"maxAggregateFunctionTools":80.0,"maxObservedTotalTokens":5e5,"maxRequestInputBytes":256000.0,"maxChildren":8.0,"maxChildDepth":1e0}}"#).unwrap();
+        assert_eq!(sdk_native_failure(&record)["limits"], record["limits"]);
+        for (key, invalid) in [("maxChildren", 9), ("maxChildDepth", 2)] {
+            let mut invalid_record = record.clone();
+            invalid_record["limits"][key] = json!(invalid);
+            assert!(sdk_native_failure(&invalid_record).get("limits").is_none());
+        }
+    }
+    #[test]
     fn native_failure_is_closed_and_validated() {
         let f: Value = serde_json::from_str(include_str!(
             "../../../../shared/fixtures/adapters/sdk-native-limits.json"
         ))
         .unwrap();
         for case in f["errorCases"].as_array().unwrap() {
-            let record = json!({"error_type":case["error_type"],"limits":f["defaults"],"elapsed_seconds":1.5});
+            let record = json!({"error_type":case["error_type"],"setup_reason":case["setup_reason"],"message":"sdk-provider-body-secret-sentinel","limits":f["defaults"],"elapsed_seconds":1.5});
             let d = sdk_native_failure(&record);
             assert_eq!(d["kind"], case["kind"]);
+            assert_eq!(d.get("setupReason"), case.get("setupReason"));
+            assert!(!d.to_string().contains("sdk-provider-body-secret-sentinel"));
             assert_eq!(d["limits"], f["defaults"]);
             assert_eq!(d["elapsedSeconds"], 1.5);
             assert!(!d.to_string().contains("Untrusted"));

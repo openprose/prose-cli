@@ -150,7 +150,7 @@
             "url": null
           }
         ],
-        "max_jobs": 5,
+        "max_jobs": null,
         "types": [
           {
             "config_fields": [

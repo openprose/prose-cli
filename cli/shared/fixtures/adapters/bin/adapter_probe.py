@@ -260,9 +260,16 @@ def main() -> int:
             ]
         )
     elif adapter_id == "agents-sdk/jsonl":
+        # Fixture observations come from the reviewed SDK authority, independently
+        # of the scenario bytes whose exact launch/output oracle checks this probe.
+        sdk_observation = json.loads(
+            (Path(__file__).resolve().parents[1] / "sdk-production.json").read_text("utf-8")
+        )["observation"]
         emit([
             {"type": "start", "model": "fixture", "cwd": "fixture"},
-            {"type": "final", "output": assistant_text},
+            {"type": "final", "output": assistant_text,
+             "usageObservation": sdk_observation["completedUsage"],
+             "modelIdentity": sdk_observation["modelIdentity"]},
         ])
     elif adapter_id == "claude/print-stream-json":
         emit(

@@ -17,12 +17,14 @@ from typing import Any
 
 
 VERSIONS = {
+    "prose-agents-sdk": "prose-agents-sdk 0.1.0",
     "codex": "codex-cli 0.149.0-alpha.4.1",
     "claude": "2.1.243 (Claude Code)",
     "prime-agent": "prime-agent 0.7.0",
     "omp": "omp/18.0.9",
 }
 ADAPTERS = {
+    "prose-agents-sdk": "agents-sdk/jsonl",
     "codex": "codex/exec-json",
     "claude": "claude/print-stream-json",
     "prime-agent": "prime/rpc",
@@ -99,7 +101,7 @@ def prompt_id(stdin: bytes) -> str | None:
 
 def prompt_files(argv: list[str]) -> list[dict[str, Any]]:
     result: list[dict[str, Any]] = []
-    for flag in ("--append-system-prompt-file", "--append-system-prompt", "--config"):
+    for flag in ("--append-system-prompt-file", "--append-system-prompt", "--config", "--instructions"):
         if flag not in argv:
             continue
         index = argv.index(flag)
@@ -272,11 +274,69 @@ def terminal_for_image(
     )
 
 
+def sdk_emit(record: dict[str, Any], lexemes: dict[str, str]) -> None:
+    # Closed provider-free fixtures exercise equivalent JSON numeric encodings.
+    encoded = compact(record)
+    for key, lexeme in lexemes.items():
+        value = json.loads(lexeme)
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise ValueError('SDK fixture numeric lexeme must be a JSON number')
+        token = compact(key) + ':'
+        start = encoded.find(token)
+        if start < 0:
+            continue
+        start += len(token)
+        end = start
+        while end < len(encoded) and encoded[end] not in ',}':
+            end += 1
+        if json.loads(encoded[start:end]) != value:
+            raise ValueError('SDK fixture numeric lexeme changed its value')
+        encoded = encoded[:start] + lexeme + encoded[end:]
+    if json.loads(encoded) != record:
+        raise ValueError('SDK fixture wire encoding changed its record')
+    sys.stdout.write(encoded + '\n')
+    sys.stdout.flush()
+
+
+def sdk_main(argv: list[str]) -> int:
+    """No provider dependencies: closed records supplied by the shared SDK oracle."""
+    workspace = Path.cwd()
+    control = json.loads((workspace / ".sdk-compatibility-fixture.json").read_text("utf-8"))
+    if Path(sys.argv[0]).resolve() != Path(control["expectedHelper"]):
+        (workspace / ".sdk-wrong-helper-used").write_text("PATH helper used", encoding="utf-8")
+        return 88
+    if argv == ["--version"]:
+        (workspace / ".sdk-harness-probed").write_text("version", encoding="utf-8")
+        print(VERSIONS['prose-agents-sdk'])
+        return 0
+    (workspace / ".sdk-harness-started").write_text("started", encoding="utf-8")
+    if control["scenario"] == "trap":
+        return 88
+    task = task_from_launch(argv, b'')
+    files = prompt_files(argv)
+    model = argv[argv.index('--model') + 1]
+    if model != control["model"] or '--cwd' not in argv or Path(argv[argv.index('--cwd') + 1]).resolve() != workspace.resolve():
+        return 89
+    terminal = terminal_for_image(argv, b'', files, task)
+    common = dict(usageObservation=control['usageObservation'], modelIdentity=control['modelIdentity'])
+    sdk_emit(dict(type='start', model=model, cwd=str(workspace), limits=control['limits']), control['wireNumberLexemes'])
+    if control['scenario'] == 'failure':
+        record = dict(type='error', error_type=control['errorType'], message=control['errorMessage'], limits=control['limits'], **common)
+        if control['setupReason'] is not None:
+            record['setup_reason'] = control['setupReason']
+        sdk_emit(record, control['wireNumberLexemes'])
+        return 1
+    sdk_emit(dict(type='final', output=terminal, usage={'requests':3,'input_tokens':9,'output_tokens':6,'total_tokens':15}, **common), control['wireNumberLexemes'])
+    return 0
+
+
 def main() -> int:
     executable = Path(sys.argv[0]).name
     argv = sys.argv[1:]
     if executable not in ADAPTERS:
         raise ValueError(f"unexpected executable identity: {executable}")
+    if executable == "prose-agents-sdk":
+        return sdk_main(argv)
     compatibility_path = Path.cwd() / ".claude-compatibility-fixture.json"
     compatibility = json.loads(compatibility_path.read_text("utf-8")) if executable == "claude" and compatibility_path.is_file() else {}
     if executable == "codex":

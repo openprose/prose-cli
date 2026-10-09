@@ -2,18 +2,382 @@
   "schema": "openprose.configuration-explanation/1",
   "cwd": {
     "value": "/workspace",
-    "source": { "kind": "default", "location": "process cwd" }
+    "source": {
+      "kind": "default",
+      "location": "process cwd"
+    }
   },
   "projectConfigPath": null,
   "userConfigPath": "/workspace/config/openprose/cli.toml",
   "values": {
-    "harness": { "value": "openprose", "source": { "kind": "default", "location": "built-in" } },
-    "transport": { "value": "auto", "source": { "kind": "default", "location": "built-in" } },
-    "model": { "value": null, "source": { "kind": "default", "location": "built-in" } },
-    "timeout": { "value": "10m", "source": { "kind": "default", "location": "built-in" } },
-    "output": { "value": "json", "source": { "kind": "flag", "location": "--output" } },
-    "color": { "value": false, "source": { "kind": "default", "location": "built-in" } },
-    "verbose": { "value": false, "source": { "kind": "default", "location": "built-in" } },
-    "authProfile": { "value": null, "source": { "kind": "default", "location": "built-in" } }
+    "harness": {
+      "value": "agents-sdk",
+      "source": {
+        "kind": "default",
+        "location": "built-in"
+      }
+    },
+    "transport": {
+      "value": "auto",
+      "source": {
+        "kind": "default",
+        "location": "built-in"
+      }
+    },
+    "model": {
+      "value": "gpt-6.1-sol",
+      "source": {
+        "kind": "default",
+        "location": "built-in:agents-sdk"
+      }
+    },
+    "timeout": {
+      "value": "10m",
+      "source": {
+        "kind": "default",
+        "location": "built-in"
+      }
+    },
+    "output": {
+      "value": "json",
+      "source": {
+        "kind": "flag",
+        "location": "--output"
+      }
+    },
+    "color": {
+      "value": false,
+      "source": {
+        "kind": "default",
+        "location": "built-in"
+      }
+    },
+    "verbose": {
+      "value": false,
+      "source": {
+        "kind": "default",
+        "location": "built-in"
+      }
+    },
+    "outputContract": {
+      "value": "image-envelope",
+      "source": {
+        "kind": "default",
+        "location": "built-in"
+      }
+    },
+    "codexCompatibility": {
+      "value": "qualified",
+      "source": {
+        "kind": "default",
+        "location": "built-in"
+      }
+    },
+    "permissionMode": {
+      "value": null,
+      "source": {
+        "kind": "default",
+        "location": "built-in"
+      }
+    },
+    "nativeMaxTurns": {
+      "value": null,
+      "source": {
+        "kind": "default",
+        "location": "built-in"
+      }
+    },
+    "nativeTimeout": {
+      "value": null,
+      "source": {
+        "kind": "default",
+        "location": "built-in"
+      }
+    },
+    "nativeToolTimeout": {
+      "value": null,
+      "source": {
+        "kind": "default",
+        "location": "built-in"
+      }
+    },
+    "nativeOutputBytes": {
+      "value": null,
+      "source": {
+        "kind": "default",
+        "location": "built-in"
+      }
+    },
+    "nativeProfile": {
+      "value": "default",
+      "source": {
+        "kind": "default",
+        "location": "built-in"
+      }
+    },
+    "nativeAddDirs": {
+      "value": [],
+      "source": {
+        "kind": "default",
+        "location": "built-in"
+      }
+    },
+    "nativeAllowTools": {
+      "value": [],
+      "source": {
+        "kind": "default",
+        "location": "built-in"
+      }
+    },
+    "nativeLog": {
+      "value": null,
+      "source": {
+        "kind": "default",
+        "location": "built-in"
+      }
+    },
+    "authProfile": {
+      "value": "openai-api-key",
+      "source": {
+        "kind": "default",
+        "location": "built-in:agents-sdk"
+      }
+    }
+  },
+  "target": null,
+  "locations": [
+    {
+      "role": "user",
+      "path": "/workspace/config/openprose/cli.toml",
+      "present": false,
+      "selected": false
+    },
+    {
+      "role": "project",
+      "path": "/workspace/.prose/cli.toml",
+      "present": false,
+      "selected": false
+    }
+  ],
+  "candidates": {
+    "harness": [
+      {
+        "value": "agents-sdk",
+        "source": {
+          "kind": "default",
+          "location": "built-in"
+        },
+        "selected": true
+      }
+    ],
+    "transport": [
+      {
+        "value": "auto",
+        "source": {
+          "kind": "default",
+          "location": "built-in"
+        },
+        "selected": true
+      }
+    ],
+    "model": [
+      {
+        "value": "gpt-6.1-sol",
+        "source": {
+          "kind": "default",
+          "location": "built-in:agents-sdk"
+        },
+        "selected": true
+      }
+    ],
+    "timeout": [
+      {
+        "value": "10m",
+        "source": {
+          "kind": "default",
+          "location": "built-in"
+        },
+        "selected": true
+      }
+    ],
+    "output": [
+      {
+        "value": "human",
+        "source": {
+          "kind": "default",
+          "location": "built-in"
+        },
+        "selected": false
+      },
+      {
+        "value": "json",
+        "source": {
+          "kind": "flag",
+          "location": "--output"
+        },
+        "selected": true
+      }
+    ],
+    "color": [
+      {
+        "value": false,
+        "source": {
+          "kind": "default",
+          "location": "built-in"
+        },
+        "selected": true
+      }
+    ],
+    "verbose": [
+      {
+        "value": false,
+        "source": {
+          "kind": "default",
+          "location": "built-in"
+        },
+        "selected": true
+      }
+    ],
+    "outputContract": [
+      {
+        "value": "image-envelope",
+        "source": {
+          "kind": "default",
+          "location": "built-in"
+        },
+        "selected": true
+      }
+    ],
+    "codexCompatibility": [
+      {
+        "value": "qualified",
+        "source": {
+          "kind": "default",
+          "location": "built-in"
+        },
+        "selected": true
+      }
+    ],
+    "permissionMode": [
+      {
+        "value": null,
+        "source": {
+          "kind": "default",
+          "location": "built-in"
+        },
+        "selected": true
+      }
+    ],
+    "nativeMaxTurns": [
+      {
+        "value": null,
+        "source": {
+          "kind": "default",
+          "location": "built-in"
+        },
+        "selected": true
+      }
+    ],
+    "nativeTimeout": [
+      {
+        "value": null,
+        "source": {
+          "kind": "default",
+          "location": "built-in"
+        },
+        "selected": true
+      }
+    ],
+    "nativeToolTimeout": [
+      {
+        "value": null,
+        "source": {
+          "kind": "default",
+          "location": "built-in"
+        },
+        "selected": true
+      }
+    ],
+    "nativeOutputBytes": [
+      {
+        "value": null,
+        "source": {
+          "kind": "default",
+          "location": "built-in"
+        },
+        "selected": true
+      }
+    ],
+    "nativeProfile": [
+      {
+        "value": "default",
+        "source": {
+          "kind": "default",
+          "location": "built-in"
+        },
+        "selected": true
+      }
+    ],
+    "nativeAddDirs": [
+      {
+        "value": [],
+        "source": {
+          "kind": "default",
+          "location": "built-in"
+        },
+        "selected": true
+      }
+    ],
+    "nativeAllowTools": [
+      {
+        "value": [],
+        "source": {
+          "kind": "default",
+          "location": "built-in"
+        },
+        "selected": true
+      }
+    ],
+    "nativeLog": [
+      {
+        "value": null,
+        "source": {
+          "kind": "default",
+          "location": "built-in"
+        },
+        "selected": true
+      }
+    ],
+    "authProfile": [
+      {
+        "value": "openai-api-key",
+        "source": {
+          "kind": "default",
+          "location": "built-in:agents-sdk"
+        },
+        "selected": true
+      }
+    ]
+  },
+  "diagnostics": [],
+  "runtime": {
+    "transport": "jsonl",
+    "permissionMode": null,
+    "authProfile": "openai-api-key",
+    "billingOwner": "user-provider",
+    "nativeLimits": {
+      "maxTurns": 20,
+      "timeoutSeconds": 180,
+      "toolTimeoutSeconds": 30,
+      "maxOutputTokens": 12000,
+      "maxAggregateRequests": 20,
+      "maxAggregateHostedWebCalls": 20,
+      "maxAggregateFunctionTools": 80,
+      "maxObservedTotalTokens": 500000,
+      "maxRequestInputBytes": 256000,
+      "maxChildren": 8,
+      "maxChildDepth": 1
+    },
+    "nativeOutputLimits": null
   }
 }

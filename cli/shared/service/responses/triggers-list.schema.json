@@ -44,6 +44,9 @@
       "properties": {
         "kind": {
           "type": "string"
+        },
+        "max": {
+          "type": "integer"
         }
       }
     },

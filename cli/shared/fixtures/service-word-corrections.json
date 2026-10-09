@@ -1,0 +1,986 @@
+{
+  "schema": "openprose.service-word-corrections/1",
+  "rules": {
+    "prefixRetained": [
+      "--output",
+      "--no-color",
+      "--verbose"
+    ],
+    "otherNativePrefixDropped": true,
+    "cwdFileJoin": "lexical-only-no-stat-no-read-no-canonicalization",
+    "absoluteFileUnchanged": true,
+    "modelMovedToSupportedServiceOption": true,
+    "originalLanguageArgvOpaque": true,
+    "aliasOnlyPreservesNativeGlobals": true,
+    "followValidation": "entrypoint-and-account-or-service-parser-only-no-execution-no-client-no-request",
+    "fileOperandSelection": "parse-first-positional-after-command-options-never-fixed-index",
+    "stdinFileUnchanged": true,
+    "helpAndSavedProgramWithoutFileUnchanged": true,
+    "cwdPrefixLastWins": true,
+    "existingServiceTailModelWinsWithoutDuplication": true,
+    "duplicateGlobalModelRejected": true,
+    "convertedOptionsBeforeDelimiter": true
+  },
+  "cases": [
+    {
+      "id": "service-word-correction-01",
+      "argv": [
+        "--output",
+        "json",
+        "--harness",
+        "openprose",
+        "run",
+        "input.prose.md"
+      ],
+      "processCwd": "/work",
+      "suggestedArgv": [
+        "--output",
+        "json",
+        "cli",
+        "run",
+        "submit",
+        "input.prose.md",
+        "--preview"
+      ],
+      "originalArgvPreserved": [
+        "--output",
+        "json",
+        "--harness",
+        "openprose",
+        "run",
+        "input.prose.md"
+      ],
+      "boundary": "hosted",
+      "follow": {
+        "kind": "service",
+        "operation": "run.submit",
+        "arguments": {
+          "FILE": [
+            "input.prose.md"
+          ]
+        },
+        "options": {},
+        "flags": [],
+        "preview": true,
+        "globalDisplay": {
+          "output": "json",
+          "noColor": false,
+          "verbose": false
+        }
+      },
+      "languageArgv": [
+        "prose",
+        "run",
+        "input.prose.md"
+      ]
+    },
+    {
+      "id": "service-word-correction-02",
+      "argv": [
+        "--output=json",
+        "--no-color",
+        "--verbose",
+        "--harness",
+        "openprose",
+        "--transport",
+        "hosted",
+        "--timeout",
+        "3m",
+        "run",
+        "input.prose.md"
+      ],
+      "processCwd": "/work",
+      "suggestedArgv": [
+        "--output=json",
+        "--no-color",
+        "--verbose",
+        "cli",
+        "run",
+        "submit",
+        "input.prose.md",
+        "--preview"
+      ],
+      "originalArgvPreserved": [
+        "--output=json",
+        "--no-color",
+        "--verbose",
+        "--harness",
+        "openprose",
+        "--transport",
+        "hosted",
+        "--timeout",
+        "3m",
+        "run",
+        "input.prose.md"
+      ],
+      "boundary": "hosted",
+      "follow": {
+        "kind": "service",
+        "operation": "run.submit",
+        "arguments": {
+          "FILE": [
+            "input.prose.md"
+          ]
+        },
+        "options": {},
+        "flags": [],
+        "preview": true,
+        "globalDisplay": {
+          "output": "json",
+          "noColor": true,
+          "verbose": true
+        }
+      },
+      "languageArgv": [
+        "prose",
+        "run",
+        "input.prose.md"
+      ]
+    },
+    {
+      "id": "service-word-correction-03",
+      "argv": [
+        "--output",
+        "json",
+        "--harness",
+        "openprose",
+        "--cwd",
+        "./",
+        "run",
+        "space file.prose.md"
+      ],
+      "processCwd": "/work",
+      "suggestedArgv": [
+        "--output",
+        "json",
+        "cli",
+        "run",
+        "submit",
+        "./space file.prose.md",
+        "--preview"
+      ],
+      "originalArgvPreserved": [
+        "--output",
+        "json",
+        "--harness",
+        "openprose",
+        "--cwd",
+        "./",
+        "run",
+        "space file.prose.md"
+      ],
+      "boundary": "hosted",
+      "follow": {
+        "kind": "service",
+        "operation": "run.submit",
+        "arguments": {
+          "FILE": [
+            "./space file.prose.md"
+          ]
+        },
+        "options": {},
+        "flags": [],
+        "preview": true,
+        "globalDisplay": {
+          "output": "json",
+          "noColor": false,
+          "verbose": false
+        }
+      },
+      "languageArgv": [
+        "prose",
+        "run",
+        "space file.prose.md"
+      ]
+    },
+    {
+      "id": "service-word-correction-04",
+      "argv": [
+        "--output",
+        "json",
+        "--harness",
+        "openprose",
+        "--cwd",
+        "/work",
+        "run",
+        "../space file.prose.md"
+      ],
+      "processCwd": "/work",
+      "suggestedArgv": [
+        "--output",
+        "json",
+        "cli",
+        "run",
+        "submit",
+        "/work/../space file.prose.md",
+        "--preview"
+      ],
+      "originalArgvPreserved": [
+        "--output",
+        "json",
+        "--harness",
+        "openprose",
+        "--cwd",
+        "/work",
+        "run",
+        "../space file.prose.md"
+      ],
+      "boundary": "hosted",
+      "follow": {
+        "kind": "service",
+        "operation": "run.submit",
+        "arguments": {
+          "FILE": [
+            "/work/../space file.prose.md"
+          ]
+        },
+        "options": {},
+        "flags": [],
+        "preview": true,
+        "globalDisplay": {
+          "output": "json",
+          "noColor": false,
+          "verbose": false
+        }
+      },
+      "languageArgv": [
+        "prose",
+        "run",
+        "../space file.prose.md"
+      ]
+    },
+    {
+      "id": "service-word-correction-05",
+      "argv": [
+        "--output",
+        "json",
+        "--harness",
+        "openprose",
+        "--cwd",
+        "./",
+        "--model",
+        "service-model",
+        "run",
+        "/programs/absolute.prose.md"
+      ],
+      "processCwd": "/work",
+      "suggestedArgv": [
+        "--output",
+        "json",
+        "cli",
+        "run",
+        "submit",
+        "/programs/absolute.prose.md",
+        "--model",
+        "service-model",
+        "--preview"
+      ],
+      "originalArgvPreserved": [
+        "--output",
+        "json",
+        "--harness",
+        "openprose",
+        "--cwd",
+        "./",
+        "--model",
+        "service-model",
+        "run",
+        "/programs/absolute.prose.md"
+      ],
+      "boundary": "hosted",
+      "follow": {
+        "kind": "service",
+        "operation": "run.submit",
+        "arguments": {
+          "FILE": [
+            "/programs/absolute.prose.md"
+          ]
+        },
+        "options": {
+          "--model": [
+            "service-model"
+          ]
+        },
+        "flags": [],
+        "preview": true,
+        "globalDisplay": {
+          "output": "json",
+          "noColor": false,
+          "verbose": false
+        }
+      },
+      "languageArgv": [
+        "prose",
+        "run",
+        "/programs/absolute.prose.md"
+      ]
+    },
+    {
+      "id": "service-word-correction-06",
+      "argv": [
+        "--output",
+        "json",
+        "--harness",
+        "openprose",
+        "run",
+        "input.prose.md",
+        "--preview"
+      ],
+      "processCwd": "/work",
+      "suggestedArgv": [
+        "--output",
+        "json",
+        "cli",
+        "run",
+        "submit",
+        "input.prose.md",
+        "--preview"
+      ],
+      "originalArgvPreserved": [
+        "--output",
+        "json",
+        "--harness",
+        "openprose",
+        "run",
+        "input.prose.md",
+        "--preview"
+      ],
+      "boundary": "hosted",
+      "follow": {
+        "kind": "service",
+        "operation": "run.submit",
+        "arguments": {
+          "FILE": [
+            "input.prose.md"
+          ]
+        },
+        "options": {},
+        "flags": [],
+        "preview": true,
+        "globalDisplay": {
+          "output": "json",
+          "noColor": false,
+          "verbose": false
+        }
+      },
+      "languageArgv": [
+        "prose",
+        "run",
+        "input.prose.md",
+        "--preview"
+      ]
+    },
+    {
+      "id": "service-word-correction-07",
+      "argv": [
+        "--output",
+        "json",
+        "--dry-run",
+        "--no-color",
+        "--verbose",
+        "--harness",
+        "openprose",
+        "--transport",
+        "rpc",
+        "--cwd",
+        "missing/../space dir",
+        "--model",
+        "ignored-model",
+        "--auth-profile",
+        "ignored-auth",
+        "--permission-mode",
+        "default",
+        "--native-max-turns",
+        "3",
+        "--native-timeout",
+        "2m",
+        "--native-tool-timeout",
+        "5s",
+        "--native-output-bytes",
+        "1048576",
+        "--native-log",
+        "private-log",
+        "org",
+        "list"
+      ],
+      "processCwd": "/work",
+      "suggestedArgv": [
+        "--output",
+        "json",
+        "--no-color",
+        "--verbose",
+        "cli",
+        "org",
+        "list"
+      ],
+      "originalArgvPreserved": [
+        "--output",
+        "json",
+        "--dry-run",
+        "--no-color",
+        "--verbose",
+        "--harness",
+        "openprose",
+        "--transport",
+        "rpc",
+        "--cwd",
+        "missing/../space dir",
+        "--model",
+        "ignored-model",
+        "--auth-profile",
+        "ignored-auth",
+        "--permission-mode",
+        "default",
+        "--native-max-turns",
+        "3",
+        "--native-timeout",
+        "2m",
+        "--native-tool-timeout",
+        "5s",
+        "--native-output-bytes",
+        "1048576",
+        "--native-log",
+        "private-log",
+        "org",
+        "list"
+      ],
+      "boundary": "syntax",
+      "follow": {
+        "kind": "account",
+        "operation": "org-list",
+        "arguments": {},
+        "options": {},
+        "flags": [],
+        "preview": false,
+        "globalDisplay": {
+          "output": "json",
+          "noColor": true,
+          "verbose": true
+        },
+        "manifestOperation": "org.list"
+      }
+    },
+    {
+      "id": "service-word-correction-08",
+      "argv": [
+        "--harness",
+        "claude",
+        "--format",
+        "json",
+        "opaque-word",
+        "opaque task"
+      ],
+      "processCwd": "/work",
+      "suggestedArgv": [
+        "--harness",
+        "claude",
+        "--output",
+        "json",
+        "opaque-word",
+        "opaque task"
+      ],
+      "originalArgvPreserved": [
+        "--harness",
+        "claude",
+        "--format",
+        "json",
+        "opaque-word",
+        "opaque task"
+      ],
+      "boundary": "alias-only",
+      "follow": {
+        "kind": "language",
+        "argv": [
+          "prose",
+          "opaque-word",
+          "opaque task"
+        ],
+        "global": {
+          "harness": "claude",
+          "output": "json"
+        }
+      }
+    },
+    {
+      "id": "service-word-correction-09",
+      "argv": [
+        "--output",
+        "json",
+        "--cwd",
+        "/work",
+        "help",
+        "run",
+        "submit"
+      ],
+      "processCwd": "/work",
+      "suggestedArgv": [
+        "--output",
+        "json",
+        "cli",
+        "run",
+        "submit",
+        "--help"
+      ],
+      "originalArgvPreserved": [
+        "--output",
+        "json",
+        "--cwd",
+        "/work",
+        "help",
+        "run",
+        "submit"
+      ],
+      "boundary": "pure-help",
+      "follow": {
+        "kind": "help",
+        "command": [
+          "cli",
+          "run",
+          "submit"
+        ],
+        "globalDisplay": {
+          "output": "json",
+          "noColor": false,
+          "verbose": false
+        }
+      }
+    },
+    {
+      "id": "service-word-correction-10",
+      "argv": [
+        "--output",
+        "json",
+        "--cwd",
+        "/work",
+        "run",
+        "submit",
+        "--from",
+        "saved-program",
+        "--preview"
+      ],
+      "processCwd": "/work",
+      "suggestedArgv": [
+        "--output",
+        "json",
+        "cli",
+        "run",
+        "submit",
+        "--from",
+        "saved-program",
+        "--preview"
+      ],
+      "originalArgvPreserved": [
+        "--output",
+        "json",
+        "--cwd",
+        "/work",
+        "run",
+        "submit",
+        "--from",
+        "saved-program",
+        "--preview"
+      ],
+      "boundary": "pure-saved-program",
+      "follow": {
+        "kind": "service",
+        "operation": "run.submit",
+        "arguments": {},
+        "options": {
+          "--from": [
+            "saved-program"
+          ]
+        },
+        "flags": [],
+        "preview": true,
+        "globalDisplay": {
+          "output": "json",
+          "noColor": false,
+          "verbose": false
+        }
+      }
+    },
+    {
+      "id": "service-word-correction-11",
+      "argv": [
+        "--output",
+        "json",
+        "--harness",
+        "openprose",
+        "--cwd",
+        "./",
+        "--model",
+        "service-model",
+        "--dry-run",
+        "run",
+        "submit",
+        "space file.prose.md",
+        "--preview"
+      ],
+      "processCwd": "/work",
+      "suggestedArgv": [
+        "--output",
+        "json",
+        "cli",
+        "run",
+        "submit",
+        "./space file.prose.md",
+        "--model",
+        "service-model",
+        "--preview"
+      ],
+      "originalArgvPreserved": [
+        "--output",
+        "json",
+        "--harness",
+        "openprose",
+        "--cwd",
+        "./",
+        "--model",
+        "service-model",
+        "--dry-run",
+        "run",
+        "submit",
+        "space file.prose.md",
+        "--preview"
+      ],
+      "boundary": "pure-explicit-file",
+      "follow": {
+        "kind": "service",
+        "operation": "run.submit",
+        "arguments": {
+          "FILE": [
+            "./space file.prose.md"
+          ]
+        },
+        "options": {
+          "--model": [
+            "service-model"
+          ]
+        },
+        "flags": [],
+        "preview": true,
+        "globalDisplay": {
+          "output": "json",
+          "noColor": false,
+          "verbose": false
+        }
+      }
+    },
+    {
+      "id": "service-word-correction-12",
+      "argv": [
+        "--output",
+        "json",
+        "--cwd",
+        "/work",
+        "run",
+        "-"
+      ],
+      "processCwd": "/work",
+      "suggestedArgv": [
+        "--output",
+        "json",
+        "cli",
+        "run",
+        "submit",
+        "-",
+        "--preview"
+      ],
+      "originalArgvPreserved": [
+        "--output",
+        "json",
+        "--cwd",
+        "/work",
+        "run",
+        "-"
+      ],
+      "boundary": "pure-stdin",
+      "follow": {
+        "kind": "service",
+        "operation": "run.submit",
+        "arguments": {
+          "FILE": [
+            "-"
+          ]
+        },
+        "options": {},
+        "flags": [],
+        "preview": true,
+        "globalDisplay": {
+          "output": "json",
+          "noColor": false,
+          "verbose": false
+        }
+      }
+    },
+    {
+      "id": "service-word-correction-13",
+      "argv": [
+        "--output",
+        "json",
+        "--cwd",
+        "/old",
+        "--cwd",
+        "/work",
+        "run",
+        "input.prose.md"
+      ],
+      "processCwd": "/work",
+      "suggestedArgv": [
+        "--output",
+        "json",
+        "cli",
+        "run",
+        "submit",
+        "/work/input.prose.md",
+        "--preview"
+      ],
+      "originalArgvPreserved": [
+        "--output",
+        "json",
+        "--cwd",
+        "/old",
+        "--cwd",
+        "/work",
+        "run",
+        "input.prose.md"
+      ],
+      "boundary": "pure-prefix-precedence",
+      "follow": {
+        "kind": "service",
+        "operation": "run.submit",
+        "arguments": {
+          "FILE": [
+            "/work/input.prose.md"
+          ]
+        },
+        "options": {},
+        "flags": [],
+        "preview": true,
+        "globalDisplay": {
+          "output": "json",
+          "noColor": false,
+          "verbose": false
+        }
+      }
+    },
+    {
+      "id": "service-word-correction-14",
+      "argv": [
+        "--output",
+        "json",
+        "--model",
+        "old-model",
+        "run",
+        "input.prose.md",
+        "--model",
+        "newer-model"
+      ],
+      "processCwd": "/work",
+      "suggestedArgv": [
+        "--output",
+        "json",
+        "cli",
+        "run",
+        "submit",
+        "input.prose.md",
+        "--model",
+        "newer-model",
+        "--preview"
+      ],
+      "originalArgvPreserved": [
+        "--output",
+        "json",
+        "--model",
+        "old-model",
+        "run",
+        "input.prose.md",
+        "--model",
+        "newer-model"
+      ],
+      "boundary": "pure-prefix-precedence",
+      "follow": {
+        "kind": "service",
+        "operation": "run.submit",
+        "arguments": {
+          "FILE": [
+            "input.prose.md"
+          ]
+        },
+        "options": {
+          "--model": [
+            "newer-model"
+          ]
+        },
+        "flags": [],
+        "preview": true,
+        "globalDisplay": {
+          "output": "json",
+          "noColor": false,
+          "verbose": false
+        }
+      }
+    },
+    {
+      "id": "service-word-correction-15",
+      "argv": [
+        "--output",
+        "json",
+        "--cwd",
+        "/work",
+        "--model",
+        "chosen-model",
+        "--dry-run",
+        "run",
+        "submit",
+        "input.prose.md"
+      ],
+      "processCwd": "/work",
+      "suggestedArgv": [
+        "--output",
+        "json",
+        "cli",
+        "run",
+        "submit",
+        "/work/input.prose.md",
+        "--model",
+        "chosen-model",
+        "--preview"
+      ],
+      "originalArgvPreserved": [
+        "--output",
+        "json",
+        "--cwd",
+        "/work",
+        "--model",
+        "chosen-model",
+        "--dry-run",
+        "run",
+        "submit",
+        "input.prose.md"
+      ],
+      "boundary": "pure-prefix-precedence",
+      "follow": {
+        "kind": "service",
+        "operation": "run.submit",
+        "arguments": {
+          "FILE": [
+            "/work/input.prose.md"
+          ]
+        },
+        "options": {
+          "--model": [
+            "chosen-model"
+          ]
+        },
+        "flags": [],
+        "preview": true,
+        "globalDisplay": {
+          "output": "json",
+          "noColor": false,
+          "verbose": false
+        }
+      }
+    },
+    {
+      "id": "service-word-correction-16",
+      "argv": [
+        "--output",
+        "json",
+        "--model",
+        "old-model",
+        "--model",
+        "newer-model",
+        "run",
+        "input.prose.md"
+      ],
+      "processCwd": "/work",
+      "originalArgvPreserved": [
+        "--output",
+        "json",
+        "--model",
+        "old-model",
+        "--model",
+        "newer-model",
+        "run",
+        "input.prose.md"
+      ],
+      "boundary": "original-parse-rejection",
+      "rejectedOriginal": {
+        "code": "INVOCATION_INVALID",
+        "reason": "runner option --model was specified more than once"
+      }
+    },
+    {
+      "id": "service-word-correction-17",
+      "argv": [
+        "--output",
+        "json",
+        "--cwd",
+        "/work",
+        "--model",
+        "chosen-model",
+        "--dry-run",
+        "run",
+        "submit",
+        "--",
+        "input.prose.md"
+      ],
+      "processCwd": "/work",
+      "suggestedArgv": [
+        "--output",
+        "json",
+        "cli",
+        "run",
+        "submit",
+        "--model",
+        "chosen-model",
+        "--preview",
+        "--",
+        "/work/input.prose.md"
+      ],
+      "originalArgvPreserved": [
+        "--output",
+        "json",
+        "--cwd",
+        "/work",
+        "--model",
+        "chosen-model",
+        "--dry-run",
+        "run",
+        "submit",
+        "--",
+        "input.prose.md"
+      ],
+      "languageArgv": [
+        "prose",
+        "run",
+        "submit",
+        "--",
+        "input.prose.md"
+      ],
+      "boundary": "pure-delimiter",
+      "follow": {
+        "kind": "service",
+        "operation": "run.submit",
+        "arguments": {
+          "FILE": [
+            "/work/input.prose.md"
+          ]
+        },
+        "options": {
+          "--model": [
+            "chosen-model"
+          ]
+        },
+        "flags": [],
+        "preview": true,
+        "globalDisplay": {
+          "output": "json",
+          "noColor": false,
+          "verbose": false
+        }
+      }
+    }
+  ]
+}

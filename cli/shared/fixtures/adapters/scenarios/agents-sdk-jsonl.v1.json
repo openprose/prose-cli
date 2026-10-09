@@ -71,7 +71,39 @@
     },
     {
       "type": "final",
-      "output": "Echoed task argv: [\"prose\",\"run\",\"path with spaces/example.prose.md\",\"--model\",\"雪\",\"\",\"line\\nbreak\",\";$(touch nope)\"]\n{\"schema\":\"openprose.echo-terminal/1\",\"semanticStatus\":\"not-applicable\",\"placeholder\":true,\"marker\":\"OPENPROSE_ECHO_TERMINAL_V0\",\"task\":{\"argv\":[\"prose\",\"run\",\"path with spaces/example.prose.md\",\"--model\",\"雪\",\"\",\"line\\nbreak\",\";$(touch nope)\"]}}"
+      "output": "Echoed task argv: [\"prose\",\"run\",\"path with spaces/example.prose.md\",\"--model\",\"\u96ea\",\"\",\"line\\nbreak\",\";$(touch nope)\"]\n{\"schema\":\"openprose.echo-terminal/1\",\"semanticStatus\":\"not-applicable\",\"placeholder\":true,\"marker\":\"OPENPROSE_ECHO_TERMINAL_V0\",\"task\":{\"argv\":[\"prose\",\"run\",\"path with spaces/example.prose.md\",\"--model\",\"\u96ea\",\"\",\"line\\nbreak\",\";$(touch nope)\"]}}",
+      "usageObservation": {
+        "source": "sdk_completed_response_raw_usage",
+        "aggregationScope": "unique_completed_responses_in_parent_and_children",
+        "startedCallCount": 3,
+        "completedResponseCount": 3,
+        "duplicateResponseCallbackCount": 0,
+        "outstandingCallCount": 0,
+        "outstandingProviderRequestCount": null,
+        "observedTokenTotals": {
+          "input_tokens": 9,
+          "output_tokens": 6,
+          "total_tokens": 15
+        },
+        "fieldResponseCounts": {
+          "input_tokens": 3,
+          "output_tokens": 3,
+          "total_tokens": 3
+        },
+        "totalRunUsageKnown": false
+      },
+      "modelIdentity": {
+        "requested": "gpt-6.1-sol",
+        "observed": [
+          "gpt-6.1-sol"
+        ],
+        "serviceTier": {
+          "requested": "default",
+          "observed": [
+            "default"
+          ]
+        }
+      }
     }
   ],
   "expectedTerminal": "final",
@@ -87,7 +119,7 @@
         "run",
         "path with spaces/example.prose.md",
         "--model",
-        "雪",
+        "\u96ea",
         "",
         "line\nbreak",
         ";$(touch nope)"

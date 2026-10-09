@@ -9,9 +9,15 @@
     "runtimeVersion": null,
     "model": null
   },
-  "prompt": { "placement": null, "strictness": "unsupported" },
+  "prompt": {
+    "placement": null,
+    "strictness": "unsupported"
+  },
   "isolation": "unsupported",
-  "auth": { "category": "openprose-account", "readiness": "unknown" },
+  "auth": {
+    "category": "openprose-account",
+    "readiness": "unknown"
+  },
   "billingOwner": "openprose",
   "languageImage": {
     "formatVersion": "openprose.skill-runtime-image/1",
@@ -20,15 +26,60 @@
     "releaseEligible": false
   },
   "configuration": [
-    { "key": "cwd", "source": "default", "location": "process cwd", "redacted": false },
-    { "key": "harness", "source": "default", "location": "built-in", "redacted": false },
-    { "key": "transport", "source": "default", "location": "built-in", "redacted": false },
-    { "key": "model", "source": "default", "location": "built-in", "redacted": false },
-    { "key": "timeout", "source": "default", "location": "built-in", "redacted": false },
-    { "key": "output", "source": "flag", "location": "--output", "redacted": false },
-    { "key": "color", "source": "default", "location": "built-in", "redacted": false },
-    { "key": "verbose", "source": "default", "location": "built-in", "redacted": false },
-    { "key": "authProfile", "source": "default", "location": "built-in", "redacted": true }
+    {
+      "key": "cwd",
+      "source": "default",
+      "location": "process cwd",
+      "redacted": false
+    },
+    {
+      "key": "harness",
+      "source": "flag",
+      "location": "--harness",
+      "redacted": false
+    },
+    {
+      "key": "transport",
+      "source": "default",
+      "location": "built-in",
+      "redacted": false
+    },
+    {
+      "key": "model",
+      "source": "default",
+      "location": "built-in",
+      "redacted": false
+    },
+    {
+      "key": "timeout",
+      "source": "default",
+      "location": "built-in",
+      "redacted": false
+    },
+    {
+      "key": "output",
+      "source": "flag",
+      "location": "--output",
+      "redacted": false
+    },
+    {
+      "key": "color",
+      "source": "default",
+      "location": "built-in",
+      "redacted": false
+    },
+    {
+      "key": "verbose",
+      "source": "default",
+      "location": "built-in",
+      "redacted": false
+    },
+    {
+      "key": "authProfile",
+      "source": "default",
+      "location": "built-in",
+      "redacted": false
+    }
   ],
   "readiness": "blocked",
   "blockingError": {
@@ -39,6 +90,9 @@
     "retryable": false,
     "message": "Programs run here only with a local harness; hosted runs use `prose cli run submit`.",
     "action": "To use the hosted service, run `cli run submit FILE --preview`; running programs on this machine needs a local harness (`cli harness list`).",
-    "details": { "billingOwner": "openprose", "fallbackSelected": false }
+    "details": {
+      "billingOwner": "openprose",
+      "fallbackSelected": false
+    }
   }
 }

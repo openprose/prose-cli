@@ -195,6 +195,7 @@ export interface InstalledAdapterOptions {
 }
 
 export interface InstalledAdapterResult {
+  sdkObservations?: import("./sdk-observation").SdkObservations;
   nativeConfiguration?: Record<string,unknown> | undefined;
   plan: InstalledLaunchPlan;
   process: ProcessSupervisionResult;

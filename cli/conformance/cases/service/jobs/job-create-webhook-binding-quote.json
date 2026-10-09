@@ -1,0 +1,91 @@
+{
+  "id": "job-create-webhook-binding-quote",
+  "feature": "jobs",
+  "operation": "job.create",
+  "description": "A webhook with a program may carry its contract's model, reasoning_effort and repository_url; the plan's quote sends the model, the effort and repositories=1.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "job",
+    "create",
+    "--spec-file",
+    "spec.json",
+    "--preview"
+  ],
+  "files": [
+    {
+      "path": "spec.json",
+      "content": "{\"type\": \"webhook\", \"name\": \"pr-review\", \"delivery_mode\": \"test\", \"program_ref\": \"exowner1/jobs-example@0123456789abcdef\", \"model\": \"model-sol\", \"reasoning_effort\": \"high\", \"repository_url\": \"https://github.com/exowner1/context\"}"
+    }
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/run/quote",
+        "query": {
+          "program_ref": "exowner1/jobs-example@0123456789abcdef",
+          "model": "model-sol",
+          "reasoning_effort": "high",
+          "repositories": "1",
+          "job_type": "webhook"
+        },
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          }
+        },
+        "status": 200,
+        "body": {
+          "hold": {
+            "hold_usd": "1.02",
+            "ttl_seconds": 900
+          },
+          "pricing_policy_id": "pricing-policy.sha256.f114eadc02b7550e58f12c49996382b04f867cb774ac295506806f599ef1e3cd",
+          "note": "Unused hold is released when the run settles."
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "job.deploy",
+      "operation": "job.create",
+      "problem": null,
+      "result": {
+        "plannedRequest": {
+          "bodyBytes": 229,
+          "bodySha256": "6642f65d92b035ae66b01992c9650209f1c611ac164d14a42c80705a5cf3fb05",
+          "description": "Create a job from a JSON spec.",
+          "effect": "money",
+          "method": "POST",
+          "operation": "job.create",
+          "quote": {
+            "hold": {
+              "hold_cents": 102,
+              "hold_usd": "1.02",
+              "ttl_seconds": 900
+            }
+          },
+          "summary": {
+            "delivery_mode": "test",
+            "model": "model-sol",
+            "name": "pr-review",
+            "programRef": "exowner1/jobs-example@0123456789abcdef",
+            "reasoning_effort": "high",
+            "type": "webhook"
+          }
+        },
+        "preview": true
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

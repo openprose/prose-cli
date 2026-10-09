@@ -1,0 +1,197 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.openprose.org/cli/v1/sdk-observation.schema.json",
+  "title": "Safe optional SDK runtime observations",
+  "type": "object",
+  "additionalProperties": false,
+  "minProperties": 1,
+  "properties": {
+    "usageObservation": {
+      "$ref": "#/$defs/usageObservation"
+    },
+    "modelIdentity": {
+      "$ref": "#/$defs/modelIdentity"
+    }
+  },
+  "$defs": {
+    "usageObservation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "aggregationScope",
+        "startedCallCount",
+        "completedResponseCount",
+        "duplicateResponseCallbackCount",
+        "outstandingCallCount",
+        "outstandingProviderRequestCount",
+        "observedTokenTotals",
+        "fieldResponseCounts",
+        "totalRunUsageKnown"
+      ],
+      "properties": {
+        "source": {
+          "const": "sdk_completed_response_raw_usage"
+        },
+        "aggregationScope": {
+          "const": "unique_completed_responses_in_parent_and_children"
+        },
+        "startedCallCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "completedResponseCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "duplicateResponseCallbackCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "outstandingCallCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "outstandingProviderRequestCount": {
+          "type": "null"
+        },
+        "observedTokenTotals": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "input_tokens": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "output_tokens": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "total_tokens": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "input_tokens_details.cached_tokens": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "input_tokens_details.cache_write_tokens": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "output_tokens_details.reasoning_tokens": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          }
+        },
+        "fieldResponseCounts": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "input_tokens": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "output_tokens": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "total_tokens": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "input_tokens_details.cached_tokens": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "input_tokens_details.cache_write_tokens": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "output_tokens_details.reasoning_tokens": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          }
+        },
+        "totalRunUsageKnown": {
+          "const": false
+        }
+      }
+    },
+    "modelIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requested",
+        "observed",
+        "serviceTier"
+      ],
+      "properties": {
+        "requested": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]*$"
+        },
+        "observed": {
+          "type": "array",
+          "uniqueItems": true,
+          "maxItems": 128,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]*$"
+          }
+        },
+        "serviceTier": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "requested",
+            "observed"
+          ],
+          "properties": {
+            "requested": {
+              "const": "default"
+            },
+            "observed": {
+              "type": "array",
+              "uniqueItems": true,
+              "maxItems": 7,
+              "items": {
+                "enum": [
+                  "auto",
+                  "default",
+                  "flex",
+                  "scale",
+                  "priority",
+                  "fast",
+                  "ultrafast"
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

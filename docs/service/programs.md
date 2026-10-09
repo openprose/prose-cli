@@ -134,7 +134,7 @@ prose cli program draft "Also return a title" --current haiku.prose.md --output-
 ```
 
 - The writer is a hosted run and is charged like one (a short draft costs a
-  few cents). It reserves the same flat hold as a run: the plan (`--preview` or
+  few cents). It reserves a hold like a run: the plan (`--preview` or
   `CONFIRMATION_REQUIRED`) carries `plannedRequest.quote` from the anonymous
   `GET /run/quote` (advisory; a failed quote never hides the plan), and a
   `--model` is checked against `GET /models` before the gate (an unknown name

@@ -28,14 +28,18 @@
       {
         "method": "GET",
         "path": "/run/quote",
-        "status": 500,
-        "body": {
-          "error_code": 1101
+        "query": {
+          "program_ref": "exowner1/jobs-example@0123456789abcdef",
+          "job_type": "schedule"
         },
         "requestHeaders": {
           "Authorization": {
-            "present": false
+            "present": true
           }
+        },
+        "status": 500,
+        "body": {
+          "error_code": 1101
         }
       }
     ]

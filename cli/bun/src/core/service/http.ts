@@ -52,6 +52,29 @@ export function requestFor(operation: ManifestOperation, index: number, path: st
   };
 }
 
+/** The options a `GET /run/quote` hold depends on, as the caller gave them. */
+export interface HoldOptions {
+  model?: string | undefined;
+  reasoningEffort?: string | undefined;
+  environment?: string | undefined;
+  repositoriesBound: boolean;
+}
+
+/**
+ * The `GET /run/quote` query (manifest order): only what was given, never a
+ * default, so a quote with no such option stays parameter-free. Any bound
+ * repository sends `repositories=1`; declared tools are never sent: the CLI
+ * does not read the program (with a program_ref the service does).
+ */
+export function holdQuery(options: HoldOptions): Array<[string, string]> {
+  const query: Array<[string, string]> = [];
+  if (options.model !== undefined) query.push(["model", options.model]);
+  if (options.reasoningEffort !== undefined) query.push(["reasoning_effort", options.reasoningEffort]);
+  if (options.environment !== undefined) query.push(["environment", options.environment]);
+  if (options.repositoriesBound) query.push(["repositories", "1"]);
+  return query;
+}
+
 /** Sets a compact JSON body with sorted keys (both products serialize identically). */
 export function withJsonBody(request: Request, value: Json): Request {
   return { ...request, body: new TextEncoder().encode(canonicalJson(value)) };

@@ -121,6 +121,7 @@ ALLOWED_SHARED_REFERENCE_FILES = frozenset(
         "cli/shared/fixtures/kernel-startup/release.json",
         "cli/shared/fixtures/native-output-budget.json",
         "cli/shared/fixtures/transport-diagnostics.json",
+        "cli/shared/fixtures/service-word-corrections.json",
         "cli/conformance/fake-harness/fake_harness.py",
         "cli/shared/capabilities/transport-limits.v1.json",
         "cli/shared/capabilities/adapters/oracle.v1.json",
@@ -1221,6 +1222,10 @@ def _tainted_names(code: str, *, rust: bool) -> set[str]:
     while changed:
         changed = False
         for name, expression in assignments:
+            # Rust's `_` is a discard pattern, never a bound local. Treating
+            # it as an alias also taints unrelated closure parameters `|_|`.
+            if rust and name == "_":
+                continue
             if name not in tainted and (
                 seed in expression
                 or ".argv" in expression

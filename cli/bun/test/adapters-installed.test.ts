@@ -1504,13 +1504,13 @@ describe("installed executable discovery and version probes", () => {
       imageBundle: sentinelImage,
     })).toBe(2);
     expect(JSON.parse(stdout)).toMatchObject({
-      error: {
-        code: "CONFIG_INVALID",
-        details: {
+      code: "CONFIG_INVALID",
+      details: {
           adapterId,
-          reason: `Unknown auth_profile for ${adapterId}: unsupported-profile.`,
+          reason: "Authentication profile is incompatible with the selected harness.",
+          source: "--auth-profile",
+          configurationExplanation:{diagnostics:[{code:"CONFIG_INVALID",severity:"error"}]},
           supportedAuthProfiles: Object.keys(installedAdapterDefinition(adapterId).credentialGroups),
-        },
       },
     });
   });
@@ -1537,12 +1537,11 @@ describe("installed executable discovery and version probes", () => {
       imageBundle: sentinelImage,
     })).toBe(2);
     expect(JSON.parse(stdout)).toMatchObject({
-      error: {
-        code: "CONFIG_INVALID",
-        details: {
+      code: "CONFIG_INVALID",
+      details: {
           adapterId: `${harness}/rpc`,
           reason: "Prime and OMP models must be a fully qualified provider/model with no empty, whitespace, or control-character segments.",
-        },
+          source:"--model",
       },
     });
   });
@@ -2110,8 +2109,8 @@ describe("installed executable discovery and version probes", () => {
         imageBundle: sentinelImage,
       })).toBe(2);
       expect(JSON.parse(stdout)).toMatchObject({
-        ready: false,
-        problems: [{ code: "CONFIG_INVALID" }],
+        code: "CONFIG_INVALID",
+        details:{source:"--model",configurationExplanation:{diagnostics:[{code:"CONFIG_INVALID",severity:"error"}]}},
       });
       expect(stdout).toContain("provider/model");
     }

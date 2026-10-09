@@ -69,9 +69,16 @@ printf '%s' '{"type":"webhook","delivery_mode":"test","name":"my-hook"}' \
 - **A new schedule starts its first run about one second after it is
   created**, then every `interval_seconds`. That is why `job create` is a money
   operation: its plan (`--preview` or `CONFIRMATION_REQUIRED`) includes the
-  service's hold quote (`plannedRequest.quote`, from the anonymous
-  `GET /run/quote` for the default environment; a flat hold, independent of
-  program and model). With `--yes` no quote is read. A webhook with no
+  service's hold quote (`plannedRequest.quote`, from `GET /run/quote`, sent
+  with the key, for the job's pinned `program_ref`, so the program's own run
+  settings and declared tools count, with the spec's `model`,
+  `reasoning_effort` and `environment` overriding them and `repositories=1`
+  when it names a `repository_url` or `context_repository_url`), plus
+  `job_type` (the spec's `type`) so the service can price the model a job of
+  that type runs on when the spec names none. A service that does not read
+  `job_type` prices its default run model instead, which can differ from the
+  default job model of a webhook or email job; give `model` in the spec for
+  an exact hold there. With `--yes` no quote is read. A webhook with no
   `program_ref` starts no runs: its plan has effect `write`, no quote is read
   and no hold is shown.
 - `prose cli job create --help` prints minimal schedule and webhook specs and
@@ -86,19 +93,68 @@ printf '%s' '{"type":"webhook","delivery_mode":"test","name":"my-hook"}' \
   `model`, `reasoning_effort`, `environment`, `inputs` (name → string), `files`,
   `repository_url`, `repository_branch`, `output`. Webhook spec keys: `type`,
   and optionally `name`, `program_ref`, `delivery_mode` (`test` or `live`),
-  `receiver`, `receiver_secret`, `reply`, `reply_secret`.
+  `receiver`, `receiver_secret`, `reply`, `reply_secret`, and, with a
+  `program_ref`, the connected contract's `model`, `reasoning_effort`,
+  `repository_url`, `repository_branch` and `output` (without `program_ref`
+  the service refuses them).
 - A webhook `create` result carries `endpoint` and `signing_secret`. **They
   appear only in that result** (and in `rotate-secret`), never in `job show` or
   stderr. Human mode prints them once on stdout and a warning on stderr. Both
   results also carry `endpoint_url`, the absolute URL to configure in the
   sender (the service origin + `endpoint`).
 
+## Sending events to a webhook
+
+The sender POSTs JSON (`Content-Type: application/json`, at most 256 KiB) to
+`endpoint_url`. A webhook created without `receiver` checks two headers:
+
+- `X-OpenProse-Delivery`: a new id for each event matching
+  `[A-Za-z0-9][A-Za-z0-9._:-]{0,199}`. A retry reuses the id and the exact body.
+- `X-OpenProse-Signature`: `sha256=` followed by the lowercase hex
+  HMAC-SHA256 of `deliveryId + "\n" + rawBody`, keyed with the UTF-8
+  `signing_secret`. Sign the bytes you send; do not reserialize the body.
+
+```sh
+sig=$(printf '%s\n%s' "$DELIVERY_ID" "$BODY" | openssl dgst -sha256 -hmac "$SIGNING_SECRET" | sed 's/^.* //')
+curl -X POST "$ENDPOINT_URL" -H 'Content-Type: application/json' \
+  -H "X-OpenProse-Delivery: $DELIVERY_ID" -H "X-OpenProse-Signature: sha256=$sig" \
+  --data-binary "$BODY"
+```
+
+| Response | Meaning |
+| --- | --- |
+| `202 {"accepted":true,"duplicate":false}` | Accepted. This acknowledges receipt, not run completion. |
+| `202` with `"test_only":true` | Test mode: recorded, no run started. Test mode does not deduplicate: a repeated id is recorded again. |
+| `202` with `"duplicate":true` | Live mode: a retry of a delivery already accepted. |
+| `400` | Missing or malformed `X-OpenProse-Delivery`, or a body that is not valid UTF-8 JSON. |
+| `401` | Wrong signature. `job deliveries` records it as `rejected` with reason `invalid_signature`. |
+| `409` | Live mode: a reused delivery id with a different body, or no contract attached. Don't retry it unchanged. `"reason":"configuration_changed"` means the webhook changed during the request; retry it. |
+| `413` | Body over 256 KiB. |
+
+Retry only network failures, `429` and `5xx`, with backoff, keeping the id
+and body. `job deliveries JOB_ID` shows what arrived. The job's
+`last_event_at` records live deliveries only, so it stays empty in test mode.
+A webhook can be live only with a contract: create it with `program_ref`, or
+run `job contract attach` before `job update` sets `"delivery_mode":"live"`.
+Otherwise the service answers `SERVICE_REQUEST_REJECTED` ("Runs stay
+disabled. Connect a contract to this webhook first.").
+`openssl -hmac` puts the secret in the process arguments; on a shared host,
+sign with a library instead.
+
 ## Reading jobs
 
 `job list` returns `{jobs, max_jobs, job_limit, types}` (each type
 `{id, label, description, config_fields}`); an empty account is exit 0 with
-`jobs: []`. `job show` returns `{job, status}`. Every job field is built from
-its public field list, in snake_case (`interval_seconds`, `created_at`,
+`jobs: []`. `job_limit` is the account's entitlement from the service:
+`{kind: "limited", max}`, `{kind: "unlimited"}` (paid accounts) or
+`{kind: "unavailable"}` (the service could not check the entitlement; retry).
+A kind this client does not know is reported as `unavailable`, and an older
+service without one is read as limited at its `max_triggers`. `max_jobs` is
+`job_limit.max` when limited and `null` otherwise. The human first line is
+`Jobs: N of M allowed`, `Jobs: N (unlimited)` or
+`Jobs: N (limit unavailable; try again)`; `cli service triage` reports the
+same as `jobs.max` and `jobs.limit`. `job show` returns `{job, status}`.
+Every job field is built from its public field list, in snake_case (`interval_seconds`, `created_at`,
 `next_fire_at`, `last_run_id`, `program_ref`, …); any other service field
 (internal references, adoption and driver detail, repository ids and detail
 objects, receiver and reply details) is dropped, as is the webhook's relative
@@ -168,13 +224,58 @@ prose cli job show "$JOB" --json | jq '.result.status | {
   revision number such as `@1` exits 2 naming `program show OWNER/SLUG@1 --json`,
   which resolves it for your own program). Their result
   is `{contracts: [{program_ref}]}`: the one contract the service attached or
-  detached. Run `job contract list` for the full list. `--model` is refused
-  because the service ignores a model on attach; attached contracts run on the
-  service's default job model. Schedules change contracts only through
-  `job configure` (the contract routes answer 405 →
+  detached. Run `job contract list` for the full list. Schedules change
+  contracts only through `job configure` (the contract routes answer 405 →
   `SERVICE_REQUEST_REJECTED`).
+- For a **webhook** job, `job contract attach` also sets how its runs execute:
+  `--model`, `--reasoning-effort`, `--repo OWNER/NAME[@BRANCH]` (a repository
+  the runs read as context), `--commit-output OWNER/NAME` (it must be
+  that repository), `--input KEY=VALUE` / `--inputs-file FILE`,
+  `--environment ENV`, `--file [NAME=]PATH` (UTF-8; it replaces the stored
+  file set, as re-deploying from the editor does; at most 20 files, 5 MiB each
+  and 10 MiB in total), and `--clear-repo`, `--clear-commit-output`,
+  `--clear-input KEY` and `--clear-files`. A single stored file cannot be
+  removed on its own: the service returns file metadata, not content, so give
+  the full set with `--file`. These options on another job type are refused before
+  anything is sent (the job is read first to check its type).
+- The job is always read first. On another job type, and for a plain re-attach
+  of a bound program on a webhook, the CLI sends just `program_ref`; the
+  service treats re-attaching a bound program as a no-op.
+- Changing a bound webhook binding changes only the options given. When the
+  service reports each binding's `environment`, the CLI re-binds the same
+  reference (`replace_program_ref`) with just the changed fields and `null`
+  for a clear, and the service keeps the rest, including stored files. A
+  service that does not report it would reset stored files and environment
+  on any re-bind, so there the CLI refuses unless `--file` or `--clear-files`
+  and `--environment` are given, or `--allow-reset` accepts the reset; a plain
+  re-attach of a bound program is refused. `--input` sends the full resulting
+  input set, so a concurrent edit of the same binding's inputs can be
+  overwritten.
+- `--repo` naming the saved repository without `@BRANCH` keeps its branch.
+  A different `--repo` while the saved commit output goes elsewhere is refused
+  until `--commit-output` or `--clear-commit-output` is also given; the
+  service never retargets a commit output silently. `--commit-output` takes
+  `OWNER/NAME`: the service chooses the commit's branch.
+- `--file` names must be what the service stores: 1 to 200 letters, digits,
+  `.`, `_` or `-`, not starting with a dot and without `..`.
+- `--replace OWNER/SLUG@REV` moves a binding to another revision of the same
+  program: a full replace that carries the old binding's model, reasoning
+  effort, repository, inputs and environment. Stored files cannot be carried,
+  so when the old binding has any, `--file`, `--clear-files` or
+  `--allow-reset` is required. `--replace` onto a program that is already
+  bound is refused; change that binding in place. Settings apply to
+  deliveries admitted after the change. The plan (`--preview` or
+  `CONFIRMATION_REQUIRED`) carries the hold for the binding as it will run
+  (`GET /run/quote` with the program, the job's type and the effective model,
+  reasoning effort, environment and repository); a failed quote leaves the
+  plan without one.
 - `job contract list` reports each contract's `program_ref`, `program_slug`,
-  `enabled` and `model` and drops the program text and configured inputs.
+  `enabled`, `model`, `effective_model`, `rev_id`, `bound_at`,
+  `is_platform_default` and, for a binding with saved settings,
+  `run_configuration`: `reasoning_effort`, `inputs` (with `input_entries` for
+  names matching /cost/i), `context_repositories`, `output`, `environment` and
+  `stored_files` (`{name, size, sha256}`; content is never shown). The program
+  text is never shown, and human output lists input names, not values.
 
 ## Secrets
 

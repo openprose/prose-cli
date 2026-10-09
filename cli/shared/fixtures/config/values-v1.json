@@ -301,7 +301,8 @@
     {
       "id": "env-native-budget-needs-agents-sdk",
       "environment": {
-        "PROSE_NATIVE_MAX_TURNS": "3"
+        "PROSE_NATIVE_MAX_TURNS": "3",
+        "PROSE_HARNESS": "openprose"
       },
       "expected": {
         "error": {

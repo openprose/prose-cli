@@ -22,6 +22,7 @@ import uuid
 ROOT = Path(__file__).resolve().parents[2]
 CLI = ROOT / "cli"
 SCRIPT = CLI / "ci" / "package_local.py"
+sys.path.insert(0, str(SCRIPT.parent))
 # Full fixture packaging compresses both debug executables and a second copy of
 # Bun into npm archives. Allow CPU-intensive construction on native CI.
 PACKAGING_TIMEOUT_SECONDS = 180
@@ -1808,11 +1809,32 @@ class ToolchainReceiptTests(unittest.TestCase):
         self.assertNotIn("RUSTUP_TOOLCHAIN", run.call_args.kwargs["environment"])
 
 
+def macos_c_fixture_payload(directory,architecture):
+    """Actual supplied C-helper bytes + synthetic COLLECT; never PyInstaller proof."""
+    import ast
+    import sdk_native_inventory as native
+    directory=directory.resolve()
+    support=directory/native.SDK_PAYLOAD_ROOT;support.mkdir(mode=0o755);support.chmod(0o755)
+    marker=support/'hermetic-c-fixture.txt'
+    marker.write_bytes(b'Hermetic compiled C helper fixture. Synthetic COLLECT only; no PyInstaller SDK qualification.');marker.chmod(0o644)
+    module=ast.parse((ROOT/'cli/ci/build_agents_sdk.py').read_text())
+    entry=next(ast.literal_eval(node.value) for node in module.body if isinstance(node,ast.Assign) and any(isinstance(t,ast.Name) and t.id=='ENTRY_SOURCE' for t in node.targets))
+    entry_path=directory/'sdk-entry.py';entry_path.write_text(entry)
+    # These declarations describe the actual hermetic fixture files, not a
+    # freezer invocation or SDK integration. The C helper was compiled/signed
+    # by write_sdk_candidate before this function captures its real bytes.
+    collect=repr(([(PACKAGE_LOCAL.SDK_NAME,str(directory/PACKAGE_LOCAL.SDK_NAME),'EXECUTABLE'),
+                   ('hermetic-c-fixture.txt',str(marker),'DATA')],)).encode()
+    (directory/'collect.toc').write_bytes(collect)
+    builders={name:PACKAGE_LOCAL.sha256_file(ROOT/name) for name in ('cli/ci/build_agents_sdk.py','cli/ci/sdk_native_inventory.py')}
+    return native.inventory_macos_payload(directory,architecture,builders,hashlib.sha256(entry_path.read_bytes()).hexdigest(),hashlib.sha256(collect).hexdigest())
+
+
 class LocalPackagingTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.temporary = tempfile.TemporaryDirectory(prefix="openprose-package-test-")
-        cls.root = Path(cls.temporary.name)
+        cls.root = Path(cls.temporary.name).resolve()
         cls.source_revision = f"package-local-test-{uuid.uuid4().hex}"
         cls.rust_binary = (
             cls.root
@@ -2318,6 +2340,50 @@ process.stdout.write(JSON.stringify({ spawned, stderr, exitCode: fakeProcess.exi
         path.chmod(0o755)
         return source
 
+    def write_sdk_candidate(self):
+        """Native provider-free helper fixture; never qualified release evidence."""
+        directory = self.root / "sdk-fixture"; directory.mkdir()
+        helper = directory / PACKAGE_LOCAL.SDK_NAME
+        expected = {"schema": "openprose.sdk-packaged-self-test/1", "openaiAgents": "0.22.2", "openai": "3.13.0", "certificates": True, "modelCalls": 0}
+        tools = {'schema': 'openprose.sdk-packaged-tools-self-test/1', 'shellEffects': True,
+                 'boundedOutput': True, 'shellCancellation': True, 'mockedPublicRetrieval': True,
+                 'incompleteHttpRejected': True, 'modelCalls': 0, 'networkUsed': False}
+        libraries = {"schema": "openprose.sdk-packaged-libraries/1", "elfCount": 1, "requiredGlibcMaximum": "2.34", "modelCalls": 0}
+        native_fields = None
+        if platform.system() == 'Linux':
+            from test_assemble_kernel_rc import linux_receipt_fixture
+            target = 'linux-arm64-gnu' if platform.machine() == 'aarch64' else 'linux-x64-gnu'
+            native_fields = linux_receipt_fixture(target)
+            libraries = native_fields['linuxLibraries']
+            snapshot = native_fields['linuxBuildSourceSnapshot']
+            snapshot['sources'] = {p: PACKAGE_LOCAL.sha256_file(ROOT / p) for p in snapshot['sources']}
+            snapshot['driverSha256'] = PACKAGE_LOCAL.sha256_file(ROOT / 'cli/ci/build_agents_sdk_linux.py')
+            snapshot['lockSha256'] = PACKAGE_LOCAL.sha256_file(ROOT / 'cli/ci/agents-sdk-linux-build.lock.json')
+        c_source = directory / "fixture.c"
+        c_source.write_text("#include <stdio.h>\n#include <string.h>\nint main(int argc,char **argv){if(argc!=2)return 2; if(strcmp(argv[1],\"--packaged-self-test\")==0) puts(" + json.dumps(json.dumps(expected)) + "); else if(strcmp(argv[1],\"--packaged-tool-self-test\")==0) puts(" + json.dumps(json.dumps(tools)) + "); else if(strcmp(argv[1],\"--packaged-library-test\")==0) puts(" + json.dumps(json.dumps(libraries)) + "); else if(strcmp(argv[1],\"--version\")==0) puts(\"prose-agents-sdk 0.1.0\"); else return 2; return 0;}")
+        compiler = shutil.which("cc"); self.assertIsNotNone(compiler)
+        subprocess.run([compiler, "-O0", "-o", str(helper), str(c_source)], check=True, timeout=30, capture_output=True)
+        if platform.system() == "Darwin":
+            subprocess.run(["/usr/bin/codesign", "--force", "--sign", "-", str(helper)], check=True, timeout=30, capture_output=True)
+        notices = b"Hermetic native fixture; no SDK dependencies or provider calls."
+        (directory / PACKAGE_LOCAL.SDK_NOTICES).write_bytes(notices)
+        record = {"schema": "openprose.agents-sdk-build/1", "modelCalls": 0,
+                  "platform": "darwin" if platform.system() == "Darwin" else "linux",
+                  "architecture": platform.machine(), "python": "3.10.20", "pyinstaller": "6.22.3",
+                  "sources": {p: PACKAGE_LOCAL.sha256_file(ROOT / p) for p in ("harnesses/agents-sdk/run.py", "harnesses/agents-sdk/requirements-build.txt")},
+                  "helper": {"path": PACKAGE_LOCAL.SDK_NAME, "sha256": PACKAGE_LOCAL.sha256_file(helper), "byteLength": helper.stat().st_size},
+                  "notices": {"path": PACKAGE_LOCAL.SDK_NOTICES, "sha256": hashlib.sha256(notices).hexdigest(), "byteLength": len(notices)},
+                  "selfTest": expected, "toolSelfTest": tools, "linuxLibraries": libraries if platform.system() == "Linux" else "not-applicable",
+                  "authority": "hermetic-test-fixture-not-release-evidence"}
+        if platform.system()=='Darwin':
+            record['payload']=macos_c_fixture_payload(directory,record['architecture'])
+            record['collectEvidenceAuthority']='synthetic-hermetic-C-fixture-not-PyInstaller'
+        if native_fields is not None:
+            record.update(native_fields)
+            record['dependencies'] = [{'name': 'fixture', 'version': '1.0.0', 'wheelSha256': ['e' * 64]}]
+        (directory / PACKAGE_LOCAL.SDK_RECEIPT).write_text(json.dumps(record))
+        return directory
+
     def install_npm(self, name: str, include_platform: bool) -> Path:
         npm = shutil.which("npm")
         self.assertIsNotNone(npm)
@@ -2816,10 +2882,12 @@ process.stdout.write(JSON.stringify({ spawned, stderr, exitCode: fakeProcess.exi
                 report = json.loads(result.stdout)
                 self.assertEqual(report["schema"], schema)
                 if schema == "openprose.configuration-explanation/1":
-                    self.assertEqual(report["values"]["harness"]["value"], "openprose")
+                    self.assertEqual(report["values"]["harness"]["value"], "agents-sdk")
+                    self.assertEqual(report["values"]["model"]["value"], "gpt-6.1-sol")
+                    self.assertEqual(report["values"]["authProfile"]["value"], "openai-api-key")
                     self.assertFalse(report["values"]["color"]["value"])
                 if schema == "openprose.doctor-report/1":
-                    self.assertEqual(report["selectedHarness"], "openprose")
+                    self.assertEqual(report["selectedHarness"], "agents-sdk")
                     self.assertEqual(report["image"]["version"], image["imageVersion"])
                     self.assertEqual(
                         report["image"]["sha256"], image["aggregateSha256"]["sha256"]
@@ -2853,9 +2921,10 @@ process.stdout.write(JSON.stringify({ spawned, stderr, exitCode: fakeProcess.exi
             self.root / "npm-config-env",
         )
         self.assertEqual(explained.returncode, 0, explained.stderr)
-        self.assertEqual(
-            json.loads(explained.stdout)["values"]["harness"]["value"], "openprose"
-        )
+        values = json.loads(explained.stdout)["values"]
+        self.assertEqual(values["harness"]["value"], "agents-sdk")
+        self.assertEqual(values["model"]["value"], "gpt-6.1-sol")
+        self.assertEqual(values["authProfile"]["value"], "openai-api-key")
         self.assertNotIn("must-not-load", explained.stdout.decode("utf-8"))
         account = run_artifact(
             executable,
@@ -4244,8 +4313,36 @@ process.stdout.write(JSON.stringify({ spawned, stderr, exitCode: fakeProcess.exi
                 for item in component["properties"]
             )
         ]
-        # The Rust kernel HTTPS loader adds 51 locked dependencies.
-        self.assertEqual(len(dependency_components), 127 + 14 + 13)
+        # Include every hash-locked platform wheel candidate for the packaged SDK.
+        sdk_packages = dependency["inventories"]["agentsSdkPython"]["packages"]
+        self.assertEqual(len(sdk_packages), 67)
+        sdk_components = [component for component in dependency_components
+                          if component["group"] == "agents-sdk-python"]
+        self.assertEqual(len(sdk_components), 67)
+        for package in sdk_packages:
+            self.assertEqual(package["scopes"], ["frozen-sdk-build"])
+            self.assertEqual(package["integrity"]["status"], "declared")
+            self.assertEqual(package["integrity"]["algorithm"], "sha256")
+            digest = package["integrity"]["digest"]
+            self.assertRegex(digest, r"^[0-9a-f]{64}$")
+            self.assertEqual(package["source"], "pypi:wheel-sha256:" + digest)
+        actual_sdk_identities = set()
+        for component in sdk_components:
+            properties = {item["name"]: item["value"] for item in component["properties"]}
+            self.assertEqual(component["type"], "library")
+            self.assertEqual(properties["openprose:component"], "agents-sdk-python")
+            self.assertEqual(properties["openprose:scopes"], "frozen-sdk-build")
+            self.assertEqual(properties["openprose:integrity-status"], "declared")
+            self.assertEqual(len(component["hashes"]), 1)
+            self.assertEqual(component["hashes"][0]["alg"], "SHA-256")
+            actual_sdk_identities.add((component["name"], component["version"],
+                                       properties["openprose:source"], component["hashes"][0]["content"]))
+        self.assertEqual(
+            actual_sdk_identities,
+            {(package["name"], package["version"], package["source"], package["integrity"]["digest"])
+             for package in sdk_packages},
+        )
+        self.assertEqual(len(dependency_components), 127 + 14 + 13 + 67)
         self.assertEqual(
             len({component["bom-ref"] for component in dependency_components}),
             len(dependency_components),
@@ -4392,6 +4489,8 @@ process.stdout.write(JSON.stringify({ spawned, stderr, exitCode: fakeProcess.exi
                 str(self.rust_binary),
                 "--bun-binary",
                 str(self.bun_binary),
+                "--agents-sdk-build",
+                str(self.root / "uninspected-sdk"),
                 "--image-manifest",
                 str(IMAGE_MANIFEST),
                 "--out",
@@ -4426,6 +4525,8 @@ process.stdout.write(JSON.stringify({ spawned, stderr, exitCode: fakeProcess.exi
                 str(self.rust_binary),
                 "--bun-binary",
                 str(self.bun_binary),
+                "--agents-sdk-build",
+                str(self.root / "uninspected-sdk"),
                 "--image-manifest",
                 str(eligible),
                 *readelf_args(),
@@ -4442,6 +4543,8 @@ process.stdout.write(JSON.stringify({ spawned, stderr, exitCode: fakeProcess.exi
         self.assertIn("--canonical-profile", missing.stderr)
         self.assertIn("--release-evidence", missing.stderr)
         self.assertFalse((self.root / "release-missing-gates").exists())
+        # These intended early refusals must precede inspection of SDK input bytes.
+        self.assertFalse((self.root / "uninspected-sdk").exists())
 
     @unittest.skipIf(
         platform.system() == "Windows", "executable fixture uses a POSIX shebang"
@@ -4694,6 +4797,8 @@ process.stdout.write(JSON.stringify({ spawned, stderr, exitCode: fakeProcess.exi
                         ),
                         "--image-manifest",
                         str(eligible),
+                        "--agents-sdk-build",
+                        str(self.root / "uninspected-sdk"),
                         "--canonical-profile",
                         str(canonical_profile),
                         "--release-evidence",
@@ -4744,6 +4849,7 @@ process.stdout.write(JSON.stringify({ spawned, stderr, exitCode: fakeProcess.exi
         release_evidence = self.root / "arbitrary-evidence.txt"
         canonical_profile.write_text("not authority\n", "utf-8")
         release_evidence.write_text("not validation\n", "utf-8")
+        sdk = self.write_sdk_candidate()
         output = self.root / "candidate-only-release"
         completed = subprocess.run(
             [
@@ -4761,6 +4867,8 @@ process.stdout.write(JSON.stringify({ spawned, stderr, exitCode: fakeProcess.exi
                 str(binaries["bun"]),
                 "--image-manifest",
                 str(eligible),
+                "--agents-sdk-build",
+                str(sdk),
                 "--canonical-profile",
                 str(canonical_profile),
                 "--release-evidence",
@@ -4789,6 +4897,176 @@ process.stdout.write(JSON.stringify({ spawned, stderr, exitCode: fakeProcess.exi
         )
         self.assertEqual(manifest["promotion"]["status"], "not-performed")
         self.assertFalse(manifest["externalGates"]["authorityValidatedByPackager"])
+
+
+
+class PackagedSdkArtifactTests(unittest.TestCase):
+    def test_release_requires_packaged_helper_before_other_work(self):
+        args = argparse.Namespace(mode='kernel-rc', version='0.15.0-rc.4', source_revision='fixture', source_date_epoch=0)
+        with self.assertRaisesRegex(PACKAGE_LOCAL.PackageError, '--agents-sdk-build'):
+            PACKAGE_LOCAL.build(args)
+
+    def test_sdk_build_receipt_rejects_changed_source_before_executing(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); sdk = root / 'sdk'; sdk.mkdir(); snapshots = root / 'snapshots'; snapshots.mkdir()
+            receipt = {'schema': 'openprose.agents-sdk-build/1', 'modelCalls': 0,
+                       'platform': 'darwin', 'architecture': 'arm64', 'python': '3.10.20', 'pyinstaller': '6.22.3',
+                       'sources': {'harnesses/agents-sdk/run.py': 'a' * 64}}
+            (sdk / PACKAGE_LOCAL.SDK_RECEIPT).write_text(json.dumps(receipt))
+            with mock.patch.object(PACKAGE_LOCAL, 'run_bounded') as execute:
+                with self.assertRaisesRegex(PACKAGE_LOCAL.PackageError, 'sources differ'):
+                    PACKAGE_LOCAL.snapshot_sdk(sdk, snapshots, 'darwin-arm64', 'kernel-rc', None)
+                execute.assert_not_called()
+
+    def test_sdk_payload_is_sibling_in_standalone_and_npm(self):
+        sdk_members = [('prose-agents-sdk', b'fixture-helper', 0o755),
+                       ('agents-sdk-build.json', b'{}', 0o644), ('AGENTS-SDK-NOTICES.txt', b'notices', 0o644)]
+        image, image_sha = PACKAGE_LOCAL.read_image_manifest(ECHO_IMAGE_MANIFEST)
+        identity = PACKAGE_LOCAL.image_identity(image, image_sha)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            archive = PACKAGE_LOCAL.standalone_archive(root, 'rust', b'fixture-cli', '0.1.0', 'darwin-arm64', 0,
+                                                      'not-applicable', 'development', b'example', sdk_members=sdk_members)
+            with tarfile.open(archive) as source:
+                names = source.getnames()
+                self.assertTrue(any(n.endswith('/prose-agents-sdk') for n in names))
+                self.assertTrue(all(n.split('/')[0] == names[0].split('/')[0] for n in names))
+            _, payload = PACKAGE_LOCAL.npm_packages(root, b'fixture-cli', '0.1.0', 'darwin-arm64', 0,
+                                                    'fixture', identity, 'not-applicable', 'development', b'example', sdk_members=sdk_members)
+            with tarfile.open(payload) as source:
+                for name, data, mode in sdk_members:
+                    member = source.getmember('package/bin/' + name)
+                    self.assertTrue(member.isfile())
+                    self.assertEqual(member.mode, mode)
+                    self.assertEqual(source.extractfile(member).read(), data)
+
+    def test_linux_source_and_runtime_rows_are_independently_checked(self):
+        from test_assemble_kernel_rc import sdk_fixture
+        for poison in ('source', 'runtime', None):
+            with self.subTest(poison=poison), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory); sdk = root / 'sdk'; sdk.mkdir(); snapshots = root / 'snapshots'; snapshots.mkdir()
+                identity, members = sdk_fixture('linux-x64-gnu')
+                receipt = json.loads(next(data for name, data, mode in members if name == PACKAGE_LOCAL.SDK_RECEIPT))
+                receipt['sources'] = {path: PACKAGE_LOCAL.sha256_file(ROOT / path) for path in receipt['sources']}
+                snapshot = receipt['linuxBuildSourceSnapshot']
+                snapshot['sources'] = {path: PACKAGE_LOCAL.sha256_file(ROOT / path) for path in snapshot['sources']}
+                snapshot['driverSha256'] = PACKAGE_LOCAL.sha256_file(ROOT / 'cli/ci/build_agents_sdk_linux.py')
+                snapshot['lockSha256'] = PACKAGE_LOCAL.sha256_file(ROOT / 'cli/ci/agents-sdk-linux-build.lock.json')
+                if poison == 'source': snapshot['sources']['cli/ci/build_agents_sdk.py'] = 'b' * 64
+                for name, data, mode in members:
+                    (sdk / name).write_bytes(json.dumps(receipt).encode() if name == PACKAGE_LOCAL.SDK_RECEIPT else data)
+                    (sdk / name).chmod(mode)
+                def execute(argv, **kwargs):
+                    value = receipt[{'--packaged-self-test': 'selfTest', '--packaged-tool-self-test': 'toolSelfTest',
+                                     '--packaged-library-test': 'linuxLibraries'}[argv[-1]]]
+                    value = json.loads(json.dumps(value))
+                    if poison == 'runtime' and argv[-1] == '--packaged-library-test': value['libraries'][0]['sha256'] = 'b' * 64
+                    return subprocess.CompletedProcess(argv, 0, json.dumps(value).encode(), b'')
+                with mock.patch.object(PACKAGE_LOCAL, 'run_bounded', side_effect=execute) as run:
+                    if poison:
+                        with self.assertRaises(PACKAGE_LOCAL.PackageError):
+                            PACKAGE_LOCAL.snapshot_sdk(sdk, snapshots, 'linux-x64-gnu', 'kernel-rc', None)
+                        if poison == 'source': run.assert_not_called()
+                    else:
+                        payload, record = PACKAGE_LOCAL.snapshot_sdk(sdk, snapshots, 'linux-x64-gnu', 'kernel-rc', None)
+                        self.assertEqual(len(payload), 3); self.assertEqual(len(record), 12)
+
+
+class MacOnedirPackagingTests(unittest.TestCase):
+    def snapshot_fixture(self,root):
+        import ast
+        import sdk_native_inventory as native
+        from test_kernel_rc_evidence import sdk_fixture
+        identity,table=sdk_fixture('darwin-x64')
+        receipt=json.loads(table['files'][PACKAGE_LOCAL.SDK_RECEIPT][0])
+        receipt['sources']={name:PACKAGE_LOCAL.sha256_file(ROOT/name) for name in receipt['sources']}
+        receipt['payload']['builderSources']={name:PACKAGE_LOCAL.sha256_file(ROOT/name) for name in receipt['payload']['builderSources']}
+        module=ast.parse((ROOT/'cli/ci/build_agents_sdk.py').read_text())
+        entry=next(ast.literal_eval(node.value) for node in module.body if isinstance(node,ast.Assign) and any(isinstance(t,ast.Name) and t.id=='ENTRY_SOURCE' for t in node.targets))
+        receipt['payload']['entrySourceSha256']=hashlib.sha256(entry.encode()).hexdigest()
+        collect=b'Synthetic package control COLLECT declaration; no freezer execution.'
+        receipt['payload']['collectTocSha256']=hashlib.sha256(collect).hexdigest()
+        sdk=root/'sdk';sdk.mkdir();snapshots=root/'snapshots';snapshots.mkdir()
+        (sdk/'sdk-entry.py').write_text(entry);(sdk/'collect.toc').write_bytes(collect)
+        scope={kind:{n:v for n,v in table[kind].items() if n not in (PACKAGE_LOCAL.SDK_RECEIPT,PACKAGE_LOCAL.SDK_NOTICES)} for kind in table}
+        native.materialize_macos_payload(sdk,receipt['payload'],**scope,architecture='x86_64')
+        (sdk/PACKAGE_LOCAL.SDK_RECEIPT).write_text(json.dumps(receipt));(sdk/PACKAGE_LOCAL.SDK_NOTICES).write_bytes(table['files'][PACKAGE_LOCAL.SDK_NOTICES][0])
+        def execute(argv,**kwargs):
+            value=receipt['selfTest' if argv[-1]=='--packaged-self-test' else 'toolSelfTest']
+            return subprocess.CompletedProcess(argv,0,json.dumps(value).encode(),b'')
+        return sdk,snapshots,receipt,execute
+
+    def test_snapshot_retains_complete_support_and_verifies_every_native_file(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary).resolve();sdk,snapshots,receipt,execute=self.snapshot_fixture(root)
+            with mock.patch.object(PACKAGE_LOCAL,'run_bounded',side_effect=execute) as run,mock.patch.object(PACKAGE_LOCAL,'verify_darwin_code_signature') as signatures:
+                table,identity=PACKAGE_LOCAL.snapshot_sdk(sdk,snapshots,'darwin-x64','kernel-rc',None)
+            self.assertEqual(len(identity),12)
+            self.assertEqual({str(call.args[0].relative_to(snapshots)) for call in signatures.call_args_list},set(receipt['payload']['codeSignaturePaths']))
+            self.assertEqual(len(run.call_args_list),2)
+            self.assertTrue((snapshots/'prose-agents-sdk-runtime/Python.framework/Versions/Current').is_symlink())
+            archive=root/'payload.tgz';members=[('root/prose',b'cli',0o755)]+[('root/'+n,d,m) for n,(d,m) in table['files'].items()]
+            PACKAGE_LOCAL.tar_gz(archive,members,0,sdk_table=table,sdk_prefix='root/')
+            import publication
+            decoded=publication.read_sdk_archive(archive,{'platform':'darwin-x64','agentsSdk':identity})
+            self.assertEqual(decoded['symlinks'],{'root/'+n:t for n,t in table['symlinks'].items()})
+
+    def test_changed_support_is_rejected_before_selftests_and_copy(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary).resolve();sdk,snapshots,receipt,execute=self.snapshot_fixture(root)
+            (sdk/'prose-agents-sdk-runtime/base_library.zip').write_bytes(b'poison')
+            with mock.patch.object(PACKAGE_LOCAL,'run_bounded') as run:
+                with self.assertRaisesRegex(PACKAGE_LOCAL.PackageError,'payload differs'):PACKAGE_LOCAL.snapshot_sdk(sdk,snapshots,'darwin-x64','kernel-rc',None)
+            run.assert_not_called();self.assertEqual(list(snapshots.iterdir()),[])
+
+    def test_poisoned_helper_and_notices_refuse_before_snapshot_writes(self):
+        for poison in ('helper','notices','entry','collect'):
+            with self.subTest(poison=poison),tempfile.TemporaryDirectory() as temporary:
+                root=Path(temporary).resolve();sdk,snapshots,receipt,execute=self.snapshot_fixture(root)
+                if poison in ('helper','notices'):receipt[poison]['sha256']='0'*64
+                else:(sdk/('sdk-entry.py' if poison=='entry' else 'collect.toc')).write_bytes(b'poison')
+                (sdk/PACKAGE_LOCAL.SDK_RECEIPT).write_text(json.dumps(receipt))
+                with mock.patch.object(PACKAGE_LOCAL,'run_bounded') as run:
+                    with self.assertRaisesRegex(PACKAGE_LOCAL.PackageError,{'helper':'helper differs','notices':'notices differ','entry':'entry sidecar','collect':'COLLECT sidecar'}[poison]):
+                        PACKAGE_LOCAL.snapshot_sdk(sdk,snapshots,'darwin-x64','kernel-rc',None)
+                run.assert_not_called();self.assertEqual(list(snapshots.iterdir()),[])
+
+    def test_native_C_fixture_payload_captures_supplied_bytes_and_truthful_sidecars(self):
+        import sdk_native_inventory as native
+        from test_sdk_native_inventory import macho_fixture
+        # Source-only factory control: header fixture is explicitly unexecuted;
+        # heavy LocalPackaging still supplies its real compiled/signed C helper.
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary).resolve();helper=root/PACKAGE_LOCAL.SDK_NAME
+            data=macho_fixture('x86_64',kind=2);helper.write_bytes(data);helper.chmod(0o755)
+            payload=macos_c_fixture_payload(root,'x86_64')
+            view=native.read_macos_payload(root,payload,'x86_64')
+            self.assertEqual(view['files'][PACKAGE_LOCAL.SDK_NAME],(data,0o755))
+            self.assertEqual(payload['collectTocSha256'],hashlib.sha256((root/'collect.toc').read_bytes()).hexdigest())
+            self.assertEqual(payload['entrySourceSha256'],hashlib.sha256((root/'sdk-entry.py').read_bytes()).hexdigest())
+            self.assertEqual(payload['builderSources'],{name:PACKAGE_LOCAL.sha256_file(ROOT/name) for name in payload['builderSources']})
+            self.assertIn(b'no PyInstaller SDK qualification',view['files']['prose-agents-sdk-runtime/hermetic-c-fixture.txt'][0])
+
+    def test_source_payload_change_during_selftests_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary).resolve();sdk,snapshots,receipt,execute=self.snapshot_fixture(root)
+            def changed(argv,**kwargs):
+                result=execute(argv,**kwargs)
+                (sdk/'prose-agents-sdk-runtime/base_library.zip').write_bytes(b'poison')
+                return result
+            with mock.patch.object(PACKAGE_LOCAL,'run_bounded',side_effect=changed),mock.patch.object(PACKAGE_LOCAL,'verify_darwin_code_signature'):
+                with self.assertRaisesRegex(PACKAGE_LOCAL.PackageError,'payload changed'):PACKAGE_LOCAL.snapshot_sdk(sdk,snapshots,'darwin-x64','kernel-rc',None)
+
+    def test_archive_regular_projection_cannot_replace_or_add_sdk_member(self):
+        from test_kernel_rc_evidence import sdk_fixture
+        identity,table=sdk_fixture('darwin-x64')
+        for poison in ('replace','extra'):
+            with self.subTest(poison=poison),tempfile.TemporaryDirectory() as temporary:
+                path=Path(temporary)/'sdk.tgz';members=[('root/'+n,d,m) for n,(d,m) in table['files'].items()]
+                if poison=='replace':members=[(n,b'poison' if n.endswith('/base_library.zip') else d,m) for n,d,m in members]
+                else:members.append(('root/prose-agents-sdk-runtime/unlisted',b'poison',0o644))
+                with self.assertRaisesRegex(PACKAGE_LOCAL.PackageError,'membership differs'):PACKAGE_LOCAL.tar_gz(path,members,0,sdk_table=table,sdk_prefix='root/')
+                self.assertFalse(path.exists())
 
 
 if __name__ == "__main__":

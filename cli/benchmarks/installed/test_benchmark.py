@@ -89,8 +89,14 @@ def write_tar(path: Path, members: list[tuple[str, bytes, int | str]]) -> None:
             if isinstance(mode_or_type, int):
                 info.mode = mode_or_type
                 archive.addfile(info, io.BytesIO(data))
+            elif isinstance(mode_or_type, tuple):
+                info.type = tarfile.DIRTYPE
+                info.mode = mode_or_type[1]
+                info.size = 0
+                archive.addfile(info)
             else:
                 info.type = tarfile.SYMTYPE
+                info.mode = 0o777
                 info.linkname = mode_or_type
                 info.size = 0
                 archive.addfile(info)
@@ -332,6 +338,7 @@ def refresh_evidence(output: Path) -> None:
         "bun": "bun-cli",
         "cargo": "rust-cli",
         "windowsProcessHostCargo": "windows-process-host",
+        "agentsSdkPython": "agents-sdk-python",
     }
     for inventory_name, inventory in dependency_value.get("inventories", {}).items():
         group = groups.get(inventory_name)
@@ -426,6 +433,30 @@ def refresh_evidence(output: Path) -> None:
         ),
         "utf-8",
     )
+    if isinstance(release.get('agentsSdk'), dict):
+        sdk = release['agentsSdk']
+        sbom_path = output / 'sbom.cdx.json'; sbom = json.loads(sbom_path.read_text())
+        sbom['components'].append({'type': 'file', 'name': 'prose-agents-sdk',
+                                   'hashes': [{'alg': 'SHA-256', 'content': sdk['sha256']}]})
+        import kernel_rc_evidence as custody
+        native_receipts = []
+        for artifact in release['artifacts']:
+            if artifact['kind'] == 'standalone-archive':
+                with tarfile.open(output / artifact['path']) as archive:
+                    native_receipts = [json.loads(archive.extractfile(m).read()) for m in archive.getmembers()
+                                       if m.name.endswith('/agents-sdk-build.json')]
+                break
+        if native_receipts:
+            sbom['components'].extend(custody.sdk_native_sbom_components(native_receipts[0]))
+        sbom_path.write_text(json.dumps(sbom))
+        provenance_path = output / 'provenance.json'; provenance = json.loads(provenance_path.read_text())
+        definition = provenance['predicate']['buildDefinition']
+        definition['externalParameters'] = {'agentsSdk': sdk}
+        definition['resolvedDependencies'] += [
+            {'uri': 'openprose:agents-sdk-helper', 'digest': {'sha256': sdk['sha256']}},
+            {'uri': 'openprose:agents-sdk-build-receipt', 'digest': {'sha256': sdk['receiptSha256']}},
+            {'uri': 'openprose:agents-sdk-python-lock', 'digest': {'sha256': sdk['dependencyLockSha256']}}]
+        provenance_path.write_text(json.dumps(provenance))
     paths = sorted(path for path in output.iterdir() if path.name != "SHA256SUMS")
     (output / "SHA256SUMS").write_text(
         "".join(f"{digest(path.read_bytes())}  {path.name}\n" for path in paths),
@@ -688,6 +719,47 @@ def make_release_package_output(root: Path, *, platform_value: str = PLATFORM) -
                 members[index] = (name, canonical(package), mode)
 
     rewrite_tar(platform_package, release_platform_manifest)
+    if platform_value.startswith('win32-'):
+        # Windows remains a static package/sidecar authority fixture; there is
+        # no supported packaged SDK target or native SDK execution claim.
+        manifest_path.write_text(json.dumps(manifest, sort_keys=True), 'utf-8')
+        refresh_evidence(output)
+        return output
+    import sys
+    ci_path = str(ROOT / 'cli/ci')
+    if ci_path not in sys.path:
+        sys.path.insert(0, ci_path)
+    from test_kernel_rc_evidence import sdk_fixture
+    sdk, sdk_table = sdk_fixture(platform_value)
+    if platform_value.startswith('darwin-'):
+        # npm's pinned pacote extractor intentionally drops Link entries.
+        # Its install fixture must describe the complete physical tree it ships;
+        # separate custody tests retain the alias graph and missing-alias poisons.
+        sdk_table['symlinks'] = {}
+        receipt = json.loads(sdk_table['files']['agents-sdk-build.json'][0])
+        receipt['payload']['entries'] = [row for row in receipt['payload']['entries']
+                                         if row['type'] != 'symlink']
+        encoded = json.dumps(receipt, sort_keys=True).encode()
+        sdk_table['files']['agents-sdk-build.json'] = (encoded, 0o644)
+        sdk['receiptSha256'] = digest(encoded)
+    sdk_members = [(n, d, m) for n, (d, m) in sdk_table["files"].items()]
+    sdk_members += [(n, b"", ("directory", m)) for n, m in sdk_table["directories"].items()]
+    sdk_members += [(n, b"", target) for n, target in sdk_table["symlinks"].items()]
+    manifest['agentsSdk'] = sdk
+    for artifact in manifest['artifacts']:
+        if artifact['kind'] in ('standalone-archive', 'npm-platform'):
+            def append_sdk(members):
+                cli_name = next(n for n, d, m in members if n.endswith('/prose') or n.endswith('/prose.exe'))
+                prefix = cli_name.rsplit('/', 1)[0] + '/'
+                members.extend((prefix + n, d, m) for n, d, m in sdk_members)
+            rewrite_tar(output / artifact['path'], append_sdk)
+    dependency_path = output / 'dependency-evidence.json'; dependency = json.loads(dependency_path.read_text())
+    dependency['sources'].append({'path': 'harnesses/agents-sdk/requirements-build.txt', 'byteLength': 1, 'sha256': sdk['dependencyLockSha256']})
+    dependency['inventories']['agentsSdkPython'] = {
+        'scopeBasis': 'hash-locked-four-platform-wheel-candidates',
+        'packages': [{'name': 'fixture', 'version': '1.0.0', 'source': 'pypi:wheel-sha256:' + 'e'*64,
+                      'scopes': ['frozen-sdk-build'], 'integrity': {'status': 'declared', 'algorithm': 'sha256', 'digest': 'e'*64}}]}
+    dependency_path.write_text(json.dumps(dependency))
     manifest_path.write_text(json.dumps(manifest, sort_keys=True), "utf-8")
     refresh_evidence(output)
     return output
@@ -753,11 +825,86 @@ def rewrite_tar(path: Path, mutate) -> None:
                 members.append((info.name, extracted.read(), info.mode))
             elif info.issym():
                 members.append((info.name, b"", info.linkname))
+            elif info.isdir():
+                members.append((info.name, b"", ("directory", info.mode)))
     mutate(members)
     write_tar(path, members)
 
 
+class PythonSdkDependencyValidationTests(unittest.TestCase):
+    @staticmethod
+    def generated_report():
+        script = ROOT / "cli/ci/dependency_evidence.py"
+        spec = importlib.util.spec_from_file_location("sdk_generated_dependency_evidence", script)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module.build_report(ROOT)
+
+    def test_original_generated_sdk_inventory_is_admitted_without_rewriting(self):
+        report = self.generated_report()
+        before = copy.deepcopy(report)
+        BENCHMARK.validate_dependency_evidence(report)
+        self.assertEqual(report, before)
+        # Exercise the lifecycle's separate source/hash/SBOM verifier, without a build.
+        script = ROOT / "cli/ci/package_local.py"
+        spec = importlib.util.spec_from_file_location("sdk_dependency_package_local", script)
+        packager = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(packager)
+        encoded, independently_verified = packager.dependency_evidence()
+        self.assertEqual(json.loads(encoded), report)
+        self.assertEqual(independently_verified, report)
+        BENCHMARK.validate_dependency_evidence(independently_verified)
+        inventory = report["inventories"]["agentsSdkPython"]
+        self.assertEqual(set(inventory), {"scopeBasis", "packages"})
+        versions = {package["version"] for package in inventory["packages"]}
+        self.assertTrue({"3.20", "26.3", "3.0", "2026.8"}.issubset(versions))
+
+    def test_python_evidence_remains_closed_and_hash_bound(self):
+        report = self.generated_report()
+        for poison in ("lock-version", "scope-basis", "version", "source", "digest", "scopes", "integrity", "order", "duplicate"):
+            with self.subTest(poison=poison):
+                value = copy.deepcopy(report)
+                inventory = value["inventories"]["agentsSdkPython"]
+                package = inventory["packages"][0]
+                if poison == "lock-version":
+                    inventory["lockfileVersion"] = 1
+                elif poison == "scope-basis":
+                    inventory["scopeBasis"] = "unverified"
+                elif poison == "version":
+                    package["version"] = "3..20"
+                elif poison == "source":
+                    package["source"] = "pypi:wheel-sha256:" + "0" * 64
+                elif poison == "digest":
+                    package["integrity"]["digest"] = "0" * 63
+                elif poison == "scopes":
+                    package["scopes"] = ["runtime"]
+                elif poison == "integrity":
+                    package["integrity"] = {"status": "not-applicable", "reason": "missing"}
+                elif poison == "order":
+                    inventory["packages"].reverse()
+                else:
+                    inventory["packages"].append(copy.deepcopy(package))
+                with self.assertRaises(BENCHMARK.BenchmarkError):
+                    BENCHMARK.validate_dependency_evidence(value)
+
+    def test_python_versions_do_not_weaken_cargo_or_bun_semver(self):
+        for inventory_name in ("bun", "cargo", "windowsProcessHostCargo"):
+            with self.subTest(inventory=inventory_name):
+                value = dependency_fixture()
+                value["inventories"][inventory_name]["packages"][0]["version"] = "3.20"
+                with self.assertRaises(BENCHMARK.BenchmarkError):
+                    BENCHMARK.validate_dependency_evidence(value)
+
+
 class InstalledPackageBenchmarkTests(unittest.TestCase):
+    def test_release_cannot_omit_sdk_identity_after_rehashing(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            output = make_release_package_output(Path(temporary))
+            path = output / 'release-manifest.json'; manifest = json.loads(path.read_text())
+            manifest.pop('agentsSdk'); path.write_text(json.dumps(manifest)); refresh_evidence(output)
+            with self.assertRaisesRegex(BENCHMARK.BenchmarkError, 'SDK identity'):
+                BENCHMARK.verify_package_output(output, purpose='release-invariants')
+
     def test_package_verification_purpose_separates_mock_and_release_invariants(
         self,
     ) -> None:
@@ -1904,6 +2051,190 @@ class InstalledPackageBenchmarkTests(unittest.TestCase):
                 BENCHMARK.verify_package_output(packages, expected_platform=PLATFORM)
             self.assertEqual(rejected.exception.code, "IDENTITY_DIVERGENCE")
 
+
+class NativeSdkSbomCustodyTests(unittest.TestCase):
+    def test_artifact_native_sbom_poison_is_rejected_after_rehash(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = make_release_package_output(Path(directory), platform_value='linux-x64-gnu')
+            BENCHMARK.verify_package_output(output, expected_platform='linux-x64-gnu', purpose='release-invariants')
+            sbom_path = output / 'sbom.cdx.json'
+            original = json.loads(sbom_path.read_text())
+            native = [row for row in original['components'] if any(p.get('value') == 'packaged-sdk-native-file'
+                      for p in row.get('properties', []))]
+            self.assertEqual(len(native), 1)
+            for kind in ('omission', 'duplicate', 'license'):
+                sbom = copy.deepcopy(original)
+                if kind == 'omission': sbom['components'].remove(native[0])
+                elif kind == 'duplicate': sbom['components'].append(native[0])
+                else:
+                    origin = next(row for row in sbom['components'] if any(p.get('value') == 'packaged-sdk-native-origin'
+                                  for p in row.get('properties', [])))
+                    origin['properties'][-1]['value'] = '{}'
+                sbom_path.write_text(json.dumps(sbom))
+                # Rehash the altered artifact without regenerating its poisoned SBOM.
+                paths = sorted(path for path in output.iterdir() if path.name != 'SHA256SUMS')
+                (output / 'SHA256SUMS').write_text(
+                    ''.join(f'{digest(path.read_bytes())}  {path.name}\n' for path in paths), 'utf-8')
+                with self.subTest(kind=kind), self.assertRaises(BENCHMARK.BenchmarkError) as rejected:
+                    BENCHMARK.verify_package_output(output, expected_platform='linux-x64-gnu', purpose='release-invariants')
+                self.assertEqual(rejected.exception.code, 'IDENTITY_DIVERGENCE')
+                self.assertEqual(rejected.exception.message, 'Native SDK SBOM differs from bound receipt')
+
+
+
+class WindowsStaticSdkBoundaryTests(unittest.TestCase):
+    def test_windows_release_preserves_static_sidecar_checks_without_sdk(self):
+        with tempfile.TemporaryDirectory() as raw:
+            packages = make_release_package_output(Path(raw), platform_value='win32-x64')
+            with mock.patch.object(BENCHMARK, 'sdk_modules', side_effect=AssertionError('No POSIX SDK decoder')):
+                context = BENCHMARK.verify_package_output(packages, expected_platform='win32-x64', purpose='release-invariants')
+                payloads = BENCHMARK.validate_package_payloads(context)
+            self.assertNotIn('agentsSdk', context['release'])
+            self.assertNotIn('agentsSdkPython', json.loads(context['encoded']['dependency-evidence.json'])['inventories'])
+            self.assertIn('windowsProcessHost', context['release'])
+            self.assertTrue(payloads)
+
+    def test_rehashed_windows_sdk_identity_is_rejected_before_posix_decoder(self):
+        with tempfile.TemporaryDirectory() as raw:
+            packages = make_release_package_output(Path(raw), platform_value='win32-x64')
+            path = packages / 'release-manifest.json'
+            release = json.loads(path.read_bytes()); release['agentsSdk'] = {'unsupported': True}
+            path.write_bytes(canonical(release))
+            sums = ''.join(f'{digest(p.read_bytes())}  {p.name}\n' for p in sorted(packages.iterdir()) if p.name != 'SHA256SUMS')
+            (packages / 'SHA256SUMS').write_text(sums)
+            with mock.patch.object(BENCHMARK, 'sdk_modules', side_effect=AssertionError('No POSIX SDK decoder')):
+                with self.assertRaises(BENCHMARK.BenchmarkError) as rejected:
+                    BENCHMARK.verify_package_output(packages, expected_platform='win32-x64', purpose='release-invariants')
+            self.assertEqual(rejected.exception.code, 'PLATFORM_UNSUPPORTED')
+            self.assertEqual(rejected.exception.message, 'Windows static admission cannot contain an SDK identity')
+            with self.assertRaises(BENCHMARK.BenchmarkError) as decoded:
+                BENCHMARK.decode_archive_members(b'not executed', 'Windows SDK poison', manifest=release)
+            self.assertEqual(decoded.exception.code, 'PLATFORM_UNSUPPORTED')
+
+
+class CompleteSdkInstalledTreeTests(unittest.TestCase):
+    def fixture(self, root):
+        BENCHMARK.sdk_modules()
+        from test_kernel_rc_evidence import sdk_fixture
+        from test_sdk_native_inventory import onedir_fixture
+        _, _, inventory = BENCHMARK.sdk_modules()
+        sdk, table = sdk_fixture('darwin-x64')
+        view = onedir_fixture()
+        sibling = root / 'installed'; sibling.mkdir()
+        inventory.materialize_macos_payload(sibling, view['payload'], view['files'], view['directories'], view['symlinks'], view['architecture'])
+        for name in ('agents-sdk-build.json', 'AGENTS-SDK-NOTICES.txt'):
+            data, mode = table['files'][name]
+            (sibling / name).write_bytes(data); (sibling / name).chmod(mode)
+        encoded = table['files']['agents-sdk-build.json'][0].decode()
+        context = {'receiptSha256': sdk['receiptSha256'], 'prefix': 'installed', 'encoded': encoded}
+        return sibling, context, {sdk['receiptSha256']: encoded}
+
+    def test_complete_alias_tree_capture_and_retained_reauthentication(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw).resolve(); sibling, context, evidence = self.fixture(root)
+            identity = BENCHMARK.capture_installed_tree(root, sdk_context=context)
+            aliases = [row for row in identity['entries'] if row['type'] == 'sdk-directory-symlink']
+            self.assertEqual(len(aliases), 1)
+            BENCHMARK.validate_installed_tree_identity(identity, 'SDK fixture', evidence)
+            self.assertEqual(BENCHMARK.verify_installed_tree(root, identity, sdk_evidence=evidence), identity['digestSha256'])
+            (sibling / 'prose-agents-sdk-runtime/base_library.zip').write_bytes(b'mutation')
+            with self.assertRaises(ValueError):
+                BENCHMARK.verify_installed_tree(root, identity, sdk_evidence=evidence)
+
+    def test_generic_directory_alias_stays_forbidden(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw).resolve(); target = root / 'directory'; target.mkdir(); link = root / 'link'; link.symlink_to(target)
+            with self.assertRaises(BENCHMARK.BenchmarkError):
+                BENCHMARK.capture_installed_tree(root, {link: target})
+
+    def test_missing_physical_sdk_alias_is_not_repaired_or_ignored(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw).resolve(); sibling, context, _ = self.fixture(root)
+            alias = sibling / 'prose-agents-sdk-runtime/Python.framework/Python'
+            alias.unlink()
+            with self.assertRaisesRegex(ValueError, 'complete typed member inventory differs'):
+                BENCHMARK.capture_installed_tree(root, sdk_context=context)
+
+    def test_npm_release_fixture_has_a_complete_alias_free_mac_payload(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw).resolve()
+            packages = make_release_package_output(root, platform_value='darwin-x64')
+            context = BENCHMARK.verify_package_output(packages, expected_platform='darwin-x64', purpose='release-invariants')
+            artifact = next(row for row in context['release']['artifacts'] if row['kind'] == 'npm-platform')
+            members = BENCHMARK.decode_archive_members(context['encoded'][artifact['path']], artifact['path'], manifest=context['release'])
+            self.assertEqual(members.table['symlinks'], {})
+            sibling = root / 'installed'; sibling.mkdir()
+            _, custody, _ = BENCHMARK.sdk_modules()
+            custody.materialize_sdk_members(context['release'], members.table, sibling)
+            installed_context = BENCHMARK.sdk_tree_context(members, 'installed')
+            identity = BENCHMARK.capture_installed_tree(root, sdk_context=installed_context)
+            self.assertNotIn('sdk-directory-symlink', [row['type'] for row in identity['entries']])
+
+    def test_payload_poison_with_rehashed_report_identity_is_refused(self):
+        import copy
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw).resolve(); _, context, evidence = self.fixture(root)
+            valid = BENCHMARK.capture_installed_tree(root, sdk_context=context)
+            for poison in ('missing-reference', 'wrong-evidence', 'directory-hash', 'extra-support', 'link-text', 'helper-length', 'helper-mode', 'receipt-length', 'notices-length', 'notices-mode'):
+                changed = copy.deepcopy(valid)
+                if poison == 'missing-reference': changed.pop('sdkEvidenceRef')
+                elif poison == 'wrong-evidence': changed['sdkEvidenceRef']['receiptSha256'] = '0' * 64
+                elif poison == 'directory-hash':
+                    next(row for row in changed['entries'] if row['type'] == 'sdk-directory-symlink')['resolvedDirectorySha256'] = '0' * 64
+                elif poison == 'extra-support':
+                    changed['entries'].append({'path': 'installed/prose-agents-sdk-runtime/foreign', 'type': 'directory', 'mode': 0o755})
+                    changed['entries'].sort(key=lambda r: r['path']); changed['entryCount'] += 1; changed['directoryCount'] += 1
+                elif poison in ('helper-length', 'helper-mode', 'receipt-length', 'notices-length', 'notices-mode'):
+                    name = 'prose-agents-sdk' if poison.startswith('helper') else ('agents-sdk-build.json' if poison.startswith('receipt') else 'AGENTS-SDK-NOTICES.txt')
+                    row = next(row for row in changed['entries'] if row['path'] == 'installed/' + name)
+                    if poison.endswith('length'): row['byteLength'] += 1; changed['byteCount'] += 1
+                    else: row['mode'] = 0o644 if name == 'prose-agents-sdk' else 0o755
+                else:
+                    row = next(row for row in changed['entries'] if row['type'] == 'sdk-directory-symlink')
+                    row['linkTarget'] = '../escape'; row['linkTextSha256'] = BENCHMARK.sha256_bytes(b'../escape')
+                changed['digestSha256'] = BENCHMARK.sha256_bytes(BENCHMARK.canonical_json({'schema': BENCHMARK.INSTALLED_TREE_SCHEMA, 'entries': changed['entries']}))
+                with self.subTest(poison=poison), self.assertRaises(BENCHMARK.BenchmarkError):
+                    BENCHMARK.validate_installed_tree_identity(changed, 'SDK fixture', evidence)
+
+    def test_linux_onefile_trio_stays_closed_without_mac_support_reference(self):
+        import copy
+        BENCHMARK.sdk_modules()
+        from test_kernel_rc_evidence import sdk_fixture
+        platform = 'linux-x64-gnu'; version = '0.15.0-rc.4'
+        name = 'openprose-prose-cli-rust-' + version + '-' + platform
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw).resolve(); sibling = root / name; sibling.mkdir()
+            (sibling / 'examples').mkdir()
+            for path in ('LICENSE', 'README.txt', 'examples/hello.prose.md', 'prose'):
+                (sibling / path).write_bytes(b'fixture'); (sibling / path).chmod(0o755 if path == 'prose' else 0o644)
+            _, table = sdk_fixture(platform)
+            for path, (data, mode) in table['files'].items():
+                (sibling / path).write_bytes(data); (sibling / path).chmod(mode)
+            identity = BENCHMARK.capture_installed_tree(root)
+            surfaces = {'direct-rust': {'binarySha256': BENCHMARK.sha256_bytes(b'fixture')}}
+            BENCHMARK.validate_installation_tree_relationships('direct-rust', identity, version, platform, surfaces, {})
+            self.assertNotIn('sdkEvidenceRef', identity)
+            for poison in ('partial', 'mode', 'alias', 'support'):
+                changed = copy.deepcopy(identity)
+                if poison == 'partial': changed['entries'] = [r for r in changed['entries'] if not r['path'].endswith('/agents-sdk-build.json')]
+                elif poison == 'mode': next(r for r in changed['entries'] if r['path'].endswith('/prose-agents-sdk'))['mode'] = 0o644
+                elif poison == 'alias': next(r for r in changed['entries'] if r['path'].endswith('/prose-agents-sdk'))['type'] = 'symlink'
+                else: changed['entries'].append({'path': name + '/prose-agents-sdk-runtime', 'type': 'directory', 'mode': 0o755})
+                with self.subTest(poison=poison), self.assertRaises(BENCHMARK.BenchmarkError):
+                    BENCHMARK.validate_installation_tree_relationships('direct-rust', changed, version, platform, surfaces, {})
+
+    def test_synthetic_report_dictionary_avoids_receipt_duplication(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw).resolve(); _, context, evidence = self.fixture(root)
+            identity = BENCHMARK.capture_installed_tree(root, sdk_context=context)
+            report = {'sdkEvidence': evidence, 'trees': [identity, identity, identity]}
+            encoded = BENCHMARK.render_json(report)
+            self.assertLess(len(encoded), BENCHMARK.MAX_EVIDENCE_BYTES)
+            with self.assertRaisesRegex(BENCHMARK.BenchmarkError, 'architecture differs'):
+                BENCHMARK.sdk_report_receipt(context, 'darwin-arm64')
+            self.assertEqual(len(evidence), 1)
+            self.assertEqual(len([t for t in report['trees'] if t['sdkEvidenceRef']['receiptSha256'] in evidence]), 3)
+            self.synthetic_size = len(encoded)
 
 if __name__ == "__main__":
     unittest.main()

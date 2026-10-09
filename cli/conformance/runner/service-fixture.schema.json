@@ -395,11 +395,17 @@
               "OPENPROSE_API_KEY",
               "OPENPROSE_API_URL",
               "PROSE_OUTPUT",
-              "PROSE_DEBUG"
+              "PROSE_DEBUG",
+              "PROSE_HARNESS"
             ]
           },
           "additionalProperties": {
             "type": "string"
+          },
+          "properties": {
+            "PROSE_HARNESS": {
+              "const": "openprose"
+            }
           }
         },
         "files": {

@@ -12,6 +12,7 @@ import tempfile
 import time
 import zipfile
 import tarfile
+import unicodedata
 from package_local import npm_payload_version
 
 REPOSITORY = 'openprose/prose-cli'
@@ -34,8 +35,8 @@ def object_pairs(pairs):
     return result
 
 
-def read_json(path):
-    require(path.is_file() and not path.is_symlink() and path.stat().st_size < 1024 * 1024, 'Invalid JSON file')
+def read_json(path, *, max_bytes=1024*1024):
+    require(path.is_file() and not path.is_symlink() and path.stat().st_size <= max_bytes, 'Invalid JSON file')
     return json.loads(path.read_text(), object_pairs_hook=object_pairs)
 
 
@@ -107,6 +108,83 @@ def archive_members(path):
     return result
 
 
+def decode_sdk_archive(encoded,manifest,*,label='SDK archive',historical=None):
+    """Known SDK context only: retain all typed metadata and validate before extraction."""
+    import io,zlib
+    from kernel_rc_evidence import validate_sdk_archive_table
+    require(isinstance(encoded,bytes) and 0<len(encoded)<=MAX_BYTES,'SDK archive exceeds byte budget')
+    require(isinstance(manifest,dict) and isinstance(manifest.get('agentsSdk'),dict)
+            and manifest.get('platform') in PLATFORMS,'Explicit recognized SDK identity/archive context required')
+    if historical is not None:
+        require(isinstance(historical,dict) and historical.get('archiveSha256')==hashlib.sha256(encoded).hexdigest(),
+                'Historical archive identity differs')
+    decoder=zlib.decompressobj(16+zlib.MAX_WBITS)
+    decoded=decoder.decompress(encoded,MAX_BYTES+1)
+    require(len(decoded)<=MAX_BYTES and decoder.eof and not decoder.unconsumed_tail and not decoder.unused_data,'SDK gzip expansion/trailing bytes differ')
+    offset=0;terminator=None
+    while offset+512<=len(decoded):
+        header=decoded[offset:offset+512]
+        if header==bytes(512):
+            require(offset+1024<=len(decoded) and decoded[offset+512:offset+1024]==bytes(512),'SDK tar terminator differs')
+            terminator=offset+1024;break
+        try:size=int(header[124:136].rstrip(b'\x00 ') or b'0',8)
+        except ValueError:raise ValueError('SDK tar size field differs')
+        require(0<=size<=256*1024**2,'SDK raw tar size exceeds member bound')
+        next_offset=offset+512+((size+511)//512)*512
+        require(offset<next_offset<=len(decoded),'SDK raw tar offset exceeds archive bound')
+        offset=next_offset
+    require(terminator is not None and not any(decoded[terminator:]),'SDK tar trailing bytes differ')
+    table={'files':{},'directories':{},'symlinks':{}};seen=set();total=0
+    with tarfile.open(fileobj=io.BytesIO(decoded),mode='r:') as archive:
+        for index,member in enumerate(archive):
+            require(index<8192+128,'SDK archive entry envelope exceeded')
+            name=member.name;parts=Path(name).parts
+            require(name and not name.startswith('/') and name=='/'.join(parts)
+                    and '..' not in parts and '\\' not in name and ':' not in name
+                    and len(name.encode())<=4096 and all(unicodedata.category(c) not in ('Cc','Cf','Cs') for c in name),'Unsafe SDK archive path')
+            portable=unicodedata.normalize('NFC',unicodedata.normalize('NFC',name).casefold())
+            require(portable not in seen,'Duplicate portable SDK archive member');seen.add(portable)
+            require(type(member.mode) is int and member.mode&~0o777==0,'SDK archive special permissions forbidden')
+            require(type(member.size) is int and 0<=member.size<=256*1024**2,'SDK archive member exceeds byte budget')
+            if member.isfile():
+                total+=member.size;require(total<=MAX_BYTES,'SDK archive expanded byte budget exceeded')
+                f=archive.extractfile(member);data=f.read(member.size+1)
+                require(len(data)==member.size,'SDK archive member length differs')
+                table['files'][name]=(data,member.mode)
+            elif member.isdir():
+                require(member.size==0,'SDK directory has opaque payload');table['directories'][name]=member.mode
+            elif member.issym():
+                require(member.size==0 and member.mode==0o777,'SDK link metadata differs');table['symlinks'][name]=member.linkname
+            else:raise ValueError('SDK archive hardlink or special member forbidden')
+    portable=lambda name:unicodedata.normalize('NFC',unicodedata.normalize('NFC',name).casefold())
+    nondirectories={portable(p) for p in table['files']}|{portable(p) for p in table['symlinks']}
+    for name in seen:
+        parents=Path(name).parents
+        require(not any(portable(str(parent)) in nondirectories for parent in parents),'SDK archive physical member beneath non-directory')
+    validate_sdk_archive_table(manifest,table,historical=historical)
+    from kernel_rc_evidence import sdk_archive_prefix
+    prefix=sdk_archive_prefix(table);root=prefix+'prose-agents-sdk-runtime'
+    scope=lambda name:name==root or name.startswith(root+'/')
+    names=set(table['files'])|set(table['directories'])|set(table['symlinks'])
+    require(sum(scope(name) for name in names)<=8192 and sum(not scope(name) for name in names)<=128,
+            'SDK-only allowance cannot enlarge generic member budget')
+    return table
+
+
+def read_sdk_archive(path,manifest,*,historical=None):
+    path=Path(path)
+    require(path.is_file() and not path.is_symlink() and 0<path.stat().st_size<=MAX_BYTES,'Regular bounded SDK archive required')
+    before=path.stat()
+    descriptor=os.open(path,os.O_RDONLY|os.O_NOFOLLOW)
+    with os.fdopen(descriptor,'rb') as source:
+        opened=os.fstat(source.fileno())
+        require((opened.st_dev,opened.st_ino)==(before.st_dev,before.st_ino),'SDK archive identity changed before read')
+        encoded=source.read(MAX_BYTES+1)
+    after=path.stat()
+    require(not path.is_symlink() and len(encoded)==before.st_size and (after.st_dev,after.st_ino,after.st_size,after.st_mtime_ns,after.st_ctime_ns)==(before.st_dev,before.st_ino,before.st_size,before.st_mtime_ns,before.st_ctime_ns),'SDK archive changed during read')
+    return decode_sdk_archive(encoded,manifest,label=path.name,historical=historical)
+
+
 def verify_local(plan, root):
     for item in plan['artifacts']:
         p = root / item['name']
@@ -144,9 +222,29 @@ def verify_local(plan, root):
     for item in plan['artifacts']:
         if item['kind'] not in ('npm', 'standalone'):
             continue
-        members = archive_members(root / item['name'])
+        members = None
+        table = None
+        if item['kind'] in ('standalone', 'npm') and item['platform'] != 'all':
+            platform = item['platform']
+            manifest_name = platform + '-release-manifest.json'
+            require(any(a['name'] == manifest_name and a['kind'] == 'evidence' for a in plan['artifacts']), 'Production SDK manifest is not retained')
+            manifest = read_json(root / manifest_name)
+            require(manifest.get('mode') in ('release', 'kernel-rc') and manifest.get('platform') == platform
+                    and manifest.get('version') == plan['version']
+                    and manifest.get('source') == {'revision': plan['source'], 'verification': 'matched-product-doctor'},
+                    'Production SDK source identity differs')
+            table = read_sdk_archive(root / item['name'], manifest)
+            from kernel_rc_evidence import validate_sdk_archive_table
+            sdk = validate_sdk_archive_table(manifest, table)
+            members = {name: value[0] for name, value in table['files'].items()}
+            old = binary_hashes.get(('agents-sdk', platform))
+            require(old is None or old == sdk['sha256'], 'SDK helper differs between installation routes')
+            binary_hashes[('agents-sdk', platform)] = sdk['sha256']
+        if members is None:
+            members = archive_members(root / item['name'])
         if item['kind'] == 'standalone':
-            binaries = [b for n, b in members.items() if n.endswith('/prose')]
+            from kernel_rc_evidence import sdk_archive_prefix
+            binaries = [members[sdk_archive_prefix(table)+'prose']]
             require(len(binaries) == 1, 'Expected one standalone binary')
             binary_hashes[(item['implementation'], item['platform'])] = hashlib.sha256(binaries[0]).hexdigest()
             continue
@@ -233,21 +331,42 @@ def fetch(plan, root):
 def verify_macos(plan, root, key, key_id, issuer):
     _, binaries = verify_local(plan, root)
     for platform, ref in plan['macos'].items():
-        receipt = read_json(root / ref['receipt'])
+        receipt = read_json(root / ref['receipt'],max_bytes=2*1024*1024)
         require(receipt.get('schema') == 'openprose.macos-signing/1' and receipt.get('teamId') == ref['teamId'], 'Wrong signing identity')
         require(receipt.get('notarization', {}).get('sha256') == digest(root / ref['zip']), 'Wrong notarization ZIP')
-        for implementation in ('bun', 'rust'):
+        require(set(receipt.get('binaries', {})) == {'bun', 'rust', 'agents-sdk'}, 'Signing receipt lacks production SDK helper')
+        for implementation in ('bun', 'rust', 'agents-sdk'):
             require(receipt.get('binaries', {}).get(implementation, {}).get('signedSha256') == binaries[(implementation, platform)], 'Signed binary differs from packaged binary')
+        manifest = read_json(root / (platform + '-release-manifest.json'))
+        sdk_archive = next(a for a in plan['artifacts'] if a['platform'] == platform and a['kind'] == 'standalone')
+        table = read_sdk_archive(root / sdk_archive['name'],manifest)
+        members = {name:value[0] for name,value in table['files'].items()}
+        from kernel_rc_evidence import sdk_archive_prefix
+        sdk_receipts = [members[sdk_archive_prefix(table)+'agents-sdk-build.json']]
+        require(len(sdk_receipts) == 1, 'Missing signed SDK build receipt')
+        sdk_build = json.loads(sdk_receipts[0], object_pairs_hook=object_pairs)
+        require(sdk_build.get('signing') == 'developer-id-notarized'
+                and sdk_build.get('signingReceiptSha256') == digest(root / ref['receipt'])
+                and sdk_build.get('embeddedSigning') == {'identity': receipt['identity'], 'verification': 'pyinstaller-inner-binaries-and-frozen-self-tests'}
+                and sdk_build.get('unsignedHelper', {}).get('sha256') == receipt['binaries']['agents-sdk']['inputSha256']
+                and sdk_build.get('helper', {}).get('sha256') == binaries[('agents-sdk', platform)],
+                'SDK signing stages do not bind notarized helper')
+        require(receipt.get('agentsSdkPayload')==sdk_build.get('payload') and receipt.get('agentsSdkArchitecture')==sdk_build.get('architecture'), 'SDK notarization payload differs from packaged tree')
         with tempfile.TemporaryDirectory(prefix='prose-signature-check-') as temporary:
-            directory = Path(temporary)
+            directory = Path(temporary).resolve()
             (directory / 'receipt.json').write_bytes((root / ref['receipt']).read_bytes())
             (directory / 'notarization.zip').write_bytes((root / ref['zip']).read_bytes())
-            with zipfile.ZipFile(directory / 'notarization.zip') as archive:
-                require(set(archive.namelist()) == {'prose-bun', 'prose-rust'} and len(archive.infolist()) == 2, 'Unexpected notarization archive')
-                for name in ('prose-bun', 'prose-rust'):
-                    require(0 < archive.getinfo(name).file_size <= MAX_BYTES, 'Oversized signed executable')
-                    (directory / name).write_bytes(archive.read(name))
-                    (directory / name).chmod(0o755)
+            from sign_macos import notarization_table
+            signed_table=notarization_table(directory/'notarization.zip',receipt)
+            import sdk_native_inventory as native
+            scope={kind:{name:value for name,value in signed_table[kind].items() if name not in ('prose-bun','prose-rust')} for kind in signed_table}
+            native.materialize_macos_payload(directory,receipt['agentsSdkPayload'],**scope,architecture=receipt['agentsSdkArchitecture'])
+            from kernel_rc_evidence import sdk_scoped_table,sdk_archive_prefix
+            require(scope==sdk_scoped_table(table,sdk_archive_prefix(table)), 'Notarized SDK tree differs from packaged bytes')
+            for name in ('prose-bun','prose-rust'):
+                data,mode=signed_table['files'][name]
+                with (directory/name).open('xb') as target:target.write(data)
+                (directory/name).chmod(mode)
             run(['python3', str(Path(__file__).with_name('sign_macos.py')), '--verify-existing', str(directory), '--team-id', ref['teamId'], '--identity', receipt['identity'], '--notary-key', str(key), '--notary-key-id', key_id, '--notary-issuer', issuer])
 
 

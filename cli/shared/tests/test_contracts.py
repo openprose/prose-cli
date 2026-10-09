@@ -95,6 +95,62 @@ class ContractsTest(unittest.TestCase):
                 self.assertIn(route, admissions[harness]["credentialGroups"])
         self.assertEqual(fixture["failurePolicy"], "no-echo-or-provider-fallback")
 
+    def test_kernel_retrieval_failure_oracle_and_closed_diagnostics(self):
+        fixture = load_json(FIXTURES / "kernel-startup/release.json")
+        policy = load_json(SHARED / "image/kernel-startup/policy.json")
+        contract = load_json(FIXTURES / "adapters/kernel-startup.json")["retrievalError"]
+        self.assertEqual(contract["automaticRetries"], 0)
+        self.assertFalse(contract["requestPolicy"]["fallback"])
+        for key in ("timeoutMs", "maxMetadataBytes", "maxKernelBytes"):
+            self.assertEqual(contract["requestPolicy"][key], policy[key])
+        cases = fixture["retrievalFailures"]
+        self.assertEqual(len(cases), 57)
+        self.assertEqual(len({case["id"] for case in cases}), 57)
+        self.assertEqual({case["stage"] for case in cases}, {"entry", "descriptor", "inventory", "kernel"})
+        urls = list(fixture["responses"])
+        validator = self.validator("runner-error.schema.json")
+        for case in cases:
+            error = case["error"]
+            self.assert_valid("runner-error.schema.json", error)
+            self.assertEqual(case["expectedCalls"], urls[:contract["stages"].index(case["stage"]) + 1])
+            self.assertEqual(error["details"]["stage"], case["stage"])
+            self.assertEqual(error["retryable"], case["trigger"] != "http" or case["httpStatus"] in contract["retryableHttpStatuses"])
+            for key, bad in (("stage", "provider"), ("failureKind", "integrity"), ("origin", "https://evil.invalid"), ("reason", "secret-provider-body")):
+                poisoned = deepcopy(error)
+                poisoned["details"][key] = bad
+                self.assertTrue(list(validator.iter_errors(poisoned)), (case["id"], key))
+            poisoned = deepcopy(error)
+            poisoned["details"]["rawCause"] = "secret"
+            self.assertTrue(list(validator.iter_errors(poisoned)))
+            poisoned = deepcopy(error)
+            poisoned["retryable"] = not error["retryable"]
+            self.assertTrue(list(validator.iter_errors(poisoned)))
+        http = deepcopy(next(case["error"] for case in cases if case["trigger"] == "http"))
+        for bad in (None, True, "404", 404.5, 99, 600):
+            http["details"]["httpStatus"] = bad
+            self.assertTrue(list(validator.iter_errors(http)))
+        for stage in contract["stages"]:
+            for status in (200, 100, 204, 302, 399, 400, 599):
+                sample = deepcopy(next(case["error"] for case in cases if case.get("httpStatus") == 404))
+                sample["details"].update(stage=stage, httpStatus=status)
+                valid = status != 200 and (stage != "entry" or status >= 400)
+                self.assertEqual(not list(validator.iter_errors(sample)), valid, (stage, status))
+        del http["details"]["httpStatus"]
+        self.assertTrue(list(validator.iter_errors(http)))
+        absent = deepcopy(cases[0]["error"])
+        del absent["details"]
+        self.assertTrue(list(validator.iter_errors(absent)))
+        for case in fixture["unrecognizedTransportObjects"]:
+            self.assertEqual(case["error"]["code"], "KERNEL_RETRIEVAL_FAILED")
+            self.assertEqual(case["error"]["details"]["failureKind"], "transport")
+            self.assert_valid("runner-error.schema.json", case["error"])
+        transport = deepcopy(cases[0]["error"])
+        transport["details"]["httpStatus"] = 503
+        self.assertTrue(list(validator.iter_errors(transport)))
+        for case in fixture["primaryPriorityCases"]:
+            self.assertEqual(case["initiatingCode"], case["expectedCode"])
+        self.assertEqual({case["expectedCode"] for case in fixture["integrityCases"]}, {"IMAGE_INVALID"})
+
     def test_safe_transport_diagnostics(self):
         validator = self.validator("transport-diagnostic.schema.json")
         for fixture in load_json(FIXTURES / "transport-diagnostics.json"):
@@ -129,9 +185,114 @@ class ContractsTest(unittest.TestCase):
         self.assert_valid('native-limits.schema.json',fixture['defaults'])
         self.assert_valid('native-limits.schema.json',fixture['override']['limits'])
         for case in fixture['errorCases']:
-            self.assert_valid('native-failure.schema.json',{'kind':case['kind'],'limits':fixture['defaults'],'elapsedSeconds':1.5})
-        for bad in [{'kind':'arbitrary'}, {'kind':'execution','message':'secret'}, {'kind':'timeout','elapsedSeconds':-1}]:
+            value={'kind':case['kind'],'limits':fixture['defaults'],'elapsedSeconds':1.5}
+            if 'setupReason' in case:
+                value['setupReason']=case['setupReason']
+            self.assert_valid('native-failure.schema.json',value)
+        for bad in [{'kind':'arbitrary'}, {'kind':'execution','message':'secret'}, {'kind':'timeout','elapsedSeconds':-1}, {'kind':'setup'}, {'kind':'setup','setupReason':'raw secret'}, {'kind':'execution','setupReason':'local-input'}]:
             self.assertTrue(list(self.validator('native-failure.schema.json').iter_errors(bad)))
+
+    def test_sdk_production_limits_and_optional_observations_are_closed(self):
+        oracle = load_json(FIXTURES / 'adapters/sdk-production.json')
+        self.assertEqual('openprose.sdk-production-oracle/1', oracle['schema'])
+        self.assertEqual(dict(harness='agents-sdk', model='gpt-6.1-sol', authProfile='openai-api-key', transport='jsonl', billingOwner='user-provider', permissionMode=None), oracle['defaults'])
+        limits = oracle['nativeLimits']
+        self.assertEqual(11, len(limits))
+        self.assertEqual(limits['maxTurns'], limits['maxAggregateRequests'])
+        self.assertEqual(limits['maxTurns'], limits['maxAggregateHostedWebCalls'])
+        self.assertEqual((80,500000,256000,8,1), tuple(limits[field] for field in ('maxAggregateFunctionTools','maxObservedTotalTokens','maxRequestInputBytes','maxChildren','maxChildDepth')))
+        self.assert_valid('native-limits.schema.json', limits)
+        self.assert_valid('native-limits.schema.json', {key: float(value) for key,value in limits.items()})
+        for field, invalid in (('maxChildren',9),('maxChildDepth',2)):
+            self.assertTrue(list(self.validator('native-limits.schema.json').iter_errors({**limits,field:invalid})))
+        historical = {field: limits[field] for field in ('maxTurns','timeoutSeconds','toolTimeoutSeconds','maxOutputTokens')}
+        self.assert_valid('native-limits.schema.json', historical)
+        for field in set(limits) - set(historical):
+            self.assertTrue(list(self.validator('native-limits.schema.json').iter_errors({**historical,field:limits[field]})))
+        observation = oracle['observation']
+        for group in ('emptyUsage','completedUsage','failureUsage'):
+            usage = observation[group]
+            self.assertEqual(10, len(usage))
+            self.assertIsNone(usage['outstandingProviderRequestCount'])
+            self.assertFalse(usage['totalRunUsageKnown'])
+            self.assert_valid('sdk-observation.schema.json', dict(usageObservation=usage, modelIdentity=observation['modelIdentity']))
+        numeric_usage = deepcopy(observation['completedUsage'])
+        numeric_usage.update(startedCallCount=3.0,completedResponseCount=3.0,duplicateResponseCallbackCount=-0.0,outstandingCallCount=-0.0)
+        numeric_usage['observedTokenTotals']['input_tokens_details.cached_tokens'] = -0.0
+        self.assert_valid('sdk-observation.schema.json', dict(usageObservation=numeric_usage))
+        for mutation in (lambda value: value['usageObservation'].update(extra='secret'),
+                         lambda value: value['usageObservation'].update(totalRunUsageKnown=True),
+                         lambda value: value['usageObservation'].update(outstandingProviderRequestCount=0),
+                         lambda value: value['usageObservation'].update(startedCallCount=True),
+                         lambda value: value['usageObservation']['observedTokenTotals'].update(unknown=3),
+                         lambda value: value['usageObservation']['observedTokenTotals'].update(input_tokens=-1),
+                         lambda value: value['modelIdentity']['observed'].append('secret\nmodel'),
+                         lambda value: value['modelIdentity']['serviceTier']['observed'].append('secret-tier'),
+                         lambda value: value['modelIdentity']['serviceTier'].update(requested='priority')):
+            value = dict(usageObservation=deepcopy(observation['completedUsage']), modelIdentity=deepcopy(observation['modelIdentity']))
+            mutation(value)
+            self.assertTrue(list(self.validator('sdk-observation.schema.json').iter_errors(value)))
+        self.assertEqual(5, len(oracle['rejectedModelIdentities']))
+        for control in oracle['rejectedModelIdentities']:
+            self.assertEqual('omit-modelIdentity', control['expected'])
+            self.assertTrue(list(self.validator('sdk-observation.schema.json').iter_errors(dict(modelIdentity=control['raw']))))
+        valid_empty = deepcopy(observation['modelIdentity'])
+        valid_empty['observed'] = []
+        valid_empty['serviceTier']['observed'] = []
+        self.assert_valid('sdk-observation.schema.json', dict(modelIdentity=valid_empty))
+        self.assert_valid('native-limits.schema.json', load_json(FIXTURES/'adapters/sdk-native-limits.json')['historicalLimits'])
+        result = load_json(FIXTURES / 'transport/runner-result-success.json')
+        result.update(nativeLimits=limits, usageObservation=observation['completedUsage'], modelIdentity=observation['modelIdentity'])
+        self.assert_valid('runner-result.schema.json', result)
+        error = next(row for row in load_json(SHARED/'errors/taxonomy.v1.json')['errors'] if row['code']=='HARNESS_FAILED')
+        error = dict(schema='openprose.runner-error/1', **error, details=dict(usageObservation=observation['failureUsage'],modelIdentity=observation['modelIdentity']))
+        self.assert_valid('runner-error.schema.json', error)
+        error['details']['usageObservation']['totalRunUsageKnown'] = True
+        self.assertTrue(list(self.validator('runner-error.schema.json').iter_errors(error)))
+
+    def test_sdk_production_cases_are_frozen_and_provider_free(self):
+        oracle = load_json(FIXTURES/'adapters/sdk-production.json')
+        identifiers = [f'adapters.sdk-production-{number:02}' for number in range(1,18)]
+        self.assertEqual(identifiers, [case['id'] for case in oracle['cases']])
+        for control in oracle['cases']:
+            case = load_json(CASES/'adapters'/f"{control['id'].split('.')[-1]}.json")
+            self.assertEqual(case['id'], control['id'])
+            self.assertEqual('denied', case['controls']['network'])
+            self.assertEqual(dict(adapterId='agents-sdk/jsonl', sdkScenario=control['scenario'], sdkInstallation=control['installation']), case['controls']['installedAdapter'])
+            self.assertEqual(not control['noStart'], case['expected']['startedHarness'])
+            if 'OPENAI_API_KEY' in case['invocation']['environment']:
+                self.assertIn(case['invocation']['environment']['OPENAI_API_KEY'], ('  ','fixture-provider-free-openai-key'))
+        setup=oracle['setupFailure']
+        self.assertEqual('HARNESS_FAILED',setup['outerCode'])
+        self.assertEqual(22,setup['exitCode'])
+        self.assertFalse(setup['rawMessageForwarded'])
+        for number,reason in enumerate(setup['reasons'],11):
+            action=setup['reasons'][reason]
+            case=load_json(CASES/'adapters'/f'sdk-production-{number:02}.json')
+            self.assertEqual(action,case['expected']['errorAction'])
+            details=case['expected']['resultMatches']['error']['details']
+            self.assertEqual('setup',details['nativeFailure']['kind'])
+            self.assertEqual(reason,details['nativeFailure']['setupReason'])
+            for group in ('usageObservation','modelIdentity'):
+                self.assertEqual(case['expected']['resultMatches'][group],details[group])
+            human=load_json(CASES/'adapters'/f'sdk-production-{number+3:02}.json')
+            self.assertEqual(['run','input.prose.md'],human['invocation']['argv'])
+            self.assertEqual('empty',human['expected']['stdout']['kind'])
+            self.assertEqual(['HARNESS_FAILED','Action: '+action],human['expected']['stderr']['contains'])
+        unknown=load_json(CASES/'adapters/sdk-production-17.json')
+        self.assertEqual('execution',unknown['expected']['resultMatches']['error']['details']['nativeFailure']['kind'])
+        self.assertNotIn('setupReason',unknown['expected']['resultMatches']['error']['details']['nativeFailure'])
+        recipe = load_json(SHARED/'capabilities/adapters/recipes/agents-sdk-jsonl.v1.json')
+        self.assertEqual(oracle['discovery']['admissionPlatforms'], recipe['support']['platforms'])
+        self.assertEqual(['darwin-arm64','darwin-x64','linux-arm64','linux-x64'], oracle['discovery']['platforms'])
+        self.assertEqual(['darwin-arm64','darwin-x64','linux-arm64-gnu','linux-x64-gnu'], recipe['support']['platforms'])
+        self.assertEqual('2.34', oracle['discovery']['linuxMinimumGlibc'])
+        for control in oracle['discovery']['platformControls']:
+            self.assertEqual(control['supported'], control['platform'] in recipe['support']['platforms'])
+        self.assertEqual(['parse-file-environment-flag-layers','validate-explicit-selection-target','validate-contextual-model-and-auth'], oracle['harnessUseValidationOrder'])
+        self.assertFalse(oracle['discovery']['pathFallback'])
+        self.assertFalse(oracle['discovery']['helperSymlinkAllowed'])
+        self.assertNotIn('selected-permissions', recipe['isolation']['preserved'])
 
     def test_optional_reporting_fields_are_named_and_closed(self):
         fixture=json.loads((SHARED / 'fixtures/config/optional-reporting.json').read_text())
@@ -142,6 +303,96 @@ class ContractsTest(unittest.TestCase):
             self.assert_valid('configuration-explanation.schema.json',config)
         config['values']['permissionMode']['value']='arbitrary'
         self.assertTrue(list(self.validator('configuration-explanation.schema.json').iter_errors(config)))
+
+    def test_service_word_corrections_preserve_exact_route_and_pure_follow_contract(self):
+        oracle=load_json(FIXTURES/'service-word-corrections.json')
+        self.assertEqual({'schema','rules','cases'},set(oracle))
+        self.assertEqual('openprose.service-word-corrections/1',oracle['schema'])
+        self.assertEqual(['--output','--no-color','--verbose'],oracle['rules']['prefixRetained'])
+        self.assertEqual('entrypoint-and-account-or-service-parser-only-no-execution-no-client-no-request',oracle['rules']['followValidation'])
+        self.assertEqual('lexical-only-no-stat-no-read-no-canonicalization',oracle['rules']['cwdFileJoin'])
+        self.assertEqual(17,len(oracle['cases']))
+        operations={record['id']:record for record in load_json(SHARED/'service/operations.v1.json')['operations']}
+        def workspace_paths(value):
+            return [word.replace('/work','{{WORKSPACE}}') for word in value]
+        for number,control in enumerate(oracle['cases'],1):
+            self.assertEqual(f'service-word-correction-{number:02}',control['id'])
+            self.assertEqual(control['argv'],control['originalArgvPreserved'])
+            if number==16:
+                self.assertEqual('original-parse-rejection',control['boundary'])
+                self.assertEqual({'code':'INVOCATION_INVALID','reason':'runner option --model was specified more than once'},control['rejectedOriginal'])
+                self.assertNotIn('follow',control)
+                self.assertNotIn('suggestedArgv',control)
+                continue
+            if number==8:
+                self.assertEqual('alias-only',control['boundary'])
+                self.assertEqual(['--harness','claude','--output','json','opaque-word','opaque task'],control['suggestedArgv'])
+                self.assertEqual('language',control['follow']['kind'])
+                continue
+            if number>8:
+                command=control['suggestedArgv'][control['suggestedArgv'].index('cli'):]
+                self.assertEqual(['cli','run','submit'],command[:3])
+                if number==9:
+                    self.assertEqual(['--output','json','cli','run','submit','--help'],control['suggestedArgv'])
+                    self.assertEqual('help',control['follow']['kind'])
+                    self.assertEqual(['cli','run','submit'],control['follow']['command'])
+                else:
+                    self.assertEqual('service',control['follow']['kind'])
+                    self.assertEqual('run.submit',control['follow']['operation'])
+                    self.assertEqual(1,command.count('--preview'))
+                    if number==10:
+                        self.assertEqual({},control['follow']['arguments'])
+                        self.assertEqual({'--from':['saved-program']},control['follow']['options'])
+                        self.assertEqual(['cli','run','submit','--from','saved-program','--preview'],command)
+                    elif number==11:
+                        self.assertEqual(['cli','run','submit','./space file.prose.md','--model','service-model','--preview'],command)
+                        self.assertEqual({'FILE':['./space file.prose.md']},control['follow']['arguments'])
+                        self.assertEqual({'--model':['service-model']},control['follow']['options'])
+                    elif number in (13,14,15):
+                        file='/work/input.prose.md' if number in (13,15) else 'input.prose.md'
+                        model={14:'newer-model',15:'chosen-model'}.get(number)
+                        self.assertEqual({'FILE':[file]},control['follow']['arguments'])
+                        self.assertEqual({'--model':[model]} if model else {},control['follow']['options'])
+                        self.assertEqual(['cli','run','submit',file]+(['--model',model] if model else [])+['--preview'],command)
+                        self.assertEqual(1 if model else 0,command.count('--model'))
+                    elif number==17:
+                        self.assertEqual(['cli','run','submit','--model','chosen-model','--preview','--','/work/input.prose.md'],command)
+                        self.assertEqual({'FILE':['/work/input.prose.md']},control['follow']['arguments'])
+                        self.assertEqual({'--model':['chosen-model']},control['follow']['options'])
+                        self.assertEqual(['prose','run','submit','--','input.prose.md'],control['languageArgv'])
+                        self.assertLess(command.index('--model'),command.index('--'))
+                        self.assertLess(command.index('--preview'),command.index('--'))
+                    elif number==12:
+                        self.assertEqual(['cli','run','submit','-','--preview'],command)
+                        self.assertEqual({'FILE':['-']},control['follow']['arguments'])
+                continue
+            case=load_json(CASES/'core'/f"{control['id']}.json")
+            self.assertEqual(workspace_paths(control['argv']),case['invocation']['argv'])
+            surface='problem' if control['boundary']=='syntax' else 'error'
+            expected=case['expected']['resultMatches'][surface]
+            self.assertEqual(workspace_paths(control['suggestedArgv']),expected['details']['suggestedArgv'])
+            self.assertEqual('INVOCATION_INVALID' if surface=='problem' else 'HOSTED_UNAVAILABLE',expected['code'])
+            self.assertEqual(2 if surface=='problem' else 10,case['expected']['exitCode'])
+            follow=control['follow']
+            if number==7:
+                # Organization listing belongs to the account entrypoint;
+                # parseService covers the hosted service cases above only.
+                self.assertEqual('account',follow['kind'])
+                self.assertEqual('org-list',follow['operation'])
+                self.assertEqual('org.list',follow['manifestOperation'])
+            else:
+                self.assertEqual('service',follow['kind'])
+            operation=operations[follow.get('manifestOperation',follow['operation'])]
+            command=['cli',*control['suggestedArgv'][control['suggestedArgv'].index('cli')+1:]]
+            self.assertEqual(operation['command'],command[:len(operation['command'])])
+            self.assertTrue(set(follow['arguments']).issubset({entry['name'] for entry in operation['arguments']}))
+            self.assertTrue(set(follow['options']).issubset({entry['name'] for entry in operation['options']}))
+            self.assertEqual([],follow['flags'])
+            if follow['preview']:
+                self.assertTrue(operation['preview'])
+                self.assertEqual(1,control['suggestedArgv'].count('--preview'))
+            if surface=='error':
+                self.assertEqual(['prose',*control['argv'][control['argv'].index('run'):]],control['languageArgv'])
 
     def test_every_schema_is_valid_draft_2020_12_and_has_unique_id(self) -> None:
         self.assertGreaterEqual(len(self.schemas), 10)
@@ -314,10 +565,37 @@ class ContractsTest(unittest.TestCase):
             examples["doctor-report.json"]["runner"],
             {"name": "rust", "version": "0.1.0-fixture", "commit": "fixture-commit"},
         )
-        self.assertEqual(
-            examples["configuration-explanation.json"],
-            examples["doctor-report.json"]["configuration"],
-        )
+        # The standalone explanation is the SDK default. The hosted doctor
+        # explicitly selects its route and retains the overridden SDK candidate.
+        default_config = examples["configuration-explanation.json"]
+        doctor_config = examples["doctor-report.json"]["configuration"]
+        self.assertEqual(default_config["values"]["harness"]["value"], "agents-sdk")
+        self.assertEqual(doctor_config["values"]["harness"], {
+            "value": "openprose", "source": {"kind": "flag", "location": "--harness"},
+        })
+        self.assertEqual(doctor_config["candidates"]["harness"], [
+            {"value": "agents-sdk", "source": {"kind": "default", "location": "built-in"}, "selected": False},
+            {"value": "openprose", "source": {"kind": "flag", "location": "--harness"}, "selected": True},
+        ])
+        for key in ("model", "authProfile"):
+            self.assertEqual(doctor_config["values"][key], {
+                "value": None, "source": {"kind": "default", "location": "built-in"},
+            })
+            self.assertEqual(doctor_config["candidates"][key], [
+                {"value": None, "source": {"kind": "default", "location": "built-in"}, "selected": True},
+            ])
+        self.assertEqual(doctor_config["runtime"], {
+            "transport": "hosted", "permissionMode": None, "authProfile": None,
+            "billingOwner": "openprose", "nativeLimits": None, "nativeOutputLimits": None,
+        })
+        self.assertEqual(doctor_config["values"]["harness"]["value"], examples["doctor-report.json"]["selectedHarness"])
+        for key in default_config:
+            if key not in ("values", "candidates", "runtime"):
+                self.assertEqual(default_config[key], doctor_config[key])
+        for key in default_config["values"]:
+            if key not in ("harness", "model", "authProfile"):
+                self.assertEqual(default_config["values"][key], doctor_config["values"][key])
+                self.assertEqual(default_config["candidates"][key], doctor_config["candidates"][key])
         self.assertEqual(
             examples["doctor-report.json"]["problems"][0]["exitCode"], 10
         )
@@ -801,7 +1079,7 @@ class ContractsTest(unittest.TestCase):
             "CONFIG_INVALID", "INVOCATION_INVALID", "HARNESS_UNAVAILABLE",
             "HARNESS_INCOMPATIBLE",
             "HARNESS_NEEDS_AUTH", "TRANSPORT_UNSUPPORTED",
-            "PROMPT_CHANNEL_UNSUPPORTED", "IMAGE_INVALID", "IMAGE_TOO_LARGE",
+            "PROMPT_CHANNEL_UNSUPPORTED", "KERNEL_RETRIEVAL_FAILED", "IMAGE_INVALID", "IMAGE_TOO_LARGE",
             "RECURSIVE_INVOCATION", "STARTUP_TIMEOUT", "PROTOCOL_MALFORMED",
             "PROTOCOL_TRUNCATED", "HARNESS_FAILED", "SEMANTIC_STATUS_UNKNOWN",
             "CANCELLED", "PROCESS_CLEANUP_FAILED", "HOSTED_UNAVAILABLE",
@@ -819,7 +1097,10 @@ class ContractsTest(unittest.TestCase):
         self.assertEqual({record["code"] for record in records}, expected_codes)
         self.assertEqual(len(records), len(expected_codes))
         for record in records:
-            self.assert_valid("runner-error.schema.json", {"schema": "openprose.runner-error/1", **record})
+            sample = {"schema": "openprose.runner-error/1", **record}
+            if record["code"] == "KERNEL_RETRIEVAL_FAILED":
+                sample["details"] = load_json(FIXTURES / "kernel-startup/release.json")["retrievalFailures"][3]["error"]["details"]
+            self.assert_valid("runner-error.schema.json", sample)
             self.assertNotIn("prose cli", record["action"])
             self.assertNotIn("$PROSE", record["action"])
         cleanup = next(record for record in records if record["code"] == "PROCESS_CLEANUP_FAILED")
@@ -898,10 +1179,60 @@ class ContractsTest(unittest.TestCase):
                 if "errorCode" in case["expected"]:
                     frozen = taxonomy[case["expected"]["errorCode"]]
                     self.assertEqual(case["expected"]["exitCode"], frozen["exitCode"])
-                    self.assertEqual(case["expected"]["errorAction"], frozen["action"])
+                    if case["id"] in {"adapters.sdk-production-02", "adapters.sdk-production-03"}:
+                        self.assertEqual(case["expected"]["errorAction"], load_json(FIXTURES / "adapters/sdk-production.json")["credentialAbsence"]["action"])
+                    elif case["id"] in {"adapters.sdk-production-11", "adapters.sdk-production-12", "adapters.sdk-production-13"}:
+                        reason=case["expected"]["resultMatches"]["error"]["details"]["nativeFailure"]["setupReason"]
+                        self.assertEqual(case["expected"]["errorAction"], load_json(FIXTURES / "adapters/sdk-production.json")["setupFailure"]["reasons"][reason])
+                    else:
+                        self.assertEqual(case["expected"]["errorAction"], frozen["action"])
         ids = [case["id"] for case in cases]
         self.assertEqual(len(ids), len(set(ids)))
         self.assertTrue({"core.initial-help", "core.opaque-argv", "core.mock-success", "core.openprose-hosted-unavailable"}.issubset(ids))
+
+    def test_configuration_production_corpus_is_closed_and_cases_reference_exact_setup(self):
+        corpus = load_json(FIXTURES / "config/production-v2.json")
+        self.assertEqual({"schema", "summary", "cases"}, set(corpus))
+        self.assertEqual("openprose.configuration-production-corpus/2", corpus["schema"])
+        identifiers = [f"operations.config-production-{number:02}" for number in range(1, 13)]
+        self.assertEqual(identifiers, [record["id"] for record in corpus["cases"]])
+        case_schema = load_json(CASES / "case-manifest.schema.json")
+        self.assertEqual(identifiers, case_schema["properties"]["controls"]["properties"]["configurationFixture"]["enum"])
+        for record in corpus["cases"]:
+            self.assertEqual({"id", "setup"}, set(record))
+            setup = record["setup"]
+            self.assertEqual({"files", "directories", "checks"}, set(setup))
+            checks = setup["checks"]
+            self.assertFalse(set(checks) - {"unchangedFiles", "files", "absent", "outputAbsent"})
+            self.assertIn("absent", checks)
+            self.assertTrue("unchangedFiles" in checks or "files" in checks)
+            unchanged = checks.get("unchangedFiles", False)
+            self.assertTrue(type(unchanged) is bool or isinstance(unchanged, list))
+            if isinstance(unchanged, list):
+                self.assertTrue(set(unchanged).issubset(setup["files"]))
+            for files in (setup["files"], checks.get("files", {})):
+                self.assertIsInstance(files, dict)
+                self.assertTrue(all(isinstance(value, str) for value in files.values()))
+            for paths in (setup["directories"], checks["absent"], checks.get("outputAbsent", [])):
+                self.assertIsInstance(paths, list)
+                self.assertEqual(len(paths), len(set(paths)))
+                self.assertTrue(all(isinstance(value, str) and value for value in paths))
+            paths = [*setup["files"], *setup["directories"], *checks.get("files", {}), *checks["absent"]]
+            for relative in paths:
+                self.assertFalse(PurePosixPath(relative).is_absolute())
+                self.assertTrue(relative)
+                self.assertNotIn("\\", relative)
+                self.assertTrue(all(part not in {"", ".", ".."} and ":" not in part for part in relative.split("/")))
+            case = load_json(CASES / "operations" / f"{record['id'].split('.')[-1]}.json")
+            self.assertEqual(record["id"], case["id"])
+            self.assertEqual(record["id"], case["controls"]["configurationFixture"])
+            self.assertFalse(case["expected"]["startedHarness"])
+            self.assertNotIn("fakeHarness", case["controls"])
+            self.assertNotIn("installedAdapter", case["controls"])
+            self.assertEqual("denied", case["controls"]["network"])
+        manifests = [load_json(path) for path in CASES.rglob("*.json")]
+        references = [case["controls"]["configurationFixture"] for case in manifests if "configurationFixture" in case.get("controls", {})]
+        self.assertEqual(sorted(identifiers), sorted(references))
 
     def test_adversarial_scenario_catalog_covers_fake_harness_contract(self) -> None:
         catalog = load_json(CLI / "conformance" / "adversarial" / "transport" / "fake-scenario-expectations.json")

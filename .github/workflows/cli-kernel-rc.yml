@@ -67,23 +67,51 @@ jobs:
           python3 -m pip install --require-hashes --only-binary=:all: -r cli/ci/requirements-test.txt
           cd cli/bun
           bun install --frozen-lockfile --ignore-scripts
+      - name: Prepare the pinned full Linux SDK Python archive
+        if: runner.os == 'Linux'
+        env:
+          SDK_PLATFORM: ${{ runner.arch == 'ARM64' && 'linux-arm64-gnu' || 'linux-x64-gnu' }}
+        run: timeout --kill-after=1s 130s python3 cli/ci/prepare_agents_sdk_linux.py --platform "$SDK_PLATFORM" --out "$RUNNER_TEMP/agents-sdk-python-full.tar.zst"
+      - name: Prepare the separately locked Agents SDK build interpreter
+        run: |
+          uv venv --python 3.10.20 --seed "$RUNNER_TEMP/agents-sdk-python"
+          "$RUNNER_TEMP/agents-sdk-python/bin/python3" -m pip install --require-hashes --only-binary=:all: -r harnesses/agents-sdk/requirements-build.txt
+      - name: Test the actual pinned Agents SDK runtime without provider credentials
+        run: '"$RUNNER_TEMP/agents-sdk-python/bin/python3" -m unittest discover -s harnesses/agents-sdk -p test_run.py'
       - name: Test kernel RC build guards
         run: |
           python3 -m unittest discover -s cli/ci -p test_build_kernel_rc.py
           python3 -m unittest discover -s cli/ci -p test_check_published_release.py
+          python3 -m unittest discover -s cli/ci -p test_fetch_previous_release.py
+          python3 -m unittest discover -s cli/ci -p test_qualify_installed_sdk.py
+      - name: Fetch pinned genuine previous release inputs
+        env:
+          UPGRADE_PLATFORM: ${{ matrix.platform }}${{ runner.os == 'Linux' && '-gnu' || '' }}
+        run: python3 cli/ci/fetch_previous_release.py --platform "$UPGRADE_PLATFORM" --out "$RUNNER_TEMP/previous-rc3"
       - name: Build and verify fresh standalone and npm installations
         env:
-          RC_VERSION: ${{ inputs.version || '0.15.0-rc.1' }}
-        run: python3 cli/ci/build_kernel_rc.py --version "$RC_VERSION" --out "$RUNNER_TEMP/kernel-rc"
+          RC_VERSION: ${{ inputs.version || '0.15.0-rc.4' }}
+        run: python3 cli/ci/build_kernel_rc.py --version "$RC_VERSION" --out "$RUNNER_TEMP/kernel-rc" --agents-sdk-python "$RUNNER_TEMP/agents-sdk-python/bin/python3" --agents-sdk-linux-python-archive "$RUNNER_TEMP/agents-sdk-python-full.tar.zst"
+      - name: Qualify actual SDK installations and genuine upgrades
+        env:
+          RC_VERSION: ${{ inputs.version || '0.15.0-rc.4' }}
+          EXPECTED_SOURCE: ${{ github.sha }}
+        run: |
+          python3 cli/ci/qualify_installed_sdk.py \
+            --candidate-root "$RUNNER_TEMP/kernel-rc" --source "$EXPECTED_SOURCE" --version "$RC_VERSION" \
+            --previous-release "$RUNNER_TEMP/previous-rc3" \
+            --node "$(command -v node)" --npm "$(command -v npm)" \
+            --out "$RUNNER_TEMP/kernel-rc/installed-qualification"
       - uses: Homebrew/actions/setup-homebrew@dc7099b3e807f1e2ecc61f3ecabc840eedd5586a
       - name: Rehearse Homebrew against these exact release archives
         env:
-          RC_VERSION: ${{ inputs.version || '0.15.0-rc.1' }}
+          RC_VERSION: ${{ inputs.version || '0.15.0-rc.4' }}
           EXPECTED_SOURCE: ${{ github.sha }}
         run: |
           "$RUNNER_TEMP/distribution-python/bin/python3" cli/ci/homebrew_rehearsal.py \
             --kernel-rc "$RUNNER_TEMP/kernel-rc" \
             --expected-source "$EXPECTED_SOURCE" --expected-version "$RC_VERSION" \
+            --previous-release "$RUNNER_TEMP/previous-rc3" \
             --output "$RUNNER_TEMP/kernel-rc/homebrew"
       - name: Retain packages and offline evidence
         if: always()
@@ -93,7 +121,19 @@ jobs:
           path: |
             ${{ runner.temp }}/kernel-rc/package
             ${{ runner.temp }}/kernel-rc/logs
+            ${{ runner.temp }}/kernel-rc/agents-sdk
+            ${{ runner.temp }}/kernel-rc/agents-sdk-native/*.json
+            ${{ runner.temp }}/kernel-rc/agents-sdk-native/*.log
+            ${{ runner.temp }}/kernel-rc/agents-sdk-native/*cleanup-error.txt
+            ${{ runner.temp }}/kernel-rc/agents-sdk-native/supplier
+            ${{ runner.temp }}/kernel-rc/agents-sdk-native/frozen
+            ${{ runner.temp }}/kernel-rc/agents-sdk-native/python-full/python/PYTHON.json
+            ${{ runner.temp }}/kernel-rc/agents-sdk-native/python-full/python/licenses
+            ${{ runner.temp }}/kernel-rc/agents-sdk-runtime/runtime-report.json
+            ${{ runner.temp }}/kernel-rc/agents-sdk-runtime/job/*.log
             ${{ runner.temp }}/kernel-rc/build-report.json
             ${{ runner.temp }}/kernel-rc/homebrew
+            ${{ runner.temp }}/kernel-rc/installed-qualification
+            ${{ runner.temp }}/previous-rc3
           retention-days: 14
           if-no-files-found: warn

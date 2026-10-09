@@ -1,0 +1,87 @@
+{
+  "schema": "openprose.runner-case/1",
+  "id": "operations.config-production-02",
+  "summary": "Explicit SDK selection resolves its model, auth and inner limits without probing.",
+  "phase": 6,
+  "tags": [
+    "cli",
+    "configuration",
+    "production",
+    "differential"
+  ],
+  "controls": {
+    "fixedInvocationId": "fixture-invocation-0001",
+    "fixedTimestamp": "2025-01-01T00:00:00Z",
+    "fixedMonotonicMs": 0,
+    "network": "denied",
+    "configurationFixture": "operations.config-production-02"
+  },
+  "invocation": {
+    "argv": [
+      "cli",
+      "config",
+      "explain",
+      "--json",
+      "--",
+      "--harness",
+      "agents-sdk",
+      "run",
+      "input.prose.md"
+    ],
+    "cwd": "{{WORKSPACE}}",
+    "environment": {
+      "HOME": "{{WORKSPACE}}/home",
+      "XDG_CONFIG_HOME": "{{WORKSPACE}}/config"
+    }
+  },
+  "expected": {
+    "exitCode": 0,
+    "stdout": {
+      "kind": "json",
+      "schema": "openprose.configuration-explanation/1"
+    },
+    "stderr": {
+      "kind": "empty"
+    },
+    "startedHarness": false,
+    "resultMatches": {
+      "target": {
+        "argv": [
+          "prose",
+          "run",
+          "input.prose.md"
+        ]
+      },
+      "values": {
+        "harness": {
+          "value": "agents-sdk"
+        },
+        "model": {
+          "value": "gpt-6.1-sol",
+          "source": {
+            "kind": "default",
+            "location": "built-in:agents-sdk"
+          }
+        },
+        "authProfile": {
+          "value": "openai-api-key",
+          "source": {
+            "kind": "default",
+            "location": "built-in:agents-sdk"
+          }
+        }
+      },
+      "runtime": {
+        "transport": "jsonl",
+        "authProfile": "openai-api-key",
+        "billingOwner": "user-provider",
+        "nativeLimits": {
+          "maxTurns": 20,
+          "timeoutSeconds": 180,
+          "toolTimeoutSeconds": 30,
+          "maxOutputTokens": 12000
+        }
+      }
+    }
+  }
+}

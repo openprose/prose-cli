@@ -2,7 +2,7 @@
   "id": "quote-accepts-submit-arguments",
   "feature": "runs",
   "operation": "run.quote",
-  "description": "Quote takes the program, inputs and model `cli run submit` takes, so the quoted command is the one to submit; the hold does not depend on them.",
+  "description": "With FILE, `run quote` posts the program and the hold options to the quote, as `run submit` would send them; inputs are not sent. Human output names each basis value and its source.",
   "argv": [
     "cli",
     "run",
@@ -48,12 +48,16 @@
         }
       },
       {
-        "method": "GET",
+        "method": "POST",
         "path": "/run/quote",
         "requestHeaders": {
           "Authorization": {
-            "present": false
+            "present": true
           }
+        },
+        "expectedBody": {
+          "content": "---\nname: hello\nkind: function\n---\n\nReply with the word ok.\n",
+          "model": "model-sol"
         },
         "status": 200,
         "body": {
@@ -62,14 +66,38 @@
             "ttl_seconds": 900
           },
           "pricing_policy_id": "pricing-policy.sha256.f114eadc02b7550e58f12c49996382b04f867cb774ac295506806f599ef1e3cd",
-          "note": "Unused hold is released when the run settles."
+          "note": "Unused hold is released when the run settles.",
+          "basis": {
+            "model": {
+              "value": "model-sol",
+              "source": "request"
+            },
+            "reasoning_effort": {
+              "value": "medium",
+              "source": "program"
+            },
+            "environment": {
+              "value": "builtin",
+              "source": "default"
+            },
+            "tools": {
+              "value": [
+                "web:search"
+              ],
+              "source": "program"
+            },
+            "repositories": {
+              "value": 0,
+              "source": "default"
+            }
+          }
         }
       }
     ]
   },
   "exitCode": 0,
   "stdout": {
-    "text": "Environment: builtin\nHold: $1.02, set aside from the wallet while a run is live; not its price. The same for every program and model; released within 900 s when unused\nPrice: known only after a run settles; read it with `prose cli run show RUN_ID`\nNote: Unused hold is released when the run settles.\n"
+    "text": "Environment: builtin\nHold: $1.02, set aside from the wallet while a run is live; not its price. Released within 900 s when unused\nDepends on: model, reasoning effort, environment, declared tools and repositories; quoted for the program and options given\nBasis: model model-sol (request); reasoning effort medium (program); environment builtin (default); tools web:search (program); repositories 0 (default)\nPrice: known only after a run settles; read it with `prose cli run show RUN_ID`\nNote: Unused hold is released when the run settles.\n"
   },
   "stderr": {
     "text": ""
@@ -77,5 +105,11 @@
   "forbid": [
     "9.9.9-extra",
     "web_search"
+  ],
+  "files": [
+    {
+      "path": "hello.prose.md",
+      "content": "---\nname: hello\nkind: function\n---\n\nReply with the word ok.\n"
+    }
   ]
 }

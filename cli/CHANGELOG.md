@@ -11,6 +11,64 @@ a candidate do not establish public availability or authorize publication.
 
 ## [Unreleased]
 
+### Hosted service
+
+- Hold quotes follow the service's per-run holds. `run quote` and the
+  `run submit` plan send the given `--model`, `--reasoning-effort` and
+  `--environment`, plus `repositories=1` for any `--repo` or
+  `--commit-output`; the `job create` plan sends the spec's `model`,
+  `reasoning_effort` and `environment`, plus `repositories=1` for a
+  `repository_url` or `context_repository_url`. Nothing is defaulted, so a
+  flagless quote is unchanged. The `holdBasis` constant, the human quote and
+  the help no longer call the hold flat. `run quote --model` with a model the
+  service does not offer now returns `SERVICE_REQUEST_REJECTED` instead of
+  being ignored.
+- Quotes are program-aware: the `run submit` plan posts its exact submission
+  body to the quote, `run quote FILE` posts the program and `run quote --from`
+  names it, and the `job create` plan names its pinned `program_ref`, so the
+  program's own run settings and declared tools count; explicit options
+  override them. `run quote` reports the service's `basis` (each value and its
+  source). The CLI still never inspects program text.
+- `sync_service_interactions.py` accepts the service's public interaction
+  projection (`openprose.*-interactions/2`), which carries no principals
+  table; the vendored catalog is re-vendored from it.
+- `job create` webhook specs accept `model`, `reasoning_effort`,
+  `repository_url`, `repository_branch` and `output` for the connected
+  contract (the service requires `program_ref` with them).
+- `job list` and `service triage` report the account's job limit from the
+  service's entitlement (`trigger_limit`) instead of the legacy free ceiling:
+  paid accounts show `Jobs: N (unlimited)` and `max_jobs` / `jobs.max` null, a
+  limited account shows its own `max`, and an unavailable entitlement says so.
+  `job_limit.limit` is replaced by `job_limit.max` (the field the service
+  sends), `job_limit.kind` is one of `limited`, `unlimited` or `unavailable`,
+  and triage gains `jobs.limit`. An older service without `trigger_limit` still reads as limited
+  at `max_triggers`.
+- `job contract attach` sets a webhook job's run settings: `--model`,
+  `--reasoning-effort`, `--repo`, `--commit-output`, `--input` /
+  `--inputs-file`, `--environment`, `--file`, `--clear-repo`,
+  `--clear-commit-output`, `--clear-input`, `--clear-files` and `--replace`.
+  Its plan quotes the hold for the binding as it will run. Re-attaching a
+  bound program changes only the options given instead of resetting its
+  settings. `--model` is no longer refused. The options are refused for other
+  job types, and a plain re-attach sends only `program_ref`. On a service that
+  does not report a binding's stored files and environment, re-binding a bound
+  webhook program is refused unless the files and environment are given or
+  `--allow-reset` accepts resetting them; `--replace` likewise needs `--file`,
+  `--clear-files` or `--allow-reset` when the old binding has stored files.
+- The published `cli service operations` size budget is raised from 98,304 to
+  106,496 bytes for the new job options.
+- An interrupt during a plan's advisory quote (`run submit`, `program draft`,
+  `program save`, `job contract attach`) now stops the command instead of being
+  swallowed.
+- `run quote --help` is reworded more briefly to keep `cli service operations`
+  within its size budget.
+- `job contract list` reports each binding's saved settings
+  (`run_configuration`), `effective_model`, `rev_id`, `bound_at` and
+  `is_platform_default`.
+- `model list` no longer lists models the service marks `hidden`, in human
+  output or in `result.catalog`. They stay accepted when named (`--model`, a
+  job spec's `model`), and nothing else enumerates them.
+
 ## [0.15.0-rc.2] — 2026-10-02
 
 These are accumulated changes in the 0.15 candidate train; some capabilities

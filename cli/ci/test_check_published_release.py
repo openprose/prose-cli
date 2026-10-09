@@ -7,7 +7,7 @@ import check_published_release as subject
 
 
 class PublishedReleaseTests(unittest.TestCase):
-    def check_fixture(self, mutation=None, use_node=False):
+    def check_fixture(self, mutation=None, use_node=False, failed_args=None, failed_code=21, failed_stderr=b''):
         with tempfile.TemporaryDirectory() as directory:
             binary = Path(directory) / 'prose'
             binary.write_bytes(b'fixture executable')
@@ -25,6 +25,8 @@ class PublishedReleaseTests(unittest.TestCase):
                     self.assertEqual(str(node.resolve()), argv[0])
                 args = argv[2:] if node else argv[1:]
                 calls.append(args)
+                if args == failed_args:
+                    return subprocess.CompletedProcess(argv, failed_code, b'private output body', failed_stderr)
                 if args == ['--version']:
                     return subprocess.CompletedProcess(argv, 0, b'prose 0.15.0-rc.1 (bun)\n', b'')
                 if args[-1] == 'doctor':
@@ -59,3 +61,25 @@ class PublishedReleaseTests(unittest.TestCase):
     def test_source_mismatch_fails_closed(self):
         with self.assertRaises(ValueError):
             self.check_fixture(lambda value: value['runner'].update(commit='b' * 40))
+
+    def test_each_failed_offline_probe_has_safe_measured_identity(self):
+        probes = [
+            ('version', ['--version']),
+            ('doctor', ['--output=json', 'cli', 'doctor']),
+            ('harness-list', ['--output=json', 'cli', 'harness', 'list']),
+            ('mock-run', ['--harness=mock', '--output=json', 'run', 'hello']),
+        ]
+        for name, args in probes:
+            for use_node in (False, True):
+                with self.subTest(probe=name, node=use_node):
+                    with self.assertRaises(ValueError) as error:
+                        self.check_fixture(use_node=use_node, failed_args=args)
+                    self.assertEqual(f'offline release probe {name} failed its exit/stderr contract '
+                                     '(exit 21; stderr present: False)', str(error.exception))
+
+    def test_expected_exit_with_stderr_still_fails_without_disclosing_bodies(self):
+        with self.assertRaises(ValueError) as error:
+            self.check_fixture(failed_args=['--output=json', 'cli', 'doctor'], failed_code=10,
+                               failed_stderr=b'private stderr credential body')
+        self.assertEqual('offline release probe doctor failed its exit/stderr contract '
+                         '(exit 10; stderr present: True)', str(error.exception))

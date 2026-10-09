@@ -64,13 +64,14 @@
         }
       },
       {
-        "method": "GET",
+        "method": "POST",
         "path": "/run/quote",
         "requestHeaders": {
           "Authorization": {
-            "present": false
+            "present": true
           }
         },
+        "expectedSha256": "adf31169f6fff1cb2d26d00e1b57450feabc75818c5186a743c199632d3ee5f8",
         "status": 200,
         "body": {
           "hold": {

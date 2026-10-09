@@ -5,9 +5,11 @@ import io
 import json
 from pathlib import Path
 import sys
+import subprocess
 import tarfile
 import tempfile
 import unittest
+from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import homebrew_rehearsal as rehearsal
 
@@ -40,8 +42,87 @@ class ArchiveAdmissionTests(unittest.TestCase):
         self.assertEqual(manifest['version'], '0.15.0-dev.0')
         rendered = rehearsal.formula(manifest['version'], 'bun', self.package / 'bun.tar.gz', selected['bun']['sha256'])
         self.assertIn('bin.install "prose"', rendered)
+        self.assertIn('bin.install "prose-agents-sdk"', rendered)
+        self.assertIn('bin.install "prose-agents-sdk-runtime"', rendered)
         self.assertIn((self.package / 'bun.tar.gz').as_uri(), rendered)
         self.assertNotIn('pkg.prose.md', rendered)
+
+    def test_sdk_archive_identity_is_required_before_homebrew_mutation(self):
+        from test_kernel_rc_evidence import sdk_fixture
+        import package_local as package
+        sdk, table = sdk_fixture('darwin-arm64')
+        self.manifest['agentsSdk'] = sdk
+        with self.assertRaises(ValueError):
+            self.select()
+
+        for item in self.manifest['artifacts']:
+            path = self.package / item['path']
+            package.tar_gz(path, [('package/prose', item['implementation'].encode(), 0o755),
+                *[('package/' + name, data, mode) for name, (data, mode) in table['files'].items()]],
+                0, sdk_table=table, sdk_prefix='package/')
+            item.update(byteLength=path.stat().st_size, sha256=hashlib.sha256(path.read_bytes()).hexdigest())
+        self.select()
+        self.manifest['agentsSdk']['sha256'] = '0' * 64
+        with self.assertRaises(ValueError):
+            self.select()
+
+    def test_prebuilt_formula_preserves_only_the_immutable_product_paths(self):
+        for implementation in ('bun', 'rust'):
+            rendered = rehearsal.formula('0.15.0-rc.4', implementation,
+                                         self.package / f'{implementation}.tar.gz', 'a' * 64)
+            declarations = [line.strip() for line in rendered.splitlines()]
+            self.assertEqual(declarations.count('preserve_rpath'), 1)
+            self.assertEqual([line for line in declarations if line.startswith('skip_clean ')], [
+                'skip_clean "bin/prose", "bin/prose-agents-sdk", "bin/prose-agents-sdk-runtime"'])
+            self.assertNotIn(':all', rendered)
+            self.assertNotIn('HOMEBREW_', rendered)
+            self.assertNotIn('fix_dynamic_linkage', rendered)
+            self.assertNotIn('codesign', rendered)
+            self.assertIn('bin.install "prose"', rendered)
+            self.assertIn('bin.install "prose-agents-sdk" if File.exist?("prose-agents-sdk")', rendered)
+            self.assertIn('bin.install "prose-agents-sdk-runtime" if File.directory?("prose-agents-sdk-runtime")', rendered)
+
+    def development_sentinel(self):
+        return dict(self.manifest, mode='development', releaseEligible=False,
+                    publicationAuthorized=False, agentsSdk='not-packaged-development-fixture')
+
+    def test_development_placeholder_uses_ordinary_archives_without_sdk_decoder(self):
+        manifest = self.development_sentinel()
+        with patch.object(rehearsal.pub, 'read_sdk_archive', side_effect=AssertionError('No SDK decoder')):
+            observed, selected = self.select(manifest)
+        self.assertEqual(observed, manifest)
+        self.assertEqual(set(selected), {'bun', 'rust'})
+
+    def test_placeholder_authority_and_malformed_sdk_refuse_before_mutation(self):
+        good = self.development_sentinel()
+        poisons = [dict(good, mode=mode) for mode in ('release', 'kernel-rc', 'alpha')]
+        poisons += [dict(good, **{field: value}) for field in ('releaseEligible', 'publicationAuthorized')
+                    for value in (True, 0, None)]
+        poisons += [{k: v for k, v in good.items() if k != field}
+                    for field in ('releaseEligible', 'publicationAuthorized')]
+        poisons += [dict(good, agentsSdk=value) for value in ('unknown', None, [], False, {})]
+        poisons += [dict(self.manifest, mode=mode) for mode in ('release', 'kernel-rc')]
+        for manifest in poisons:
+            with self.subTest(manifest=manifest):
+                with self.assertRaises(ValueError): self.select(manifest)
+
+    def test_development_placeholder_manifest_sdk_claim_presence_refuses(self):
+        for field in ('sdkBuild', 'sdkEvidence', 'sdkSourceCustody'):
+            for value in (None, {}, False):
+                with self.subTest(field=field, value=value), self.assertRaises(ValueError):
+                    self.select(dict(self.development_sentinel(), **{field: value}))
+
+    def test_sdk_absent_archive_members_cannot_hide_behind_placeholder(self):
+        for name in ('prose-agents-sdk', 'prose-agents-sdk-runtime', 'agents-sdk-build.json', 'AGENTS-SDK-NOTICES.txt'):
+            path = self.package / 'bun.tar.gz'
+            with tarfile.open(path, 'w:gz') as archive:
+                for member_name in ('package/prose', 'package/nested/' + name):
+                    member = tarfile.TarInfo(member_name); member.size = 1
+                    archive.addfile(member, io.BytesIO(b'x'))
+            self.manifest['artifacts'][0].update(byteLength=path.stat().st_size,
+                sha256=hashlib.sha256(path.read_bytes()).hexdigest())
+            with self.subTest(name=name), self.assertRaisesRegex(ValueError, 'SDK-absent archive'):
+                self.select(self.development_sentinel())
 
     def test_changed_bytes_and_size_are_rejected(self):
         with (self.package / 'bun.tar.gz').open('ab') as stream:
@@ -95,6 +176,70 @@ class ArchiveAdmissionTests(unittest.TestCase):
             rehearsal.select_archives(self.package)
 
 
+class CompleteSdkEvidenceJsonAdmissionTests(unittest.TestCase):
+    def setUp(self):
+        # Reuse the complete authenticated multi-platform package factory only;
+        # its native observations are synthetic and no executables are run.
+        from test_assemble_kernel_rc import AssemblyTests
+        self.fixture = AssemblyTests('test_generated_packages_assemble_without_claiming_live_qualification')
+        self.fixture.setUp()
+        self.addCleanup(self.fixture.doCleanups)
+
+    def test_complete_sdk_evidence_above_generic_limit_verifies(self):
+        root, path = self.fixture.resize_installed_sdk_evidence(1024 * 1024 + 128)
+        with self.assertRaisesRegex(ValueError, 'Invalid JSON file'):
+            rehearsal.pub.read_json(path)
+        verified, manifest, archives = rehearsal.verify_kernel_rc(root, self.fixture.source, self.fixture.version)
+        self.assertEqual(verified['source'], self.fixture.source)
+        self.assertEqual(manifest['platform'], 'darwin-arm64')
+        self.assertEqual(set(archives), {'bun', 'rust'})
+
+    def test_complete_sdk_evidence_above_specific_limit_refuses(self):
+        root, _ = self.fixture.resize_installed_sdk_evidence(16 * 1024 * 1024 + 1)
+        with self.assertRaisesRegex(ValueError, 'Invalid JSON file'):
+            rehearsal.verify_kernel_rc(root, self.fixture.source, self.fixture.version)
+
+    def test_linux_runtime_packet_missing_or_rehashed_source_refuses(self):
+        import base64
+        root = next(root for root in self.fixture.roots if root.name == 'linux-x64-gnu')
+        report_path = root / 'build-report.json'; report = json.loads(report_path.read_bytes())
+        path = root / rehearsal.custody.LINUX_RUNTIME_EVIDENCE; original = path.read_bytes()
+        del report['evidence'][rehearsal.custody.LINUX_RUNTIME_EVIDENCE]; report_path.write_text(json.dumps(report))
+        with self.assertRaises(ValueError): rehearsal.verify_kernel_rc(root, self.fixture.source, self.fixture.version)
+        bundle = json.loads(original); row = next(row for row in bundle['members'] if row['path'] == 'sources/cli/ci/sdk_native_inventory.py')
+        data = b'altered source despite recomputed inner and outer digests'
+        row.update(base64=base64.b64encode(data).decode(), sha256=hashlib.sha256(data).hexdigest(), byteLength=len(data))
+        path.write_text(json.dumps(bundle)); report['evidence'][rehearsal.custody.LINUX_RUNTIME_EVIDENCE] = {
+            'sha256': hashlib.sha256(path.read_bytes()).hexdigest(), 'byteLength': path.stat().st_size}
+        report_path.write_text(json.dumps(report))
+        with self.assertRaises(ValueError): rehearsal.verify_kernel_rc(root, self.fixture.source, self.fixture.version)
+
+    def test_complete_linux_runtime_packets_verify_both_targets(self):
+        for platform in ('linux-x64-gnu', 'linux-arm64-gnu'):
+            root = next(root for root in self.fixture.roots if root.name == platform)
+            with self.subTest(platform=platform):
+                verified, manifest, archives = rehearsal.verify_kernel_rc(root, self.fixture.source, self.fixture.version)
+                self.assertEqual(verified['source'], self.fixture.source)
+                self.assertEqual(manifest['platform'], platform)
+                self.assertEqual(set(archives), {'bun', 'rust'})
+
+    def test_mac_runtime_claim_refuses_before_packet_callback(self):
+        from unittest.mock import Mock
+        root = next(root for root in self.fixture.roots if root.name == 'darwin-arm64')
+        report_path = root / 'build-report.json'; report = json.loads(report_path.read_bytes())
+        path = root / rehearsal.custody.LINUX_RUNTIME_EVIDENCE; path.write_bytes(b'unexpected Mac runtime claim')
+        report['evidence'][rehearsal.custody.LINUX_RUNTIME_EVIDENCE] = {
+            'sha256': hashlib.sha256(path.read_bytes()).hexdigest(), 'byteLength': path.stat().st_size}
+        report_path.write_text(json.dumps(report))
+        callback = Mock(side_effect=AssertionError('Mac packet callback must not be used'))
+        actual = rehearsal.custody.validate_linux_runtime_evidence
+        def validate(report, manifest, table, read_bytes, *, expected_sources):
+            return actual(report, manifest, table, callback, expected_sources=expected_sources)
+        with patch.object(rehearsal.custody, 'validate_linux_runtime_evidence', side_effect=validate), self.assertRaises(ValueError):
+            rehearsal.verify_kernel_rc(root, self.fixture.source, self.fixture.version)
+        callback.assert_not_called()
+
+
 class KernelRcAdmissionTests(unittest.TestCase):
     SOURCE = 'a' * 40
     VERSION = '0.15.0-rc.3'
@@ -111,6 +256,9 @@ class KernelRcAdmissionTests(unittest.TestCase):
                          'imageSource': 'published-on-run', 'releaseEligible': False, 'publicationAuthorized': False,
                          'buildProfiles': {i: {'profile': 'release', 'testSeamsEnabled': False} for i in ('bun', 'rust')},
                          'artifacts': []}
+        from test_kernel_rc_evidence import sdk_fixture
+        sdk, self.sdk_table = sdk_fixture('darwin-arm64')
+        self.manifest['agentsSdk'] = sdk
         for implementation in ('bun', 'rust'):
             self.archive(implementation + '.tar.gz', 'standalone-archive', implementation,
                          'darwin-arm64', 'package/prose', implementation.encode())
@@ -135,11 +283,13 @@ class KernelRcAdmissionTests(unittest.TestCase):
 
     def archive(self, filename, kind, implementation, platform, member_name, payload):
         path = self.root / 'package' / filename
-        with tarfile.open(path, 'w:gz') as archive:
-            member = tarfile.TarInfo(member_name)
-            member.mode = 0o755
-            member.size = len(payload)
-            archive.addfile(member, io.BytesIO(payload))
+        import package_local as package
+        prefix = str(Path(member_name).parent) + '/'
+        rows = [(member_name, payload, 0o755)]
+        if kind != 'npm-meta':
+            rows += [(prefix + name, data, mode) for name, (data, mode) in self.sdk_table['files'].items()]
+        package.tar_gz(path, rows, 0, sdk_table=self.sdk_table if kind != 'npm-meta' else None,
+                       sdk_prefix=prefix if kind != 'npm-meta' else '')
         item = {'kind': kind, 'implementation': implementation, 'platform': platform, 'path': filename,
                 'byteLength': path.stat().st_size, 'sha256': hashlib.sha256(path.read_bytes()).hexdigest()}
         self.manifest['artifacts'] = [a for a in self.manifest['artifacts'] if a['path'] != filename] + [item]
@@ -148,6 +298,25 @@ class KernelRcAdmissionTests(unittest.TestCase):
         (self.root / 'package/release-manifest.json').write_text(json.dumps(self.manifest))
         for name, check in self.checks.items():
             (self.root / 'logs' / (name + '.json')).write_text(json.dumps(check))
+        from test_kernel_rc_evidence import producer_command_log_fixture
+        from test_kernel_rc_evidence import sdk_producer_fixture
+        for relative in rehearsal.custody.SDK_PROBES:
+            (self.root / relative).write_text(json.dumps(rehearsal.custody.SDK_TOOL_TEST
+                if 'sdk-tools-' in relative else rehearsal.custody.SDK_IMPORT_TEST))
+        identities = {name: {'sha256': hashlib.sha256(data).hexdigest(), 'byteLength': len(data)}
+                      for name, (data, _) in self.sdk_table['files'].items()
+                      if name in rehearsal.custody.SDK_NAMES}
+        payload = json.loads(self.sdk_table['files']['agents-sdk-build.json'][0])['payload']
+        identities['supportTree'] = {'payload': payload,
+            'sha256': hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(',', ':')).encode()).hexdigest(),
+            'byteLength': payload['totalRegularBytes'], 'entryCount': len(payload['entries'])}
+        (self.root / rehearsal.custody.SDK_PAYLOAD_EVIDENCE).write_text(json.dumps([
+            {'surface': 'installed-' + runner, 'before': identities, 'after': identities}
+            for runner in ('bun', 'rust', 'npm')]))
+        for relative, encoded in sdk_producer_fixture(self.sdk_table).items():
+            (self.root / relative).write_bytes(encoded)
+        for relative, encoded in producer_command_log_fixture(self.report).items():
+            (self.root / relative).write_bytes(encoded)
         self.report['evidence'] = {str(path.relative_to(self.root)): {
             'sha256': hashlib.sha256(path.read_bytes()).hexdigest(), 'byteLength': path.stat().st_size}
             for directory in ('package', 'logs') for path in (self.root / directory).iterdir()}
@@ -164,6 +333,17 @@ class KernelRcAdmissionTests(unittest.TestCase):
         self.assertEqual(verified['packageIdentity']['bunBinarySha256'], hashlib.sha256(b'bun').hexdigest())
         self.assertEqual(manifest['version'], self.VERSION)
         self.assertEqual(set(selected), {'bun', 'rust'})
+
+    def test_command_bundle_missing_or_rehashed_raw_poison_is_refused(self):
+        report_path = self.root / 'build-report.json'; path = self.root / rehearsal.custody.COMMAND_LOG_EVIDENCE
+        original = path.read_bytes(); report = json.loads(report_path.read_bytes())
+        del report['evidence'][rehearsal.custody.COMMAND_LOG_EVIDENCE]; report_path.write_text(json.dumps(report))
+        with self.assertRaises(ValueError): self.verify()
+        bundle = json.loads(original); bundle['members'][0]['base64'] = 'eA=='
+        path.write_text(json.dumps(bundle)); report['evidence'][rehearsal.custody.COMMAND_LOG_EVIDENCE] = {
+            'sha256': hashlib.sha256(path.read_bytes()).hexdigest(), 'byteLength': path.stat().st_size}
+        report_path.write_text(json.dumps(report))
+        with self.assertRaises(ValueError): self.verify()
 
     def test_expected_source_and_version_are_mandatory_exact_anchors(self):
         for source, version in [('bad', self.VERSION), ('c' * 40, self.VERSION),
@@ -249,3 +429,465 @@ class KernelRcAdmissionTests(unittest.TestCase):
         self.report['evidence']['../outside'] = {'sha256': '0' * 64, 'byteLength': 1}
         (self.root / 'build-report.json').write_text(json.dumps(self.report))
         with self.assertRaisesRegex(ValueError, 'Unsafe evidence path'): self.verify()
+
+
+class PreviousReleaseTests(unittest.TestCase):
+    def setUp(self):
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        self.root = Path(temp.name)
+        self.manifest = {'schema': 'openprose.cli-distribution/1', 'version': rehearsal.PREVIOUS_VERSION, 'artifacts': []}
+        for implementation in ('bun', 'rust'):
+            path = self.root / (implementation + '.tar.gz')
+            with tarfile.open(path, 'w:gz') as archive:
+                member = tarfile.TarInfo('package/prose'); member.size = len(implementation)
+                archive.addfile(member, io.BytesIO(implementation.encode()))
+            self.manifest['artifacts'].append({'kind': 'standalone', 'implementation': implementation,
+                'platform': 'darwin-arm64', 'name': path.name, 'size': path.stat().st_size,
+                'sha256': hashlib.sha256(path.read_bytes()).hexdigest()})
+        (self.root / 'manifest.json').write_text(json.dumps(self.manifest))
+        self.pin = hashlib.sha256((self.root / 'manifest.json').read_bytes()).hexdigest()
+
+    def verify(self, version='0.15.0-rc.4'):
+        with patch.object(rehearsal, 'PREVIOUS_MANIFEST_SHA256', self.pin):
+            return rehearsal.verify_previous_release(self.root, 'darwin-arm64', version)
+
+    def test_actual_prior_bytes_have_no_sdk_requirement(self):
+        previous = self.verify()
+        self.assertEqual(previous['version'], '0.15.0-rc.3')
+        self.assertEqual(set(previous['archives']), {'bun', 'rust'})
+        self.assertEqual(previous['binaryHashes']['bun'], hashlib.sha256(b'bun').hexdigest())
+
+    def test_mutated_manifest_or_archive_is_refused(self):
+        for name in ('manifest.json', 'bun.tar.gz'):
+            path = self.root / name; original = path.read_bytes()
+            path.write_bytes(original + b' ')
+            with self.subTest(name=name), self.assertRaisesRegex(ValueError, 'identity mismatch'):
+                self.verify()
+            path.write_bytes(original)
+
+    def test_same_version_downgrade_and_non_rc_candidate_are_refused(self):
+        for version in ('0.15.0-rc.3', '0.15.0-rc.2', '0.14.0-rc.9', '0.15.0'):
+            with self.subTest(version=version), self.assertRaisesRegex(ValueError, 'newer RC'):
+                self.verify(version)
+
+    def test_symlinked_prior_archive_refused_before_mutation(self):
+        path = self.root / 'bun.tar.gz'; path.rename(self.root / 'real.tar.gz'); path.symlink_to('real.tar.gz')
+        with self.assertRaisesRegex(ValueError, 'regular previous archive'):
+            self.verify()
+
+
+class NativeExerciseTests(unittest.TestCase):
+    """Exercise genuine install/upgrade transitions with an inert fake brew."""
+    def setUp(self):
+        temp = tempfile.TemporaryDirectory(); self.addCleanup(temp.cleanup)
+        self.root = Path(temp.name).resolve(); self.prefix = self.root / 'brew'
+        (self.prefix / 'bin').mkdir(parents=True)
+        self.package = self.root / 'candidate'; self.package.mkdir()
+        self.output = self.root / 'receipt'
+        self.installed_tap = self.prefix / 'Homebrew/Library/Taps/openprose/homebrew-cli-rehearsal'
+        self.active = self.prefix / 'bin/prose'
+        self.manifest = {'version': '0.15.0-rc.4', 'platform': 'darwin-arm64',
+                         'agentsSdk': {}}
+        from test_kernel_rc_evidence import sdk_fixture
+        sdk, self.sdk_table = sdk_fixture('darwin-arm64')
+        self.manifest['agentsSdk'] = sdk
+        self.archives = {i: {'path': i + '.tar.gz', 'sha256': 'a' * 64} for i in ('bun', 'rust')}
+        self.verified = {'custodyKind': 'kernel-rc-native', 'manifestSha256': 'b' * 64,
+                         'source': 'c' * 40, 'packageIdentity': {
+                             i + 'BinarySha256': hashlib.sha256(('new-' + i).encode()).hexdigest() for i in ('bun', 'rust')}}
+        self.verified['sdkBuild'] = json.loads(self.sdk_table['files']['agents-sdk-build.json'][0])
+        self.previous = {'version': '0.15.0-rc.3', 'root': self.root, 'manifestSha256': 'd' * 64,
+                         'archives': self.archives,
+                         'binaryHashes': {i: hashlib.sha256(('old-' + i).encode()).hexdigest() for i in ('bun', 'rust')}}
+        self.retained_versions = {}; self.retained_before_force = []; self.leave_retained_keg = False
+        self.kegs = {}; self.tapped = False; self.calls = []; self.corrupt_settings = False
+        self.bad_dry_run = False
+        self.runtime_banner = 'prose-agents-sdk 0.1.0'
+
+    def execute(self, argv, **kwargs):
+        self.calls.append((list(argv), dict(kwargs['env'])))
+        out = ''; code = 0
+        if argv[0] == 'brew':
+            verb = argv[1]
+            if verb == '--prefix':
+                out = str(self.prefix if len(argv) == 2 else self.kegs[argv[2].split('-')[-1]][0]) + '\n'
+            elif verb == '--repo': out = str(self.installed_tap) + '\n'
+            elif verb == 'tap':
+                if len(argv) == 2: out = rehearsal.TAP + '\n' if self.tapped else ''
+                else:
+                    self.tapped = True
+                    (self.installed_tap / 'Formula').mkdir(parents=True)
+                    for implementation in ('bun', 'rust'):
+                        filename = 'prose-' + implementation + '.rb'
+                        (self.installed_tap / 'Formula' / filename).write_bytes((self.output / 'tap/Formula' / filename).read_bytes())
+            elif verb == 'untap': self.tapped = False
+            elif verb == 'list':
+                out = ''.join('prose-' + i + ' ' + ' '.join(sorted(self.retained_versions.get(i, {state[1]}))) + '\n' for i, state in self.kegs.items())
+            elif verb in {'install', 'upgrade'}:
+                implementation = argv[-1].split('-')[-1]
+                formula = (self.installed_tap / 'Formula' / ('prose-' + implementation + '.rb')).read_text()
+                version = rehearsal.re.search(r'  version "([^"]+)"', formula).group(1)
+                if verb == 'install' and version in self.retained_versions.get(implementation, set()):
+                    return subprocess.CompletedProcess(argv, 0, 'Already installed, not linked\n', '')
+                if verb == 'upgrade':
+                    self.assertIn(implementation, self.kegs, 'Upgrade requires an installed previous keg')
+                    self.assertEqual(self.kegs[implementation][1], '0.15.0-rc.3', 'Upgrade must replace an actual previous version')
+                keg = self.prefix / 'Cellar' / implementation / version / 'bin'; keg.mkdir(parents=True, exist_ok=True)
+                binary = keg / 'prose'
+                binary.write_bytes((('new-' if version.endswith('.4') else 'old-') + implementation).encode())
+                if version.endswith('.4') and 'sdkBuild' in self.verified:
+                    import sdk_native_inventory as native
+                    view = self.sdk_table
+                    files = {name: row for name, row in view['files'].items()
+                             if name not in ('agents-sdk-build.json', 'AGENTS-SDK-NOTICES.txt')}
+                    if (keg / 'prose-agents-sdk-runtime').exists():
+                        native.read_macos_payload(keg, self.verified['sdkBuild']['payload'], 'arm64')
+                    else:
+                        native.materialize_macos_payload(keg, self.verified['sdkBuild']['payload'], files,
+                                                         view['directories'], view['symlinks'], 'arm64')
+                self.kegs[implementation] = (keg.parent, version)
+                self.retained_versions.setdefault(implementation, set()).add(version)
+                self.assertFalse(self.active.exists() or self.active.is_symlink(), 'Install/upgrade must vacate shared command')
+                self.active.symlink_to(binary)
+                for name in ('prose-agents-sdk', 'prose-agents-sdk-runtime'):
+                    if (keg / name).exists(): (self.prefix / 'bin' / name).symlink_to(keg / name)
+                if self.corrupt_settings and verb == 'upgrade':
+                    (Path(kwargs['env']['PROSE_CONFIG_DIR']) / 'cli.toml').write_text('timeout = "1m"\n')
+            elif verb == 'unlink':
+                for name in ('prose', 'prose-agents-sdk', 'prose-agents-sdk-runtime'):
+                    link = self.prefix / 'bin' / name
+                    if link.is_symlink(): link.unlink()
+            elif verb == 'link':
+                binary = self.kegs[argv[-1].split('-')[-1]][0] / 'bin/prose'
+                if self.active.is_symlink():
+                    if self.active.resolve() != binary.resolve(): out = 'Could not symlink'; code = 1
+                else:
+                    self.active.symlink_to(binary)
+                    for name in ('prose-agents-sdk', 'prose-agents-sdk-runtime'):
+                        if (binary.parent / name).exists(): (self.prefix / 'bin' / name).symlink_to(binary.parent / name)
+            elif verb == 'uninstall':
+                force = '--force' in argv
+                for name in [arg for arg in argv[2:] if arg != '--force']:
+                    self.assertTrue(name.startswith(rehearsal.TAP + '/prose-'), 'All-version cleanup must stay in the owned tap')
+                    implementation = name.split('-')[-1]
+                    if implementation in self.kegs:
+                        versions = self.retained_versions.get(implementation, {self.kegs[implementation][1]})
+                        if force: self.retained_before_force.append((implementation, set(versions)))
+                        if self.active.is_symlink() and self.active.resolve().parent.parent == self.kegs[implementation][0].resolve():
+                            for name in ('prose', 'prose-agents-sdk', 'prose-agents-sdk-runtime'):
+                                link = self.prefix / 'bin' / name
+                                if link.is_symlink(): link.unlink()
+                        remaining = set() if force else versions - {self.kegs[implementation][1]}
+                        if self.leave_retained_keg and force and len(versions) > 1:
+                            remaining = {'0.15.0-rc.3'}
+                        if remaining:
+                            self.retained_versions[implementation] = remaining
+                            version = sorted(remaining)[-1]
+                            self.kegs[implementation] = (self.prefix / 'Cellar' / implementation / version, version)
+                        else:
+                            self.retained_versions.pop(implementation, None)
+                            del self.kegs[implementation]
+            elif verb != 'test': self.fail('Unexpected brew command: ' + str(argv))
+        elif argv[0] == 'git': pass  # Inert fake: no Git operation occurs in this test.
+        elif Path(argv[0]).name == 'prose-agents-sdk': out = '{}\n'
+        elif Path(argv[0]).name == 'prose':
+            resolved = Path(argv[0]).resolve(); version = resolved.parent.parent.name; implementation = resolved.parent.parent.parent.name
+            if argv[1:] == ['--version']: out = f'prose {version} ({implementation})\n'
+            elif 'explain' in argv:
+                out = json.dumps({'schema': 'openprose.configuration-explanation/1', 'diagnostics': [], 'values': {
+                    k: {'value': v} for k, v in [('harness', 'agents-sdk'), ('model', 'gpt-6.1-sol'), ('authProfile', 'openai-api-key'),
+                        ('timeout', '9m' if (Path(kwargs['env']['PROSE_CONFIG_DIR']) / 'cli.toml').exists() else '10m')]}})
+            elif '--dry-run' in argv:
+                self.assertEqual(kwargs['env'].get('OPENAI_API_KEY'), 'provider-free-installation-canary')
+                out = json.dumps({'schema': 'openprose.runner-dry-run-report/1', 'wouldStartModel': self.bad_dry_run,
+                    'readiness': 'ready', 'billingOwner': 'user-provider', 'blockingError': None,
+                    'selection': {'harness': 'agents-sdk', 'adapterId': 'agents-sdk/jsonl', 'transport': 'jsonl', 'runtimeVersion': self.runtime_banner, 'model': 'gpt-6.1-sol'}})
+            else:
+                self.assertNotIn('OPENAI_API_KEY', kwargs['env'])
+                out = json.dumps({'schema': 'openprose.runner-error/1', 'code': 'HARNESS_NEEDS_AUTH', 'details': {'fallbackAttempted': False}}); code = 10
+        else: self.fail('Unexpected process: ' + str(argv))
+        return subprocess.CompletedProcess(argv, code, out, '')
+
+    def exercise(self, previous=True):
+        with patch.object(rehearsal.subprocess, 'run', side_effect=self.execute):
+            return rehearsal.exercise(self.package, self.manifest, self.archives, self.verified,
+                                      self.output, 'brew', previous=self.previous if previous else None)
+
+    def test_development_placeholder_completes_cli_only_failed_link_and_cleanup(self):
+        self.manifest.update(mode='development', releaseEligible=False, publicationAuthorized=False,
+                             agentsSdk='not-packaged-development-fixture')
+        before = copy.deepcopy(self.manifest)
+        self.verified.pop('sdkBuild'); self.verified['custodyKind'] = 'development-rehearsal'
+        with patch.object(rehearsal, 'qualify_installed_sdk', side_effect=AssertionError('No SDK probe')):
+            receipt = self.exercise(previous=False)
+        self.assertEqual(self.manifest, before)
+        self.assertEqual(receipt['kernelRetrieval'], 'not-measured')
+        self.assertNotIn('sdkPayloadChecks', receipt)
+        self.assertFalse(any(Path(argv[0]).name == 'prose-agents-sdk' for argv, _ in self.calls))
+        self.assertTrue(any(argv[:2] == ['brew', 'link'] for argv, _ in self.calls))
+        self.assertTrue(receipt['uninstallPassed'])
+        self.assertEqual(self.kegs, {})
+
+    def test_development_placeholder_rejects_sdk_claim_presence_before_output(self):
+        self.manifest.update(mode='development', releaseEligible=False, publicationAuthorized=False,
+                             agentsSdk='not-packaged-development-fixture')
+        self.verified.pop('sdkBuild')
+        for field in ('sdkBuild', 'sdkEvidence', 'sdkSourceCustody'):
+            for value in (None, {}, False):
+                self.verified[field] = value
+                with self.subTest(field=field, value=value), self.assertRaises(ValueError):
+                    self.exercise(previous=False)
+                self.assertFalse(self.output.exists())
+                self.assertEqual(self.calls, [])
+                del self.verified[field]
+
+    def test_both_genuine_upgrades_preserve_selection_settings_and_scrub_credentials(self):
+        with patch.dict(rehearsal.os.environ, {'OPENAI_API_KEY': 'ambient-secret', 'HTTPS_PROXY': 'ambient-proxy'}):
+            receipt = self.exercise()
+        self.assertEqual(receipt['upgradeQualification'], 'passed-genuine-upgrade-both-selections')
+        self.assertEqual(receipt['modelCalls'], 0)
+        self.assertEqual(len(receipt['sdkPayloadChecks']), 6)
+        self.assertTrue(all(row['completePayloadVerified'] for row in receipt['sdkPayloadChecks']))
+        self.assertTrue(receipt['uninstallPassed'])
+        self.assertEqual((self.output / 'user-settings/cli.toml').read_bytes(), b'# explicit upgrade preservation\ntimeout = "9m"\n')
+        names = [c['name'] for c in receipt['checks']]
+        for selected in ('bun', 'rust'):
+            positions = [names.index(selected + suffix) for suffix in ('-unlink-selected-before-upgrade', '-upgrade-inactive',
+                '-unlink-upgraded-inactive', '-upgrade-selected', '-restore-selected-link', '-settings-after-uninstall')]
+            self.assertEqual(positions, sorted(positions))
+        for argv, env in self.calls:
+            self.assertNotIn('HTTPS_PROXY', env)
+            if '--dry-run' not in argv: self.assertNotIn('OPENAI_API_KEY', env)
+        self.assertFalse(self.active.exists() or self.active.is_symlink())
+        self.assertNotEqual(self.installed_tap, self.output / 'tap')
+
+    def test_genuine_upgrade_retains_old_kegs_until_guarded_all_version_uninstall(self):
+        receipt = self.exercise()
+        retained = [(implementation, versions) for implementation, versions in self.retained_before_force
+                    if versions == {'0.15.0-rc.3', '0.15.0-rc.4'}]
+        self.assertEqual([implementation for implementation, _ in retained], ['bun', 'rust', 'bun', 'rust'])
+        self.assertEqual(self.retained_versions, {})
+        names = [check['name'] for check in receipt['checks']]
+        self.assertIn('bun-remaining-kegs-after-upgrade', names)
+        self.assertIn('rust-remaining-kegs-after-upgrade', names)
+        for argv, _ in self.calls:
+            if argv[:2] == ['brew', 'uninstall']:
+                self.assertIn('--force', argv)
+                self.assertTrue(all(arg.startswith(rehearsal.TAP + '/prose-') for arg in argv[2:] if arg != '--force'))
+
+    def test_retained_old_keg_after_force_fails_before_second_round(self):
+        self.leave_retained_keg = True
+        with self.assertRaisesRegex(ValueError, 'kegs survived all-version uninstall'):
+            self.exercise()
+        self.assertFalse((self.output / 'homebrew-rehearsal.json').exists())
+        # The second round must not disguise retained RC3 as a fresh installation.
+        labels = [p.name for p in self.output.glob('rust-install-base-*.log')]
+        self.assertEqual(labels, [])
+
+    def test_lingering_helper_after_all_version_uninstall_is_refused(self):
+        original_execute = self.execute
+        def leave_helper(argv, **kwargs):
+            had_old_and_new = any(len(versions) > 1 for versions in self.retained_versions.values())
+            result = original_execute(argv, **kwargs)
+            if argv[:2] == ['brew', 'uninstall'] and '--force' in argv and had_old_and_new:
+                (self.prefix / 'bin/prose-agents-sdk').write_bytes(b'lingering-helper')
+            return result
+        with patch.object(self, 'execute', side_effect=leave_helper):
+            with self.assertRaisesRegex(ValueError, 'commands survived all-version uninstall'):
+                self.exercise()
+        self.assertFalse((self.output / 'homebrew-rehearsal.json').exists())
+
+    def test_ordinary_uninstall_retains_old_unlinked_keg_and_reinstall_does_not_link(self):
+        self.exercise()
+        for version in ('0.15.0-rc.3', '0.15.0-rc.4'):
+            (self.prefix / 'Cellar/bun' / version / 'bin').mkdir(parents=True, exist_ok=True)
+        self.retained_versions['bun'] = {'0.15.0-rc.3', '0.15.0-rc.4'}
+        self.kegs['bun'] = (self.prefix / 'Cellar/bun/0.15.0-rc.4', '0.15.0-rc.4')
+        env = {'PROSE_CONFIG_DIR': str(self.output / 'user-settings')}
+        self.execute(['brew', 'uninstall', rehearsal.TAP + '/prose-bun'], env=env)
+        self.assertEqual(self.retained_versions['bun'], {'0.15.0-rc.3'})
+        formula = self.installed_tap / 'Formula/prose-bun.rb'
+        formula.write_text(formula.read_text().replace('0.15.0-rc.4', '0.15.0-rc.3'))
+        result = self.execute(['brew', 'install', '--build-from-source', rehearsal.TAP + '/prose-bun'], env=env)
+        self.assertEqual(result.returncode, 0)
+        self.assertIn('Already installed, not linked', result.stdout)
+        self.assertFalse(self.active.exists() or self.active.is_symlink())
+
+    def test_changed_settings_fail_instead_of_claiming_upgrade_success(self):
+        self.corrupt_settings = True
+        with self.assertRaisesRegex(ValueError, 'changed explicit user settings'):
+            self.exercise()
+        self.assertFalse((self.output / 'homebrew-rehearsal.json').exists())
+
+    def test_model_starting_dry_run_is_refused(self):
+        self.bad_dry_run = True
+        with self.assertRaisesRegex(ValueError, 'provider-free readiness'):
+            self.exercise()
+
+    def assert_runtime_banner_refused(self, banner):
+        self.runtime_banner = banner
+        with self.assertRaisesRegex(ValueError, 'discover the packaged SDK default'):
+            self.exercise()
+        self.assertFalse((self.output / 'homebrew-rehearsal.json').exists())
+
+    def test_complete_ready_selection_rejects_bare_runtime_version(self):
+        self.assert_runtime_banner_refused('0.1.0')
+
+    def test_complete_ready_selection_rejects_wrong_runtime_version(self):
+        self.assert_runtime_banner_refused('prose-agents-sdk 9.9.9')
+
+    def test_complete_ready_selection_rejects_wrong_helper_identity(self):
+        self.assert_runtime_banner_refused('other-helper 0.1.0')
+
+    def test_existing_command_is_not_replaced(self):
+        self.active.write_bytes(b'existing')
+        with self.assertRaisesRegex(ValueError, 'overwrite an existing prose command'):
+            self.exercise()
+        self.assertEqual(self.active.read_bytes(), b'existing')
+        self.assertFalse(any(argv[:2] == ['brew', 'install'] for argv, _ in self.calls))
+
+    def test_existing_tap_is_not_replaced(self):
+        self.tapped = True
+        with self.assertRaisesRegex(ValueError, 'replace an existing tap'):
+            self.exercise()
+        self.assertFalse(any(argv[:2] == ['brew', 'install'] for argv, _ in self.calls))
+
+    def test_existing_helper_command_is_not_replaced(self):
+        helper = self.prefix / 'bin/prose-agents-sdk'; helper.write_bytes(b'existing-helper')
+        with self.assertRaisesRegex(ValueError, 'overwrite an existing SDK helper'):
+            self.exercise()
+        self.assertEqual(helper.read_bytes(), b'existing-helper')
+        self.assertFalse(any(argv[:2] == ['brew', 'install'] for argv, _ in self.calls))
+
+    def test_existing_fully_qualified_prose_keg_is_not_replaced(self):
+        self.kegs['bun'] = (self.root, '0.15.0-rc.3')
+        with self.assertRaisesRegex(ValueError, 'fresh Homebrew installation'):
+            self.exercise()
+        self.assertFalse(any(argv[:2] == ['brew', 'install'] for argv, _ in self.calls))
+
+    def test_fresh_only_receipt_does_not_claim_genuine_upgrade(self):
+        receipt = self.exercise(previous=False)
+        self.assertEqual(receipt['upgradeQualification'], 'not-requested-fresh-install-only')
+        self.assertFalse(any(argv[:2] == ['brew', 'upgrade'] for argv, _ in self.calls))
+
+    def test_existing_support_directory_is_not_replaced(self):
+        support = self.prefix / 'bin/prose-agents-sdk-runtime'; support.mkdir()
+        marker = support / 'caller.txt'; marker.write_bytes(b'caller-owned')
+        with self.assertRaisesRegex(ValueError, 'overwrite an existing SDK support directory'):
+            self.exercise()
+        self.assertEqual(marker.read_bytes(), b'caller-owned')
+        self.assertFalse(any(argv[:2] == ['brew', 'install'] for argv, _ in self.calls))
+
+    def test_missing_support_file_fails_before_helper_probe(self):
+        original = self.execute
+        def remove_support(argv, **kwargs):
+            result = original(argv, **kwargs)
+            if argv[:2] == ['brew', 'install']:
+                helper = self.active.resolve().parent
+                name = next(name for name in self.sdk_table['files'] if name.startswith('prose-agents-sdk-runtime/'))
+                (helper / name).unlink()
+            return result
+        with patch.object(self, 'execute', side_effect=remove_support), self.assertRaises(ValueError):
+            self.exercise(previous=False)
+        self.assertFalse(any(Path(argv[0]).name == 'prose-agents-sdk' for argv, _ in self.calls))
+        self.assertFalse((self.output / 'homebrew-rehearsal.json').exists())
+
+    def test_support_mutation_during_probe_is_refused(self):
+        original = self.execute
+        def mutate_support(argv, **kwargs):
+            result = original(argv, **kwargs)
+            if '--dry-run' in argv:
+                helper = self.active.resolve().parent
+                name = next(name for name in self.sdk_table['files'] if name.startswith('prose-agents-sdk-runtime/'))
+                (helper / name).write_bytes(b'mutated')
+            return result
+        with patch.object(self, 'execute', side_effect=mutate_support), self.assertRaises(ValueError):
+            self.exercise(previous=False)
+        self.assertFalse((self.output / 'homebrew-rehearsal.json').exists())
+
+    def test_cleaner_style_support_mode_change_fails_before_helper_probe(self):
+        original = self.execute
+        changed = []
+        def change_mode(argv, **kwargs):
+            result = original(argv, **kwargs)
+            if argv[:2] == ['brew', 'install']:
+                name = next(name for name, (_, mode) in self.sdk_table['files'].items()
+                            if name.startswith('prose-agents-sdk-runtime/') and mode == 0o644)
+                path = self.active.resolve().parent / name
+                before = path.read_bytes()
+                self.assertEqual(path.stat().st_mode & 0o777, 0o644)
+                path.chmod(0o444)
+                self.assertEqual(path.read_bytes(), before)
+                changed.append(name)
+            return result
+        with patch.object(self, 'execute', side_effect=change_mode), self.assertRaises(ValueError):
+            self.exercise(previous=False)
+        self.assertEqual(len(changed), 1)
+        self.assertFalse(any(Path(argv[0]).name == 'prose-agents-sdk' for argv, _ in self.calls))
+        self.assertFalse((self.output / 'homebrew-rehearsal.json').exists())
+
+    def test_pruned_declared_empty_support_directory_fails_before_helper_probe(self):
+        name = 'prose-agents-sdk-runtime/declared-empty-data'
+        self.sdk_table['directories'][name] = 0o755
+        receipt = json.loads(self.sdk_table['files']['agents-sdk-build.json'][0])
+        receipt['payload']['entries'].append({'path': name, 'type': 'directory', 'mode': 0o755})
+        receipt['payload']['entries'].sort(key=lambda row: row['path'])
+        encoded = json.dumps(receipt).encode()
+        self.sdk_table['files']['agents-sdk-build.json'] = (encoded, 0o644)
+        self.manifest['agentsSdk']['receiptSha256'] = hashlib.sha256(encoded).hexdigest()
+        self.verified['sdkBuild'] = receipt
+        original = self.execute
+        pruned = []
+        def prune_empty(argv, **kwargs):
+            result = original(argv, **kwargs)
+            if argv[:2] == ['brew', 'install']:
+                import sdk_native_inventory
+                view = sdk_native_inventory.read_macos_payload(
+                    self.active.resolve().parent, receipt['payload'], 'arm64')
+                self.assertIn(name, view['directories'])
+                (self.active.resolve().parent / name).rmdir()
+                pruned.append(name)
+            return result
+        with patch.object(self, 'execute', side_effect=prune_empty), self.assertRaises(ValueError):
+            self.exercise(previous=False)
+        self.assertEqual(pruned, [name])
+        self.assertFalse(any(Path(argv[0]).name == 'prose-agents-sdk' for argv, _ in self.calls))
+        self.assertFalse((self.output / 'homebrew-rehearsal.json').exists())
+
+    def test_lingering_support_after_all_version_uninstall_is_refused(self):
+        original = self.execute
+        def leave_support(argv, **kwargs):
+            both = any(len(versions) > 1 for versions in self.retained_versions.values())
+            result = original(argv, **kwargs)
+            if argv[:2] == ['brew', 'uninstall'] and '--force' in argv and both:
+                (self.prefix / 'bin/prose-agents-sdk-runtime').mkdir(exist_ok=True)
+            return result
+        with patch.object(self, 'execute', side_effect=leave_support), self.assertRaisesRegex(ValueError, 'commands survived all-version uninstall'):
+            self.exercise()
+        self.assertFalse((self.output / 'homebrew-rehearsal.json').exists())
+
+    def test_rejected_link_must_preserve_helper_link_identity(self):
+        original = self.execute
+        def alter_link(argv, **kwargs):
+            result = original(argv, **kwargs)
+            if argv[:2] == ['brew', 'link'] and result.returncode == 1:
+                link = self.prefix / 'bin/prose-agents-sdk'
+                link.unlink()
+                link.symlink_to(self.kegs['rust'][0] / 'bin/prose-agents-sdk')
+            return result
+        with patch.object(self, 'execute', side_effect=alter_link), self.assertRaisesRegex(ValueError, 'SDK helper linkage'):
+            self.exercise(previous=False)
+        self.assertFalse((self.output / 'homebrew-rehearsal.json').exists())
+
+    def test_rejected_link_must_preserve_complete_selected_payload(self):
+        original = self.execute
+        def alter_tree(argv, **kwargs):
+            result = original(argv, **kwargs)
+            if argv[:2] == ['brew', 'link'] and result.returncode == 1:
+                name = next(name for name in self.sdk_table['files'] if name.startswith('prose-agents-sdk-runtime/'))
+                (self.active.resolve().parent / name).write_bytes(b'changed-by-failed-link')
+            return result
+        with patch.object(self, 'execute', side_effect=alter_tree), self.assertRaises(ValueError):
+            self.exercise(previous=False)
+        self.assertFalse((self.output / 'homebrew-rehearsal.json').exists())

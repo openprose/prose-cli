@@ -54,5 +54,8 @@
   },
   "forbid": [
     "rr_test_0123456789abcdef0123456789abcdef"
-  ]
+  ],
+  "stderr": {
+    "text": ""
+  }
 }

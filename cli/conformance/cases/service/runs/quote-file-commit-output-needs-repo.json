@@ -1,0 +1,66 @@
+{
+  "id": "quote-file-commit-output-needs-repo",
+  "feature": "runs",
+  "operation": "run.quote",
+  "description": "With FILE, `run quote` applies `run submit`'s rule that --commit-output must also be a --repo, before any request.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "quote",
+    "p.prose.md",
+    "--commit-output",
+    "exowner1/context"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "run.quote",
+      "operation": "run.quote",
+      "problem": {
+        "action": "Correct the value named in Detail; `prose --output json cli run quote --help` shows the accepted syntax.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "--commit-output exowner1/context must also be given as --repo exowner1/context[@BRANCH]; the service commits only to a context repository",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "quote",
+            "--help"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "9.9.9-extra",
+    "web_search"
+  ],
+  "stderr": {
+    "text": ""
+  },
+  "files": [
+    {
+      "path": "p.prose.md",
+      "content": "---\nname: hello\nkind: function\n---\n\nReply with the word ok.\n"
+    }
+  ]
+}

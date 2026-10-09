@@ -718,6 +718,26 @@ serde = { path = "../../packages/language/serde" }
             [violation.rule for violation in violations],
         )
 
+    def test_rust_discard_does_not_taint_unrelated_paths(self) -> None:
+        temporary, root = self.fixture()
+        self.addCleanup(temporary.cleanup)
+        source = root / "cli/rust/crates/runner/src/lib.rs"
+        source.parent.mkdir(parents=True, exist_ok=True)
+        source.write_text(
+            'fn read_config(keys: &[String]) {\n'
+            ' let _ = keys.len();\n'
+            ' let source = config_path().map_err(|_| "unavailable");\n'
+            ' let _ = std::fs::read(source);\n'
+            '}\n', 'utf-8')
+        self.assertNotIn("opaque-program-boundary", {v.rule for v in check_repository(root)})
+        source.write_text(
+            'fn forbidden(argv: &[String]) {\n'
+            ' let _ = argv.len();\n'
+            ' let source = &argv[0];\n'
+            ' let _ = std::fs::read(source);\n'
+            '}\n', 'utf-8')
+        self.assertIn("opaque-program-boundary", {v.rule for v in check_repository(root)})
+
     @unittest.skipUnless(hasattr(Path, "symlink_to"), "requires symlink support")
     def test_symlinked_stable_source_is_never_followed_as_product_code(self) -> None:
         temporary, root = self.fixture()

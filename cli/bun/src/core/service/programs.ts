@@ -162,10 +162,7 @@ async function list(context: Context): Promise<Json> {
 
 /** `program show` reads anonymously when no credential is configured (public programs). */
 async function hasCredential(context: Context): Promise<boolean> {
-  const value = context.deps.env[context.environment.credentialEnv];
-  if (value !== undefined && value !== "") return true;
-  try { return (await context.transport.storedCredential()) !== null; }
-  catch { return false; }
+  return await context.credentialConfigured();
 }
 
 function fileLine(label: string, file: JsonObject, target: string | undefined): string {
@@ -437,7 +434,7 @@ async function draft(context: Context): Promise<Json> {
   const request: Request = { ...base, headers: [...base.headers, ["Accept", "text/event-stream"]] };
   const planned = context.planned(0, "/write", [], request.body);
   if (context.invocation.preview || !context.invocation.yes) {
-    // A draft reserves the same flat hold as a run (request 2, advisory).
+    // A draft reserves a hold as a run does (request 2, advisory; parameter-free).
     const quote = await context.advisoryQuote(2);
     if (quote !== undefined) planned.quote = quote;
   }

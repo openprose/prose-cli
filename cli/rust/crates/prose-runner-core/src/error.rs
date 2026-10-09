@@ -174,6 +174,7 @@ pub enum ErrorCode {
     HarnessNeedsAuth,
     TransportUnsupported,
     PromptChannelUnsupported,
+    KernelRetrievalFailed,
     ImageInvalid,
     ImageTooLarge,
     RecursiveInvocation,
@@ -224,6 +225,7 @@ impl ErrorCode {
             Self::HarnessNeedsAuth => "HARNESS_NEEDS_AUTH",
             Self::TransportUnsupported => "TRANSPORT_UNSUPPORTED",
             Self::PromptChannelUnsupported => "PROMPT_CHANNEL_UNSUPPORTED",
+            Self::KernelRetrievalFailed => "KERNEL_RETRIEVAL_FAILED",
             Self::ImageInvalid => "IMAGE_INVALID",
             Self::ImageTooLarge => "IMAGE_TOO_LARGE",
             Self::RecursiveInvocation => "RECURSIVE_INVOCATION",
@@ -293,6 +295,7 @@ impl ErrorCode {
             | Self::ServiceResponseTooLarge => 10,
             Self::TransportUnsupported
             | Self::PromptChannelUnsupported
+            | Self::KernelRetrievalFailed
             | Self::ImageInvalid
             | Self::ImageTooLarge
             | Self::RecursiveInvocation => 20,
@@ -312,7 +315,7 @@ impl ErrorCode {
 
 impl ErrorCode {
     /// Every taxonomy code, in declaration order.
-    pub const ALL: [Self; 43] = [
+    pub const ALL: [Self; 44] = [
         Self::ConfigInvalid,
         Self::InvocationInvalid,
         Self::HarnessUnavailable,
@@ -320,6 +323,7 @@ impl ErrorCode {
         Self::HarnessNeedsAuth,
         Self::TransportUnsupported,
         Self::PromptChannelUnsupported,
+        Self::KernelRetrievalFailed,
         Self::ImageInvalid,
         Self::ImageTooLarge,
         Self::RecursiveInvocation,
@@ -496,6 +500,12 @@ impl RunnerError {
                 "adapter",
                 "The selected adapter cannot use a manifest-permitted instruction placement.",
                 "Choose a strict adapter reported by the `cli harness list` runner operation.",
+                false,
+            ),
+            ErrorCode::KernelRetrievalFailed => (
+                "image",
+                "The published OpenProse kernel could not be retrieved.",
+                "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
                 false,
             ),
             ErrorCode::ImageInvalid => (
@@ -790,6 +800,21 @@ impl RunnerError {
 
     #[must_use]
     pub fn human_action(&self) -> String {
+        if self.code == ErrorCode::HarnessFailed {
+            if let Some(action) = self
+                .details
+                .as_ref()
+                .filter(|details| {
+                    details.get("adapterId").and_then(Value::as_str) == Some("agents-sdk/jsonl")
+                })
+                .and_then(|details| details.get("nativeFailure"))
+                .filter(|native| native.get("kind").and_then(Value::as_str) == Some("setup"))
+                .and_then(|native| native.get("setupReason").and_then(Value::as_str))
+                .and_then(crate::installed_adapters::sdk_setup_action)
+            {
+                return human_safe_scalar(action);
+            }
+        }
         let executable = human_runner_executable();
         let action = human_safe_scalar(&self.action);
         if executable == NON_COPYABLE_RUNNER_GUIDANCE {
@@ -892,6 +917,46 @@ pub fn run_failure_action(reason: &str) -> Option<&'static str> {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn sdk_setup_human_actions_are_fixed_and_keep_primary_error_guards() {
+        for reason in [
+            "credential-or-permission",
+            "model-unavailable",
+            "local-input",
+        ] {
+            let error = RunnerError::catalog(ErrorCode::HarnessFailed)
+                .with_detail("adapterId", "agents-sdk/jsonl")
+                .with_detail(
+                    "nativeFailure",
+                    serde_json::json!({"kind":"setup", "setupReason":reason}),
+                );
+            let action = crate::installed_adapters::sdk_setup_action(reason).unwrap();
+            assert_eq!(error.human_action(), action);
+            assert!(error.to_string().contains(&format!("\nAction: {action}")));
+            let mut primary = error.clone();
+            primary.code = ErrorCode::Cancelled;
+            assert_ne!(primary.human_action(), action);
+            let other = RunnerError::catalog(ErrorCode::HarnessFailed)
+                .with_detail("adapterId", "claude/print-stream-json")
+                .with_detail(
+                    "nativeFailure",
+                    serde_json::json!({"kind":"setup", "setupReason":reason}),
+                );
+            assert_ne!(other.human_action(), action);
+        }
+        let unknown = RunnerError::catalog(ErrorCode::HarnessFailed)
+            .with_detail("adapterId", "agents-sdk/jsonl")
+            .with_detail(
+                "nativeFailure",
+                serde_json::json!({"kind":"setup", "setupReason":"arbitrary-provider-message"}),
+            );
+        assert!(
+            !unknown
+                .human_action()
+                .contains("arbitrary-provider-message")
+        );
+    }
 
     #[test]
     fn quote_and_detail_match_the_shared_fixture() {
@@ -1173,6 +1238,7 @@ mod tests {
             ErrorCode::HarnessNeedsAuth,
             ErrorCode::TransportUnsupported,
             ErrorCode::PromptChannelUnsupported,
+            ErrorCode::KernelRetrievalFailed,
             ErrorCode::ImageInvalid,
             ErrorCode::ImageTooLarge,
             ErrorCode::RecursiveInvocation,

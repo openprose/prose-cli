@@ -64,6 +64,25 @@ respecting the organization policy against Actions-created PRs. Merging that
 checked PR selects the new Homebrew release. This avoids a separate
 cross-repository publishing token and preserves a reviewable update boundary.
 
+## Packaged Agents SDK candidate
+
+The IMP-098 candidate supplies the Agents SDK helper with each native CLI package.
+Its built-in selection is `agents-sdk`, `gpt-6.1-sol` and `openai-api-key`;
+a supported first run requires an `OPENAI_API_KEY`. Saved alternatives and explicit
+command overrides remain available. Use `prose cli config explain --json -- run
+input.prose.md` to inspect the selected settings and their sources.
+
+On macOS, the helper requires its sibling `prose-agents-sdk-runtime` directory.
+Standalone relocation must move the entire extracted package together. npm and
+Homebrew install the helper and complete support directory with the selected CLI.
+Linux retains the packaged single-file helper. End users do not provision Python
+or a separate SDK executable. Missing prerequisites fail explicitly.
+
+These are candidate behaviors. Complete source admission, native installation and
+upgrade checks on all supported platforms, and live fulfillment evidence must
+qualify the final source before release. Existing public releases retain their
+historical behavior and qualification.
+
 ## Historical implementation record — September 16–17, 2026
 
 The sections below retain earlier work, failures and decisions. Statements about

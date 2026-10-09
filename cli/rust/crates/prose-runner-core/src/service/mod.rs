@@ -1625,7 +1625,98 @@ fn lone_command<'a>(noun: &str, verb: Option<&'a str>) -> Option<(Vec<&'a str>, 
 /// which is `cli run submit FILE --preview`. `prefix` is the runner globals
 /// before the words. `help` and `run` are language commands: the caller
 /// forwards them unless the hosted harness would refuse.
-fn service_word(prefix: &[String], rest: &[String]) -> Option<CliRedirect> {
+// Service corrections retain only display globals. Native execution settings
+// belong to the original language invocation, never the suggested service one.
+fn service_correction(
+    prefix: &[String],
+    argv: &[String],
+    global_kind: &impl Fn(&str) -> Option<bool>,
+) -> Vec<String> {
+    let mut display = Vec::new();
+    let mut cwd = None;
+    let mut model = None;
+    let mut dry_run = false;
+    let mut at = 0;
+    while let Some(token) = prefix.get(at) {
+        let (name, inline) = token
+            .split_once('=')
+            .map_or((token.as_str(), None), |(name, value)| (name, Some(value)));
+        let takes_value = global_kind(name) == Some(true);
+        let width = if takes_value && inline.is_none() {
+            2
+        } else {
+            1
+        };
+        let value = inline.or_else(|| {
+            takes_value
+                .then(|| prefix.get(at + 1))
+                .flatten()
+                .map(String::as_str)
+        });
+        match name {
+            "--output" | "--no-color" | "--verbose" => {
+                display.extend_from_slice(&prefix[at..(at + width).min(prefix.len())]);
+            }
+            "--cwd" => cwd = value.map(str::to_owned),
+            "--model" => model = value.map(str::to_owned),
+            "--dry-run" => dry_run = true,
+            _ => {}
+        }
+        at += width;
+    }
+    let mut command = argv[prefix.len()..].to_vec();
+    let Some(operation) = command_operation(&command) else {
+        display.extend(command);
+        return display;
+    };
+    if operation["id"] == "run.submit" {
+        let file_at = first_positional(Some(operation), &command[3..]).map(|at| at + 3);
+        if let (Some(cwd), Some(file)) = (cwd, file_at.and_then(|at| command.get_mut(at))) {
+            if file != "-" && !std::path::Path::new(file.as_str()).is_absolute() {
+                *file = std::path::Path::new(&cwd)
+                    .join(file.as_str())
+                    .to_string_lossy()
+                    .into_owned();
+            }
+        }
+    }
+    let stop = command
+        .iter()
+        .position(|word| word == "--")
+        .unwrap_or(command.len());
+    let mut additions = Vec::new();
+    if let Some(model) = model {
+        if operation["options"]
+            .as_array()
+            .is_some_and(|options| options.iter().any(|option| option["name"] == "--model"))
+            && !command[..stop]
+                .iter()
+                .any(|word| word == "--model" || word.starts_with("--model="))
+        {
+            additions.extend(["--model".to_owned(), model]);
+        }
+    }
+    if dry_run
+        && operation["preview"] == true
+        && !command[..stop].iter().any(|word| word == "--preview")
+    {
+        additions.push("--preview".to_owned());
+    }
+    // Keep a generated preview last, after any converted model option.
+    let insertion = command[..stop]
+        .iter()
+        .position(|word| word == "--preview")
+        .unwrap_or(stop);
+    command.splice(insertion..insertion, additions);
+    display.extend(command);
+    display
+}
+
+fn service_word(
+    prefix: &[String],
+    rest: &[String],
+    global_kind: &impl Fn(&str) -> Option<bool>,
+) -> Option<CliRedirect> {
     let words = rest.iter().map(String::as_str).collect::<Vec<_>>();
     let noun = *words.first()?;
     let mut original = prefix.to_vec();
@@ -1663,7 +1754,7 @@ fn service_word(prefix: &[String], rest: &[String]) -> Option<CliRedirect> {
                 vec!["help".to_owned()],
             )
         }
-        ["run", file, tail @ ..] if !file.starts_with('-') => {
+        ["run", file, tail @ ..] if *file == "-" || !file.starts_with('-') => {
             let stop = tail
                 .iter()
                 .position(|token| *token == "--")
@@ -1715,6 +1806,7 @@ fn service_word(prefix: &[String], rest: &[String]) -> Option<CliRedirect> {
         }
         Correction::Text(_) => return None,
     };
+    let argv = service_correction(prefix, &argv, global_kind);
     let language = is_language_command(noun);
     let typed = words[..meant.typed].join(" ");
     let why = meant
@@ -1909,9 +2001,27 @@ pub fn cli_redirect(
                     .flatten()
                 else {
                     return if replaced.is_empty() {
-                        service_word(&corrected, &args[at..])
+                        service_word(&corrected, &args[at..], &global_kind)
                     } else {
-                        None
+                        let mut fixed = corrected.clone();
+                        fixed.extend_from_slice(&args[at..]);
+                        let rejection = reject(
+                            reasons.join(" "),
+                            Correction::Argv {
+                                action: format!("Replace {}: `{{command}}`", replaced.join(", ")),
+                                argv: fixed.clone(),
+                            },
+                        );
+                        Some(CliRedirect {
+                            argv: fixed,
+                            operands: Vec::new(),
+                            command: ServiceCommand::Invalid(Box::new(invalid_command(
+                                rejection,
+                                &args[at..],
+                            ))),
+                            language: true,
+                            hint_only: true,
+                        })
                     };
                 };
                 language = is_language_command(word);
@@ -1920,9 +2030,11 @@ pub fn cli_redirect(
             }
             [] => return None,
         };
+        let service_prefix = corrected.clone();
         corrected.push("cli".to_owned());
         corrected.extend(command.iter().map(|word| (*word).to_owned()));
         corrected.extend_from_slice(&rest[typed..]);
+        corrected = service_correction(&service_prefix, &corrected, &global_kind);
         let spelled = words[..typed].join(" ");
         let kind = if words.as_slice() == ["run"] {
             "alone runs nothing here: hosted runs are `prose cli run submit FILE`"
@@ -4090,6 +4202,23 @@ impl Context<'_> {
         Ok(token)
     }
 
+    /// Whether a credential is configured (the environment variable, or a
+    /// stored key). A request whose manifest `auth` is `optional` sends the
+    /// key exactly when one is configured, and is anonymous otherwise.
+    pub fn has_credential(&mut self) -> bool {
+        let variable = self.environment.credential_env;
+        if self
+            .system
+            .environment
+            .get(variable)
+            .is_some_and(|value| !value.is_empty())
+        {
+            return true;
+        }
+        let environment = self.environment.clone();
+        matches!(self.transport.stored_credential(&environment), Ok(Some(_)))
+    }
+
     /// Names the credential source of a service authentication failure
     ///: an environment key is not replaced by `cli auth login`.
     fn annotate_auth(&self, error: &mut RunnerError) {
@@ -4385,22 +4514,35 @@ impl Context<'_> {
 
     /// The advisory `GET /run/quote` hold for a plan (`index` is the
     /// operation's quote request): `{hold}`, or `None` when the quote fails,
-    /// so a failed quote never hides the plan. The service's price policy
-    /// reference stays internal.
-    pub fn advisory_quote(&mut self, index: usize, environment: Option<&str>) -> Option<Value> {
+    /// so a failed quote never hides the plan; an interrupt (`CANCELLED`)
+    /// still stops the command. The service's price policy reference stays
+    /// internal.
+    pub fn advisory_quote(
+        &mut self,
+        index: usize,
+        environment: Option<&str>,
+    ) -> Result<Option<Value>, RunnerError> {
         let mut request = http::Request::from_manifest(self.operation, index, "/run/quote")
             .class(http::TransportClass::Control);
         if let Some(environment) = environment {
             request = request.query("environment", environment.to_owned());
         }
-        let body = self.send(&request).ok()?.json_object().ok()?;
-        let hold = body.get("hold")?;
-        let hold_usd = hold["hold_usd"].as_str()?;
-        let hold_cents = render::usd_cents(hold_usd)?;
-        let ttl = hold["ttl_seconds"].as_u64()?;
-        Some(json!({
-            "hold": {"hold_usd": hold_usd, "hold_cents": hold_cents, "ttl_seconds": ttl},
-        }))
+        let response = match self.send(&request) {
+            Ok(response) => response,
+            Err(error) if error.code == ErrorCode::Cancelled => return Err(error),
+            Err(_) => return Ok(None),
+        };
+        let hold = || {
+            let body = response.json_object().ok()?;
+            let hold = body.get("hold")?;
+            let hold_usd = hold["hold_usd"].as_str()?;
+            let hold_cents = render::usd_cents(hold_usd)?;
+            let ttl = hold["ttl_seconds"].as_u64()?;
+            Some(json!({
+                "hold": {"hold_usd": hold_usd, "hold_cents": hold_cents, "ttl_seconds": ttl},
+            }))
+        };
+        Ok(hold())
     }
 
     /// The confirmation gate: `--preview` returns the plan as the result,

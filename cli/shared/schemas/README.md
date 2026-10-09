@@ -68,7 +68,7 @@ named by each operation's `output.schema` in
 service field names verbatim (snake_case; camelCase for jobs) and drop every
 field the projection does not name. Signed `file_urls`, `customer_id`, webhook
 endpoints and secrets are never projected, except the secret-bearing field of
-the one operation that creates it (and a webhook's `endpointUrl` in `job show`
+the one operation that creates it (and a webhook's `endpoint_url` in `job show`
 when its endpoint is the secret-free job-id path). No property name may match `/cost/i`; open
 maps exclude such names with `propertyNames`. Run the checks with
 `python3 -m unittest cli/shared/tests/test_service_contract.py`.

@@ -2,7 +2,7 @@
   "id": "no-cli-status-jsonl",
   "feature": "framework",
   "operation": "service.triage",
-  "description": "`prose --output jsonl status` under the default hosted harness prints the INVOCATION_INVALID envelope with `prose --output jsonl cli service triage`.",
+  "description": "`prose --output jsonl status` under the explicitly selected hosted harness prints the INVOCATION_INVALID envelope with `prose --output jsonl cli service triage`.",
   "argv": [
     "--output",
     "jsonl",
@@ -43,5 +43,8 @@
       "result": null,
       "schema": "openprose.service-operation/1"
     }
+  },
+  "environment": {
+    "PROSE_HARNESS": "openprose"
   }
 }

@@ -127,7 +127,7 @@ describe("standalone build identity and seam exclusion", () => {
     const humanInventory = await run([first, "cli", "harness", "list"], root);
     expect(humanInventory).toMatchObject({ exitCode: 0, stderr: "" });
     expect(humanInventory.stdout).toContain(
-      "* openprose availability=not-implemented transport=hosted (selected)\n",
+      "* agents-sdk availability=missing transport=jsonl (selected)\n",
     );
     const exactFirst = await realpath(first);
     expect(humanInventory.stdout).toContain(`Choose Codex: '${exactFirst}' cli harness use codex\n`);
@@ -180,7 +180,7 @@ describe("standalone build identity and seam exclusion", () => {
             ...(model === undefined ? {} : { PROSE_MODEL: model }),
           });
           expect(attempted.exitCode).toBe(2);
-          expect(await Bun.file(join(configRoot, "openprose", "cli.toml")).exists()).toBeFalse();
+          expect(await Bun.file(join(root, `${harness}-${label}-home`, ".prose", "cli.toml")).exists()).toBeFalse();
           expect(await Bun.file(join(root, `${harness}-injection`)).exists()).toBeFalse();
         }
 
@@ -191,7 +191,7 @@ describe("standalone build identity and seam exclusion", () => {
           PROSE_MODEL: "openai/gpt-5.4",
         });
         expect(selected.exitCode, selected.stderr).toBe(0);
-        expect(await readFile(join(validConfigRoot, "openprose", "cli.toml"), "utf8")).toBe([
+        expect(await readFile(join(root, `${harness}-valid-home`, ".prose", "cli.toml"), "utf8")).toBe([
           `auth_profile = ${JSON.stringify(authProfile)}`,
           `harness = ${JSON.stringify(harness)}`,
           'model = "openai/gpt-5.4"',
@@ -244,7 +244,7 @@ describe("standalone build identity and seam exclusion", () => {
       runner: { name: "bun", version: "0.1.0", commit },
       build: { profile: "release", testSeamsEnabled: false },
     });
-    const failure = await run([first, "--output=json", "run", "example.prose.md"], root);
+    const failure = await run([first, "--harness=openprose", "--output=json", "run", "example.prose.md"], root);
     expect(failure.exitCode).toBe(10);
     expect(JSON.parse(failure.stdout)).toMatchObject({
       schema: "openprose.runner-result/1",
@@ -320,7 +320,7 @@ describe("standalone build identity and seam exclusion", () => {
       runner: { name: "bun", version, commit: "version-test-commit" },
     });
 
-    const failure = await run([executable, "--output=json", "run", "example.prose.md"], root);
+    const failure = await run([executable, "--harness=openprose", "--output=json", "run", "example.prose.md"], root);
     expect(failure.exitCode).toBe(10);
     expect(JSON.parse(failure.stdout)).toMatchObject({
       runner: { name: "bun", version, commit: "version-test-commit" },

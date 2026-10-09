@@ -37,6 +37,23 @@ they are not prerequisites for the new release. Stable macOS signing remains
 separate. npm currently distributes Bun; Rust standalone downloads remain
 independently selectable.
 
+## Packaged SDK custody
+
+Candidate SDK archives bind the helper, build receipt, notices and, on macOS,
+the complete `prose-agents-sdk-runtime` support tree. Dedicated SDK admission
+checks physical file hashes and modes, directory membership and bounded framework
+aliases against the exact receipt. Generic archive admission retains its existing
+member limit and refusal of links. Copying only the Mac helper is insufficient.
+
+The Mac builder records COLLECT membership and verifies signatures and architecture
+for every actual Mach-O support file before recording final bytes. Signing and
+notarization consumers bind the same complete payload. Unsigned candidate checks
+establish their measured ad hoc signature behavior; they do not grant Developer ID
+trust, notarization or publication authority. Linux keeps its native supplier and
+ELF closure evidence. See [the SDK design](packaged-sdk-design.md) for the source,
+member and byte bounds and [the release guide](../cli/release/README.md) for final
+qualification and publication gates.
+
 ## npm trusted publisher
 
 Configure the existing `@openprose/prose-cli` package with this exact identity:

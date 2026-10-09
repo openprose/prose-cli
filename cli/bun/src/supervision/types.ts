@@ -107,6 +107,7 @@ export interface AdapterDiagnostic {
 }
 
 export interface StructuredProtocolState {
+  readonly sdkObservations?: import("../adapters/sdk-observation").SdkObservations;
   /** Optional final validation after natural process/pipe settlement. */
   settleProcess?(exitCode:number|null):RawTransportEvent|null;
   readonly terminalEventObserved: boolean;

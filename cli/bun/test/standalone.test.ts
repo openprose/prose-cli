@@ -156,9 +156,16 @@ describe("standalone executable", () => {
     ]);
     expect(exit).toBe(10);
     expect(JSON.parse(stdout)).toMatchObject({
-      schema: "openprose.runner-result/1",
-      error: { code: "HOSTED_UNAVAILABLE" },
-      runnerExitCode: 10,
+      schema: "openprose.runner-error/1",
+      code: "HARNESS_NEEDS_AUTH",
+      boundary: "authentication",
+      exitCode: 10,
+      action: "Set OPENAI_API_KEY to an OpenAI API key in the process environment, then retry. No model request was sent.",
+      details: {
+        adapterId: "agents-sdk/jsonl",
+        authProfile: "openai-api-key",
+        fallbackAttempted: false,
+      },
     });
     expect(stderr).toBe("");
   });
