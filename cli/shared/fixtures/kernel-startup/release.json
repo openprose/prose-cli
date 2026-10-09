@@ -20,5 +20,1642 @@
   },
   "kernel": "# Provider-free kernel fixture\n",
   "sha256": "3d9beb296067894962d3d2fc37e15ff734e472fe6ab583118a285edbff65c85e",
-  "release": "fixture-1"
+  "release": "fixture-1",
+  "retrievalFailures": [
+    {
+      "id": "entry-transport",
+      "stage": "entry",
+      "trigger": "transport",
+      "expectedCalls": [
+        "https://pkg.prose.md/kernel.md"
+      ],
+      "error": {
+        "schema": "openprose.runner-error/1",
+        "code": "KERNEL_RETRIEVAL_FAILED",
+        "boundary": "image",
+        "exitCode": 20,
+        "retryable": true,
+        "message": "The published OpenProse kernel could not be retrieved.",
+        "action": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
+        "details": {
+          "reason": "Published kernel transport or response read failed.",
+          "stage": "entry",
+          "failureKind": "transport",
+          "origin": "https://pkg.prose.md"
+        }
+      }
+    },
+    {
+      "id": "entry-body-read",
+      "stage": "entry",
+      "trigger": "body-read",
+      "expectedCalls": [
+        "https://pkg.prose.md/kernel.md"
+      ],
+      "error": {
+        "schema": "openprose.runner-error/1",
+        "code": "KERNEL_RETRIEVAL_FAILED",
+        "boundary": "image",
+        "exitCode": 20,
+        "retryable": true,
+        "message": "The published OpenProse kernel could not be retrieved.",
+        "action": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
+        "details": {
+          "reason": "Published kernel transport or response read failed.",
+          "stage": "entry",
+          "failureKind": "transport",
+          "origin": "https://pkg.prose.md"
+        }
+      }
+    },
+    {
+      "id": "entry-http-403",
+      "stage": "entry",
+      "trigger": "http",
+      "httpStatus": 403,
+      "expectedCalls": [
+        "https://pkg.prose.md/kernel.md"
+      ],
+      "error": {
+        "schema": "openprose.runner-error/1",
+        "code": "KERNEL_RETRIEVAL_FAILED",
+        "boundary": "image",
+        "exitCode": 20,
+        "retryable": false,
+        "message": "The published OpenProse kernel could not be retrieved.",
+        "action": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
+        "details": {
+          "reason": "Published kernel HTTP request failed.",
+          "stage": "entry",
+          "failureKind": "http",
+          "origin": "https://pkg.prose.md",
+          "httpStatus": 403
+        }
+      }
+    },
+    {
+      "id": "entry-http-404",
+      "stage": "entry",
+      "trigger": "http",
+      "httpStatus": 404,
+      "expectedCalls": [
+        "https://pkg.prose.md/kernel.md"
+      ],
+      "error": {
+        "schema": "openprose.runner-error/1",
+        "code": "KERNEL_RETRIEVAL_FAILED",
+        "boundary": "image",
+        "exitCode": 20,
+        "retryable": false,
+        "message": "The published OpenProse kernel could not be retrieved.",
+        "action": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
+        "details": {
+          "reason": "Published kernel HTTP request failed.",
+          "stage": "entry",
+          "failureKind": "http",
+          "origin": "https://pkg.prose.md",
+          "httpStatus": 404
+        }
+      }
+    },
+    {
+      "id": "entry-http-408",
+      "stage": "entry",
+      "trigger": "http",
+      "httpStatus": 408,
+      "expectedCalls": [
+        "https://pkg.prose.md/kernel.md"
+      ],
+      "error": {
+        "schema": "openprose.runner-error/1",
+        "code": "KERNEL_RETRIEVAL_FAILED",
+        "boundary": "image",
+        "exitCode": 20,
+        "retryable": true,
+        "message": "The published OpenProse kernel could not be retrieved.",
+        "action": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
+        "details": {
+          "reason": "Published kernel HTTP request failed.",
+          "stage": "entry",
+          "failureKind": "http",
+          "origin": "https://pkg.prose.md",
+          "httpStatus": 408
+        }
+      }
+    },
+    {
+      "id": "entry-http-429",
+      "stage": "entry",
+      "trigger": "http",
+      "httpStatus": 429,
+      "expectedCalls": [
+        "https://pkg.prose.md/kernel.md"
+      ],
+      "error": {
+        "schema": "openprose.runner-error/1",
+        "code": "KERNEL_RETRIEVAL_FAILED",
+        "boundary": "image",
+        "exitCode": 20,
+        "retryable": true,
+        "message": "The published OpenProse kernel could not be retrieved.",
+        "action": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
+        "details": {
+          "reason": "Published kernel HTTP request failed.",
+          "stage": "entry",
+          "failureKind": "http",
+          "origin": "https://pkg.prose.md",
+          "httpStatus": 429
+        }
+      }
+    },
+    {
+      "id": "entry-http-500",
+      "stage": "entry",
+      "trigger": "http",
+      "httpStatus": 500,
+      "expectedCalls": [
+        "https://pkg.prose.md/kernel.md"
+      ],
+      "error": {
+        "schema": "openprose.runner-error/1",
+        "code": "KERNEL_RETRIEVAL_FAILED",
+        "boundary": "image",
+        "exitCode": 20,
+        "retryable": true,
+        "message": "The published OpenProse kernel could not be retrieved.",
+        "action": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
+        "details": {
+          "reason": "Published kernel HTTP request failed.",
+          "stage": "entry",
+          "failureKind": "http",
+          "origin": "https://pkg.prose.md",
+          "httpStatus": 500
+        }
+      }
+    },
+    {
+      "id": "entry-http-501",
+      "stage": "entry",
+      "trigger": "http",
+      "httpStatus": 501,
+      "expectedCalls": [
+        "https://pkg.prose.md/kernel.md"
+      ],
+      "error": {
+        "schema": "openprose.runner-error/1",
+        "code": "KERNEL_RETRIEVAL_FAILED",
+        "boundary": "image",
+        "exitCode": 20,
+        "retryable": false,
+        "message": "The published OpenProse kernel could not be retrieved.",
+        "action": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
+        "details": {
+          "reason": "Published kernel HTTP request failed.",
+          "stage": "entry",
+          "failureKind": "http",
+          "origin": "https://pkg.prose.md",
+          "httpStatus": 501
+        }
+      }
+    },
+    {
+      "id": "entry-http-502",
+      "stage": "entry",
+      "trigger": "http",
+      "httpStatus": 502,
+      "expectedCalls": [
+        "https://pkg.prose.md/kernel.md"
+      ],
+      "error": {
+        "schema": "openprose.runner-error/1",
+        "code": "KERNEL_RETRIEVAL_FAILED",
+        "boundary": "image",
+        "exitCode": 20,
+        "retryable": true,
+        "message": "The published OpenProse kernel could not be retrieved.",
+        "action": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
+        "details": {
+          "reason": "Published kernel HTTP request failed.",
+          "stage": "entry",
+          "failureKind": "http",
+          "origin": "https://pkg.prose.md",
+          "httpStatus": 502
+        }
+      }
+    },
+    {
+      "id": "entry-http-503",
+      "stage": "entry",
+      "trigger": "http",
+      "httpStatus": 503,
+      "expectedCalls": [
+        "https://pkg.prose.md/kernel.md"
+      ],
+      "error": {
+        "schema": "openprose.runner-error/1",
+        "code": "KERNEL_RETRIEVAL_FAILED",
+        "boundary": "image",
+        "exitCode": 20,
+        "retryable": true,
+        "message": "The published OpenProse kernel could not be retrieved.",
+        "action": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
+        "details": {
+          "reason": "Published kernel HTTP request failed.",
+          "stage": "entry",
+          "failureKind": "http",
+          "origin": "https://pkg.prose.md",
+          "httpStatus": 503
+        }
+      }
+    },
+    {
+      "id": "entry-http-504",
+      "stage": "entry",
+      "trigger": "http",
+      "httpStatus": 504,
+      "expectedCalls": [
+        "https://pkg.prose.md/kernel.md"
+      ],
+      "error": {
+        "schema": "openprose.runner-error/1",
+        "code": "KERNEL_RETRIEVAL_FAILED",
+        "boundary": "image",
+        "exitCode": 20,
+        "retryable": true,
+        "message": "The published OpenProse kernel could not be retrieved.",
+        "action": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
+        "details": {
+          "reason": "Published kernel HTTP request failed.",
+          "stage": "entry",
+          "failureKind": "http",
+          "origin": "https://pkg.prose.md",
+          "httpStatus": 504
+        }
+      }
+    },
+    {
+      "id": "entry-http-505",
+      "stage": "entry",
+      "trigger": "http",
+      "httpStatus": 505,
+      "expectedCalls": [
+        "https://pkg.prose.md/kernel.md"
+      ],
+      "error": {
+        "schema": "openprose.runner-error/1",
+        "code": "KERNEL_RETRIEVAL_FAILED",
+        "boundary": "image",
+        "exitCode": 20,
+        "retryable": false,
+        "message": "The published OpenProse kernel could not be retrieved.",
+        "action": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
+        "details": {
+          "reason": "Published kernel HTTP request failed.",
+          "stage": "entry",
+          "failureKind": "http",
+          "origin": "https://pkg.prose.md",
+          "httpStatus": 505
+        }
+      }
+    },
+    {
+      "id": "descriptor-transport",
+      "stage": "descriptor",
+      "trigger": "transport",
+      "expectedCalls": [
+        "https://pkg.prose.md/kernel.md",
+        "https://pkg.prose.md/releases/fixture-1/core/descriptor.json"
+      ],
+      "error": {
+        "schema": "openprose.runner-error/1",
+        "code": "KERNEL_RETRIEVAL_FAILED",
+        "boundary": "image",
+        "exitCode": 20,
+        "retryable": true,
+        "message": "The published OpenProse kernel could not be retrieved.",
+        "action": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
+        "details": {
+          "reason": "Published kernel transport or response read failed.",
+          "stage": "descriptor",
+          "failureKind": "transport",
+          "origin": "https://pkg.prose.md"
+        }
+      }
+    },
+    {
+      "id": "descriptor-body-read",
+      "stage": "descriptor",
+      "trigger": "body-read",
+      "expectedCalls": [
+        "https://pkg.prose.md/kernel.md",
+        "https://pkg.prose.md/releases/fixture-1/core/descriptor.json"
+      ],
+      "error": {
+        "schema": "openprose.runner-error/1",
+        "code": "KERNEL_RETRIEVAL_FAILED",
+        "boundary": "image",
+        "exitCode": 20,
+        "retryable": true,
+        "message": "The published OpenProse kernel could not be retrieved.",
+        "action": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
+        "details": {
+          "reason": "Published kernel transport or response read failed.",
+          "stage": "descriptor",
+          "failureKind": "transport",
+          "origin": "https://pkg.prose.md"
+        }
+      }
+    },
+    {
+      "id": "descriptor-http-403",
+      "stage": "descriptor",
+      "trigger": "http",
+      "httpStatus": 403,
+      "expectedCalls": [
+        "https://pkg.prose.md/kernel.md",
+        "https://pkg.prose.md/releases/fixture-1/core/descriptor.json"
+      ],
+      "error": {
+        "schema": "openprose.runner-error/1",
+        "code": "KERNEL_RETRIEVAL_FAILED",
+        "boundary": "image",
+        "exitCode": 20,
+        "retryable": false,
+        "message": "The published OpenProse kernel could not be retrieved.",
+        "action": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
+        "details": {
+          "reason": "Published kernel HTTP request failed.",
+          "stage": "descriptor",
+          "failureKind": "http",
+          "origin": "https://pkg.prose.md",
+          "httpStatus": 403
+        }
+      }
+    },
+    {
+      "id": "descriptor-http-404",
+      "stage": "descriptor",
+      "trigger": "http",
+      "httpStatus": 404,
+      "expectedCalls": [
+        "https://pkg.prose.md/kernel.md",
+        "https://pkg.prose.md/releases/fixture-1/core/descriptor.json"
+      ],
+      "error": {
+        "schema": "openprose.runner-error/1",
+        "code": "KERNEL_RETRIEVAL_FAILED",
+        "boundary": "image",
+        "exitCode": 20,
+        "retryable": false,
+        "message": "The published OpenProse kernel could not be retrieved.",
+        "action": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
+        "details": {
+          "reason": "Published kernel HTTP request failed.",
+          "stage": "descriptor",
+          "failureKind": "http",
+          "origin": "https://pkg.prose.md",
+          "httpStatus": 404
+        }
+      }
+    },
+    {
+      "id": "descriptor-http-408",
+      "stage": "descriptor",
+      "trigger": "http",
+      "httpStatus": 408,
+      "expectedCalls": [
+        "https://pkg.prose.md/kernel.md",
+        "https://pkg.prose.md/releases/fixture-1/core/descriptor.json"
+      ],
+      "error": {
+        "schema": "openprose.runner-error/1",
+        "code": "KERNEL_RETRIEVAL_FAILED",
+        "boundary": "image",
+        "exitCode": 20,
+        "retryable": true,
+        "message": "The published OpenProse kernel could not be retrieved.",
+        "action": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
+        "details": {
+          "reason": "Published kernel HTTP request failed.",
+          "stage": "descriptor",
+          "failureKind": "http",
+          "origin": "https://pkg.prose.md",
+          "httpStatus": 408
+        }
+      }
+    },
+    {
+      "id": "descriptor-http-429",
+      "stage": "descriptor",
+      "trigger": "http",
+      "httpStatus": 429,
+      "expectedCalls": [
+        "https://pkg.prose.md/kernel.md",
+        "https://pkg.prose.md/releases/fixture-1/core/descriptor.json"
+      ],
+      "error": {
+        "schema": "openprose.runner-error/1",
+        "code": "KERNEL_RETRIEVAL_FAILED",
+        "boundary": "image",
+        "exitCode": 20,
+        "retryable": true,
+        "message": "The published OpenProse kernel could not be retrieved.",
+        "action": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
+        "details": {
+          "reason": "Published kernel HTTP request failed.",
+          "stage": "descriptor",
+          "failureKind": "http",
+          "origin": "https://pkg.prose.md",
+          "httpStatus": 429
+        }
+      }
+    },
+    {
+      "id": "descriptor-http-500",
+      "stage": "descriptor",
+      "trigger": "http",
+      "httpStatus": 500,
+      "expectedCalls": [
+        "https://pkg.prose.md/kernel.md",
+        "https://pkg.prose.md/releases/fixture-1/core/descriptor.json"
+      ],
+      "error": {
+        "schema": "openprose.runner-error/1",
+        "code": "KERNEL_RETRIEVAL_FAILED",
+        "boundary": "image",
+        "exitCode": 20,
+        "retryable": true,
+        "message": "The published OpenProse kernel could not be retrieved.",
+        "action": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
+        "details": {
+          "reason": "Published kernel HTTP request failed.",
+          "stage": "descriptor",
+          "failureKind": "http",
+          "origin": "https://pkg.prose.md",
+          "httpStatus": 500
+        }
+      }
+    },
+    {
+      "id": "descriptor-http-501",
+      "stage": "descriptor",
+      "trigger": "http",
+      "httpStatus": 501,
+      "expectedCalls": [
+        "https://pkg.prose.md/kernel.md",
+        "https://pkg.prose.md/releases/fixture-1/core/descriptor.json"
+      ],
+      "error": {
+        "schema": "openprose.runner-error/1",
+        "code": "KERNEL_RETRIEVAL_FAILED",
+        "boundary": "image",
+        "exitCode": 20,
+        "retryable": false,
+        "message": "The published OpenProse kernel could not be retrieved.",
+        "action": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
+        "details": {
+          "reason": "Published kernel HTTP request failed.",
+          "stage": "descriptor",
+          "failureKind": "http",
+          "origin": "https://pkg.prose.md",
+          "httpStatus": 501
+        }
+      }
+    },
+    {
+      "id": "descriptor-http-502",
+      "stage": "descriptor",
+      "trigger": "http",
+      "httpStatus": 502,
+      "expectedCalls": [
+        "https://pkg.prose.md/kernel.md",
+        "https://pkg.prose.md/releases/fixture-1/core/descriptor.json"
+      ],
+      "error": {
+        "schema": "openprose.runner-error/1",
+        "code": "KERNEL_RETRIEVAL_FAILED",
+        "boundary": "image",
+        "exitCode": 20,
+        "retryable": true,
+        "message": "The published OpenProse kernel could not be retrieved.",
+        "action": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
+        "details": {
+          "reason": "Published kernel HTTP request failed.",
+          "stage": "descriptor",
+          "failureKind": "http",
+          "origin": "https://pkg.prose.md",
+          "httpStatus": 502
+        }
+      }
+    },
+    {
+      "id": "descriptor-http-503",
+      "stage": "descriptor",
+      "trigger": "http",
+      "httpStatus": 503,
+      "expectedCalls": [
+        "https://pkg.prose.md/kernel.md",
+        "https://pkg.prose.md/releases/fixture-1/core/descriptor.json"
+      ],
+      "error": {
+        "schema": "openprose.runner-error/1",
+        "code": "KERNEL_RETRIEVAL_FAILED",
+        "boundary": "image",
+        "exitCode": 20,
+        "retryable": true,
+        "message": "The published OpenProse kernel could not be retrieved.",
+        "action": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
+        "details": {
+          "reason": "Published kernel HTTP request failed.",
+          "stage": "descriptor",
+          "failureKind": "http",
+          "origin": "https://pkg.prose.md",
+          "httpStatus": 503
+        }
+      }
+    },
+    {
+      "id": "descriptor-http-504",
+      "stage": "descriptor",
+      "trigger": "http",
+      "httpStatus": 504,
+      "expectedCalls": [
+        "https://pkg.prose.md/kernel.md",
+        "https://pkg.prose.md/releases/fixture-1/core/descriptor.json"
+      ],
+      "error": {
+        "schema": "openprose.runner-error/1",
+        "code": "KERNEL_RETRIEVAL_FAILED",
+        "boundary": "image",
+        "exitCode": 20,
+        "retryable": true,
+        "message": "The published OpenProse kernel could not be retrieved.",
+        "action": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
+        "details": {
+          "reason": "Published kernel HTTP request failed.",
+          "stage": "descriptor",
+          "failureKind": "http",
+          "origin": "https://pkg.prose.md",
+          "httpStatus": 504
+        }
+      }
+    },
+    {
+      "id": "descriptor-http-505",
+      "stage": "descriptor",
+      "trigger": "http",
+      "httpStatus": 505,
+      "expectedCalls": [
+        "https://pkg.prose.md/kernel.md",
+        "https://pkg.prose.md/releases/fixture-1/core/descriptor.json"
+      ],
+      "error": {
+        "schema": "openprose.runner-error/1",
+        "code": "KERNEL_RETRIEVAL_FAILED",
+        "boundary": "image",
+        "exitCode": 20,
+        "retryable": false,
+        "message": "The published OpenProse kernel could not be retrieved.",
+        "action": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
+        "details": {
+          "reason": "Published kernel HTTP request failed.",
+          "stage": "descriptor",
+          "failureKind": "http",
+          "origin": "https://pkg.prose.md",
+          "httpStatus": 505
+        }
+      }
+    },
+    {
+      "id": "inventory-transport",
+      "stage": "inventory",
+      "trigger": "transport",
+      "expectedCalls": [
+        "https://pkg.prose.md/kernel.md",
+        "https://pkg.prose.md/releases/fixture-1/core/descriptor.json",
+        "https://pkg.prose.md/releases/fixture-1/core/inventory.json"
+      ],
+      "error": {
+        "schema": "openprose.runner-error/1",
+        "code": "KERNEL_RETRIEVAL_FAILED",
+        "boundary": "image",
+        "exitCode": 20,
+        "retryable": true,
+        "message": "The published OpenProse kernel could not be retrieved.",
+        "action": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
+        "details": {
+          "reason": "Published kernel transport or response read failed.",
+          "stage": "inventory",
+          "failureKind": "transport",
+          "origin": "https://pkg.prose.md"
+        }
+      }
+    },
+    {
+      "id": "inventory-body-read",
+      "stage": "inventory",
+      "trigger": "body-read",
+      "expectedCalls": [
+        "https://pkg.prose.md/kernel.md",
+        "https://pkg.prose.md/releases/fixture-1/core/descriptor.json",
+        "https://pkg.prose.md/releases/fixture-1/core/inventory.json"
+      ],
+      "error": {
+        "schema": "openprose.runner-error/1",
+        "code": "KERNEL_RETRIEVAL_FAILED",
+        "boundary": "image",
+        "exitCode": 20,
+        "retryable": true,
+        "message": "The published OpenProse kernel could not be retrieved.",
+        "action": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
+        "details": {
+          "reason": "Published kernel transport or response read failed.",
+          "stage": "inventory",
+          "failureKind": "transport",
+          "origin": "https://pkg.prose.md"
+        }
+      }
+    },
+    {
+      "id": "inventory-http-403",
+      "stage": "inventory",
+      "trigger": "http",
+      "httpStatus": 403,
+      "expectedCalls": [
+        "https://pkg.prose.md/kernel.md",
+        "https://pkg.prose.md/releases/fixture-1/core/descriptor.json",
+        "https://pkg.prose.md/releases/fixture-1/core/inventory.json"
+      ],
+      "error": {
+        "schema": "openprose.runner-error/1",
+        "code": "KERNEL_RETRIEVAL_FAILED",
+        "boundary": "image",
+        "exitCode": 20,
+        "retryable": false,
+        "message": "The published OpenProse kernel could not be retrieved.",
+        "action": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
+        "details": {
+          "reason": "Published kernel HTTP request failed.",
+          "stage": "inventory",
+          "failureKind": "http",
+          "origin": "https://pkg.prose.md",
+          "httpStatus": 403
+        }
+      }
+    },
+    {
+      "id": "inventory-http-404",
+      "stage": "inventory",
+      "trigger": "http",
+      "httpStatus": 404,
+      "expectedCalls": [
+        "https://pkg.prose.md/kernel.md",
+        "https://pkg.prose.md/releases/fixture-1/core/descriptor.json",
+        "https://pkg.prose.md/releases/fixture-1/core/inventory.json"
+      ],
+      "error": {
+        "schema": "openprose.runner-error/1",
+        "code": "KERNEL_RETRIEVAL_FAILED",
+        "boundary": "image",
+        "exitCode": 20,
+        "retryable": false,
+        "message": "The published OpenProse kernel could not be retrieved.",
+        "action": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
+        "details": {
+          "reason": "Published kernel HTTP request failed.",
+          "stage": "inventory",
+          "failureKind": "http",
+          "origin": "https://pkg.prose.md",
+          "httpStatus": 404
+        }
+      }
+    },
+    {
+      "id": "inventory-http-408",
+      "stage": "inventory",
+      "trigger": "http",
+      "httpStatus": 408,
+      "expectedCalls": [
+        "https://pkg.prose.md/kernel.md",
+        "https://pkg.prose.md/releases/fixture-1/core/descriptor.json",
+        "https://pkg.prose.md/releases/fixture-1/core/inventory.json"
+      ],
+      "error": {
+        "schema": "openprose.runner-error/1",
+        "code": "KERNEL_RETRIEVAL_FAILED",
+        "boundary": "image",
+        "exitCode": 20,
+        "retryable": true,
+        "message": "The published OpenProse kernel could not be retrieved.",
+        "action": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
+        "details": {
+          "reason": "Published kernel HTTP request failed.",
+          "stage": "inventory",
+          "failureKind": "http",
+          "origin": "https://pkg.prose.md",
+          "httpStatus": 408
+        }
+      }
+    },
+    {
+      "id": "inventory-http-429",
+      "stage": "inventory",
+      "trigger": "http",
+      "httpStatus": 429,
+      "expectedCalls": [
+        "https://pkg.prose.md/kernel.md",
+        "https://pkg.prose.md/releases/fixture-1/core/descriptor.json",
+        "https://pkg.prose.md/releases/fixture-1/core/inventory.json"
+      ],
+      "error": {
+        "schema": "openprose.runner-error/1",
+        "code": "KERNEL_RETRIEVAL_FAILED",
+        "boundary": "image",
+        "exitCode": 20,
+        "retryable": true,
+        "message": "The published OpenProse kernel could not be retrieved.",
+        "action": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
+        "details": {
+          "reason": "Published kernel HTTP request failed.",
+          "stage": "inventory",
+          "failureKind": "http",
+          "origin": "https://pkg.prose.md",
+          "httpStatus": 429
+        }
+      }
+    },
+    {
+      "id": "inventory-http-500",
+      "stage": "inventory",
+      "trigger": "http",
+      "httpStatus": 500,
+      "expectedCalls": [
+        "https://pkg.prose.md/kernel.md",
+        "https://pkg.prose.md/releases/fixture-1/core/descriptor.json",
+        "https://pkg.prose.md/releases/fixture-1/core/inventory.json"
+      ],
+      "error": {
+        "schema": "openprose.runner-error/1",
+        "code": "KERNEL_RETRIEVAL_FAILED",
+        "boundary": "image",
+        "exitCode": 20,
+        "retryable": true,
+        "message": "The published OpenProse kernel could not be retrieved.",
+        "action": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
+        "details": {
+          "reason": "Published kernel HTTP request failed.",
+          "stage": "inventory",
+          "failureKind": "http",
+          "origin": "https://pkg.prose.md",
+          "httpStatus": 500
+        }
+      }
+    },
+    {
+      "id": "inventory-http-501",
+      "stage": "inventory",
+      "trigger": "http",
+      "httpStatus": 501,
+      "expectedCalls": [
+        "https://pkg.prose.md/kernel.md",
+        "https://pkg.prose.md/releases/fixture-1/core/descriptor.json",
+        "https://pkg.prose.md/releases/fixture-1/core/inventory.json"
+      ],
+      "error": {
+        "schema": "openprose.runner-error/1",
+        "code": "KERNEL_RETRIEVAL_FAILED",
+        "boundary": "image",
+        "exitCode": 20,
+        "retryable": false,
+        "message": "The published OpenProse kernel could not be retrieved.",
+        "action": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
+        "details": {
+          "reason": "Published kernel HTTP request failed.",
+          "stage": "inventory",
+          "failureKind": "http",
+          "origin": "https://pkg.prose.md",
+          "httpStatus": 501
+        }
+      }
+    },
+    {
+      "id": "inventory-http-502",
+      "stage": "inventory",
+      "trigger": "http",
+      "httpStatus": 502,
+      "expectedCalls": [
+        "https://pkg.prose.md/kernel.md",
+        "https://pkg.prose.md/releases/fixture-1/core/descriptor.json",
+        "https://pkg.prose.md/releases/fixture-1/core/inventory.json"
+      ],
+      "error": {
+        "schema": "openprose.runner-error/1",
+        "code": "KERNEL_RETRIEVAL_FAILED",
+        "boundary": "image",
+        "exitCode": 20,
+        "retryable": true,
+        "message": "The published OpenProse kernel could not be retrieved.",
+        "action": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
+        "details": {
+          "reason": "Published kernel HTTP request failed.",
+          "stage": "inventory",
+          "failureKind": "http",
+          "origin": "https://pkg.prose.md",
+          "httpStatus": 502
+        }
+      }
+    },
+    {
+      "id": "inventory-http-503",
+      "stage": "inventory",
+      "trigger": "http",
+      "httpStatus": 503,
+      "expectedCalls": [
+        "https://pkg.prose.md/kernel.md",
+        "https://pkg.prose.md/releases/fixture-1/core/descriptor.json",
+        "https://pkg.prose.md/releases/fixture-1/core/inventory.json"
+      ],
+      "error": {
+        "schema": "openprose.runner-error/1",
+        "code": "KERNEL_RETRIEVAL_FAILED",
+        "boundary": "image",
+        "exitCode": 20,
+        "retryable": true,
+        "message": "The published OpenProse kernel could not be retrieved.",
+        "action": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
+        "details": {
+          "reason": "Published kernel HTTP request failed.",
+          "stage": "inventory",
+          "failureKind": "http",
+          "origin": "https://pkg.prose.md",
+          "httpStatus": 503
+        }
+      }
+    },
+    {
+      "id": "inventory-http-504",
+      "stage": "inventory",
+      "trigger": "http",
+      "httpStatus": 504,
+      "expectedCalls": [
+        "https://pkg.prose.md/kernel.md",
+        "https://pkg.prose.md/releases/fixture-1/core/descriptor.json",
+        "https://pkg.prose.md/releases/fixture-1/core/inventory.json"
+      ],
+      "error": {
+        "schema": "openprose.runner-error/1",
+        "code": "KERNEL_RETRIEVAL_FAILED",
+        "boundary": "image",
+        "exitCode": 20,
+        "retryable": true,
+        "message": "The published OpenProse kernel could not be retrieved.",
+        "action": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
+        "details": {
+          "reason": "Published kernel HTTP request failed.",
+          "stage": "inventory",
+          "failureKind": "http",
+          "origin": "https://pkg.prose.md",
+          "httpStatus": 504
+        }
+      }
+    },
+    {
+      "id": "inventory-http-505",
+      "stage": "inventory",
+      "trigger": "http",
+      "httpStatus": 505,
+      "expectedCalls": [
+        "https://pkg.prose.md/kernel.md",
+        "https://pkg.prose.md/releases/fixture-1/core/descriptor.json",
+        "https://pkg.prose.md/releases/fixture-1/core/inventory.json"
+      ],
+      "error": {
+        "schema": "openprose.runner-error/1",
+        "code": "KERNEL_RETRIEVAL_FAILED",
+        "boundary": "image",
+        "exitCode": 20,
+        "retryable": false,
+        "message": "The published OpenProse kernel could not be retrieved.",
+        "action": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
+        "details": {
+          "reason": "Published kernel HTTP request failed.",
+          "stage": "inventory",
+          "failureKind": "http",
+          "origin": "https://pkg.prose.md",
+          "httpStatus": 505
+        }
+      }
+    },
+    {
+      "id": "kernel-transport",
+      "stage": "kernel",
+      "trigger": "transport",
+      "expectedCalls": [
+        "https://pkg.prose.md/kernel.md",
+        "https://pkg.prose.md/releases/fixture-1/core/descriptor.json",
+        "https://pkg.prose.md/releases/fixture-1/core/inventory.json",
+        "https://pkg.prose.md/releases/fixture-1/core/README.md"
+      ],
+      "error": {
+        "schema": "openprose.runner-error/1",
+        "code": "KERNEL_RETRIEVAL_FAILED",
+        "boundary": "image",
+        "exitCode": 20,
+        "retryable": true,
+        "message": "The published OpenProse kernel could not be retrieved.",
+        "action": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
+        "details": {
+          "reason": "Published kernel transport or response read failed.",
+          "stage": "kernel",
+          "failureKind": "transport",
+          "origin": "https://pkg.prose.md"
+        }
+      }
+    },
+    {
+      "id": "kernel-body-read",
+      "stage": "kernel",
+      "trigger": "body-read",
+      "expectedCalls": [
+        "https://pkg.prose.md/kernel.md",
+        "https://pkg.prose.md/releases/fixture-1/core/descriptor.json",
+        "https://pkg.prose.md/releases/fixture-1/core/inventory.json",
+        "https://pkg.prose.md/releases/fixture-1/core/README.md"
+      ],
+      "error": {
+        "schema": "openprose.runner-error/1",
+        "code": "KERNEL_RETRIEVAL_FAILED",
+        "boundary": "image",
+        "exitCode": 20,
+        "retryable": true,
+        "message": "The published OpenProse kernel could not be retrieved.",
+        "action": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
+        "details": {
+          "reason": "Published kernel transport or response read failed.",
+          "stage": "kernel",
+          "failureKind": "transport",
+          "origin": "https://pkg.prose.md"
+        }
+      }
+    },
+    {
+      "id": "kernel-http-403",
+      "stage": "kernel",
+      "trigger": "http",
+      "httpStatus": 403,
+      "expectedCalls": [
+        "https://pkg.prose.md/kernel.md",
+        "https://pkg.prose.md/releases/fixture-1/core/descriptor.json",
+        "https://pkg.prose.md/releases/fixture-1/core/inventory.json",
+        "https://pkg.prose.md/releases/fixture-1/core/README.md"
+      ],
+      "error": {
+        "schema": "openprose.runner-error/1",
+        "code": "KERNEL_RETRIEVAL_FAILED",
+        "boundary": "image",
+        "exitCode": 20,
+        "retryable": false,
+        "message": "The published OpenProse kernel could not be retrieved.",
+        "action": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
+        "details": {
+          "reason": "Published kernel HTTP request failed.",
+          "stage": "kernel",
+          "failureKind": "http",
+          "origin": "https://pkg.prose.md",
+          "httpStatus": 403
+        }
+      }
+    },
+    {
+      "id": "kernel-http-404",
+      "stage": "kernel",
+      "trigger": "http",
+      "httpStatus": 404,
+      "expectedCalls": [
+        "https://pkg.prose.md/kernel.md",
+        "https://pkg.prose.md/releases/fixture-1/core/descriptor.json",
+        "https://pkg.prose.md/releases/fixture-1/core/inventory.json",
+        "https://pkg.prose.md/releases/fixture-1/core/README.md"
+      ],
+      "error": {
+        "schema": "openprose.runner-error/1",
+        "code": "KERNEL_RETRIEVAL_FAILED",
+        "boundary": "image",
+        "exitCode": 20,
+        "retryable": false,
+        "message": "The published OpenProse kernel could not be retrieved.",
+        "action": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
+        "details": {
+          "reason": "Published kernel HTTP request failed.",
+          "stage": "kernel",
+          "failureKind": "http",
+          "origin": "https://pkg.prose.md",
+          "httpStatus": 404
+        }
+      }
+    },
+    {
+      "id": "kernel-http-408",
+      "stage": "kernel",
+      "trigger": "http",
+      "httpStatus": 408,
+      "expectedCalls": [
+        "https://pkg.prose.md/kernel.md",
+        "https://pkg.prose.md/releases/fixture-1/core/descriptor.json",
+        "https://pkg.prose.md/releases/fixture-1/core/inventory.json",
+        "https://pkg.prose.md/releases/fixture-1/core/README.md"
+      ],
+      "error": {
+        "schema": "openprose.runner-error/1",
+        "code": "KERNEL_RETRIEVAL_FAILED",
+        "boundary": "image",
+        "exitCode": 20,
+        "retryable": true,
+        "message": "The published OpenProse kernel could not be retrieved.",
+        "action": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
+        "details": {
+          "reason": "Published kernel HTTP request failed.",
+          "stage": "kernel",
+          "failureKind": "http",
+          "origin": "https://pkg.prose.md",
+          "httpStatus": 408
+        }
+      }
+    },
+    {
+      "id": "kernel-http-429",
+      "stage": "kernel",
+      "trigger": "http",
+      "httpStatus": 429,
+      "expectedCalls": [
+        "https://pkg.prose.md/kernel.md",
+        "https://pkg.prose.md/releases/fixture-1/core/descriptor.json",
+        "https://pkg.prose.md/releases/fixture-1/core/inventory.json",
+        "https://pkg.prose.md/releases/fixture-1/core/README.md"
+      ],
+      "error": {
+        "schema": "openprose.runner-error/1",
+        "code": "KERNEL_RETRIEVAL_FAILED",
+        "boundary": "image",
+        "exitCode": 20,
+        "retryable": true,
+        "message": "The published OpenProse kernel could not be retrieved.",
+        "action": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
+        "details": {
+          "reason": "Published kernel HTTP request failed.",
+          "stage": "kernel",
+          "failureKind": "http",
+          "origin": "https://pkg.prose.md",
+          "httpStatus": 429
+        }
+      }
+    },
+    {
+      "id": "kernel-http-500",
+      "stage": "kernel",
+      "trigger": "http",
+      "httpStatus": 500,
+      "expectedCalls": [
+        "https://pkg.prose.md/kernel.md",
+        "https://pkg.prose.md/releases/fixture-1/core/descriptor.json",
+        "https://pkg.prose.md/releases/fixture-1/core/inventory.json",
+        "https://pkg.prose.md/releases/fixture-1/core/README.md"
+      ],
+      "error": {
+        "schema": "openprose.runner-error/1",
+        "code": "KERNEL_RETRIEVAL_FAILED",
+        "boundary": "image",
+        "exitCode": 20,
+        "retryable": true,
+        "message": "The published OpenProse kernel could not be retrieved.",
+        "action": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
+        "details": {
+          "reason": "Published kernel HTTP request failed.",
+          "stage": "kernel",
+          "failureKind": "http",
+          "origin": "https://pkg.prose.md",
+          "httpStatus": 500
+        }
+      }
+    },
+    {
+      "id": "kernel-http-501",
+      "stage": "kernel",
+      "trigger": "http",
+      "httpStatus": 501,
+      "expectedCalls": [
+        "https://pkg.prose.md/kernel.md",
+        "https://pkg.prose.md/releases/fixture-1/core/descriptor.json",
+        "https://pkg.prose.md/releases/fixture-1/core/inventory.json",
+        "https://pkg.prose.md/releases/fixture-1/core/README.md"
+      ],
+      "error": {
+        "schema": "openprose.runner-error/1",
+        "code": "KERNEL_RETRIEVAL_FAILED",
+        "boundary": "image",
+        "exitCode": 20,
+        "retryable": false,
+        "message": "The published OpenProse kernel could not be retrieved.",
+        "action": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
+        "details": {
+          "reason": "Published kernel HTTP request failed.",
+          "stage": "kernel",
+          "failureKind": "http",
+          "origin": "https://pkg.prose.md",
+          "httpStatus": 501
+        }
+      }
+    },
+    {
+      "id": "kernel-http-502",
+      "stage": "kernel",
+      "trigger": "http",
+      "httpStatus": 502,
+      "expectedCalls": [
+        "https://pkg.prose.md/kernel.md",
+        "https://pkg.prose.md/releases/fixture-1/core/descriptor.json",
+        "https://pkg.prose.md/releases/fixture-1/core/inventory.json",
+        "https://pkg.prose.md/releases/fixture-1/core/README.md"
+      ],
+      "error": {
+        "schema": "openprose.runner-error/1",
+        "code": "KERNEL_RETRIEVAL_FAILED",
+        "boundary": "image",
+        "exitCode": 20,
+        "retryable": true,
+        "message": "The published OpenProse kernel could not be retrieved.",
+        "action": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
+        "details": {
+          "reason": "Published kernel HTTP request failed.",
+          "stage": "kernel",
+          "failureKind": "http",
+          "origin": "https://pkg.prose.md",
+          "httpStatus": 502
+        }
+      }
+    },
+    {
+      "id": "kernel-http-503",
+      "stage": "kernel",
+      "trigger": "http",
+      "httpStatus": 503,
+      "expectedCalls": [
+        "https://pkg.prose.md/kernel.md",
+        "https://pkg.prose.md/releases/fixture-1/core/descriptor.json",
+        "https://pkg.prose.md/releases/fixture-1/core/inventory.json",
+        "https://pkg.prose.md/releases/fixture-1/core/README.md"
+      ],
+      "error": {
+        "schema": "openprose.runner-error/1",
+        "code": "KERNEL_RETRIEVAL_FAILED",
+        "boundary": "image",
+        "exitCode": 20,
+        "retryable": true,
+        "message": "The published OpenProse kernel could not be retrieved.",
+        "action": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
+        "details": {
+          "reason": "Published kernel HTTP request failed.",
+          "stage": "kernel",
+          "failureKind": "http",
+          "origin": "https://pkg.prose.md",
+          "httpStatus": 503
+        }
+      }
+    },
+    {
+      "id": "kernel-http-504",
+      "stage": "kernel",
+      "trigger": "http",
+      "httpStatus": 504,
+      "expectedCalls": [
+        "https://pkg.prose.md/kernel.md",
+        "https://pkg.prose.md/releases/fixture-1/core/descriptor.json",
+        "https://pkg.prose.md/releases/fixture-1/core/inventory.json",
+        "https://pkg.prose.md/releases/fixture-1/core/README.md"
+      ],
+      "error": {
+        "schema": "openprose.runner-error/1",
+        "code": "KERNEL_RETRIEVAL_FAILED",
+        "boundary": "image",
+        "exitCode": 20,
+        "retryable": true,
+        "message": "The published OpenProse kernel could not be retrieved.",
+        "action": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
+        "details": {
+          "reason": "Published kernel HTTP request failed.",
+          "stage": "kernel",
+          "failureKind": "http",
+          "origin": "https://pkg.prose.md",
+          "httpStatus": 504
+        }
+      }
+    },
+    {
+      "id": "kernel-http-505",
+      "stage": "kernel",
+      "trigger": "http",
+      "httpStatus": 505,
+      "expectedCalls": [
+        "https://pkg.prose.md/kernel.md",
+        "https://pkg.prose.md/releases/fixture-1/core/descriptor.json",
+        "https://pkg.prose.md/releases/fixture-1/core/inventory.json",
+        "https://pkg.prose.md/releases/fixture-1/core/README.md"
+      ],
+      "error": {
+        "schema": "openprose.runner-error/1",
+        "code": "KERNEL_RETRIEVAL_FAILED",
+        "boundary": "image",
+        "exitCode": 20,
+        "retryable": false,
+        "message": "The published OpenProse kernel could not be retrieved.",
+        "action": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
+        "details": {
+          "reason": "Published kernel HTTP request failed.",
+          "stage": "kernel",
+          "failureKind": "http",
+          "origin": "https://pkg.prose.md",
+          "httpStatus": 505
+        }
+      }
+    },
+    {
+      "id": "descriptor-http-100",
+      "stage": "descriptor",
+      "trigger": "http",
+      "httpStatus": 100,
+      "expectedCalls": [
+        "https://pkg.prose.md/kernel.md",
+        "https://pkg.prose.md/releases/fixture-1/core/descriptor.json"
+      ],
+      "error": {
+        "schema": "openprose.runner-error/1",
+        "code": "KERNEL_RETRIEVAL_FAILED",
+        "boundary": "image",
+        "exitCode": 20,
+        "retryable": false,
+        "message": "The published OpenProse kernel could not be retrieved.",
+        "action": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
+        "details": {
+          "reason": "Published kernel HTTP request failed.",
+          "stage": "descriptor",
+          "failureKind": "http",
+          "origin": "https://pkg.prose.md",
+          "httpStatus": 100
+        }
+      }
+    },
+    {
+      "id": "descriptor-http-204",
+      "stage": "descriptor",
+      "trigger": "http",
+      "httpStatus": 204,
+      "expectedCalls": [
+        "https://pkg.prose.md/kernel.md",
+        "https://pkg.prose.md/releases/fixture-1/core/descriptor.json"
+      ],
+      "error": {
+        "schema": "openprose.runner-error/1",
+        "code": "KERNEL_RETRIEVAL_FAILED",
+        "boundary": "image",
+        "exitCode": 20,
+        "retryable": false,
+        "message": "The published OpenProse kernel could not be retrieved.",
+        "action": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
+        "details": {
+          "reason": "Published kernel HTTP request failed.",
+          "stage": "descriptor",
+          "failureKind": "http",
+          "origin": "https://pkg.prose.md",
+          "httpStatus": 204
+        }
+      }
+    },
+    {
+      "id": "descriptor-http-302",
+      "stage": "descriptor",
+      "trigger": "http",
+      "httpStatus": 302,
+      "expectedCalls": [
+        "https://pkg.prose.md/kernel.md",
+        "https://pkg.prose.md/releases/fixture-1/core/descriptor.json"
+      ],
+      "error": {
+        "schema": "openprose.runner-error/1",
+        "code": "KERNEL_RETRIEVAL_FAILED",
+        "boundary": "image",
+        "exitCode": 20,
+        "retryable": false,
+        "message": "The published OpenProse kernel could not be retrieved.",
+        "action": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
+        "details": {
+          "reason": "Published kernel HTTP request failed.",
+          "stage": "descriptor",
+          "failureKind": "http",
+          "origin": "https://pkg.prose.md",
+          "httpStatus": 302
+        }
+      }
+    },
+    {
+      "id": "inventory-http-100",
+      "stage": "inventory",
+      "trigger": "http",
+      "httpStatus": 100,
+      "expectedCalls": [
+        "https://pkg.prose.md/kernel.md",
+        "https://pkg.prose.md/releases/fixture-1/core/descriptor.json",
+        "https://pkg.prose.md/releases/fixture-1/core/inventory.json"
+      ],
+      "error": {
+        "schema": "openprose.runner-error/1",
+        "code": "KERNEL_RETRIEVAL_FAILED",
+        "boundary": "image",
+        "exitCode": 20,
+        "retryable": false,
+        "message": "The published OpenProse kernel could not be retrieved.",
+        "action": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
+        "details": {
+          "reason": "Published kernel HTTP request failed.",
+          "stage": "inventory",
+          "failureKind": "http",
+          "origin": "https://pkg.prose.md",
+          "httpStatus": 100
+        }
+      }
+    },
+    {
+      "id": "inventory-http-204",
+      "stage": "inventory",
+      "trigger": "http",
+      "httpStatus": 204,
+      "expectedCalls": [
+        "https://pkg.prose.md/kernel.md",
+        "https://pkg.prose.md/releases/fixture-1/core/descriptor.json",
+        "https://pkg.prose.md/releases/fixture-1/core/inventory.json"
+      ],
+      "error": {
+        "schema": "openprose.runner-error/1",
+        "code": "KERNEL_RETRIEVAL_FAILED",
+        "boundary": "image",
+        "exitCode": 20,
+        "retryable": false,
+        "message": "The published OpenProse kernel could not be retrieved.",
+        "action": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
+        "details": {
+          "reason": "Published kernel HTTP request failed.",
+          "stage": "inventory",
+          "failureKind": "http",
+          "origin": "https://pkg.prose.md",
+          "httpStatus": 204
+        }
+      }
+    },
+    {
+      "id": "inventory-http-302",
+      "stage": "inventory",
+      "trigger": "http",
+      "httpStatus": 302,
+      "expectedCalls": [
+        "https://pkg.prose.md/kernel.md",
+        "https://pkg.prose.md/releases/fixture-1/core/descriptor.json",
+        "https://pkg.prose.md/releases/fixture-1/core/inventory.json"
+      ],
+      "error": {
+        "schema": "openprose.runner-error/1",
+        "code": "KERNEL_RETRIEVAL_FAILED",
+        "boundary": "image",
+        "exitCode": 20,
+        "retryable": false,
+        "message": "The published OpenProse kernel could not be retrieved.",
+        "action": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
+        "details": {
+          "reason": "Published kernel HTTP request failed.",
+          "stage": "inventory",
+          "failureKind": "http",
+          "origin": "https://pkg.prose.md",
+          "httpStatus": 302
+        }
+      }
+    },
+    {
+      "id": "kernel-http-100",
+      "stage": "kernel",
+      "trigger": "http",
+      "httpStatus": 100,
+      "expectedCalls": [
+        "https://pkg.prose.md/kernel.md",
+        "https://pkg.prose.md/releases/fixture-1/core/descriptor.json",
+        "https://pkg.prose.md/releases/fixture-1/core/inventory.json",
+        "https://pkg.prose.md/releases/fixture-1/core/README.md"
+      ],
+      "error": {
+        "schema": "openprose.runner-error/1",
+        "code": "KERNEL_RETRIEVAL_FAILED",
+        "boundary": "image",
+        "exitCode": 20,
+        "retryable": false,
+        "message": "The published OpenProse kernel could not be retrieved.",
+        "action": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
+        "details": {
+          "reason": "Published kernel HTTP request failed.",
+          "stage": "kernel",
+          "failureKind": "http",
+          "origin": "https://pkg.prose.md",
+          "httpStatus": 100
+        }
+      }
+    },
+    {
+      "id": "kernel-http-204",
+      "stage": "kernel",
+      "trigger": "http",
+      "httpStatus": 204,
+      "expectedCalls": [
+        "https://pkg.prose.md/kernel.md",
+        "https://pkg.prose.md/releases/fixture-1/core/descriptor.json",
+        "https://pkg.prose.md/releases/fixture-1/core/inventory.json",
+        "https://pkg.prose.md/releases/fixture-1/core/README.md"
+      ],
+      "error": {
+        "schema": "openprose.runner-error/1",
+        "code": "KERNEL_RETRIEVAL_FAILED",
+        "boundary": "image",
+        "exitCode": 20,
+        "retryable": false,
+        "message": "The published OpenProse kernel could not be retrieved.",
+        "action": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
+        "details": {
+          "reason": "Published kernel HTTP request failed.",
+          "stage": "kernel",
+          "failureKind": "http",
+          "origin": "https://pkg.prose.md",
+          "httpStatus": 204
+        }
+      }
+    },
+    {
+      "id": "kernel-http-302",
+      "stage": "kernel",
+      "trigger": "http",
+      "httpStatus": 302,
+      "expectedCalls": [
+        "https://pkg.prose.md/kernel.md",
+        "https://pkg.prose.md/releases/fixture-1/core/descriptor.json",
+        "https://pkg.prose.md/releases/fixture-1/core/inventory.json",
+        "https://pkg.prose.md/releases/fixture-1/core/README.md"
+      ],
+      "error": {
+        "schema": "openprose.runner-error/1",
+        "code": "KERNEL_RETRIEVAL_FAILED",
+        "boundary": "image",
+        "exitCode": 20,
+        "retryable": false,
+        "message": "The published OpenProse kernel could not be retrieved.",
+        "action": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
+        "details": {
+          "reason": "Published kernel HTTP request failed.",
+          "stage": "kernel",
+          "failureKind": "http",
+          "origin": "https://pkg.prose.md",
+          "httpStatus": 302
+        }
+      }
+    }
+  ],
+  "primaryPriorityCases": [
+    {
+      "id": "body-cleanup-after-IMAGE_TOO_LARGE",
+      "initiatingCode": "IMAGE_TOO_LARGE",
+      "secondaryFailure": "reader-cancel-rejection",
+      "expectedCode": "IMAGE_TOO_LARGE"
+    },
+    {
+      "id": "body-cleanup-after-CANCELLED",
+      "initiatingCode": "CANCELLED",
+      "secondaryFailure": "reader-cancel-rejection",
+      "expectedCode": "CANCELLED"
+    },
+    {
+      "id": "body-cleanup-after-STARTUP_TIMEOUT",
+      "initiatingCode": "STARTUP_TIMEOUT",
+      "secondaryFailure": "reader-cancel-rejection",
+      "expectedCode": "STARTUP_TIMEOUT"
+    }
+  ],
+  "integrityCases": [
+    {
+      "id": "entry-http-200",
+      "expectedCode": "IMAGE_INVALID"
+    },
+    {
+      "id": "entry-missing-location",
+      "expectedCode": "IMAGE_INVALID"
+    },
+    {
+      "id": "entry-unsupported-redirect",
+      "expectedCode": "IMAGE_INVALID"
+    },
+    {
+      "id": "redirect-outside-origin",
+      "expectedCode": "IMAGE_INVALID"
+    },
+    {
+      "id": "unsafe-release-path",
+      "expectedCode": "IMAGE_INVALID"
+    },
+    {
+      "id": "descriptor-json",
+      "expectedCode": "IMAGE_INVALID"
+    },
+    {
+      "id": "descriptor-identity",
+      "expectedCode": "IMAGE_INVALID"
+    },
+    {
+      "id": "inventory-json",
+      "expectedCode": "IMAGE_INVALID"
+    },
+    {
+      "id": "inventory-digest",
+      "expectedCode": "IMAGE_INVALID"
+    },
+    {
+      "id": "kernel-digest",
+      "expectedCode": "IMAGE_INVALID"
+    },
+    {
+      "id": "entry-http-100",
+      "expectedCode": "IMAGE_INVALID"
+    },
+    {
+      "id": "entry-http-204",
+      "expectedCode": "IMAGE_INVALID"
+    },
+    {
+      "id": "entry-http-302-without-location",
+      "expectedCode": "IMAGE_INVALID"
+    }
+  ],
+  "unrecognizedTransportObjects": [
+    {
+      "id": "plain-object-cancelled",
+      "thrownCode": "CANCELLED",
+      "stage": "kernel",
+      "error": {
+        "schema": "openprose.runner-error/1",
+        "code": "KERNEL_RETRIEVAL_FAILED",
+        "boundary": "image",
+        "exitCode": 20,
+        "retryable": true,
+        "message": "The published OpenProse kernel could not be retrieved.",
+        "action": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
+        "details": {
+          "reason": "Published kernel transport or response read failed.",
+          "stage": "kernel",
+          "failureKind": "transport",
+          "origin": "https://pkg.prose.md"
+        }
+      }
+    },
+    {
+      "id": "plain-object-image_too_large",
+      "thrownCode": "IMAGE_TOO_LARGE",
+      "stage": "kernel",
+      "error": {
+        "schema": "openprose.runner-error/1",
+        "code": "KERNEL_RETRIEVAL_FAILED",
+        "boundary": "image",
+        "exitCode": 20,
+        "retryable": true,
+        "message": "The published OpenProse kernel could not be retrieved.",
+        "action": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
+        "details": {
+          "reason": "Published kernel transport or response read failed.",
+          "stage": "kernel",
+          "failureKind": "transport",
+          "origin": "https://pkg.prose.md"
+        }
+      }
+    },
+    {
+      "id": "plain-object-kernel_retrieval_failed",
+      "thrownCode": "KERNEL_RETRIEVAL_FAILED",
+      "stage": "kernel",
+      "error": {
+        "schema": "openprose.runner-error/1",
+        "code": "KERNEL_RETRIEVAL_FAILED",
+        "boundary": "image",
+        "exitCode": 20,
+        "retryable": true,
+        "message": "The published OpenProse kernel could not be retrieved.",
+        "action": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used.",
+        "details": {
+          "reason": "Published kernel transport or response read failed.",
+          "stage": "kernel",
+          "failureKind": "transport",
+          "origin": "https://pkg.prose.md"
+        }
+      }
+    }
+  ]
 }

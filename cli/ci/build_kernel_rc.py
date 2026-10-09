@@ -1,15 +1,20 @@
 #!/usr/bin/env python3
 """Build and install an unsigned RC with published-kernel startup, without model calls."""
 import argparse
+import base64
 import hashlib
 import json
 import os
+import platform
 from pathlib import Path, PurePosixPath
 import re
 import shutil
 import subprocess
 import sys
 import tarfile
+import publication as pub
+import kernel_rc_evidence as sdk_custody
+import sdk_native_inventory as sdk_inventory
 
 ROOT = Path(__file__).resolve().parents[2]
 RC = re.compile(r'(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-rc\.(0|[1-9][0-9]*)')
@@ -27,6 +32,139 @@ def digest(path):
         for block in iter(lambda: source.read(1024 * 1024), b''):
             h.update(block)
     return h.hexdigest()
+
+
+def write_installed_sdk_payloads(path, records):
+    """Write the fixed custody order, independent of package artifact order."""
+    surfaces = ('installed-bun', 'installed-rust', 'installed-npm')
+    require(isinstance(records, list) and len(records) == len(surfaces),
+            'Three installed SDK payload surfaces required')
+    by_surface = {}
+    for record in records:
+        require(isinstance(record, dict) and set(record) == {'surface', 'before', 'after'}
+                and record['surface'] in surfaces and record['surface'] not in by_surface
+                and record['before'] == record['after'],
+                'Installed SDK payload surface identity differs')
+        by_surface[record['surface']] = record
+    encoded = json.dumps([by_surface[surface] for surface in surfaces], sort_keys=True).encode('utf-8') + b'\n'
+    require(len(encoded) <= 16 * 1024 * 1024, 'Installed SDK payload record exceeds evidence bound')
+    path.write_bytes(encoded)
+
+
+def producer_command_log_evidence(output, report, manifest):
+    """Bundle only closed opaque logs; preserve originals and all other evidence."""
+    platform_id = manifest['platform']
+    require(platform_id in sdk_custody.COMMAND_LOG_PLATFORMS, 'Unsupported command-log platform')
+    names = (sdk_custody.COMMAND_LOG_MAC_MEMBERS if platform_id.startswith('darwin-')
+             else sdk_custody.COMMAND_LOG_LINUX_MEMBERS)
+    target = output / sdk_custody.COMMAND_LOG_EVIDENCE
+    require(not target.exists() and not target.is_symlink(), 'Command-log bundle must be fresh')
+    require(sdk_custody.COMMAND_LOG_EVIDENCE not in report['evidence'], 'Command-log bundle already recorded')
+    def stat_identity(path):
+        info = path.lstat()
+        return tuple(getattr(info, key) for key in
+                     ('st_dev', 'st_ino', 'st_mode', 'st_uid', 'st_size', 'st_mtime_ns', 'st_ctime_ns'))
+    rows = []; originals = {}; original_metadata = {}; raw_total = encoded_total = 0
+    for name in names:
+        original_metadata[name] = stat_identity(output / name)
+        data = sdk_custody.read_command_log_bytes(output / name)
+        require(stat_identity(output / name) == original_metadata[name], 'Original command-log metadata changed')
+        raw_total += len(data); encoded_total += 4 * ((len(data) + 2) // 3)
+        require(raw_total <= sdk_custody.COMMAND_LOG_MAX_BYTES
+                and encoded_total <= sdk_custody.COMMAND_LOG_MAX_BYTES,
+                'Command-log bundle exceeds evidence bound')
+        identity = {'sha256': hashlib.sha256(data).hexdigest(), 'byteLength': len(data)}
+        recorded = report['evidence'].get(name)
+        require(isinstance(recorded, dict) and type(recorded.get('byteLength')) is int
+                and recorded == identity, 'Original command-log evidence changed')
+        rows.append({'path': name, **identity, 'base64': base64.b64encode(data).decode('ascii')})
+        originals[name] = data
+    bundle = {'schema': 'openprose.kernel-rc-command-logs/1', 'platform': platform_id,
+              'sourceRevision': report['sourceRevision'], 'version': report['version'], 'members': rows}
+    encoded = json.dumps(bundle, sort_keys=True).encode('utf-8') + b'\n'
+    require(0 < len(encoded) <= sdk_custody.COMMAND_LOG_MAX_BYTES, 'Command-log bundle exceeds evidence bound')
+    evidence = {name: record for name, record in report['evidence'].items() if name not in originals}
+    evidence[sdk_custody.COMMAND_LOG_EVIDENCE] = {'sha256': hashlib.sha256(encoded).hexdigest(), 'byteLength': len(encoded)}
+    prospective = {**report, 'evidence': evidence}
+    decoded = sdk_custody.validate_producer_command_logs(prospective, manifest,
+        lambda name: encoded if name == sdk_custody.COMMAND_LOG_EVIDENCE else None)
+    require(decoded == originals, 'Command-log bundle differs from original bytes')
+    for name, data in originals.items():
+        require(sdk_custody.read_command_log_bytes(output / name) == data,
+                'Original command-log bytes changed before bundling')
+        require(stat_identity(output / name) == original_metadata[name], 'Original command-log metadata changed')
+    with target.open('xb') as stream:
+        stream.write(encoded)
+    require(sdk_custody.read_command_log_bytes(target) == encoded, 'Written command-log bundle changed')
+    require(all(stat_identity(output / name) == original_metadata[name] for name in originals),
+            'Original command-log metadata changed after bundling')
+    return evidence
+
+
+def producer_linux_runtime_evidence(output, report, manifest, sdk_table, *, source_root):
+    """Retain the closed runtime proof without flattening its physical tree."""
+    if not manifest['platform'].startswith('linux-'):
+        sdk_custody.validate_linux_runtime_evidence(report, manifest, sdk_table,
+            lambda name: sdk_custody.read_command_log_bytes(output / name), expected_sources=None)
+        return dict(report['evidence'])
+    target = output / sdk_custody.LINUX_RUNTIME_EVIDENCE
+    require(not target.exists() and not target.is_symlink(), 'Linux runtime packet must be fresh')
+    require(sdk_custody.LINUX_RUNTIME_EVIDENCE not in report['evidence'], 'Linux runtime packet already recorded')
+    runtime_root = output / 'agents-sdk-runtime'
+    raw_report = sdk_custody.read_command_log_bytes(runtime_root / 'runtime-report.json')
+    runtime_report = json.loads(raw_report, object_pairs_hook=pub.object_pairs)
+    expected_sources = sdk_custody.read_linux_runtime_sources(source_root)
+    sdk_custody.validate_linux_runtime_tree(runtime_root, runtime_report, sdk_table)
+    def stat_identity(path):
+        info = path.lstat()
+        return tuple(getattr(info, key) for key in
+                     ('st_dev', 'st_ino', 'st_mode', 'st_uid', 'st_size', 'st_mtime_ns', 'st_ctime_ns'))
+    rows = []; originals = {}; metadata = {}; raw_total = encoded_total = 0
+    for name in sdk_custody.LINUX_RUNTIME_MEMBER_PATHS:
+        if name.startswith('sources/'):
+            relative = name[len('sources/'):]
+            require(relative in expected_sources, 'Unknown Linux runtime source')
+            path = source_root / relative
+        else:
+            path = runtime_root / name
+        metadata[path] = stat_identity(path)
+        data = sdk_custody.read_command_log_bytes(path)
+        require(stat_identity(path) == metadata[path], 'Linux runtime member metadata changed')
+        raw_total += len(data); encoded_total += 4 * ((len(data) + 2) // 3)
+        require(raw_total <= sdk_custody.LINUX_RUNTIME_MAX_BYTES
+                and encoded_total <= sdk_custody.LINUX_RUNTIME_MAX_BYTES,
+                'Linux runtime packet exceeds evidence bound')
+        digest_value = hashlib.sha256(data).hexdigest()
+        if name.startswith('sources/'):
+            require(digest_value == expected_sources[relative], 'Linux runtime trusted source changed')
+        rows.append({'path': name, 'sha256': digest_value, 'byteLength': len(data),
+                     'base64': base64.b64encode(data).decode('ascii')})
+        originals[path] = data
+    packet = {'schema': 'openprose.sdk-linux-runtime-evidence/1', 'platform': manifest['platform'],
+              'sourceRevision': report['sourceRevision'], 'version': report['version'],
+              'runtimeReport': runtime_report, 'members': rows}
+    encoded = json.dumps(packet, sort_keys=True).encode('utf-8') + b'\n'
+    require(0 < len(encoded) <= sdk_custody.LINUX_RUNTIME_MAX_BYTES, 'Linux runtime packet exceeds evidence bound')
+    evidence = {**report['evidence'], sdk_custody.LINUX_RUNTIME_EVIDENCE:
+                {'sha256': hashlib.sha256(encoded).hexdigest(), 'byteLength': len(encoded)}}
+    prospective = {**report, 'evidence': evidence}
+    require(sdk_custody.validate_linux_runtime_evidence(prospective, manifest, sdk_table,
+        lambda name: encoded if name == sdk_custody.LINUX_RUNTIME_EVIDENCE else None,
+        expected_sources=expected_sources) == runtime_report, 'Linux runtime packet proof differs')
+    for path, data in originals.items():
+        require(sdk_custody.read_command_log_bytes(path) == data and stat_identity(path) == metadata[path],
+                'Linux runtime original changed before packet write')
+    require(sdk_custody.read_linux_runtime_sources(source_root) == expected_sources, 'Linux runtime source snapshot changed')
+    sdk_custody.validate_linux_runtime_tree(runtime_root, runtime_report, sdk_table)
+    with target.open('xb') as stream:
+        stream.write(encoded)
+    require(sdk_custody.validate_linux_runtime_evidence(prospective, manifest, sdk_table,
+        lambda name: sdk_custody.read_command_log_bytes(output / name),
+        expected_sources=expected_sources) == runtime_report, 'Written Linux runtime packet proof differs')
+    require(all(stat_identity(path) == metadata[path] for path in originals), 'Linux runtime original metadata changed')
+    require(sdk_custody.read_linux_runtime_sources(source_root) == expected_sources, 'Linux runtime source snapshot changed')
+    sdk_custody.validate_linux_runtime_tree(runtime_root, runtime_report, sdk_table)
+    return evidence
 
 
 def environment(output, ambient):
@@ -72,12 +210,80 @@ def prepare_macos_binary(binary, env, logs):
             cwd=ROOT, log=logs / 'rust-ad-hoc-verify.log', timeout=60)
 
 
-def extract_binary(archive, output):
+def sdk_producer_evidence(output, sdk_output):
+    """Retain producer COLLECT and actual signature execution sidecars."""
+    receipt = json.loads(sdk_inventory.read_file(sdk_output / 'agents-sdk-build.json', 2 * 1024 * 1024), object_pairs_hook=pub.object_pairs)
+    if receipt.get('platform') != 'darwin':
+        return {}
+    payload = receipt['payload']; paths = [sdk_output / 'collect.toc']
+    require(paths[0].is_file() and not paths[0].is_symlink() and 0 < paths[0].stat().st_size <= 2 * 1024 * 1024, 'SDK COLLECT evidence must be bounded regular bytes')
+    collect = sdk_inventory.read_file(paths[0], 2 * 1024 * 1024)
+    require(hashlib.sha256(collect).hexdigest() == payload['collectTocSha256'], 'SDK COLLECT evidence differs')
+    checks = [('codesign-' + str(i).zfill(4) + '.log', path, 'strict')
+              for i, path in enumerate(payload['codeSignaturePaths'])]
+    checks.append(('codesign.log', 'prose-agents-sdk', 'strict-deep'))
+    check_rows = []; raw_outputs = {}
+    for name, target, verification in checks:
+        path = sdk_output / name
+        require(path.is_file() and not path.is_symlink() and 0 < path.stat().st_size <= 128 * 1024, 'SDK signature sidecar missing or unbounded')
+        proof = json.loads(sdk_inventory.read_file(path, 128 * 1024), object_pairs_hook=pub.object_pairs)
+        require(isinstance(proof, dict) and set(proof) == {'schema', 'phase', 'path', 'verification', 'exitCode', 'stdoutBytes', 'stderrBytes', 'timedOut', 'outputLimitExceeded', 'timeoutSeconds', 'success', 'outputComplete', 'rawOutput'} and proof.get('phase') == 'code-signature' and proof.get('schema') == 'openprose.sdk-code-signature-check/1' and
+                proof.get('path') == target and proof.get('verification') == verification and
+                proof.get('exitCode') == 0 and type(proof.get('exitCode')) is int and
+                proof.get('timeoutSeconds') == 30 and proof.get('success') is True and
+                proof.get('outputComplete') is True and proof.get('timedOut') is False and
+                proof.get('outputLimitExceeded') is False, 'SDK signature sidecar is not a completed verification')
+        paths.append(path); check_rows.append({'log': name, 'proof': proof})
+        raw = proof.get('rawOutput')
+        require(isinstance(raw, dict) and set(raw) <= {'stdout', 'stderr'} and
+                all(type(proof.get(stream + 'Bytes')) is int and 0 <= proof[stream + 'Bytes'] <= 65536 and
+                    (stream in raw) == (proof[stream + 'Bytes'] > 0) for stream in ('stdout', 'stderr')), 'SDK raw signature output differs')
+        for stream, record in raw.items():
+            require(isinstance(record, dict) and set(record) == {'path', 'sha256', 'byteLength'} and record['path'] == name + '.' + stream, 'SDK raw signature output path differs')
+            raw_path = sdk_output / record['path']
+            require(raw_path.is_file() and not raw_path.is_symlink() and type(record['byteLength']) is int and
+                    0 < record['byteLength'] <= 65536 and raw_path.stat().st_size == record['byteLength'] and
+                    proof.get(stream + 'Bytes') == record['byteLength'], 'SDK raw signature output custody differs')
+            paths.append(raw_path)
+            raw_data = sdk_inventory.read_file(raw_path, 65536)
+            require(len(raw_data) == record['byteLength'] and hashlib.sha256(raw_data).hexdigest() == record['sha256'], 'SDK raw signature output changed while bundling')
+            raw_outputs[raw_path.name] = {'sha256': record['sha256'], 'byteLength': record['byteLength'],
+                                          'base64': base64.b64encode(raw_data).decode('ascii')}
+    aggregate = {'schema': 'openprose.sdk-code-signatures/1', 'architecture': receipt['architecture'],
+                 'payloadSha256': hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(',', ':')).encode()).hexdigest(),
+                 'checks': check_rows, 'rawOutputs': raw_outputs}
+    encoded = json.dumps(aggregate, sort_keys=True).encode() + b'\n'
+    require(0 < len(encoded) <= 16 * 1024 * 1024, 'SDK signature aggregate exceeds evidence bound')
+    logs = output / 'logs'; logs.mkdir(exist_ok=True)
+    require(logs.is_dir() and not logs.is_symlink(), 'SDK producer logs directory must be real')
+    targets = [(logs / 'sdk-code-signatures.json', encoded), (logs / 'sdk-collect.toc', collect)]
+    require(all(not path.exists() and not path.is_symlink() for path, _ in targets), 'SDK producer aggregate paths must be fresh')
+    result = {}
+    for path, data in targets:
+        with path.open('xb') as stream: stream.write(data)
+        result[str(path.relative_to(output))] = {'sha256': digest(path), 'byteLength': len(data)}
+    return result
+
+
+def extract_binary(archive, output, *, require_sdk=False, manifest=None):
     """Extract only one regular executable; reject unsafe archive metadata first."""
+    if require_sdk:
+        require(isinstance(manifest, dict), 'SDK extraction requires bound production manifest')
+        table = pub.read_sdk_archive(archive, manifest)
+        sdk_custody.validate_sdk_archive_table(manifest, table)
+        prefix = sdk_custody.sdk_archive_prefix(table)
+        data, mode = table['files'][prefix + 'prose']
+        require(mode & 0o111, 'Missing executable')
+        output.parent.mkdir(parents=True, exist_ok=False)
+        with output.open('xb') as target:
+            target.write(data)
+        output.chmod(0o755)
+        sdk_custody.materialize_sdk_members(manifest, table, output.parent)
+        return output
     with tarfile.open(archive) as source:
         members = source.getmembers()
         require(len(members) <= 100, 'Too many archive members')
-        names = set(); binaries = []; total = 0
+        names = set(); binaries = []; sdk = []; total = 0
         for member in members:
             name = PurePosixPath(member.name)
             require(not name.is_absolute() and '..' not in name.parts and '\\' not in member.name,
@@ -87,12 +293,29 @@ def extract_binary(archive, output):
             require(0 <= member.size <= MAX_BYTES and total <= MAX_BYTES, 'Archive exceeds size limit')
             if name.name == 'prose':
                 binaries.append(member)
+            if name.name in ('prose-agents-sdk', 'agents-sdk-build.json', 'AGENTS-SDK-NOTICES.txt'):
+                sdk.append(member)
         require(len(binaries) == 1 and binaries[0].mode & 0o111, 'Missing unique executable')
+        if require_sdk:
+            require({Path(m.name).name for m in sdk} == {'prose-agents-sdk', 'agents-sdk-build.json', 'AGENTS-SDK-NOTICES.txt'} and len(sdk) == 3,
+                    'Missing unique packaged SDK runtime/receipt/notices')
+            require(all(Path(m.name).parent == Path(binaries[0].name).parent for m in sdk), 'SDK members must be CLI siblings')
         output.parent.mkdir(parents=True, exist_ok=False)
         with source.extractfile(binaries[0]) as src, output.open('xb') as dst:
             shutil.copyfileobj(src, dst)
         output.chmod(0o755)
+        for member in sdk:
+            target = output.parent / Path(member.name).name
+            with source.extractfile(member) as src, target.open('xb') as dst:
+                shutil.copyfileobj(src, dst)
+            target.chmod(0o755 if target.name == 'prose-agents-sdk' else 0o644)
     return output
+
+
+def installed_sdk_identity(directory, manifest):
+    """Retain exact complete identity before and after actual installed probes."""
+    from qualify_installed_sdk import installed_sdk_identity as inspect
+    return inspect(directory, manifest['agentsSdk'])
 
 
 def verified_artifacts(package):
@@ -116,7 +339,28 @@ def verified_artifacts(package):
     return manifest
 
 
-def build(version, output):
+def build_sdk(output, *, epoch, env, logs, agents_sdk_python=None, linux_python_archive=None):
+    sdk_output = output / 'agents-sdk'
+    if sys.platform.startswith('linux'):
+        require(linux_python_archive is not None, 'Linux SDK construction requires the pinned full Python archive')
+        targets = {'x86_64': 'linux-x64-gnu', 'aarch64': 'linux-arm64-gnu'}
+        require(platform.machine() in targets, 'Unsupported native Linux SDK architecture')
+        from build_agents_sdk_linux import build as build_linux
+        stage = output / 'agents-sdk-native'
+        build_linux(ROOT, stage, targets[platform.machine()], linux_python_archive, epoch=int(epoch))
+        from verify_agents_sdk_linux import verify as verify_linux
+        verify_linux(stage / 'frozen', output / 'agents-sdk-runtime', targets[platform.machine()])
+        sdk_output.mkdir()
+        for name in ('prose-agents-sdk', 'agents-sdk-build.json', 'AGENTS-SDK-NOTICES.txt'):
+            shutil.copy2(stage / 'frozen' / name, sdk_output / name)
+    else:
+        require(sys.platform == 'darwin', 'SDK construction requires a supported native release host')
+        command([agents_sdk_python or sys.executable, ROOT / 'cli/ci/build_agents_sdk.py', '--out', sdk_output,
+                 '--source-date-epoch', epoch], env=env, cwd=ROOT, log=logs / 'build-sdk.log')
+    return sdk_output
+
+
+def build(version, output, *, agents_sdk_python=None, linux_python_archive=None):
     require(RC.fullmatch(version) is not None, 'Use an exact X.Y.Z-rc.N version')
     require(not output.exists() and not output.is_symlink(), 'Output must be fresh')
     revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
@@ -129,6 +373,8 @@ def build(version, output):
     env.update(OPENPROSE_BUILD_COMMIT=revision, OPENPROSE_BUILD_VERSION=version,
                OPENPROSE_REQUIRE_RELEASE_IMAGE='1', CARGO_TARGET_DIR=str(output / 'cargo-target'))
     binaries = output / 'binaries'; binaries.mkdir()
+    sdk_output = build_sdk(output, epoch=epoch, env=env, logs=logs,
+                           agents_sdk_python=agents_sdk_python, linux_python_archive=linux_python_archive)
     command(['bun', '--no-env-file', 'scripts/image-bundle.ts', 'build', '--require-release-eligible',
              '--outfile', binaries / 'prose-bun'], env=env, cwd=ROOT / 'cli/bun', log=logs / 'build-bun.log')
     command(['cargo', 'build', '--manifest-path', ROOT / 'cli/rust/Cargo.toml', '--release', '--locked',
@@ -147,25 +393,47 @@ def build(version, output):
     args = [sys.executable, ROOT / 'cli/ci/package_local.py', '--mode', 'kernel-rc', '--publication-platforms',
             'posix-four', '--version', version, '--source-revision', revision, '--source-date-epoch', epoch,
             '--rust-binary', binaries / 'prose-rust', '--bun-binary', binaries / 'prose-bun',
+            '--agents-sdk-build', sdk_output,
             '--image-manifest', ROOT / 'cli/shared/image/echo-v0/manifest.json', '--out', package]
     if sys.platform.startswith('linux'):
         args += ['--readelf', executable_tool('readelf', env)]
     command(args, env=env, cwd=ROOT, log=logs / 'package.log')
     manifest = verified_artifacts(package)
+    sdk_records = []
     for item in manifest['artifacts']:
         if item['kind'] == 'standalone-archive':
             runner = item['implementation']
-            binary = extract_binary(package / item['path'], output / 'installed' / runner / 'prose')
+            binary = extract_binary(package / item['path'], output / 'installed' / runner / 'prose', require_sdk=True, manifest=manifest)
+            sdk_before = installed_sdk_identity(binary.parent, manifest)
             check(binary, runner, 'installed-' + runner)
+            command([binary.parent / 'prose-agents-sdk', '--packaged-self-test'], env=env, cwd=output,
+                    log=logs / ('installed-sdk-' + runner + '.json'), timeout=30)
+            command([binary.parent / 'prose-agents-sdk', '--packaged-tool-self-test'], env=env, cwd=output,
+                    log=logs / ('installed-sdk-tools-' + runner + '.json'), timeout=30)
+            sdk_after = installed_sdk_identity(binary.parent, manifest)
+            require(sdk_after == sdk_before, 'Installed SDK tree changed during probes')
+            sdk_records.append({'surface': 'installed-' + runner, 'before': sdk_before, 'after': sdk_after})
     prefix = output / 'npm-prefix'
     from npm_alias_install import install as install_alias
     meta = next(package / a['path'] for a in manifest['artifacts'] if a['kind'] == 'npm-meta')
     platform_package = next(package / a['path'] for a in manifest['artifacts'] if a['kind'] == 'npm-platform')
     alias_install = install_alias(meta, platform_package, prefix, env=env, cwd=output,
-                                  command=command, log=logs / 'npm-install.log')
+                                  command=command, log=logs / 'npm-install.log', sdk_manifest=manifest)
     (logs / 'npm-alias-install.json').write_text(json.dumps(alias_install, sort_keys=True) + '\n')
     node = shutil.which('node', path=env.get('PATH')); require(node, 'Node is required for npm launcher')
+    installed_helpers = [prefix / 'lib/node_modules/@openprose/prose-cli/node_modules/@openprose' / ('prose-cli-' + manifest['platform']) / 'bin/prose-agents-sdk']
+    require(installed_helpers[0].is_file() and not installed_helpers[0].is_symlink(),
+            'npm installation requires one package-owned SDK helper')
+    sdk_before = installed_sdk_identity(installed_helpers[0].parent, manifest)
     check(prefix / 'bin/prose', 'bun', 'installed-npm', node)
+    command([installed_helpers[0], '--packaged-self-test'], env=env, cwd=output,
+            log=logs / 'installed-sdk-npm.json', timeout=30)
+    command([installed_helpers[0], '--packaged-tool-self-test'], env=env, cwd=output,
+            log=logs / 'installed-sdk-tools-npm.json', timeout=30)
+    sdk_after = installed_sdk_identity(installed_helpers[0].parent, manifest)
+    require(sdk_after == sdk_before, 'Installed npm SDK tree changed during probes')
+    sdk_records.append({'surface': 'installed-npm', 'before': sdk_before, 'after': sdk_after})
+    write_installed_sdk_payloads(logs / 'installed-sdk-payloads.json', sdk_records)
     report = {'schema': 'openprose.kernel-rc-build/1', 'version': version, 'sourceRevision': revision,
               'platform': manifest['platform'], 'imageSource': 'published-on-run', 'testSeamsEnabled': False,
               'signing': 'unsigned', 'modelCalls': 0, 'kernelFetches': 0,
@@ -173,6 +441,13 @@ def build(version, output):
               'publicationAuthorized': False, 'checks': [{'name': name, 'status': 'passed'} for name in ['built-bun', 'built-rust', 'installed-bun', 'installed-rust', 'installed-npm']],
               'evidence': {str(p.relative_to(output)): {'sha256': digest(p), 'byteLength': p.stat().st_size} for directory in (logs, package)
                            for p in sorted(directory.rglob('*')) if p.is_file()}}
+    report['evidence'].update(sdk_producer_evidence(output, sdk_output))
+    producer_archive = next(package / item['path'] for item in manifest['artifacts'] if item['kind'] == 'standalone-archive')
+    sdk_table = pub.read_sdk_archive(producer_archive, manifest)
+    sdk_custody.validate_sdk_producer_evidence(manifest, sdk_table,
+        report['evidence'], lambda name: (output / name).read_bytes())
+    report['evidence'] = producer_command_log_evidence(output, report, manifest)
+    report['evidence'] = producer_linux_runtime_evidence(output, report, manifest, sdk_table, source_root=ROOT)
     (output / 'build-report.json').write_text(json.dumps(report, indent=2, sort_keys=True) + '\n')
     return report
 
@@ -181,8 +456,11 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--version', required=True)
     parser.add_argument('--out', type=Path, required=True)
+    parser.add_argument('--agents-sdk-python', type=Path, help='Separate hash-locked SDK build interpreter (defaults to current interpreter)')
+    parser.add_argument('--agents-sdk-linux-python-archive', type=Path, help='Exact pinned full shared Python archive for native Linux construction')
     args = parser.parse_args()
     try:
-        print(json.dumps(build(args.version, args.out.absolute()), sort_keys=True))
+        print(json.dumps(build(args.version, args.out.absolute(), agents_sdk_python=args.agents_sdk_python,
+                               linux_python_archive=args.agents_sdk_linux_python_archive), sort_keys=True))
     except (ValueError, OSError, subprocess.SubprocessError) as error:
         parser.exit(2, str(error) + '\n')

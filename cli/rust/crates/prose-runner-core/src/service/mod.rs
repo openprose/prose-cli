@@ -1625,7 +1625,98 @@ fn lone_command<'a>(noun: &str, verb: Option<&'a str>) -> Option<(Vec<&'a str>, 
 /// which is `cli run submit FILE --preview`. `prefix` is the runner globals
 /// before the words. `help` and `run` are language commands: the caller
 /// forwards them unless the hosted harness would refuse.
-fn service_word(prefix: &[String], rest: &[String]) -> Option<CliRedirect> {
+// Service corrections retain only display globals. Native execution settings
+// belong to the original language invocation, never the suggested service one.
+fn service_correction(
+    prefix: &[String],
+    argv: &[String],
+    global_kind: &impl Fn(&str) -> Option<bool>,
+) -> Vec<String> {
+    let mut display = Vec::new();
+    let mut cwd = None;
+    let mut model = None;
+    let mut dry_run = false;
+    let mut at = 0;
+    while let Some(token) = prefix.get(at) {
+        let (name, inline) = token
+            .split_once('=')
+            .map_or((token.as_str(), None), |(name, value)| (name, Some(value)));
+        let takes_value = global_kind(name) == Some(true);
+        let width = if takes_value && inline.is_none() {
+            2
+        } else {
+            1
+        };
+        let value = inline.or_else(|| {
+            takes_value
+                .then(|| prefix.get(at + 1))
+                .flatten()
+                .map(String::as_str)
+        });
+        match name {
+            "--output" | "--no-color" | "--verbose" => {
+                display.extend_from_slice(&prefix[at..(at + width).min(prefix.len())]);
+            }
+            "--cwd" => cwd = value.map(str::to_owned),
+            "--model" => model = value.map(str::to_owned),
+            "--dry-run" => dry_run = true,
+            _ => {}
+        }
+        at += width;
+    }
+    let mut command = argv[prefix.len()..].to_vec();
+    let Some(operation) = command_operation(&command) else {
+        display.extend(command);
+        return display;
+    };
+    if operation["id"] == "run.submit" {
+        let file_at = first_positional(Some(operation), &command[3..]).map(|at| at + 3);
+        if let (Some(cwd), Some(file)) = (cwd, file_at.and_then(|at| command.get_mut(at))) {
+            if file != "-" && !std::path::Path::new(file.as_str()).is_absolute() {
+                *file = std::path::Path::new(&cwd)
+                    .join(file.as_str())
+                    .to_string_lossy()
+                    .into_owned();
+            }
+        }
+    }
+    let stop = command
+        .iter()
+        .position(|word| word == "--")
+        .unwrap_or(command.len());
+    let mut additions = Vec::new();
+    if let Some(model) = model {
+        if operation["options"]
+            .as_array()
+            .is_some_and(|options| options.iter().any(|option| option["name"] == "--model"))
+            && !command[..stop]
+                .iter()
+                .any(|word| word == "--model" || word.starts_with("--model="))
+        {
+            additions.extend(["--model".to_owned(), model]);
+        }
+    }
+    if dry_run
+        && operation["preview"] == true
+        && !command[..stop].iter().any(|word| word == "--preview")
+    {
+        additions.push("--preview".to_owned());
+    }
+    // Keep a generated preview last, after any converted model option.
+    let insertion = command[..stop]
+        .iter()
+        .position(|word| word == "--preview")
+        .unwrap_or(stop);
+    command.splice(insertion..insertion, additions);
+    display.extend(command);
+    display
+}
+
+fn service_word(
+    prefix: &[String],
+    rest: &[String],
+    global_kind: &impl Fn(&str) -> Option<bool>,
+) -> Option<CliRedirect> {
     let words = rest.iter().map(String::as_str).collect::<Vec<_>>();
     let noun = *words.first()?;
     let mut original = prefix.to_vec();
@@ -1663,7 +1754,7 @@ fn service_word(prefix: &[String], rest: &[String]) -> Option<CliRedirect> {
                 vec!["help".to_owned()],
             )
         }
-        ["run", file, tail @ ..] if !file.starts_with('-') => {
+        ["run", file, tail @ ..] if *file == "-" || !file.starts_with('-') => {
             let stop = tail
                 .iter()
                 .position(|token| *token == "--")
@@ -1715,6 +1806,7 @@ fn service_word(prefix: &[String], rest: &[String]) -> Option<CliRedirect> {
         }
         Correction::Text(_) => return None,
     };
+    let argv = service_correction(prefix, &argv, global_kind);
     let language = is_language_command(noun);
     let typed = words[..meant.typed].join(" ");
     let why = meant
@@ -1909,9 +2001,27 @@ pub fn cli_redirect(
                     .flatten()
                 else {
                     return if replaced.is_empty() {
-                        service_word(&corrected, &args[at..])
+                        service_word(&corrected, &args[at..], &global_kind)
                     } else {
-                        None
+                        let mut fixed = corrected.clone();
+                        fixed.extend_from_slice(&args[at..]);
+                        let rejection = reject(
+                            reasons.join(" "),
+                            Correction::Argv {
+                                action: format!("Replace {}: `{{command}}`", replaced.join(", ")),
+                                argv: fixed.clone(),
+                            },
+                        );
+                        Some(CliRedirect {
+                            argv: fixed,
+                            operands: Vec::new(),
+                            command: ServiceCommand::Invalid(Box::new(invalid_command(
+                                rejection,
+                                &args[at..],
+                            ))),
+                            language: true,
+                            hint_only: true,
+                        })
                     };
                 };
                 language = is_language_command(word);
@@ -1920,9 +2030,11 @@ pub fn cli_redirect(
             }
             [] => return None,
         };
+        let service_prefix = corrected.clone();
         corrected.push("cli".to_owned());
         corrected.extend(command.iter().map(|word| (*word).to_owned()));
         corrected.extend_from_slice(&rest[typed..]);
+        corrected = service_correction(&service_prefix, &corrected, &global_kind);
         let spelled = words[..typed].join(" ");
         let kind = if words.as_slice() == ["run"] {
             "alone runs nothing here: hosted runs are `prose cli run submit FILE`"

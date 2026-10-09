@@ -1373,11 +1373,18 @@ fn prime_cleanup_uses_the_invoked_binary_and_never_an_ambient_path_prose() {
 }
 
 #[test]
-fn default_is_openprose_billed_and_never_falls_back() {
+fn explicitly_selected_openprose_billed_and_never_falls_back() {
     let temp = TempDir::new().unwrap();
     let output = prose(
         temp.path(),
-        &["--output", "json", "run", "fixture.prose.md"],
+        &[
+            "--harness",
+            "openprose",
+            "--output",
+            "json",
+            "run",
+            "fixture.prose.md",
+        ],
     );
     assert_eq!(output.status.code(), Some(10));
     let result = json_stdout(&output);
@@ -1564,6 +1571,8 @@ fn doctor_rejects_an_installed_transport_before_inventory_or_version_probes() {
 fn hosted_transport_mismatch_precedes_availability_for_doctor_and_run() {
     for args in [
         vec![
+            "--harness",
+            "openprose",
             "--transport",
             "unsupported",
             "--output",
@@ -1572,6 +1581,8 @@ fn hosted_transport_mismatch_precedes_availability_for_doctor_and_run() {
             "doctor",
         ],
         vec![
+            "--harness",
+            "openprose",
             "--transport",
             "unsupported",
             "--output",
@@ -4301,11 +4312,19 @@ fn dry_run_is_machine_readable_and_starts_no_run() {
 }
 
 #[test]
-fn default_dry_run_identifies_the_hosted_adapter_without_fallback() {
+fn explicit_hosted_dry_run_identifies_the_hosted_adapter_without_fallback() {
     let temp = TempDir::new().unwrap();
     let output = prose(
         temp.path(),
-        &["--dry-run", "--output", "json", "write", "fixture.prose.md"],
+        &[
+            "--harness",
+            "openprose",
+            "--dry-run",
+            "--output",
+            "json",
+            "write",
+            "fixture.prose.md",
+        ],
     );
     assert_eq!(output.status.code(), Some(10));
     let report = json_stdout(&output);
@@ -4506,7 +4525,14 @@ fn compiled_commit_identity_is_exact_in_success_failure_and_stream_results() {
 
     let failure = prose(
         temp.path(),
-        &["--output", "json", "run", "fixture.prose.md"],
+        &[
+            "--harness",
+            "openprose",
+            "--output",
+            "json",
+            "run",
+            "fixture.prose.md",
+        ],
     );
     assert_eq!(failure.status.code(), Some(10));
     assert_eq!(json_stdout(&failure)["runner"]["commit"], expected);
@@ -4782,8 +4808,15 @@ fn runner_diagnostics_and_identity_stay_local() {
     assert_eq!(doctor.status.code(), Some(10));
     let doctor_report = json_stdout(&doctor);
     assert_eq!(doctor_report["schema"], "openprose.doctor-report/1");
-    assert_eq!(doctor_report["selectedHarness"], "openprose");
+    assert_eq!(doctor_report["selectedHarness"], "agents-sdk");
     assert_eq!(doctor_report["ready"], false);
+    assert_eq!(doctor_report["selectedAdapterId"], "agents-sdk/jsonl");
+    assert_eq!(doctor_report["billingOwner"], "user-provider");
+    assert_eq!(doctor_report["problems"][0]["code"], "HARNESS_NEEDS_AUTH");
+    assert_eq!(
+        doctor_report["problems"][0]["details"]["fallbackAttempted"],
+        false
+    );
 
     let list = prose(temp.path(), &["cli", "harness", "list", "--json"]);
     assert!(list.status.success());
@@ -4840,7 +4873,11 @@ fn runner_diagnostics_and_identity_stay_local() {
         }
     );
     assert_eq!(harnesses[6]["testOnly"], true);
+}
 
+#[test]
+fn explicit_codex_doctor_stays_local_and_reports_missing_harness() {
+    let temp = TempDir::new().unwrap();
     let installed_doctor = prose(
         temp.path(),
         &[
@@ -4895,6 +4932,7 @@ fn harness_list_matches_the_closed_ordered_inventory() {
     assert!(output.status.success());
     let mut expected = operation_fixture("harnesses");
     expected["harnesses"] = expected_harness_inventory();
+    expected["selected"] = json!("agents-sdk");
     assert_eq!(json_stdout(&output), expected);
 }
 
@@ -4905,9 +4943,15 @@ fn human_harness_list_marks_the_default_and_gives_ordered_next_actions() {
     assert!(output.status.success());
     assert!(output.stderr.is_empty());
     let stdout = String::from_utf8(output.stdout).unwrap();
-    assert!(
-        stdout.contains("* openprose availability=not-implemented transport=hosted (selected)\n")
-    );
+    assert!(stdout.contains("  openprose availability=not-implemented transport=hosted\n"));
+    let sdk_availability = if harness_supported("agents-sdk") {
+        "missing"
+    } else {
+        "incompatible"
+    };
+    assert!(stdout.contains(&format!(
+        "* agents-sdk availability={sdk_availability} transport=jsonl (selected)\n"
+    )));
     for (harness, transport) in [
         ("prime", "rpc"),
         ("omp", "rpc"),
@@ -5100,11 +5144,24 @@ fn human_harness_list_includes_a_safely_detected_compatible_version() {
 #[test]
 fn doctor_matches_the_closed_full_report_and_selected_problem_exit() {
     let temp = TempDir::new().unwrap();
-    let output = prose(temp.path(), &["--output", "json", "cli", "doctor"]);
+    let output = prose(
+        temp.path(),
+        &[
+            "--harness",
+            "openprose",
+            "--output",
+            "json",
+            "cli",
+            "doctor",
+        ],
+    );
     assert_eq!(output.status.code(), Some(10));
     let mut expected = operation_fixture("doctor");
     expected["cwd"] = Value::String(fs::canonicalize(temp.path()).unwrap().display().to_string());
-    expected["configuration"] = expected_configuration(temp.path());
+    let configuration_paths = expected_configuration(temp.path());
+    for field in ["cwd", "userConfigPath", "locations"] {
+        expected["configuration"][field] = configuration_paths[field].clone();
+    }
     expected["runner"] = json!({
         "name": "rust",
         "version": env!("CARGO_PKG_VERSION"),
@@ -5447,7 +5504,10 @@ fn dev_endpoint_builds_name_the_invoked_executable_in_copyable_commands() {
 #[test]
 fn human_failures_keep_result_stdout_clean() {
     let temp = TempDir::new().unwrap();
-    let output = prose(temp.path(), &["run", "fixture.prose.md"]);
+    let output = prose(
+        temp.path(),
+        &["--harness", "openprose", "run", "fixture.prose.md"],
+    );
     assert_eq!(output.status.code(), Some(10));
     assert!(output.stdout.is_empty());
     let diagnostic = String::from_utf8(output.stderr).unwrap();

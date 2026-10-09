@@ -41,8 +41,8 @@
       "harness": {
         "value": "openprose",
         "source": {
-          "kind": "default",
-          "location": "built-in"
+          "kind": "flag",
+          "location": "--harness"
         }
       },
       "transport": {
@@ -190,10 +190,18 @@
     "candidates": {
       "harness": [
         {
-          "value": "openprose",
+          "value": "agents-sdk",
           "source": {
             "kind": "default",
             "location": "built-in"
+          },
+          "selected": false
+        },
+        {
+          "value": "openprose",
+          "source": {
+            "kind": "flag",
+            "location": "--harness"
           },
           "selected": true
         }

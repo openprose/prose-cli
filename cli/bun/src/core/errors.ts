@@ -46,3 +46,19 @@ export function hostedRunFailed(details: Record<string, unknown> & { reason: str
 export function invocationFailure(reason: string): RunnerFailure {
   return failure("INVOCATION_INVALID", { reason });
 }
+
+export type KernelRetrievalStage = "entry" | "descriptor" | "inventory" | "kernel";
+/** Fixed runner-owned diagnostics only; retryability does not initiate a retry. */
+export function kernelRetrievalFailure(stage: KernelRetrievalStage, httpStatus?: number): RunnerFailure {
+  if (!["entry", "descriptor", "inventory", "kernel"].includes(stage) ||
+      (httpStatus !== undefined && (!Number.isInteger(httpStatus) || httpStatus < (stage === "entry" ? 400 : 100) || httpStatus > 599 || httpStatus === 200))) {
+    throw new RangeError("Invalid kernel retrieval observation.");
+  }
+  const error = failure("KERNEL_RETRIEVAL_FAILED", {
+    reason: httpStatus === undefined ? "Published kernel transport or response read failed." : "Published kernel HTTP request failed.",
+    stage, failureKind: httpStatus === undefined ? "transport" : "http", origin: "https://pkg.prose.md",
+    ...(httpStatus === undefined ? {} : { httpStatus }),
+  });
+  const { schema: _schema, ...shape } = error.toJSON();
+  return new RunnerFailure({ ...shape, retryable: httpStatus === undefined || [408, 429, 500, 502, 503, 504].includes(httpStatus) });
+}

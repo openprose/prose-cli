@@ -273,6 +273,7 @@ class FakeBenchmark:
         (meta_root / "bin").mkdir(parents=True)
         (platform_root / "bin").mkdir(parents=True)
         (meta_root / "bin" / "prose.js").write_bytes(LAUNCHER_BYTES)
+        (meta_root / "package.json").write_bytes(b'{"name":"@openprose/prose-cli","version":"0.1.0"}\n')
         (platform_root / "package.json").write_bytes(PLATFORM_MANIFEST_BYTES)
         (platform_root / "bin" / "prose").write_bytes(BUN_BYTES)
         command.parent.mkdir(parents=True)
@@ -304,6 +305,8 @@ class FakeBenchmark:
             ),
             "npm-launcher": "$INSTALL_ROOT/" + str(command.relative_to(install)),
         }
+        closure=(meta_root/'package.json',meta_root/'bin/prose.js',platform_root/'package.json',platform_root/'bin/prose')
+        self.raw['installations']=[{'surface':'npm-launcher','treeIdentity':{'entries':[{'path':str(path.relative_to(install/'npm-prefix')),'type':'regular','byteLength':path.stat().st_size,'sha256':sha(path.read_bytes())} for path in closure]}}]
         self.tree_digests = self._current_tree_digests(install)
         return copy.deepcopy(self.raw)
 
@@ -332,6 +335,9 @@ class FakeBenchmark:
         return {
             "platform": expected_platform,
             "release": {
+                "mode": "development",
+                "releaseEligible": False,
+                "publicationAuthorized": False,
                 "version": self.raw["packageIdentity"]["version"],
                 "source": {"revision": self.raw["packageIdentity"]["sourceRevision"]},
             },
@@ -461,6 +467,44 @@ def conformance_kwargs(mutate_after_write=None):
 
 
 class ReleaseRehearsalTests(unittest.TestCase):
+    def test_npm_context_is_bound_to_exact_benchmark_inventory_and_all_surfaces(self):
+        for mutation in ('none','missing','duplicate','native-cross','launcher-cross','platform-cross','file-change','symlink'):
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as directory:
+                root=Path(directory); _build,raw,analysis=reports(); benchmark=FakeBenchmark(raw,analysis)
+                install=root/'install'; observed=benchmark.run_benchmark(root/'package',install,trials=1,timeout_seconds=1,deadline_monotonic=time.monotonic()+10)
+                original=rehearse_release._npm_conformance_context(install,observed)
+                self.assertEqual({'prefix','platform','files'},set(original))
+                self.assertEqual({'launcher','native','metaManifest','platformManifest'},set(original['files']))
+                changed=copy.deepcopy(observed)
+                if mutation=='missing': changed['installations'][0]['treeIdentity']['entries'].pop()
+                elif mutation=='duplicate': changed['installations'].append(copy.deepcopy(changed['installations'][0]))
+                elif mutation=='native-cross': changed['surfaces']['direct-bun']['binarySha256']='f'*64
+                elif mutation=='launcher-cross': changed['surfaces']['npm-launcher']['launcherSourceSha256']='f'*64
+                elif mutation=='platform-cross': changed['launcherResolution']['platformManifestSha256']='f'*64
+                elif mutation in ('file-change','symlink'):
+                    path=Path(original['prefix'])/original['files']['metaManifest']['path']
+                    if mutation=='file-change': path.write_bytes(b'tampered')
+                    else:
+                        foreign=path.with_name('foreign'); path.rename(foreign); path.symlink_to(foreign)
+                if mutation=='none': self.assertEqual(original,rehearse_release._npm_conformance_context(install,changed))
+                else:
+                    with self.assertRaises(rehearse_release.RehearsalError): rehearse_release._npm_conformance_context(install,changed)
+
+    def test_npm_context_checks_custody_after_failed_conformance(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory); _build,raw,analysis=reports(); benchmark=FakeBenchmark(raw,analysis)
+            install=root/'install'; observed=benchmark.run_benchmark(root/'package',install,trials=1,timeout_seconds=1,deadline_monotonic=time.monotonic()+10)
+            runner,_execute=fake_conformance()
+            context=rehearse_release._npm_conformance_context(install,observed)
+            def failing_executor(argv,cwd,environment):
+                index=argv.index('--candidate-npm-context')
+                self.assertEqual('npm-launcher',argv[index+1]); self.assertEqual(context,json.loads(argv[index+2]))
+                (Path(context['prefix'])/context['files']['native']['path']).write_bytes(b'tampered')
+                return subprocess.CompletedProcess(argv,1,b'',b'failed fixture')
+            with self.assertRaisesRegex(rehearse_release.RehearsalError,'benchmark custody'):
+                rehearse_release._run_mechanical_conformance(runner,observed,install,root/'report.json',{},time.monotonic()+10,failing_executor,
+                    release={'mode': 'development', 'releaseEligible': False, 'publicationAuthorized': False})
+
     def test_conformance_inputs_require_a_versioned_exact_node_identity(self) -> None:
         _build, raw, analysis = reports()
         benchmark = FakeBenchmark(raw, analysis)
@@ -592,10 +636,10 @@ class ReleaseRehearsalTests(unittest.TestCase):
             self.assertIsInstance(benchmark.calls[0][4], float)
             mechanical = summary["bindings"]["mechanicalConformance"]
             self.assertEqual(7, mechanical["phase"])
-            self.assertEqual(76, len(mechanical["caseIds"]))
-            self.assertEqual(228, mechanical["candidateCaseValidations"])
-            self.assertEqual(152, mechanical["differentialValidations"])
-            self.assertEqual(380, mechanical["totalValidations"])
+            self.assertEqual(100, len(mechanical["caseIds"]))
+            self.assertEqual(300, mechanical["candidateCaseValidations"])
+            self.assertEqual(200, mechanical["differentialValidations"])
+            self.assertEqual(500, mechanical["totalValidations"])
             self.assertEqual(
                 rehearse_release.CONFORMANCE_CASES, len(mechanical["caseIds"])
             )
@@ -1098,6 +1142,120 @@ class ReleaseRehearsalTests(unittest.TestCase):
                         **conformance_kwargs(),
                         **kwargs,
                     )
+
+
+class CompleteSdkConformanceCustodyTests(unittest.TestCase):
+    def test_exact_development_placeholder_has_no_sdk_source_or_report_claim(self):
+        release = {'mode': 'development', 'releaseEligible': False,
+                   'publicationAuthorized': False, 'agentsSdk': 'not-packaged-development-fixture'}
+        self.assertEqual(rehearse_release._sdk_conformance_contexts(Path('/not-read'), {}, release, None), {})
+        self.assertIsNone(rehearse_release._sdk_report_binding({}, release))
+        rehearse_release._validate_sdk_conformance_binding({}, {}, release)
+        for claim in ({}, None, False, []):
+            with self.subTest(claim=claim), self.assertRaises(rehearse_release.RehearsalError):
+                rehearse_release._validate_sdk_conformance_binding({'sdkSourceCustody': claim}, {}, release)
+
+    def test_sdk_absent_historical_alpha_requires_explicit_nonpromotion_authority(self):
+        release = {'mode': 'alpha', 'releaseEligible': False, 'publicationAuthorized': False}
+        self.assertEqual(rehearse_release._sdk_conformance_contexts(Path('/not-read'), {}, release, None), {})
+        self.assertIsNone(rehearse_release._sdk_report_binding({}, release))
+        for key in ('releaseEligible', 'publicationAuthorized'):
+            changed = copy.deepcopy(release); changed.pop(key)
+            with self.subTest(missing=key), self.assertRaises(rehearse_release.RehearsalError):
+                rehearse_release._sdk_report_binding({}, changed)
+        for raw_release in (None, [], 'development'):
+            with self.subTest(nonobject=raw_release):
+                with self.assertRaises(rehearse_release.RehearsalError):
+                    rehearse_release._sdk_conformance_contexts(Path('/not-read'), {}, raw_release, None)
+                with self.assertRaises(rehearse_release.RehearsalError):
+                    rehearse_release._sdk_report_binding({}, raw_release)
+
+    def test_placeholder_and_sdk_absence_refuse_production_or_ambiguous_authority(self):
+        baseline = {'mode': 'development', 'releaseEligible': False,
+                    'publicationAuthorized': False, 'agentsSdk': 'not-packaged-development-fixture'}
+        for poison in ('release', 'kernel-rc', 'alpha', 'missing-mode', 'release-eligible',
+                       'missing-release-eligible', 'publication-authorized', 'missing-publication',
+                       'unknown-string', 'null', 'false', 'list', 'sdk-evidence'):
+            release = copy.deepcopy(baseline); raw = {}
+            if poison in ('release', 'kernel-rc', 'alpha'): release['mode'] = poison
+            elif poison == 'missing-mode': release.pop('mode')
+            elif poison == 'release-eligible': release['releaseEligible'] = True
+            elif poison == 'missing-release-eligible': release.pop('releaseEligible')
+            elif poison == 'publication-authorized': release['publicationAuthorized'] = True
+            elif poison == 'missing-publication': release.pop('publicationAuthorized')
+            elif poison == 'sdk-evidence': raw['sdkEvidence'] = {}
+            else: release['agentsSdk'] = {'unknown-string': 'not-packaged', 'null': None, 'false': False, 'list': []}[poison]
+            with self.subTest(poison=poison):
+                with self.assertRaises(rehearse_release.RehearsalError):
+                    rehearse_release._sdk_conformance_contexts(Path('/not-read'), raw, release, None)
+                with self.assertRaises(rehearse_release.RehearsalError):
+                    rehearse_release._sdk_report_binding(raw, release)
+        for mode in ('release', 'kernel-rc', None):
+            release = {'mode': mode, 'releaseEligible': False, 'publicationAuthorized': False}
+            with self.subTest(omitted=mode):
+                with self.assertRaises(rehearse_release.RehearsalError):
+                    rehearse_release._sdk_report_binding({}, release)
+                with self.assertRaises(rehearse_release.RehearsalError):
+                    rehearse_release._sdk_conformance_contexts(Path('/not-read'), {}, release, None)
+
+    def fixture(self, root, platform='darwin-x64'):
+        from test_kernel_rc_evidence import sdk_fixture
+        import kernel_rc_evidence as custody
+        module = rehearse_release.load_installed_benchmark(); module.sdk_modules()
+        sdk, scoped = sdk_fixture(platform)
+        manifest = {'platform': platform, 'agentsSdk': sdk}
+        raw = {'platform': platform, 'installations': [], 'measurementPlan': {'executablePaths': {'direct-rust': '$INSTALL_ROOT/rust-standalone/release/prose', 'direct-bun': '$INSTALL_ROOT/bun-standalone/release/prose'}}}
+        evidence = {sdk['receiptSha256']: scoped['files']['agents-sdk-build.json'][0].decode()}
+        if platform.startswith('darwin'): raw['sdkEvidence'] = evidence
+        for label, tree_root, prefix in (
+                ('direct-rust', root / 'rust-standalone', 'release'),
+                ('direct-bun', root / 'bun-standalone', 'release'),
+                ('npm-launcher', root / 'npm-prefix', 'lib/node_modules/@openprose/prose-cli-' + platform + '/bin')):
+            directory = tree_root / prefix; directory.mkdir(parents=True)
+            table = {kind: {'source/' + n: v for n, v in rows.items()} for kind, rows in scoped.items()}
+            table['files']['source/prose'] = (b'nonexecuted CLI fixture', 0o755)
+            custody.materialize_sdk_members(manifest, table, directory)
+            (directory / 'prose').write_bytes(b'nonexecuted CLI fixture'); (directory / 'prose').chmod(0o755)
+            context = {'receiptSha256': sdk['receiptSha256'], 'prefix': prefix, 'encoded': evidence[sdk['receiptSha256']]} if platform.startswith('darwin') else None
+            tree = module.capture_installed_tree(tree_root, sdk_context=context)
+            raw['installations'].append({'surface': label, 'treeIdentity': tree})
+        return module, manifest, raw
+
+    def test_three_complete_source_trees_authenticate_on_both_platforms(self):
+        for platform in ('darwin-x64', 'linux-x64-gnu'):
+            with self.subTest(platform=platform), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp).resolve(); module, release, raw = self.fixture(root, platform)
+                contexts = rehearse_release._sdk_conformance_contexts(root, raw, release, module)
+                self.assertEqual(set(contexts), {'direct-rust', 'direct-bun', 'npm-launcher'})
+                self.assertTrue(all(c['agentsSdk'] == release['agentsSdk'] for c in contexts.values()))
+                expected = rehearse_release._sdk_report_binding(raw, release)
+                rehearse_release._validate_sdk_conformance_binding({'sdkSourceCustody': expected}, raw, release)
+                with self.assertRaises(rehearse_release.RehearsalError): rehearse_release._validate_sdk_conformance_binding({}, raw, release)
+                bad = json.loads(json.dumps(expected)); bad['candidateReferences']['direct-rust'] = '0' * 64
+                with self.assertRaises(rehearse_release.RehearsalError): rehearse_release._validate_sdk_conformance_binding({'sdkSourceCustody': bad}, raw, release)
+                altered = json.loads(json.dumps(release)); altered['agentsSdk']['sha256'] = '0' * 64
+                with self.assertRaises(ValueError): rehearse_release._sdk_conformance_contexts(root, raw, altered, module)
+
+    def test_omitted_release_and_support_changes_refuse_instead_of_fixture_fallback(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp).resolve(); module, release, raw = self.fixture(root)
+            with self.assertRaises(rehearse_release.RehearsalError): rehearse_release._sdk_conformance_contexts(root, raw, None, module)
+            (root / 'rust-standalone/release/prose-agents-sdk-runtime/empty-data').write_bytes(b'changed')
+            with self.assertRaises(Exception): rehearse_release._sdk_conformance_contexts(root, raw, release, module)
+
+    def test_source_rechecked_after_mocked_conformance_before_report_admission(self):
+        import time
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp).resolve(); module, release, raw = self.fixture(root)
+            labels = [('direct-rust', 'rust', root / 'rust-standalone/prose'), ('direct-bun', 'bun', root / 'bun-standalone/prose'), ('npm-launcher', 'bun', root / 'npm-prefix/bin/prose')]
+            def execute(argv, cwd, env):
+                self.assertEqual(argv.count('--candidate-sdk-source'), 3)
+                (root / 'bun-standalone/release/prose-agents-sdk-runtime/empty-data').write_bytes(b'changed')
+                return subprocess.CompletedProcess(argv, 0, b'', b'')
+            with patch.object(rehearse_release, '_conformance_inputs', return_value=(labels, Path('/nonexecuted/node'), '0'*64)), patch.object(rehearse_release, '_npm_conformance_context', return_value={}):
+                with self.assertRaises(Exception): rehearse_release._run_mechanical_conformance(type('Runner', (), {'__file__': __file__}), raw, root, root / 'report.json', {}, time.monotonic() + 30, execute, release=release, benchmark_module=module)
+                self.assertFalse((root / 'report.json').exists())
 
 
 if __name__ == "__main__":

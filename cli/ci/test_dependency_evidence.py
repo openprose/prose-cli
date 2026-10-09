@@ -199,6 +199,7 @@ class DependencyEvidenceTests(unittest.TestCase):
                 "cli/rust/crates/prose-cli/Cargo.toml",
                 "cli/rust/crates/prose-process-supervisor/Cargo.toml",
                 "cli/rust/crates/prose-runner-core/Cargo.toml",
+                "harnesses/agents-sdk/requirements-build.txt",
             ],
         )
         self.assertGreater(len(report["inventories"]["cargo"]["packages"]), 50)
@@ -211,6 +212,10 @@ class DependencyEvidenceTests(unittest.TestCase):
             len(report["inventories"]["windowsProcessHostCargo"]["packages"]), 14
         )
         self.assertEqual(len(report["inventories"]["bun"]["packages"]), 13)
+        python = report["inventories"]["agentsSdkPython"]["packages"]
+        self.assertEqual(len({p["name"] for p in python}), 46)
+        self.assertEqual(len(python), 67)
+        self.assertTrue(all(p["integrity"]["status"] == "declared" for p in python))
         for source in report["sources"]:
             self.assertRegex(source["sha256"], r"^[0-9a-f]{64}$")
             self.assertGreater(source["byteLength"], 0)
@@ -479,6 +484,48 @@ version = "1.0.0"
         self.assertEqual(error["schema"], "openprose.dependency-evidence-error/1")
         self.assertEqual(error["code"], "ARGUMENT_INVALID")
         self.assertNotIn("license", result.stderr.decode().lower())
+
+
+class PythonSdkDependencyEvidenceTests(unittest.TestCase):
+    def test_python_lock_candidates_bind_hashes_and_reject_unpinned_input(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary); make_fixture(root)
+            lock = root / 'harnesses/agents-sdk/requirements-build.txt'; lock.parent.mkdir(parents=True)
+            lock.write_text('openai==3.13.0 --hash=sha256:' + SHA256_A + ' --hash=sha256:' + SHA256_B + '\n')
+            report = EVIDENCE.build_report(root)
+            packages = report['inventories']['agentsSdkPython']['packages']
+            self.assertEqual([p['integrity']['digest'] for p in packages], [SHA256_A, SHA256_B])
+            self.assertIn('harnesses/agents-sdk/requirements-build.txt', [s['path'] for s in report['sources']])
+            for text in ('openai>=3\n', 'openai==3.13.0\n', '--extra-index-url https://example.invalid\n'):
+                lock.write_text(text)
+                with self.assertRaises(EVIDENCE.EvidenceError):
+                    EVIDENCE.build_report(root)
+
+
+    def test_python_versions_and_normalized_sort_preserve_original_lock_identity(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            make_fixture(root)
+            lock = root / "harnesses/agents-sdk/requirements-build.txt"
+            lock.parent.mkdir(parents=True)
+            versions = ("3.20", "26.3", "3.0", "2026.8", "1.0rc1", "1.0.post2", "1.0.dev3+linux.1")
+            # Deliberately unsorted; underscore normalization changes identity ordering.
+            lock.write_text("typing_extensions==3.20 --hash=sha256:" + SHA256_A + "\n"
+                            + "typing-z==26.3 --hash=sha256:" + SHA256_B + "\n"
+                            + "".join(f"fixture-{index}=={version} --hash=sha256:{SHA256_C}\n"
+                                      for index, version in enumerate(versions[2:])))
+            report = EVIDENCE.build_report(root)
+            inventory = report["inventories"]["agentsSdkPython"]
+            self.assertEqual(set(inventory), {"scopeBasis", "packages"})
+            packages = inventory["packages"]
+            identities = [(p["name"], p["version"], p["source"]) for p in packages]
+            self.assertEqual(identities, sorted(identities))
+            self.assertEqual({p["version"] for p in packages}, set(versions))
+            for version in ("nonsense", "1..2", "1.*", "1.0+", "1.0rcx"):
+                with self.subTest(version=version):
+                    lock.write_text(f"fixture=={version} --hash=sha256:{SHA256_A}\n")
+                    with self.assertRaises(EVIDENCE.EvidenceError):
+                        EVIDENCE.build_report(root)
 
 
 if __name__ == "__main__":

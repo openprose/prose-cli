@@ -61,6 +61,12 @@ jobs:
           python3 -m pip install --require-hashes --only-binary=:all: -r cli/ci/requirements-test.txt
           cd cli/bun
           bun install --frozen-lockfile --ignore-scripts
+      - name: Prepare the separately locked Agents SDK build interpreter
+        run: |
+          uv venv --python 3.10.20 --seed "$RUNNER_TEMP/agents-sdk-python"
+          "$RUNNER_TEMP/agents-sdk-python/bin/python3" -m pip install --require-hashes --only-binary=:all: -r harnesses/agents-sdk/requirements-build.txt
+      - name: Test the actual pinned Agents SDK runtime without provider credentials
+        run: '"$RUNNER_TEMP/agents-sdk-python/bin/python3" -m unittest discover -s harnesses/agents-sdk -p test_run.py'
       - name: Admit current source without provider credentials
         shell: bash
         run: python3 cli/ci/run_local.py 2>&1 | tee "$RUNNER_TEMP/cli-admission.log"

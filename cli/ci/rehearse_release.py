@@ -44,7 +44,7 @@ MARKER_BYTES = b"owned non-publishing rehearsal root\n"
 SAFE_BASENAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 MAX_EVIDENCE_BYTES = 16 * 1024 * 1024
 CONFORMANCE_PHASE = 7
-CONFORMANCE_CASES = 76
+CONFORMANCE_CASES = 100
 CONFORMANCE_CANDIDATE_VALIDATIONS = CONFORMANCE_CASES * 3
 CONFORMANCE_DIFFERENTIAL_VALIDATIONS = CONFORMANCE_CASES * 2
 CONFORMANCE_TOTAL_VALIDATIONS = (
@@ -766,6 +766,136 @@ def _conformance_inputs(
     return candidates, node_path, node_digest
 
 
+def _npm_conformance_context(install: Path, raw_report: Mapping[str, Any]) -> dict[str, Any]:
+    platform=raw_report.get('platform')
+    if not isinstance(platform,str) or not re.fullmatch('[a-z0-9-]+',platform):
+        raise RehearsalError('npm conformance platform is invalid')
+    records=raw_report.get('installations')
+    npm=[row for row in records or [] if row.get('surface')=='npm-launcher']
+    if len(npm)!=1:
+        raise RehearsalError('npm conformance requires the benchmark-bound installed tree')
+    entries=npm[0].get('treeIdentity',{}).get('entries',[])
+    prefix=install/'npm-prefix'
+    meta='lib/node_modules/@openprose/prose-cli'
+    child='lib/node_modules/@openprose/prose-cli-'+platform
+    relative={'metaManifest':meta+'/package.json','launcher':meta+'/bin/prose.js',
+              'platformManifest':child+'/package.json','native':child+'/bin/prose'}
+    files={}
+    for key,name in relative.items():
+        matching=[row for row in entries if row.get('path')==name]
+        if len(matching)!=1 or matching[0].get('type')!='regular':
+            raise RehearsalError('npm conformance closure lacks one benchmark-bound regular file')
+        row=matching[0]
+        digest=require_sha(row.get('sha256'),'npm '+key)
+        length=row.get('byteLength')
+        if type(length) is not int or not 0<length<=256*1024*1024:
+            raise RehearsalError('npm conformance closure byte length is invalid')
+        path=prefix/name
+        _require_custodied_path(install,path,'npm '+key)
+        observed=build_local.digest_file(path)
+        if observed['sha256']!=digest or observed['byteLength']!=length:
+            raise RehearsalError('npm conformance closure differs from benchmark custody')
+        files[key]={'path':name,'byteLength':length,'sha256':digest}
+    npm_surface=raw_report['surfaces']['npm-launcher']
+    if files['native']['sha256']!=npm_surface['binarySha256'] or files['native']['sha256']!=raw_report['surfaces']['direct-bun']['binarySha256'] or files['platformManifest']['sha256']!=raw_report['launcherResolution']['platformManifestSha256'] or files['launcher']['sha256']!=npm_surface['launcherSourceSha256']:
+        raise RehearsalError('npm conformance closure cross-binding mismatch')
+    return {'prefix':str(prefix.resolve()),'platform':platform,'files':files}
+
+
+def _sdk_release_identity(raw_report, release):
+    """Distinguish the explicit non-publishable development fixture from SDK custody."""
+    release = require_object(release, 'explicit SDK release context')
+    if 'agentsSdk' not in release:
+        if release.get('mode') in ('release', 'kernel-rc'):
+            raise RehearsalError('Production release lacks an SDK identity')
+        if (release.get('mode') not in ('development', 'alpha')
+                or release.get('releaseEligible') is not False
+                or release.get('publicationAuthorized') is not False):
+            raise RehearsalError('SDK-absent context requires an explicit non-publishable historical or development package')
+        if 'sdkEvidence' in raw_report:
+            raise RehearsalError('SDK installation evidence lacks an explicit release identity')
+        return None
+    if release['agentsSdk'] == 'not-packaged-development-fixture':
+        if (release.get('mode') != 'development'
+                or release.get('releaseEligible') is not False
+                or release.get('publicationAuthorized') is not False
+                or 'sdkEvidence' in raw_report):
+            raise RehearsalError('SDK placeholder requires an explicit non-publishable development fixture')
+        return None
+    return require_object(release['agentsSdk'], 'release SDK identity')
+
+
+def _sdk_conformance_contexts(install, raw_report, release, module):
+    """Bind real SDK trees before deliberately substituting the fixture oracle."""
+    sdk = _sdk_release_identity(raw_report, release)
+    if sdk is None:
+        return {}
+    import qualify_installed_sdk as installed_sdk
+    import kernel_rc_evidence as sdk_custody
+    import sdk_native_inventory as inventory
+    records = raw_report.get('installations', [])
+    contexts = {}
+    for label, tree_root in (('direct-rust', install / 'rust-standalone'),
+                             ('direct-bun', install / 'bun-standalone'),
+                             ('npm-launcher', install / 'npm-prefix')):
+        matches = [r for r in records if r.get('surface') == label]
+        if len(matches) != 1:
+            raise RehearsalError('SDK conformance lacks three benchmark installation trees')
+        tree = matches[0]['treeIdentity']; allowed = {}
+        directory = tree_root
+        if label != 'npm-launcher':
+            native = _installed_path(install, raw_report['measurementPlan']['executablePaths'][label], label)
+            directory = native.parent
+            try: directory.resolve(strict=True).relative_to(tree_root.resolve(strict=True))
+            except (OSError, ValueError) as error: raise RehearsalError('SDK native source escapes benchmark tree') from error
+        if label == 'npm-launcher':
+            command, meta, child, _ = module.npm_layout(tree_root, raw_report['platform'])
+            if command.is_symlink(): allowed[command] = meta / 'bin/prose.js'
+            directory = child / 'bin'
+        module.verify_installed_tree(tree_root, tree, allowed, sdk_evidence=raw_report.get('sdkEvidence'))
+        installed_sdk.installed_sdk_identity(directory, sdk)
+        files = {name: (module.safe_read(directory / name, 2 * 1024 * 1024 if name == 'agents-sdk-build.json' else (8 * 1024 * 1024 if name == 'AGENTS-SDK-NOTICES.txt' else 256 * 1024 * 1024)),
+                         stat.S_IMODE((directory / name).stat().st_mode))
+                 for name in ('prose', 'prose-agents-sdk', 'agents-sdk-build.json', 'AGENTS-SDK-NOTICES.txt')}
+        receipt = _json_no_duplicates(files['agents-sdk-build.json'][0], 'SDK source receipt')
+        table = {'files': {'source/' + n: v for n, v in files.items()}, 'directories': {}, 'symlinks': {}}
+        if release['platform'].startswith('darwin-'):
+            view = inventory.read_macos_payload(directory, receipt['payload'], receipt['architecture'])
+            for kind, rows in view.items(): table[kind].update({'source/' + n: v for n, v in rows.items()})
+        sdk_custody.validate_sdk_archive_table(release, table)
+        contexts[label] = {'directory': str(directory.resolve()), 'platform': release['platform'], 'agentsSdk': sdk}
+    return contexts
+
+
+def _sdk_report_binding(raw_report, release):
+    sdk = _sdk_release_identity(raw_report, release)
+    if sdk is None:
+        return None
+    receipt_sha = require_sha(sdk.get('receiptSha256'), 'SDK receipt')
+    payload_sha = 'not-applicable'
+    if release['platform'].startswith('darwin-'):
+        evidence = require_object(raw_report.get('sdkEvidence'), 'SDK receipt evidence')
+        if set(evidence) != {receipt_sha} or not isinstance(evidence[receipt_sha], str):
+            raise RehearsalError('SDK receipt evidence differs from release identity')
+        encoded = evidence[receipt_sha].encode('utf-8')
+        if not 0 < len(encoded) <= 2 * 1024 * 1024 or digest(encoded) != receipt_sha:
+            raise RehearsalError('SDK receipt evidence bytes differ')
+        receipt = _json_no_duplicates(encoded, 'SDK receipt evidence')
+        payload_sha = digest(json.dumps(receipt['payload'], ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode('utf-8'))
+    return {'evidence': {receipt_sha: {'platform': release['platform'], 'agentsSdk': sdk, 'payloadSha256': payload_sha}},
+            'candidateReferences': {label: receipt_sha for label in ('direct-rust', 'direct-bun', 'npm-launcher')}}
+
+
+def _validate_sdk_conformance_binding(value, raw_report, release):
+    expected_sdk = _sdk_report_binding(raw_report, release)
+    observed_sdk = value.get('sdkSourceCustody')
+    if expected_sdk is None:
+        if 'sdkSourceCustody' in value or 'sdkEvidence' in raw_report:
+            raise RehearsalError('SDK conformance report lacks explicit release context')
+    elif not isinstance(observed_sdk, dict) or any(observed_sdk.get(k) != v for k, v in expected_sdk.items()):
+        raise RehearsalError('SDK conformance source differs from authenticated release')
+
+
 def _run_mechanical_conformance(
     runner: Any,
     raw_report: Mapping[str, Any],
@@ -774,6 +904,7 @@ def _run_mechanical_conformance(
     environment: Mapping[str, str],
     deadline: float,
     executor: Callable[[Sequence[str], Path, Mapping[str, str]], Any] | None,
+    *, release=None, benchmark_module=None,
 ) -> bytes:
     candidates, node_path, _node_digest = _conformance_inputs(install, raw_report)
     argv = [
@@ -787,6 +918,11 @@ def _run_mechanical_conformance(
     for label, expected_runner, executable in candidates:
         argv.extend(("--candidate", label, expected_runner, str(executable)))
     argv.extend(("--candidate-interpreter", "npm-launcher", str(node_path)))
+    npm_context=_npm_conformance_context(install,raw_report)
+    argv.extend(('--candidate-npm-context','npm-launcher',json.dumps(npm_context,sort_keys=True,separators=(',',':'))))
+    sdk_contexts = _sdk_conformance_contexts(install, raw_report, release, benchmark_module)
+    for label, context in sdk_contexts.items():
+        argv.extend(('--candidate-sdk-source', label, json.dumps(context, sort_keys=True, separators=(',', ':'))))
     remaining = _deadline_remaining(deadline, "before Phase 7 conformance")
     execute = executor
     if execute is None:
@@ -798,6 +934,11 @@ def _run_mechanical_conformance(
         )
     completed = execute(argv, Path(__file__).resolve().parents[2], environment)
     _deadline_remaining(deadline, "after Phase 7 conformance")
+    if _npm_conformance_context(install,raw_report)!=npm_context:
+        raise RehearsalError('npm conformance closure changed during execution')
+    _conformance_inputs(install,raw_report)
+    if _sdk_conformance_contexts(install, raw_report, release, benchmark_module) != sdk_contexts:
+        raise RehearsalError('Production SDK source changed during fixture conformance')
     if completed.returncode != 0:
         diagnostic = (completed.stderr or completed.stdout)[:4096]
         raise RehearsalError(
@@ -816,6 +957,7 @@ def validate_mechanical_conformance(
     raw_report: Mapping[str, Any],
     *,
     require_current_admission: bool = True,
+    release=None,
 ) -> dict[str, Any]:
     value = require_object(report, "mechanical conformance report")
     try:
@@ -882,6 +1024,7 @@ def validate_mechanical_conformance(
         raise RehearsalError(
             "mechanical conformance result is not the exact admitted pass"
         )
+    _validate_sdk_conformance_binding(value, raw_report, release)
     surfaces = require_object(raw_report.get("surfaces"), "installed surfaces")
     rust_surface = require_object(surfaces.get("direct-rust"), "Rust surface")
     bun_surface = require_object(surfaces.get("direct-bun"), "Bun surface")
@@ -1049,6 +1192,7 @@ def rehearse(
         current_case_ids = _current_conformance_case_ids(
             runner, require_frozen_count=True
         )
+        conformance_release = module.verify_package_output(package, expected_platform=raw_report['platform'])['release']
         conformance_path = Path(temporary) / "installed-mechanical-conformance.json"
         encoded_conformance = _run_mechanical_conformance(
             runner,
@@ -1057,13 +1201,13 @@ def rehearse(
             conformance_path,
             environment,
             deadline,
-            conformance_executor,
+            conformance_executor, release=conformance_release, benchmark_module=module,
         )
         conformance_report = _json_no_duplicates(
             encoded_conformance, "mechanical conformance report"
         )
         conformance_binding = validate_mechanical_conformance(
-            conformance_report, encoded_conformance, runner, raw_report
+            conformance_report, encoded_conformance, runner, raw_report, release=conformance_release
         )
         if conformance_binding["caseIds"] != current_case_ids:
             raise RehearsalError(
@@ -1340,6 +1484,7 @@ def _verify_current_package_and_install(
         raise RehearsalError(
             "current npm launcher identity differs from benchmark evidence"
         )
+    _sdk_conformance_contexts(install, raw, context['release'], module)
     try:
         package_after = package.lstat()
         install_after = install.lstat()
@@ -1531,6 +1676,7 @@ def verify_rehearsal(
         runner,
         raw,
         require_current_admission=False,
+        release=module.verify_package_output(root.path / "package", expected_platform=raw["platform"])["release"],
     )
     try:
         tree_digests = module.verify_retained_install_trees(

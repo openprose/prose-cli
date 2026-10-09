@@ -1,0 +1,688 @@
+import copy,json,tempfile,unittest
+from pathlib import Path
+from unittest.mock import patch
+import build_agents_sdk_linux as d
+
+class DriverControls(unittest.TestCase):
+ def test_real_closed_pins(self):
+  x=d.load_lock();self.assertEqual(len(x['platforms']),2)
+ def test_floating_or_wrong_arch_image_rejected(self):
+  for key in ('freezer','supplier'):
+   for value in ('quay.io/pypa/manylinux_2_34_x86_64:latest','quay.io/pypa/manylinux_2_34_aarch64@sha256:'+'a'*64):
+    x=copy.deepcopy(d.load_lock());x['platforms']['linux-x64-gnu'][key]['image']=value
+    with tempfile.TemporaryDirectory() as t:
+     p=Path(t).resolve()/'lock';p.write_text(json.dumps(x))
+     with self.assertRaises(ValueError):d.load_lock(p)
+ def test_variant_or_install_only_python_rejected(self):
+  for field,value in [('targetTriple','x86_64_v2-unknown-linux-gnu'),('url','https://example.com/untrusted.tar.zst'),('byteLength',True)]:
+   x=copy.deepcopy(d.load_lock());x['platforms']['linux-x64-gnu']['pythonArchive'][field]=value
+   with tempfile.TemporaryDirectory() as t:
+    p=Path(t).resolve()/'lock';p.write_text(json.dumps(x))
+    with self.assertRaises(ValueError):d.load_lock(p)
+ def test_mounts_are_closed_and_offline_freeze(self):
+  r=d.load_lock()['platforms']['linux-x64-gnu'];c=d.container_command(r,'freezer',Path('/source-owned'),Path('/job-owned'),'freeze.sh')
+  self.assertIn('--network=none',c);self.assertIn('--pull=never',c);self.assertIn('--read-only',c)
+  self.assertIn('type=bind,src=/source-owned,dst=/source,readonly',c)
+  self.assertNotIn('--privileged',c);self.assertNotIn('--env-file',c)
+  self.assertEqual(c.count('--mount'),2);self.assertIn('--cap-drop=ALL',c)
+ def test_no_ambient_credentials_passed(self):
+  import sys
+  with tempfile.TemporaryDirectory() as t, patch.dict(d.os.environ,{'OPENAI_API_KEY':'sentinel','GH_TOKEN':'sentinel'}):
+   out=Path(t).resolve();(out/'home').mkdir()
+   result=d.process([sys.executable,'-c','import os,json;print(json.dumps(dict(os.environ)))'],out,'env')
+   env=json.loads(result);self.assertNotIn('OPENAI_API_KEY',env);self.assertNotIn('GH_TOKEN',env)
+   self.assertEqual(env['HOME'],str(out/'home'))
+ def test_host_or_emulated_target_cannot_be_native(self):
+  with tempfile.TemporaryDirectory() as t:
+   source=Path(t).resolve()/'source';source.mkdir()
+   with patch.object(d.sys,'platform','darwin'),self.assertRaisesRegex(ValueError,'Native Linux'):
+    d.plan(source,Path(t).resolve()/'out','linux-x64-gnu',Path(t).resolve()/'absent')
+ def test_unknown_target_and_unsafe_mount_rejected(self):
+  with tempfile.TemporaryDirectory() as t:
+   source=Path(t).resolve()/'source';source.mkdir()
+   with self.assertRaises(ValueError):d.plan(source,Path(t).resolve()/'out','windows-x64',Path(t).resolve()/'absent',native=False)
+   with self.assertRaises(ValueError):d.checked_path(Path(t).resolve()/'bad,mount')
+   (Path(t).resolve()/'link').symlink_to(source)
+   with self.assertRaises(ValueError):d.checked_path(Path(t).resolve()/'link')
+ def test_wrong_python_bytes_rejected_before_any_command(self):
+  with tempfile.TemporaryDirectory() as t,patch.object(d.subprocess,'run') as run:
+   source=Path(t).resolve()/'source';source.mkdir();archive=Path(t).resolve()/'python';archive.write_bytes(b'wrong')
+   with self.assertRaisesRegex(ValueError,'archive differs'):d.plan(source,Path(t).resolve()/'out','linux-x64-gnu',archive,native=False)
+   run.assert_not_called();self.assertFalse((Path(t).resolve()/'out').exists())
+ def test_required_selection_and_custody_hooks(self):
+  self.assertIn('--linux-libgcc /job/supplier/libgcc_s.so.1',d.FREEZE)
+  self.assertIn('--linux-native-origin /job/native-input.json',d.FREEZE)
+  self.assertNotIn('exclude',d.FREEZE);self.assertNotIn('LD_LIBRARY_PATH',d.FREEZE)
+  self.assertIn('GCC RUNTIME LIBRARY EXCEPTION',d.SUPPLIER_PY)
+  self.assertIn("x['libpython_link_mode']=='shared'",d.PREPARE)
+ def test_preparation_network_is_explicit_and_freeze_is_not(self):
+  r=d.load_lock()['platforms']['linux-arm64-gnu']
+  self.assertIn('--network=bridge',d.container_command(r,'freezer',Path('/source'),Path('/job'),'prepare.sh',network='bridge'))
+  with self.assertRaises(ValueError):d.container_command(r,'freezer',Path('/source'),Path('/job'),'freeze.sh',network='host')
+
+ def test_both_runtime_targets_use_bounded_executable_tmpfs_without_widening_isolation(self):
+  import verify_agents_sdk_linux as runtime
+  for target,row in runtime.load_lock()['platforms'].items():
+   with self.subTest(target=target):
+    c=d.container_command(row,'runtime',Path('/source-owned'),Path('/job-owned'),'version.sh',owner='a'*32)
+    self.assertEqual(c[c.index('--tmpfs')+1],'/tmp:rw,exec,nosuid,nodev,size=536870912')
+    self.assertEqual(c.count('--tmpfs'),1);self.assertEqual(c.count('--mount'),2)
+    for option in ('--network=none','--read-only','--pull=never','--rm','--cap-drop=ALL','--security-opt=no-new-privileges'):
+     self.assertIn(option,c)
+    self.assertEqual(c[c.index('--user')+1],str(d.os.getuid())+':'+str(d.os.getgid()))
+    self.assertEqual(c[c.index('--platform')+1],row['dockerPlatform'])
+    self.assertIn('type=bind,src=/source-owned,dst=/source,readonly',c)
+    self.assertIn('type=bind,src=/job-owned,dst=/job',c)
+    self.assertIn('TMPDIR=/tmp',c);self.assertIn('--name',c)
+    self.assertIn(d.OWNER_LABEL+'='+'a'*32,c)
+    self.assertEqual(c[-4:],[row['runtime']['image'],'-euo','pipefail','/job/version.sh'])
+    self.assertNotIn('--privileged',c);self.assertNotIn('--cap-add',c);self.assertNotIn('--env-file',c)
+  self.assertEqual(runtime.PROBES,(('version','--version',5),('imports','--packaged-self-test',30),('tools','--packaged-tool-self-test',30),('libraries','--packaged-library-test',30)))
+ def test_unknown_roles_and_runtime_network_refuse_before_owner_or_command_formation(self):
+  row=d.load_lock()['platforms']['linux-x64-gnu']
+  for role,network in [('unknown','none'),('', 'none'),(None,'none'),([], 'none'),(True,'none'),('runtime','bridge'),('runtime','host')]:
+   with self.subTest(role=role,network=network),patch.object(d.uuid,'uuid4',side_effect=AssertionError('Must refuse before ownership')):
+    with self.assertRaises(ValueError):d.container_command(row,role,Path('/source'),Path('/job'),'version.sh',network=network)
+ def test_both_preparation_roles_retain_original_tmpfs_arguments(self):
+  for target,row in d.load_lock()['platforms'].items():
+   for role,script,network in [('supplier','supplier.sh','none'),('freezer','prepare.sh','bridge'),('freezer','freeze.sh','none')]:
+    with self.subTest(target=target,role=role,script=script):
+     c=d.container_command(row,role,Path('/source-owned'),Path('/job-owned'),script,network=network,owner='a'*32)
+     self.assertEqual(c[c.index('--tmpfs')+1],'/tmp:rw,nosuid,nodev,size=536870912')
+     self.assertIn('--network='+network,c);self.assertIn('TMPDIR=/tmp',c)
+     self.assertEqual(c.count('--tmpfs'),1);self.assertEqual(c.count('--mount'),2)
+     self.assertNotIn('/tmp:rw,exec,nosuid,nodev,size=536870912',c)
+
+
+
+
+class RealOrchestratorControls(unittest.TestCase):
+ def setup_inputs(self,root):
+  source=root/'source';source.mkdir()
+  for name in d.SOURCES:
+   p=source/name;p.parent.mkdir(parents=True,exist_ok=True);p.write_text('fixture source')
+  driver=root/'driver.py';driver.write_text('fixture driver')
+  archive=root/'python';archive.write_bytes(b'not an executed archive')
+  lock=d.load_lock();r=lock['platforms']['linux-x64-gnu'];r['pythonArchive']['byteLength']=archive.stat().st_size;r['pythonArchive']['sha256']=d.sha(archive)
+  path=root/'lock.json';path.write_text(json.dumps(lock))
+  return source,driver,archive,path,lock
+ def exercise(self,mutation):
+  with tempfile.TemporaryDirectory() as t:
+   root=Path(t).resolve();source,driver,archive,lockpath,lock=self.setup_inputs(root);output=root/'out';calls=[]
+   original=d.shutil.copyfile
+   def copy(src,dest):
+    original(src,dest)
+    if mutation=='copy':Path(dest).write_bytes(b'mutated after plan')
+   def fake(command,out,label,**kw):
+    calls.append(label)
+    if label=='pull-supplier':
+     if mutation=='source':(source/d.SOURCES[0]).write_text('changed source')
+     if mutation=='tests':(source/'harnesses/agents-sdk/test_run.py').write_text('changed tests')
+     if mutation=='native-module':(source/'cli/ci/sdk_native_inventory.py').write_text('changed native inventory module')
+     if mutation=='driver':driver.write_text('changed driver')
+     if mutation=='lock':lockpath.write_text(lockpath.read_text()+' ')
+     if mutation=='wrong-image':return b''
+    if label.startswith('inspect-'):
+     key=label.removeprefix('inspect-');r=lock['platforms']['linux-x64-gnu']
+     return json.dumps({'Id':'sha256:'+r[key]['configSha256'],'Os':'linux','Architecture':'arm64',
+                        'RepoDigests':[r[key]['image']]}).encode()
+    return b''
+   with patch.object(d,'__file__',str(driver)),patch.object(d,'LOCK',lockpath),patch.object(d.sys,'platform','linux'),patch.object(d.platform,'machine',return_value='x86_64'),patch.object(d.shutil,'disk_usage') as disk,patch.object(d.shutil,'copyfile',side_effect=copy),patch.object(d,'run',side_effect=fake):
+    disk.return_value.free=16*1024**3
+    with self.assertRaises(ValueError):d.build(source,output,'linux-x64-gnu',archive)
+   return calls
+ def test_copied_archive_mutation_refused_before_container(self):self.assertEqual(self.exercise('copy'),[])
+ def test_sources_tests_driver_and_lock_are_rechecked(self):
+  for kind in ('source','tests','native-module','driver','lock'):
+   with self.subTest(kind=kind):self.assertEqual(self.exercise(kind),['pull-supplier'])
+ def test_native_inventory_module_mutation_refused_before_inspect(self):self.assertEqual(self.exercise('native-module'),['pull-supplier'])
+ def test_actual_inspect_architecture_is_checked(self):self.assertEqual(self.exercise('wrong-image'),['pull-supplier','inspect-supplier'])
+ def test_actual_process_timeout_kills_delayed_descendant_effect(self):
+  import sys,time
+  with tempfile.TemporaryDirectory() as t:
+   out=Path(t).resolve();(out/'home').mkdir();effect=out/'late-effect'
+   child='import time,pathlib;time.sleep(.6);pathlib.Path('+repr(str(effect))+').write_text("escaped")'
+   code='import subprocess,sys,time;subprocess.Popen([sys.executable,"-c",'+repr(child)+']);time.sleep(20)'
+   with self.assertRaisesRegex(ValueError,'deadline'):d.process([sys.executable,'-c',code],out,'timeout',timeout=.1)
+   time.sleep(.7);self.assertFalse(effect.exists())
+ def test_timeout_only_removes_label_verified_owned_container(self):
+  with tempfile.TemporaryDirectory() as t:
+   out=Path(t).resolve();row=d.load_lock()['platforms']['linux-x64-gnu'];command=d.container_command(row,'freezer',Path('/source'),out,'freeze.sh',owner='a'*32);calls=[]
+   def fake(c,o,label,**kw):
+    calls.append((c,label,kw))
+    if label=='freeze':raise subprocess.TimeoutExpired(c,.1)
+    if label.endswith('inspect'):return ('a'*32+'\n').encode()
+    return b''
+   import subprocess
+   with patch.object(d,'process',side_effect=fake),self.assertRaises(subprocess.TimeoutExpired):d.run(command,out,'freeze',timeout=.1)
+   self.assertEqual([x[1] for x in calls],['freeze','freeze-cleanup-inspect','freeze-cleanup-remove'])
+   self.assertEqual(calls[-1][0][-1],'prose-sdk-'+('a'*32)+'-freeze')
+   self.assertEqual(calls[-1][2]['timeout'],10)
+ def test_wrong_ownership_label_never_removes_container(self):
+  with tempfile.TemporaryDirectory() as t:
+   out=Path(t).resolve();row=d.load_lock()['platforms']['linux-x64-gnu'];command=d.container_command(row,'freezer',Path('/source'),out,'freeze.sh',owner='a'*32);calls=[]
+   def fake(c,o,label,**kw):
+    calls.append(label)
+    if label=='freeze':raise ValueError('original')
+    return b'other-owner\n'
+   with patch.object(d,'process',side_effect=fake),self.assertRaisesRegex(ValueError,'original'):d.run(command,out,'freeze')
+   self.assertEqual(calls,['freeze','freeze-cleanup-inspect']);self.assertTrue((out/'freeze-cleanup-error.txt').is_file())
+ def test_actual_process_output_is_bounded(self):
+  import sys
+  with tempfile.TemporaryDirectory() as t:
+   out=Path(t).resolve();(out/'home').mkdir()
+   with self.assertRaisesRegex(ValueError,'output limit'):d.process([sys.executable,'-c','print("x"*10000)'],out,'large',max_bytes=64)
+   self.assertLessEqual((out/'large.log').stat().st_size,64)
+ def test_low_space_refuses_before_any_command(self):
+  with tempfile.TemporaryDirectory() as t:
+   root=Path(t).resolve();source,driver,archive,lockpath,lock=self.setup_inputs(root)
+   with patch.object(d,'__file__',str(driver)),patch.object(d,'LOCK',lockpath),patch.object(d.sys,'platform','linux'),patch.object(d.platform,'machine',return_value='x86_64'),patch.object(d.shutil,'disk_usage') as disk,patch.object(d,'run') as run:
+    disk.return_value.free=1024
+    with self.assertRaisesRegex(ValueError,'8GiB'):d.build(source,root/'out','linux-x64-gnu',archive)
+    run.assert_not_called();self.assertFalse((root/'out').exists())
+
+
+class NativeOriginControls(unittest.TestCase):
+ def fixture(self,root):
+  (root/'libgcc_s.so.1').write_bytes(b'fixture native bytes')
+  text='GNU GENERAL PUBLIC LICENSE\nGCC RUNTIME LIBRARY EXCEPTION'
+  (root/'license-0.txt').write_text(text)
+  lib={'path':'libgcc_s.so.1','sha256':d.sha(root/'libgcc_s.so.1'),'byteLength':len(b'fixture native bytes'),
+       'supplierPath':'/usr/lib64/libgcc_s-actual.so.1','rpmFileDigestVerified':True,
+       'rpmPayloadPath':'/lib64/libgcc_s-actual.so.1','rpmFileDigestAlgorithm':8,
+       'rpmFileDigestSha256':d.sha(root/'libgcc_s.so.1')}
+  package={'name':'libgcc','epoch':'0','version':'8.fixture','release':'test','architecture':'x86_64',
+           'sourceRpm':'gcc-fixture.src.rpm','license':'fixture-not-production'}
+  return {'schema':'openprose.sdk-native-origin/2','library':lib,'package':package,'licenses':[
+          {'packagePath':'/usr/share/licenses/libgcc/COPYING.RUNTIME','path':'license-0.txt',
+           'sha256':d.sha(root/'license-0.txt'),'byteLength':(root/'license-0.txt').stat().st_size}]}
+ def test_missing_source_rpm_and_actual_license_fact_refused(self):
+  row=d.load_lock()['platforms']['linux-x64-gnu']
+  with tempfile.TemporaryDirectory() as t:
+   root=Path(t).resolve();origin=self.fixture(root);d.validate_origin(origin,root,row)
+   for mutation in ('sourceRpm','license','architecture'):
+    x=copy.deepcopy(origin);x['package'][mutation]=''
+    with self.assertRaises(ValueError):d.validate_origin(x,root,row)
+   x=copy.deepcopy(origin);x['licenses']=[]
+   with self.assertRaises(ValueError):d.validate_origin(x,root,row)
+ def test_mutated_library_or_license_refused(self):
+  row=d.load_lock()['platforms']['linux-x64-gnu']
+  with tempfile.TemporaryDirectory() as t:
+   root=Path(t).resolve();origin=self.fixture(root)
+   (root/'libgcc_s.so.1').write_bytes(b'changed')
+   with self.assertRaises(ValueError):d.validate_origin(origin,root,row)
+   origin=self.fixture(root);(root/'license-0.txt').write_text('changed')
+   with self.assertRaises(ValueError):d.validate_origin(origin,root,row)
+ def test_output_byte_and_file_caps_enforced(self):
+  with tempfile.TemporaryDirectory() as t:
+   root=Path(t).resolve();(root/'big').write_bytes(b'12345')
+   with patch.object(d,'MAX_RETAINED_BYTES',4),self.assertRaises(ValueError):d.check_output(root)
+   with patch.object(d,'MAX_FILES',0),self.assertRaises(ValueError):d.check_output(root)
+
+
+class ExecutedSupplierControls(unittest.TestCase):
+ def setUp(self):
+  self.s={'__name__':'supplier_controls'}
+  exec(compile(d.SUPPLIER_PY,'supplier.py','exec'),self.s)
+  self.canonical='/usr/lib64/libgcc_s-fixture.so.1'
+  self.alias='/lib64/libgcc_s-fixture.so.1'
+  self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
+  self.root=Path(self.temp.name)
+  self.file=self.root/'usr/lib64/libgcc_s-fixture.so.1'
+  self.file.parent.mkdir(parents=True);self.file.write_bytes(b'\x7fELFfixture-bytes')
+  (self.root/'lib64').symlink_to(self.root/'usr/lib64',target_is_directory=True)
+  self.data=self.file.read_bytes();self.digest=self.s['hashlib'].sha256(self.data).hexdigest()
+  self.header='libgcc\t0\t8.fixture\t1\tx86_64\tgcc-fixture.src.rpm\tGPLv3+\t8\n'
+  self.row={'path':self.alias,'digest':self.digest,'mode':self.file.stat().st_mode}
+ def lstat(self,name):return (self.root/name.lstrip('/')).lstat()
+ def select(self,rows=None,info=None):
+  return self.s['select_payload'](rows if rows is not None else [self.row],self.canonical,info or self.file.stat(),self.lstat)
+ def failure(self,code,fn,*args):
+  with self.assertRaisesRegex(self.s['SupplierFailure'],'^'+code+'$'):fn(*args)
+ def table(self,row=None):
+  row=row or self.row
+  return self.header+row['path']+'\t'+row['digest']+'\t'+str(row['mode'])+'\n'
+ def test_canonical_and_alias_regular_payloads_accept_on_both_architectures(self):
+  for arch in ('x86_64','aarch64'):
+   for path in (self.canonical,self.alias):
+    with self.subTest(arch=arch,path=path):
+     self.header=self.header.replace('x86_64',arch)
+     row={**self.row,'path':path}
+     package,rows=self.s['parse_table'](self.table(row),arch)
+     actual=self.select(rows)
+     self.s['verify_owner'](self.header,package,arch)
+     self.assertEqual(self.s['verify_digest'](self.data,actual),self.digest)
+ def test_duplicate_rows_and_two_aliases_are_ambiguous_even_with_equal_digests(self):
+  for rows in ([self.row,self.row],[self.row,{**self.row,'path':self.canonical}]):
+   with self.subTest(rows=rows):self.failure('rpm-payload-ambiguity',self.select,rows)
+  _,rows=self.s['parse_table'](self.table()+self.table().splitlines()[1]+'\n','x86_64')
+  self.assertEqual(len(rows),2)
+  self.failure('rpm-payload-ambiguity',self.select,rows)
+ def test_same_basename_and_digest_at_distinct_file_reject(self):
+  other=self.root/'other';other.write_bytes(self.data)
+  self.failure('rpm-payload-ambiguity',self.s['select_payload'],[self.row],self.canonical,self.file.stat(),lambda _:other.stat())
+ def test_same_inode_number_on_other_device_reject(self):
+  from types import SimpleNamespace
+  found=self.file.stat();other=SimpleNamespace(st_dev=found.st_dev+1,st_ino=found.st_ino,st_mode=found.st_mode)
+  self.failure('rpm-payload-ambiguity',self.s['select_payload'],[self.row],self.canonical,found,lambda _:other)
+ def test_terminal_symlink_and_rpm_nonregular_mode_reject(self):
+  link=self.root/'leaf-link';link.symlink_to(self.file)
+  self.failure('rpm-payload-nonregular',self.s['select_payload'],[self.row],self.canonical,self.file.stat(),lambda _:link.lstat())
+  self.failure('rpm-mode-nonregular',self.select,[{**self.row,'mode':0o120777}])
+  self.failure('supplier-canonical-file',self.select,[self.row],link.lstat())
+ def test_zero_matching_rows_and_malformed_matching_digest_reject(self):
+  self.failure('rpm-payload-ambiguity',self.select,[])
+  for digest in ('','a'*63,'A'*64,'g'*64):
+   with self.subTest(digest=digest):self.failure('rpm-payload-digest-format',self.select,[{**self.row,'digest':digest}])
+ def test_alias_with_actual_byte_mismatch_still_rejects_digest(self):
+  row=self.select()
+  self.failure('rpm-payload-digest-mismatch',self.s['verify_digest'],self.data+b'changed',row)
+  diag=json.loads(self.s['diagnostic']('rpm-payload-digest-mismatch'))
+  self.assertEqual(diag['expectedSha256'],self.digest)
+  self.assertNotEqual(diag['measuredSha256'],self.digest)
+ def test_unexpected_missing_or_noninteger_rpm_algorithm_rejects(self):
+  for value in ('(none)','1','2','9','True','8.0',''):
+   with self.subTest(value=value):
+    bad=self.header.rstrip('\n').rsplit('\t',1)[0]+'\t'+value
+    code='rpm-package-ambiguous' if not value else 'rpm-digest-algorithm'
+    self.failure(code,self.s['parse_header'],bad,'x86_64')
+ def test_wrong_or_multiple_package_records_reject(self):
+  self.failure('rpm-package-identity',self.s['parse_header'],self.header.replace('libgcc','other').rstrip(),'x86_64')
+  self.failure('rpm-package-identity',self.s['parse_header'],self.header.rstrip(),'aarch64')
+  self.failure('rpm-malformed-row',self.s['parse_table'],self.table()+self.header,'x86_64')
+ def test_exact_owner_all_package_facts_and_uniqueness_required(self):
+  package=self.s['parse_header'](self.header.rstrip(),'x86_64')
+  for i,value in enumerate(('other','1','different','2','aarch64','other.src.rpm','other-license')):
+   raw=self.header.rstrip().split('\t');raw[i]=value
+   code='rpm-package-identity' if i in (0,4) else 'rpm-owner-mismatch'
+   with self.subTest(field=i):self.failure(code,self.s['verify_owner'],'\t'.join(raw)+'\n',package,'x86_64')
+  for output in ('',self.header+self.header):self.failure('rpm-owner-ambiguity',self.s['verify_owner'],output,package,'x86_64')
+ def test_row_and_metadata_limits_are_enforced(self):
+  for output,code in ((self.header+('x\t\t1\n'*129),'rpm-row-limit'),
+                      (self.header+('x'*1025+'\t\t1\n'),'rpm-malformed-row'),
+                      (self.header+'x\ty\t-1\n','rpm-malformed-row'),
+                      (self.header+'x\ty\t999999\n','rpm-malformed-row')):
+   with self.subTest(code=code):self.failure(code,self.s['parse_table'],output,'x86_64')
+ def test_read_limits_nonregular_file_and_stale_identity_reject(self):
+  import time
+  self.failure('supplier-file-size',self.s['read_regular'],self.file,4,time.monotonic()+1)
+  self.failure('supplier-timeout',self.s['read_regular'],self.file,100,time.monotonic()-1)
+  link=self.root/'leaf-link';link.symlink_to(self.file)
+  self.failure('supplier-nonregular-file',self.s['read_regular'],link,100,time.monotonic()+1)
+  old=self.file.stat();self.file.write_bytes(self.data+b'changed')
+  self.failure('supplier-identity-change',self.s['check_binding'],self.canonical,self.row,old,self.lstat)
+ def test_actual_rpm_process_output_timeout_and_invalid_utf8_are_bounded(self):
+  import subprocess,sys,time
+  original=subprocess.Popen
+  cases=(('print("x"*300000)','rpm-output-limit'),('import time;time.sleep(5)','rpm-timeout'),
+         ('import sys;sys.stdout.buffer.write(bytes([255]))','rpm-malformed-output'),
+         ('import sys;print("untrusted raw secret",file=sys.stderr);sys.exit(2)','rpm-query-failed'))
+  for code,expected in cases:
+   with self.subTest(expected=expected):
+    def launch(command,**kw):return original([sys.executable,'-c',code],**kw)
+    with patch.object(subprocess,'Popen',side_effect=launch):
+     self.failure(expected,self.s['rpm'],['unused'],time.monotonic()+.5)
+    diagnostic=self.s['diagnostic'](expected)
+    self.assertLessEqual(len(diagnostic.encode()),4096);self.assertNotIn('untrusted',diagnostic)
+ def test_payload_paths_have_exact_grammar(self):
+  for path in ('/lib64//libgcc_s-fixture.so.1','/lib64/./libgcc_s-fixture.so.1',
+               '/lib64/../lib64/libgcc_s-fixture.so.1','/tmp/libgcc_s-fixture.so.1',
+               '/lib64/other.so.1','/lib64/libgcc_s-fixture.so.1\n'):
+   with self.subTest(path=path):self.assertFalse(self.s['payload_path'](path,self.canonical))
+  self.assertFalse(self.s['canonical_path']('/usr/lib64/libgcc_s-8~fixture.so.1'))
+ def test_diagnostic_is_closed_sanitized_and_bounded(self):
+  self.s['DIAG'].update(rawStderr='untrusted-secret',canonicalPath='bad\npath',rowCount=3)
+  value=json.loads(self.s['diagnostic']('rpm-query-failed'))
+  self.assertNotIn('rawStderr',value);self.assertNotIn('canonicalPath',value)
+  self.assertEqual(value['rowCount'],3)
+  for key in ('canonicalPath','payloadPath','ownerVersion','ownerRelease','architecture'):
+   self.s['DIAG'][key]='x'*1024
+  encoded=self.s['diagnostic']('rpm-query-failed')
+  self.assertLessEqual(len(encoded.encode()),4096)
+  self.assertEqual(json.loads(encoded),{'phase':'supplier','code':'rpm-query-failed'})
+ def run_main(self,arch='x86_64',path=None,owner=None,mutation=None,license_count=1):
+  import pathlib
+  original=type(self.file)
+  job=self.root/'job';job.mkdir(exist_ok=True)
+  (job/'target.json').write_text(json.dumps({'machine':arch}))
+  license_path='/usr/share/licenses/libgcc/COPYING.RUNTIME'
+  license_file=self.root/license_path.lstrip('/');license_file.parent.mkdir(parents=True,exist_ok=True)
+  license_file.write_bytes(b'GNU GENERAL PUBLIC LICENSE\nGCC RUNTIME LIBRARY EXCEPTION')
+  requested=self.root/'usr/lib64/libgcc_s.so.1';requested.symlink_to(self.file.name)
+  header=self.header.replace('x86_64',arch)
+  row={**self.row,'path':path or self.alias}
+  table=header+row['path']+'\t'+row['digest']+'\t'+str(row['mode'])+'\n'
+  for i in range(license_count):
+   name=license_path if i==0 else license_path+str(i)
+   extra=self.root/name.lstrip('/');extra.write_bytes(license_file.read_bytes())
+   table+=name+'\t\t'+str(extra.stat().st_mode)+'\n'
+  calls=[]
+  def query(args,deadline):
+   calls.append(args)
+   if args[0]=='-qf':
+    self.assertEqual(args[-1],row['path'])
+    if mutation=='bytes':self.file.write_bytes(self.data+b'changed')
+    return owner or header
+   return table if self.s['TABLE'] in args[2] else header.replace('8.fixture','changed') if mutation=='package' else header
+  def map_path(value):
+   p=original(value)
+   return self.root/str(p).lstrip('/') if str(p).startswith(('/job','/usr/','/lib64')) else p
+  class CanonicalFile:
+   def __str__(inner):return self.canonical
+   def __fspath__(inner):return str(self.file)
+   def lstat(inner):return self.file.lstat()
+  resolve=original.resolve
+  def resolve_path(value,**kw):return CanonicalFile() if value==requested else resolve(value,**kw)
+  with patch.object(original,'resolve',resolve_path),patch.object(pathlib,'Path',side_effect=map_path),patch.dict(self.s,{'rpm':query}):
+   self.s['main']()
+  return json.loads((job/'supplier/origin.json').read_text()),calls
+ def test_actual_main_publishes_alias_and_canonical_exact_origin_on_both_targets(self):
+  for arch in ('x86_64','aarch64'):
+   for path in (self.alias,self.canonical):
+    with self.subTest(arch=arch,path=path):
+     # Fresh instance gives each publication a new output directory.
+     fresh=ExecutedSupplierControls();fresh.setUp()
+     try:
+      origin,calls=fresh.run_main(arch,path)
+      self.assertEqual(origin['schema'],'openprose.sdk-native-origin/2')
+      lib=origin['library'];self.assertEqual(len(lib),8)
+      self.assertEqual(lib['rpmPayloadPath'],path);self.assertEqual(lib['rpmFileDigestAlgorithm'],8)
+      self.assertEqual(lib['rpmFileDigestSha256'],lib['sha256'])
+      copied=fresh.root/'job/supplier/libgcc_s.so.1'
+      self.assertEqual(copied.read_bytes(),fresh.data)
+      self.assertEqual(len(calls),3)
+     finally:fresh.temp.cleanup()
+ def test_main_wrong_owner_and_changed_payload_fail_before_publication(self):
+  for owner,mutation,expected in ((self.header.replace('8.fixture','other'),None,'rpm-owner-mismatch'),
+                                (None,'bytes','supplier-identity-change'),
+                                (None,'package','rpm-owner-mismatch')):
+   fresh=ExecutedSupplierControls();fresh.setUp()
+   try:
+    fresh.failure(expected,fresh.run_main,'x86_64',None,owner,mutation)
+    self.assertFalse((fresh.root/'job/supplier/origin.json').exists())
+   finally:fresh.temp.cleanup()
+ def test_main_license_aggregate_and_file_limits_fail_before_publication(self):
+  for key in ('MAX_LICENSE_BYTES','MAX_LICENSE_TOTAL'):
+   fresh=ExecutedSupplierControls();fresh.setUp()
+   try:
+    with patch.dict(fresh.s,{key:4}):
+     expected='supplier-file-size' if key=='MAX_LICENSE_BYTES' else 'supplier-license-limit'
+     fresh.failure(expected,fresh.run_main)
+    self.assertFalse((fresh.root/'job/supplier/origin.json').exists())
+   finally:fresh.temp.cleanup()
+ def test_main_license_count_limit_rejects_without_receipt(self):
+  self.failure('supplier-license-limit',self.run_main,'x86_64',None,None,None,33)
+  self.assertFalse((self.root/'job/supplier/origin.json').exists())
+
+
+class NativeOriginV2Controls(unittest.TestCase):
+ fixture=NativeOriginControls.fixture
+ def test_closed_algorithm_digest_and_path_poison_refused(self):
+  row=d.load_lock()['platforms']['linux-x64-gnu']
+  with tempfile.TemporaryDirectory() as t:
+   root=Path(t).resolve();origin=self.fixture(root)
+   for key,value in (('rpmFileDigestAlgorithm',True),('rpmFileDigestAlgorithm','8'),('rpmFileDigestAlgorithm',9),
+                     ('rpmFileDigestSha256','0'*64),('rpmPayloadPath','/tmp/libgcc_s-actual.so.1'),
+                     ('rpmPayloadPath','/lib64//libgcc_s-actual.so.1'),('rpmPayloadPath','/lib64/other.so.1'),
+                     ('supplierPath','/usr/lib64/../libgcc_s-actual.so.1'),('rpmFileDigestVerified',False)):
+    x=copy.deepcopy(origin);x['library'][key]=value
+    with self.subTest(key=key,value=value),self.assertRaises(ValueError):d.validate_origin(x,root,row)
+   for key in ('rpmPayloadPath','rpmFileDigestAlgorithm','rpmFileDigestSha256'):
+    x=copy.deepcopy(origin);del x['library'][key]
+    with self.subTest(missing=key),self.assertRaises(ValueError):d.validate_origin(x,root,row)
+   x=copy.deepcopy(origin);x['schema']='openprose.sdk-native-origin/1'
+   with self.assertRaises(ValueError):d.validate_origin(x,root,row)
+   for parent in ('/lib64','/usr/lib64'):
+    x=copy.deepcopy(origin);x['library']['rpmPayloadPath']=parent+'/libgcc_s-actual.so.1'
+    d.validate_origin(x,root,row)
+
+
+class PythonTransportControls(unittest.TestCase):
+ def fixture(self,root):
+  (root/'home').mkdir();archive=root/'python-full.tar.zst';archive.write_bytes(b'pinned compressed fixture')
+  row=copy.deepcopy(d.load_lock()['platforms']['linux-x64-gnu'])
+  row['pythonArchive']['byteLength']=archive.stat().st_size;row['pythonArchive']['sha256']=d.sha(archive)
+  (root/'target.json').write_text(json.dumps(row))
+  return row
+ def child(self,root,code,timeout=2):
+  import sys,time
+  return d.stream_transport([sys.executable,'-c',code],root,time.monotonic()+timeout,lambda:None)
+ def descriptor(self,root,row):
+  x={'schema':'openprose.sdk-python-transport/1','archiveSha256':row['pythonArchive']['sha256'],
+     'archiveByteLength':row['pythonArchive']['byteLength'],'tarSha256':d.sha(root/'python-full.tar'),
+     'tarByteLength':(root/'python-full.tar').stat().st_size,
+     'decoder':{'path':'/fixture/zstd','sha256':'a'*64,'version':'fixture 1'}}
+  (root/'python-transport.json').write_text(json.dumps(x));return x
+ def test_real_binary_stdout_separate_from_stderr_and_no_ambient_keys(self):
+  with tempfile.TemporaryDirectory() as t,patch.dict(d.os.environ,{'OPENAI_API_KEY':'sentinel','GH_TOKEN':'sentinel'}):
+   root=Path(t).resolve();self.fixture(root)
+   self.child(root,'import os,sys;assert "OPENAI_API_KEY" not in os.environ and "GH_TOKEN" not in os.environ;sys.stdout.buffer.write(bytes(range(256)));sys.stderr.write("diagnostic")')
+   self.assertEqual((root/'python-full.tar').read_bytes(),bytes(range(256)))
+   self.assertEqual((root/'decode-python.log').read_text(),'diagnostic')
+ def test_aggregate_quota_includes_existing_bytes_before_chunk_write(self):
+  with tempfile.TemporaryDirectory() as t:
+   root=Path(t).resolve();self.fixture(root);(root/'existing').write_bytes(b'x'*100)
+   with patch.object(d,'MAX_RETAINED_BYTES',d.check_output(root)+32),self.assertRaisesRegex(ValueError,'byte limit'):
+    self.child(root,'import sys;sys.stdout.buffer.write(b"x"*64)')
+   self.assertEqual((root/'python-full.tar').stat().st_size,0)
+ def test_decoder_diagnostics_are_bounded(self):
+  with tempfile.TemporaryDirectory() as t:
+   root=Path(t).resolve();self.fixture(root)
+   with patch.object(d,'MAX_LOG_BYTES',32),self.assertRaisesRegex(ValueError,'diagnostic limit'):
+    self.child(root,'import sys;sys.stderr.write("x"*64)')
+   self.assertLessEqual((root/'decode-python.log').stat().st_size,32)
+ def test_partial_nonzero_decode_never_publishes_descriptor(self):
+  with tempfile.TemporaryDirectory() as t:
+   root=Path(t).resolve();self.fixture(root)
+   with self.assertRaisesRegex(ValueError,'decode-python.log'):
+    self.child(root,'import sys;sys.stdout.buffer.write(b"partial");sys.exit(2)')
+   self.assertEqual((root/'python-full.tar').read_bytes(),b'partial')
+   self.assertFalse((root/'python-transport.json').exists())
+ def test_timeout_kills_pipe_holding_descendant(self):
+  import time
+  with tempfile.TemporaryDirectory() as t:
+   root=Path(t).resolve();self.fixture(root);effect=root/'escaped'
+   child='import time,pathlib;time.sleep(.5);pathlib.Path('+repr(str(effect))+').write_text("escaped")'
+   code='import subprocess,sys,time;subprocess.Popen([sys.executable,"-c",'+repr(child)+']);time.sleep(20)'
+   with self.assertRaisesRegex(ValueError,'deadline'):self.child(root,code,.1)
+   time.sleep(.6);self.assertFalse(effect.exists())
+ def test_exited_parent_cleanup_keeps_primary_and_reports_secondary_failure(self):
+  import time
+  with tempfile.TemporaryDirectory() as t:
+   root=Path(t).resolve();self.fixture(root);effect=root/'escaped'
+   child='import time,pathlib;time.sleep(.5);pathlib.Path('+repr(str(effect))+').write_text("escaped")'
+   code='import subprocess,sys;subprocess.Popen([sys.executable,"-c",'+repr(child)+'])'
+   with self.assertRaisesRegex(ValueError,'deadline') as caught:self.child(root,code,.15)
+   time.sleep(.6);self.assertFalse(effect.exists())
+   # Darwin may refuse the final SIGKILL of an already-terminated orphan group.
+   # That is explicit unverified cleanup, never success or a replacement error.
+   if hasattr(caught.exception,'cleanup_failure'):
+    facts=json.loads((root/'decode-python-cleanup-error.json').read_text())
+    self.assertEqual(facts,caught.exception.cleanup_failure);self.assertFalse(facts['cleanupVerified'])
+    self.assertEqual(facts['primaryType'],'ValueError');self.assertIsInstance(facts['pid'],int)
+ def test_forced_cleanup_refusal_retains_primary_without_raw_process_data(self):
+  with tempfile.TemporaryDirectory() as t:
+   root=Path(t).resolve();self.fixture(root)
+   original=d.stop_process_tree
+   def refused(child):original(child);raise PermissionError(1,'sensitive fixture argv must not escape')
+   with patch.object(d,'stop_process_tree',side_effect=refused),self.assertRaisesRegex(ValueError,'deadline') as caught:
+    self.child(root,'import time;time.sleep(10)',.1)
+   facts=json.loads((root/'decode-python-cleanup-error.json').read_text())
+   self.assertEqual(facts['errno'],1);self.assertFalse(facts['cleanupVerified'])
+   self.assertNotIn('sensitive',json.dumps(facts));self.assertEqual(facts,caught.exception.cleanup_failure)
+ def test_source_audit_failure_stops_decode(self):
+  import time,sys
+  with tempfile.TemporaryDirectory() as t:
+   root=Path(t).resolve();self.fixture(root)
+   def audit():raise ValueError('changed source fixture')
+   with self.assertRaisesRegex(ValueError,'changed source'):
+    d.stream_transport([sys.executable,'-c','import time;time.sleep(10)'],root,time.monotonic()+2,audit)
+ def test_reserve_and_file_limits_are_not_bypassed(self):
+  for limit in ('reserve','file'):
+   with tempfile.TemporaryDirectory() as t:
+    root=Path(t).resolve();self.fixture(root)
+    if limit=='file':
+     with patch.object(d,'MAX_FILES',1),self.assertRaisesRegex(ValueError,'file limit'):self.child(root,'print("x")')
+    else:
+     with patch.object(d.shutil,'disk_usage') as disk,self.assertRaisesRegex(ValueError,'reserve'):
+      disk.return_value.free=1;self.child(root,'print("x")')
+ def test_fresh_tar_exclusive_and_empty_decode_refused(self):
+  with tempfile.TemporaryDirectory() as t:
+   root=Path(t).resolve();self.fixture(root)
+   with self.assertRaisesRegex(ValueError,'Empty decoded'):self.child(root,'pass')
+   with self.assertRaises(FileExistsError):self.child(root,'print("replacement")')
+ def test_actual_receiver_accepts_bytes_then_rejects_closed_schema_poisons(self):
+  with tempfile.TemporaryDirectory() as t:
+   root=Path(t).resolve();row=self.fixture(root);(root/'python-full.tar').write_bytes(b'plain fixture tar');good=self.descriptor(root,row)
+   self.assertEqual(d.validate_transport(root),good)
+   for key,value in [('schema','old'),('archiveSha256','b'*64),('archiveByteLength',True),('tarSha256','c'*64),('tarByteLength',True),('extra',0),('decoder',{'path':'relative','sha256':'a'*64,'version':'ok'})]:
+    x=copy.deepcopy(good);x[key]=value;(root/'python-transport.json').write_text(json.dumps(x))
+    with self.subTest(key=key),self.assertRaises(AssertionError):d.validate_transport(root)
+   (root/'python-transport.json').write_text(json.dumps(good))
+   for name in ('python-full.tar','python-full.tar.zst'):
+    old=(root/name).read_bytes();(root/name).write_bytes(old[::-1])
+    with self.subTest(name=name),self.assertRaisesRegex(AssertionError,'digest'):d.validate_transport(root)
+    (root/name).write_bytes(old)
+   (root/'python-full.tar').unlink();(root/'python-full.tar').symlink_to(root/'python-full.tar.zst')
+   with self.assertRaises(AssertionError):d.validate_transport(root)
+ def test_missing_decoder_has_no_fallback_or_container(self):
+  import time
+  with tempfile.TemporaryDirectory() as t:
+   root=Path(t).resolve();row=self.fixture(root)
+   with patch.object(d.shutil,'which',return_value=None),patch.object(d,'process') as proc,self.assertRaisesRegex(ValueError,'prerequisite missing'):
+    d.prepare_transport(root,row,time.monotonic()+2,lambda:None)
+   proc.assert_not_called();self.assertFalse((root/'python-full.tar').exists())
+ def test_decoder_identity_mutation_refuses_before_stream(self):
+  import time
+  with tempfile.TemporaryDirectory() as t:
+   root=Path(t).resolve();row=self.fixture(root);tool=root/'zstd';tool.write_bytes(b'tool original')
+   def probe(*args,**kwargs):tool.write_bytes(b'tool changed');return b'zstd fixture'
+   with patch.object(d.shutil,'which',return_value=str(tool)),patch.object(d,'process',side_effect=probe),patch.object(d,'stream_transport') as stream,self.assertRaisesRegex(ValueError,'identity changed'):
+    d.prepare_transport(root,row,time.monotonic()+2,lambda:None)
+   stream.assert_not_called()
+ def test_shared_deadline_and_exact_command_with_synthetic_transport(self):
+  import time
+  with tempfile.TemporaryDirectory() as t:
+   root=Path(t).resolve();row=self.fixture(root);tool=root/'zstd';tool.write_bytes(b'fixture tool');deadline=time.monotonic()+2
+   def stream(command,out,bound,audit):
+    self.assertEqual(bound,deadline);self.assertEqual(command,[str(tool),'--decompress','--stdout','--quiet','-M128MB',str(root/'python-full.tar.zst')])
+    (out/'python-full.tar').write_bytes(b'plain fixture');audit()
+   with patch.object(d.shutil,'which',return_value=str(tool)),patch.object(d,'process',return_value=b'zstd fixture') as probe,patch.object(d,'stream_transport',side_effect=stream):
+    x=d.prepare_transport(root,row,deadline,lambda:None)
+   self.assertEqual(d.validate_transport(root),x);self.assertLessEqual(probe.call_args.kwargs['timeout'],2)
+   # Receiver is literally the code executed by pinned container Python.
+   self.assertIn(d.TRANSPORT_PIN,d.PREPARE);self.assertIn('tar -xf /job/python-full.tar',d.PREPARE)
+   self.assertNotIn('tar --zstd',d.PREPARE)
+
+
+ def test_absolute_deadline_refuses_before_process_spawn(self):
+  import time,sys
+  with tempfile.TemporaryDirectory() as t:
+   root=Path(t).resolve();self.fixture(root)
+   with patch.object(d.subprocess,'Popen') as spawn,self.assertRaisesRegex(ValueError,'deadline'):
+    d.process([sys.executable,'-c','print("late")'],root,'late',deadline=time.monotonic()-1)
+   spawn.assert_not_called()
+ def test_preparation_orchestration_uses_one_deadline_and_checks_receiver_after(self):
+  import sys
+  for mutation in (None,'descriptor','deadline'):
+   with tempfile.TemporaryDirectory() as t:
+    root=Path(t).resolve();row=self.fixture(root);clock=[10.0];seen=[]
+    def transport(out,r,deadline,audit):
+     self.assertEqual(deadline,1210.0);clock[0]=40.0
+     (out/'python-full.tar').write_bytes(b'fixture plain');return self.descriptor(out,r)
+    def execute(command,label,**kwargs):
+     seen.append(kwargs['deadline']);self.assertEqual(label,'prepare')
+     if mutation=='descriptor':
+      x=json.loads((root/'python-transport.json').read_text());x['decoder']['version']='changed but syntactically valid'
+      (root/'python-transport.json').write_text(json.dumps(x))
+     if mutation=='deadline':clock[0]=1211.0
+    with patch.object(d,'prepare_transport',side_effect=transport),patch.object(d.time,'monotonic',side_effect=lambda:clock[0]):
+     if mutation:
+      with self.assertRaisesRegex(ValueError,'descriptor changed' if mutation=='descriptor' else 'deadline'):
+       d.prepare_python(root,row,['fixture'],lambda:None,execute)
+     else:d.prepare_python(root,row,['fixture'],lambda:None,execute)
+    self.assertEqual(seen,[1210.0])
+ def test_probe_source_change_is_rejected_before_decoder_spawn(self):
+  import time
+  with tempfile.TemporaryDirectory() as t:
+   root=Path(t).resolve();row=self.fixture(root);tool=root/'zstd';tool.write_bytes(b'tool');changed=[False]
+   def probe(*a,**kw):changed[0]=True;return b'zstd fixture'
+   def audit():
+    if changed[0]:raise ValueError('source changed during probe')
+   with patch.object(d.shutil,'which',return_value=str(tool)),patch.object(d,'process',side_effect=probe),patch.object(d,'stream_transport') as stream,self.assertRaisesRegex(ValueError,'source changed'):
+    d.prepare_transport(root,row,time.monotonic()+2,audit)
+   stream.assert_not_called()
+
+
+class LiveQuotaAccountingControls(unittest.TestCase):
+ def disappear(self,root,live):
+  item=root/'temporary.pyc.owned';item.write_bytes(b'transient');original=d.os.stat
+  def remove(name,*args,**kwargs):
+   if name==item.name and kwargs.get('dir_fd') is not None:item.unlink()
+   return original(name,*args,**kwargs)
+  with patch.object(d.os,'stat',side_effect=remove):return d.check_output(root,live=live)
+ def test_only_live_disappearing_entry_is_tolerated(self):
+  with tempfile.TemporaryDirectory() as raw:
+   root=Path(raw).resolve();self.assertEqual(self.disappear(root,True),0)
+   with self.assertRaises(FileNotFoundError):self.disappear(root,False)
+ def test_live_missing_root_and_permission_failures_are_not_ignored(self):
+  with tempfile.TemporaryDirectory() as raw:
+   root=Path(raw).resolve();(root/'owned').write_bytes(b'x')
+   with self.assertRaises(FileNotFoundError):d.check_output(root/'missing',live=True)
+   with patch.object(d.os,'stat',side_effect=PermissionError(13,'fixture refusal')):
+    with self.assertRaises(PermissionError):d.check_output(root,live=True)
+ def test_live_observed_entry_and_regular_byte_limits_are_preserved(self):
+  with tempfile.TemporaryDirectory() as raw:
+   root=Path(raw).resolve()
+   with patch.object(d,'MAX_FILES',0),self.assertRaisesRegex(ValueError,'file limit'):self.disappear(root,True)
+   (root/'temporary.pyc.owned').unlink();(root/'retained').write_bytes(b'12345')
+   with patch.object(d,'MAX_RETAINED_BYTES',4),self.assertRaisesRegex(ValueError,'byte limit'):d.check_output(root,live=True)
+ def test_external_aliases_are_counted_without_following(self):
+  with tempfile.TemporaryDirectory() as raw:
+   root=Path(raw).resolve();out=root/'owned';out.mkdir();external=root/'external';external.mkdir()
+   (external/'large').write_bytes(b'123456789');(out/'alias').symlink_to(external,target_is_directory=True);(out/'file-alias').symlink_to(external/'large')
+   with patch.object(d,'MAX_RETAINED_BYTES',0):self.assertEqual(d.check_output(out,live=True),0)
+   with patch.object(d,'MAX_FILES',1),self.assertRaisesRegex(ValueError,'file limit'):d.check_output(out,live=True)
+   with self.assertRaises(OSError):d.check_output(out/'alias',live=True)
+ def test_directory_replacement_cannot_follow_an_alias(self):
+  with tempfile.TemporaryDirectory() as raw:
+   root=Path(raw).resolve();out=root/'owned';out.mkdir();child=out/'stage';child.mkdir();external=root/'external';external.mkdir();original=d.os.open
+   def replace(name,*args,**kwargs):
+    if name=='stage' and kwargs.get('dir_fd') is not None:child.rmdir();child.symlink_to(external,target_is_directory=True)
+    return original(name,*args,**kwargs)
+   with patch.object(d.os,'open',side_effect=replace),self.assertRaises(OSError):d.check_output(out,live=True)
+ def test_directory_disappearance_is_live_only_and_identity_replacement_refuses(self):
+  with tempfile.TemporaryDirectory() as raw:
+   root=Path(raw).resolve();out=root/'owned';out.mkdir();original=d.os.open
+   for live in (True,False):
+    child=out/'stage';child.mkdir()
+    def remove(name,*args,**kwargs):
+     if name=='stage' and kwargs.get('dir_fd') is not None:child.rmdir()
+     return original(name,*args,**kwargs)
+    with patch.object(d.os,'open',side_effect=remove):
+     if live:self.assertEqual(d.check_output(out,live=True),0)
+     else:
+      with self.assertRaises(FileNotFoundError):d.check_output(out)
+   child=out/'stage';child.mkdir()
+   def replace(name,*args,**kwargs):
+    if name=='stage' and kwargs.get('dir_fd') is not None:
+     child.rename(out/'old-stage');child.mkdir()
+    return original(name,*args,**kwargs)
+   with patch.object(d.os,'open',side_effect=replace),self.assertRaisesRegex(ValueError,'directory changed'):
+    d.check_output(out,live=True)
+ def test_special_files_refuse_even_during_live_scan(self):
+  with tempfile.TemporaryDirectory() as raw:
+   root=Path(raw).resolve();d.os.mkfifo(root/'pipe')
+   with self.assertRaisesRegex(ValueError,'Unexpected owned output file type'):d.check_output(root,live=True)
+ def test_process_scan_is_live_only_while_direct_child_runs(self):
+  import sys
+  with tempfile.TemporaryDirectory() as raw:
+   root=Path(raw).resolve();(root/'home').mkdir();calls=[];actual=d.check_output
+   def observe(output,**kwargs):calls.append(kwargs.get('live',False));return actual(output,**kwargs)
+   with patch.object(d,'check_output',side_effect=observe):d.process([sys.executable,'-c','import time;time.sleep(.2);print("owned")'],root,'child',timeout=2)
+   self.assertIn(True,calls)
+   self.assertEqual(d.check_output(root),sum(p.stat().st_size for p in root.iterdir() if p.is_file()))
+
+
+if __name__ == '__main__':
+ unittest.main()

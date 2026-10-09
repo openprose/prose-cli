@@ -2,7 +2,7 @@
   "id": "no-cli-help-json",
   "feature": "framework",
   "operation": "service.operations",
-  "description": "`prose --output json help` under the default hosted harness prints the INVOCATION_INVALID envelope with `prose --help`.",
+  "description": "`prose --output json help` under the explicitly selected hosted harness prints the INVOCATION_INVALID envelope with `prose --help`.",
   "argv": [
     "--output",
     "json",
@@ -41,5 +41,8 @@
       "result": null,
       "schema": "openprose.service-operation/1"
     }
+  },
+  "environment": {
+    "PROSE_HARNESS": "openprose"
   }
 }

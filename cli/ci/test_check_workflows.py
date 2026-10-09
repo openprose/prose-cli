@@ -204,6 +204,34 @@ class CurrentWorkflowPolicyTest(unittest.TestCase):
             self.changed(name, lambda w, j, i=index, a=argument: j["steps"][i].update(
                          run=j["steps"][i]["run"].replace(a, "--wrong-argument")))
 
+    def test_genuine_installed_upgrade_gates_cannot_be_bypassed(self):
+        for name in ("cli-distribution-check.yml", "cli-kernel-rc.yml"):
+            steps = self.workflows[name]["jobs"][JOBS[name]]["steps"]
+            for label in ("Fetch pinned genuine previous release inputs",
+                          "Qualify actual SDK installations and genuine upgrades"):
+                index = next(i for i, step in enumerate(steps) if step.get("name") == label)
+                self.changed(name, lambda w, j, i=index: j["steps"].pop(i))
+                self.changed(name, lambda w, j, i=index: j["steps"][i].update({"if": "false"}))
+                self.changed(name, lambda w, j, i=index: j["steps"][i].update(run="echo skipped"))
+            installed = next(i for i, step in enumerate(steps)
+                             if step.get("name") == "Qualify actual SDK installations and genuine upgrades")
+            for key in ("EXPECTED_SOURCE", "RC_VERSION"):
+                self.changed(name, lambda w, j, i=installed, k=key:
+                             j["steps"][i]["env"].update({k: "unreviewed"}))
+            for argument in ("--candidate-root", "--source", "--version", "--previous-release", "--node", "--npm"):
+                self.changed(name, lambda w, j, i=installed, a=argument:
+                             j["steps"][i].update(run=j["steps"][i]["run"].replace(a, "--wrong-argument")))
+            label = ("Rehearse Homebrew against these exact release archives" if name == "cli-kernel-rc.yml"
+                     else "Rehearse Homebrew against the production SDK archives")
+            homebrew = next(i for i, step in enumerate(steps) if step.get("name") == label)
+            self.changed(name, lambda w, j, i=homebrew:
+                         j["steps"][i].update(run=j["steps"][i]["run"].replace("--previous-release", "--wrong-argument")))
+            retention = next(i for i, step in enumerate(steps)
+                             if step.get("uses", "").startswith("actions/upload-artifact@"))
+            for path in ("${{ runner.temp }}/kernel-rc/installed-qualification", "${{ runner.temp }}/previous-rc3"):
+                self.changed(name, lambda w, j, i=retention, p=path:
+                             j["steps"][i]["with"].update(path=j["steps"][i]["with"]["path"].replace(p, "omitted")))
+
     def test_locked_dependency_guards_and_required_commands(self):
         for name in JOBS:
             if name == "cli-publish.yml":
@@ -241,6 +269,68 @@ class CurrentWorkflowPolicyTest(unittest.TestCase):
             self.changed(
                 name, lambda w, j, i=index: j["steps"][i].update({"if": "false"})
             )
+
+    def test_production_sdk_setup_and_runtime_cannot_be_bypassed(self):
+        for name in ("cli-distribution-check.yml", "cli-kernel-rc.yml"):
+            for label in ("Prepare the separately locked Agents SDK build interpreter",
+                          "Test the actual pinned Agents SDK runtime without provider credentials"):
+                index = next(i for i, step in enumerate(self.workflows[name]["jobs"][JOBS[name]]["steps"])
+                             if step.get("name") == label)
+                self.changed(name, lambda w, j, i=index: j["steps"][i].update({"if": "false"}))
+                self.changed(name, lambda w, j, i=index: j["steps"][i].update(run="echo skipped"))
+            index = next(i for i, step in enumerate(self.workflows[name]["jobs"][JOBS[name]]["steps"])
+                         if step.get("name") == "Prepare the separately locked Agents SDK build interpreter")
+            for before, after in (("--require-hashes", ""), ("3.10.20", "3.12"),
+                                  ("agents-sdk-python", "distribution-python"),
+                                  ("requirements-build.txt", "requirements.txt")):
+                self.changed(name, lambda w, j, i=index, a=before, b=after: j["steps"][i].update(
+                             run=j["steps"][i]["run"].replace(a, b)))
+
+    def test_linux_sdk_pins_deadlines_and_failure_evidence_cannot_be_removed(self):
+        for name in ("cli-distribution-check.yml", "cli-kernel-rc.yml"):
+            steps = self.workflows[name]["jobs"][JOBS[name]]["steps"]
+            index = next(i for i, step in enumerate(steps) if step.get("name") == "Prepare the pinned full Linux SDK Python archive")
+            self.changed(name, lambda w, j, i=index: j["steps"].pop(i))
+            self.changed(name, lambda w, j, i=index: j["steps"][i].update({"if": "false"}))
+            for before, after in (("timeout --kill-after=1s 130s ", ""), ("prepare_agents_sdk_linux.py", "echo"),
+                                  ("--platform", "--unpinned-platform")):
+                self.changed(name, lambda w, j, i=index, a=before, b=after: j["steps"][i].update(run=j["steps"][i]["run"].replace(a, b)))
+            retention = next(i for i, step in enumerate(steps) if step.get("uses", "").startswith("actions/upload-artifact@"))
+            for path in ("agents-sdk-native/supplier", "agents-sdk-native/frozen", "agents-sdk-native/*.log",
+                         "agents-sdk-native/python-full/python/PYTHON.json", "agents-sdk-runtime/runtime-report.json"):
+                self.changed(name, lambda w, j, i=retention, p=path: j["steps"][i]["with"].update(path=j["steps"][i]["with"]["path"].replace("${{ runner.temp }}/kernel-rc/" + p, "omitted")))
+
+    def test_distribution_production_sdk_custody_is_required(self):
+        name = "cli-distribution-check.yml"
+        steps = self.workflows[name]["jobs"][JOBS[name]]["steps"]
+        for label in ("Build and verify production SDK standalone and npm installations",
+                      "Rehearse Homebrew against the production SDK archives"):
+            index = next(i for i, step in enumerate(steps) if step.get("name") == label)
+            self.changed(name, lambda w, j, i=index: j["steps"].pop(i))
+            self.changed(name, lambda w, j, i=index: j["steps"][i].update({"if": "false"}))
+            self.changed(name, lambda w, j, i=index: j["steps"][i].update(run="echo skipped"))
+            self.changed(name, lambda w, j, i=index: j["steps"][i]["env"].update(RC_VERSION="unreviewed"))
+        retention = next(i for i, step in enumerate(steps)
+                         if step.get("uses", "").startswith("actions/upload-artifact@"))
+        for path in ("agents-sdk", "package", "logs", "build-report.json", "homebrew"):
+            self.changed(name, lambda w, j, i=retention, p=path: j["steps"][i]["with"].update(
+                         path=j["steps"][i]["with"]["path"].replace("${{ runner.temp }}/kernel-rc/" + p, "omitted")))
+        build = next(i for i, step in enumerate(steps)
+                     if step.get("name") == "Build and verify production SDK standalone and npm installations")
+        self.changed(name, lambda w, j, i=build: j["steps"].insert(0, j["steps"].pop(i)))
+
+    def test_publisher_sdk_custody_cannot_mutate_reviewed_candidates(self):
+        name = "cli-publish.yml"
+        steps = self.workflows[name]["jobs"][JOBS[name]]["steps"]
+        index = next(i for i, step in enumerate(steps)
+                     if step.get("name") == "Verify retained production SDK source and sibling custody")
+        self.changed(name, lambda w, j, i=index: j["steps"].pop(i))
+        self.changed(name, lambda w, j, i=index: j["steps"][i].update({"if": "false"}))
+        self.changed(name, lambda w, j, i=index: j["steps"].insert(0, j["steps"].pop(i)))
+        self.changed(name, lambda w, j, i=index: j["steps"][i].update(run="echo verified"))
+        for script in ("build_agents_sdk.py", "sign_macos.py", "package_local.py", "build_kernel_rc.py"):
+            self.changed(name, lambda w, j, p=script: j["steps"].append(
+                         {"name": "Mutate candidate", "run": "python3 cli/ci/" + p}))
 
     def test_admission_pipeline_cannot_hide_failure(self):
         self.changed(
@@ -317,8 +407,6 @@ class CurrentWorkflowPolicyTest(unittest.TestCase):
         self.changed(name, lambda w, j: j["steps"].reverse())
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class HomebrewActionAdmissionTest(unittest.TestCase):
@@ -329,3 +417,7 @@ class HomebrewActionAdmissionTest(unittest.TestCase):
         self.assertEqual([], audit_workflow("cli-distribution-check.yml", text))
         for replacement in ("Homebrew/actions/setup-homebrew@main", "Homebrew/actions/setup-homebrew@" + "0" * 40):
             self.assertTrue(audit_workflow("cli-distribution-check.yml", text.replace(reviewed, replacement)))
+
+
+if __name__ == "__main__":
+    unittest.main()

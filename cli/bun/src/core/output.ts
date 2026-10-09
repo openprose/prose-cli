@@ -343,7 +343,9 @@ export function formatHumanError(error: RunnerErrorShape): string {
     && validRecoveryHandle(cleanupArgv[3])
     ? `\nRecovery: preserve the original temporary-root environment, then run: ${humanRunnerCommand(`cli cleanup prime ${cleanupArgv[3]}`)}`
     : "";
-  return `${humanSafeScalar(error.code)} at ${humanSafeScalar(error.boundary)}: ${humanSafeScalar(error.message)}${source}${reason}${version}\nAction: ${humanAction(error)}${recovery}\n`;
+  const nativeFailure=error.details?.nativeFailure as {kind?:unknown;setupReason?:unknown}|undefined;
+  const sdkSetup=error.code==="HARNESS_FAILED"&&error.details?.adapterId==="agents-sdk/jsonl"&&nativeFailure?.kind==="setup"&&typeof nativeFailure.setupReason==="string"&&["credential-or-permission","model-unavailable","local-input"].includes(nativeFailure.setupReason);
+  return `${humanSafeScalar(error.code)} at ${humanSafeScalar(error.boundary)}: ${humanSafeScalar(error.message)}${source}${reason}${version}\nAction: ${sdkSetup?humanSafeScalar(error.action):humanAction(error)}${recovery}\n`;
 }
 
 export function humanAction(error: Pick<RunnerErrorShape, "action">): string {

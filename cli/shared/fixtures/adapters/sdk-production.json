@@ -1,0 +1,514 @@
+{
+  "schema": "openprose.sdk-production-oracle/1",
+  "defaults": {
+    "harness": "agents-sdk",
+    "model": "gpt-6.1-sol",
+    "authProfile": "openai-api-key",
+    "transport": "jsonl",
+    "billingOwner": "user-provider",
+    "permissionMode": null
+  },
+  "nativeLimits": {
+    "maxTurns": 20,
+    "timeoutSeconds": 180,
+    "toolTimeoutSeconds": 30,
+    "maxOutputTokens": 12000,
+    "maxAggregateRequests": 20,
+    "maxAggregateHostedWebCalls": 20,
+    "maxAggregateFunctionTools": 80,
+    "maxObservedTotalTokens": 500000,
+    "maxRequestInputBytes": 256000,
+    "maxChildren": 8,
+    "maxChildDepth": 1
+  },
+  "discovery": {
+    "mode": "canonical-cli-sibling",
+    "helperName": "prose-agents-sdk",
+    "pathFallback": false,
+    "platforms": [
+      "darwin-arm64",
+      "darwin-x64",
+      "linux-arm64",
+      "linux-x64"
+    ],
+    "repairCommand": "Reinstall or upgrade the CLI through its existing npm, standalone or Homebrew installation route to restore the packaged prose-agents-sdk sibling; do not provision Python or add a PATH harness.",
+    "helperSymlinkAllowed": false,
+    "admissionPlatforms": [
+      "darwin-arm64",
+      "darwin-x64",
+      "linux-arm64-gnu",
+      "linux-x64-gnu"
+    ],
+    "linuxMinimumGlibc": "2.34",
+    "platformControls": [
+      {
+        "platform": "darwin-arm64",
+        "supported": true
+      },
+      {
+        "platform": "darwin-x64",
+        "supported": true
+      },
+      {
+        "platform": "linux-arm64-gnu",
+        "supported": true
+      },
+      {
+        "platform": "linux-x64-gnu",
+        "supported": true
+      },
+      {
+        "platform": "linux-arm64-musl",
+        "supported": false
+      },
+      {
+        "platform": "linux-x64-musl",
+        "supported": false
+      },
+      {
+        "platform": "linux-arm64",
+        "supported": false
+      },
+      {
+        "platform": "linux-x64",
+        "supported": false
+      }
+    ]
+  },
+  "observation": {
+    "usageUnavailable": {
+      "status": "unavailable"
+    },
+    "emptyUsage": {
+      "source": "sdk_completed_response_raw_usage",
+      "aggregationScope": "unique_completed_responses_in_parent_and_children",
+      "startedCallCount": 0,
+      "completedResponseCount": 0,
+      "duplicateResponseCallbackCount": 0,
+      "outstandingCallCount": 0,
+      "outstandingProviderRequestCount": null,
+      "observedTokenTotals": {},
+      "fieldResponseCounts": {},
+      "totalRunUsageKnown": false
+    },
+    "completedUsage": {
+      "source": "sdk_completed_response_raw_usage",
+      "aggregationScope": "unique_completed_responses_in_parent_and_children",
+      "startedCallCount": 3,
+      "completedResponseCount": 3,
+      "duplicateResponseCallbackCount": 0,
+      "outstandingCallCount": 0,
+      "outstandingProviderRequestCount": null,
+      "observedTokenTotals": {
+        "input_tokens": 9,
+        "output_tokens": 6,
+        "total_tokens": 15
+      },
+      "fieldResponseCounts": {
+        "input_tokens": 3,
+        "output_tokens": 3,
+        "total_tokens": 3
+      },
+      "totalRunUsageKnown": false
+    },
+    "modelIdentity": {
+      "requested": "gpt-6.1-sol",
+      "observed": [
+        "gpt-6.1-sol"
+      ],
+      "serviceTier": {
+        "requested": "default",
+        "observed": [
+          "default"
+        ]
+      }
+    },
+    "allowedTokenCounters": [
+      "input_tokens",
+      "output_tokens",
+      "total_tokens",
+      "input_tokens_details.cached_tokens",
+      "input_tokens_details.cache_write_tokens",
+      "output_tokens_details.reasoning_tokens"
+    ],
+    "allowedServiceTiers": [
+      "auto",
+      "default",
+      "flex",
+      "scale",
+      "priority",
+      "fast",
+      "ultrafast"
+    ],
+    "failureUsage": {
+      "source": "sdk_completed_response_raw_usage",
+      "aggregationScope": "unique_completed_responses_in_parent_and_children",
+      "startedCallCount": 4,
+      "completedResponseCount": 3,
+      "duplicateResponseCallbackCount": 0,
+      "outstandingCallCount": 1,
+      "outstandingProviderRequestCount": null,
+      "observedTokenTotals": {
+        "input_tokens": 9,
+        "output_tokens": 6,
+        "total_tokens": 15
+      },
+      "fieldResponseCounts": {
+        "input_tokens": 3,
+        "output_tokens": 3,
+        "total_tokens": 3
+      },
+      "totalRunUsageKnown": false
+    }
+  },
+  "permissions": {
+    "shell": "host_os_permissions",
+    "filesystemSandbox": false,
+    "networkSandbox": false,
+    "freshChildConversation": true
+  },
+  "credentialAbsence": {
+    "variable": "OPENAI_API_KEY",
+    "blankIsMissing": true,
+    "errorCode": "HARNESS_NEEDS_AUTH",
+    "modelRequests": 0,
+    "fallback": false,
+    "action": "Set OPENAI_API_KEY to an OpenAI API key in the process environment, then retry. No model request was sent."
+  },
+  "cases": [
+    {
+      "id": "adapters.sdk-production-01",
+      "scenario": "trap",
+      "installation": "sibling",
+      "userConfig": null,
+      "noProbe": true,
+      "noStart": true,
+      "outputAbsent": []
+    },
+    {
+      "id": "adapters.sdk-production-02",
+      "scenario": "trap",
+      "installation": "sibling",
+      "userConfig": null,
+      "noProbe": false,
+      "noStart": true,
+      "outputAbsent": []
+    },
+    {
+      "id": "adapters.sdk-production-03",
+      "scenario": "trap",
+      "installation": "sibling",
+      "userConfig": null,
+      "noProbe": false,
+      "noStart": true,
+      "outputAbsent": []
+    },
+    {
+      "id": "adapters.sdk-production-04",
+      "scenario": "success",
+      "installation": "sibling",
+      "userConfig": null,
+      "noProbe": false,
+      "noStart": false,
+      "outputAbsent": []
+    },
+    {
+      "id": "adapters.sdk-production-05",
+      "scenario": "failure",
+      "installation": "sibling",
+      "userConfig": null,
+      "noProbe": false,
+      "noStart": false,
+      "outputAbsent": [],
+      "wireNumberLexemes": {
+        "maxTurns": "20.0",
+        "maxOutputTokens": "12000e0",
+        "maxAggregateRequests": "20.0",
+        "maxAggregateHostedWebCalls": "2e1",
+        "maxAggregateFunctionTools": "80.0",
+        "maxObservedTotalTokens": "5e5",
+        "maxRequestInputBytes": "256000.0",
+        "maxChildren": "8.0",
+        "maxChildDepth": "1e0"
+      }
+    },
+    {
+      "id": "adapters.sdk-production-06",
+      "scenario": "tainted",
+      "installation": "sibling",
+      "userConfig": null,
+      "noProbe": false,
+      "noStart": false,
+      "outputAbsent": [
+        "sdk-unrecognized-secret-sentinel"
+      ],
+      "absentObservationGroups": [
+        "modelIdentity"
+      ],
+      "wireNumberLexemes": {
+        "startedCallCount": "3.0",
+        "completedResponseCount": "3e0",
+        "duplicateResponseCallbackCount": "-0.0",
+        "outstandingCallCount": "-0.0",
+        "input_tokens_details.cached_tokens": "-0.0"
+      }
+    },
+    {
+      "id": "adapters.sdk-production-07",
+      "scenario": "trap",
+      "installation": "sibling",
+      "userConfig": "harness = \"claude\"\n",
+      "noProbe": true,
+      "noStart": true,
+      "outputAbsent": []
+    },
+    {
+      "id": "adapters.sdk-production-08",
+      "scenario": "success",
+      "installation": "symlink",
+      "userConfig": null,
+      "noProbe": false,
+      "noStart": false,
+      "outputAbsent": []
+    },
+    {
+      "id": "adapters.sdk-production-09",
+      "scenario": "failure",
+      "installation": "sibling",
+      "userConfig": null,
+      "noProbe": false,
+      "noStart": false,
+      "outputAbsent": [],
+      "wireNumberLexemes": {},
+      "rawLimitsOverrides": {
+        "maxChildren": 9
+      },
+      "absentResultPaths": [
+        [
+          "error",
+          "details",
+          "nativeFailure",
+          "limits"
+        ]
+      ]
+    },
+    {
+      "id": "adapters.sdk-production-10",
+      "scenario": "failure",
+      "installation": "sibling",
+      "userConfig": null,
+      "noProbe": false,
+      "noStart": false,
+      "outputAbsent": [],
+      "wireNumberLexemes": {},
+      "rawLimitsOverrides": {
+        "maxChildDepth": 2
+      },
+      "absentResultPaths": [
+        [
+          "error",
+          "details",
+          "nativeFailure",
+          "limits"
+        ]
+      ]
+    },
+    {
+      "id": "adapters.sdk-production-11",
+      "scenario": "failure",
+      "installation": "sibling",
+      "userConfig": null,
+      "noProbe": false,
+      "noStart": false,
+      "outputAbsent": [
+        "sdk-provider-body-secret-sentinel"
+      ],
+      "wireNumberLexemes": {},
+      "rawErrorType": "SetupError",
+      "rawSetupReason": "credential-or-permission",
+      "rawMessage": "sdk-provider-body-secret-sentinel"
+    },
+    {
+      "id": "adapters.sdk-production-12",
+      "scenario": "failure",
+      "installation": "sibling",
+      "userConfig": null,
+      "noProbe": false,
+      "noStart": false,
+      "outputAbsent": [
+        "sdk-provider-body-secret-sentinel"
+      ],
+      "wireNumberLexemes": {},
+      "rawErrorType": "SetupError",
+      "rawSetupReason": "model-unavailable",
+      "rawMessage": "sdk-provider-body-secret-sentinel"
+    },
+    {
+      "id": "adapters.sdk-production-13",
+      "scenario": "failure",
+      "installation": "sibling",
+      "userConfig": null,
+      "noProbe": false,
+      "noStart": false,
+      "outputAbsent": [
+        "sdk-provider-body-secret-sentinel"
+      ],
+      "wireNumberLexemes": {},
+      "rawErrorType": "SetupError",
+      "rawSetupReason": "local-input",
+      "rawMessage": "sdk-provider-body-secret-sentinel"
+    },
+    {
+      "id": "adapters.sdk-production-14",
+      "scenario": "failure",
+      "installation": "sibling",
+      "userConfig": null,
+      "noProbe": false,
+      "noStart": false,
+      "outputAbsent": [
+        "sdk-provider-body-secret-sentinel"
+      ],
+      "wireNumberLexemes": {},
+      "rawErrorType": "SetupError",
+      "rawSetupReason": "credential-or-permission",
+      "rawMessage": "sdk-provider-body-secret-sentinel"
+    },
+    {
+      "id": "adapters.sdk-production-15",
+      "scenario": "failure",
+      "installation": "sibling",
+      "userConfig": null,
+      "noProbe": false,
+      "noStart": false,
+      "outputAbsent": [
+        "sdk-provider-body-secret-sentinel"
+      ],
+      "wireNumberLexemes": {},
+      "rawErrorType": "SetupError",
+      "rawSetupReason": "model-unavailable",
+      "rawMessage": "sdk-provider-body-secret-sentinel"
+    },
+    {
+      "id": "adapters.sdk-production-16",
+      "scenario": "failure",
+      "installation": "sibling",
+      "userConfig": null,
+      "noProbe": false,
+      "noStart": false,
+      "outputAbsent": [
+        "sdk-provider-body-secret-sentinel"
+      ],
+      "wireNumberLexemes": {},
+      "rawErrorType": "SetupError",
+      "rawSetupReason": "local-input",
+      "rawMessage": "sdk-provider-body-secret-sentinel"
+    },
+    {
+      "id": "adapters.sdk-production-17",
+      "scenario": "failure",
+      "installation": "sibling",
+      "userConfig": null,
+      "noProbe": false,
+      "noStart": false,
+      "outputAbsent": [
+        "sdk-provider-body-secret-sentinel"
+      ],
+      "wireNumberLexemes": {},
+      "rawErrorType": "SetupError",
+      "rawSetupReason": "sdk-provider-body-secret-sentinel",
+      "rawMessage": "sdk-provider-body-secret-sentinel",
+      "absentResultPaths": [
+        [
+          "error",
+          "details",
+          "nativeFailure",
+          "setupReason"
+        ]
+      ]
+    }
+  ],
+  "rejectedModelIdentities": [
+    {
+      "id": "observed-not-array",
+      "raw": {
+        "requested": "gpt-6.1-sol",
+        "observed": "sdk-unrecognized-secret-sentinel",
+        "serviceTier": {
+          "requested": "default",
+          "observed": [
+            "default"
+          ]
+        }
+      },
+      "expected": "omit-modelIdentity"
+    },
+    {
+      "id": "missing-tier",
+      "raw": {
+        "requested": "gpt-6.1-sol",
+        "observed": [
+          "gpt-6.1-sol"
+        ]
+      },
+      "expected": "omit-modelIdentity"
+    },
+    {
+      "id": "tier-not-object",
+      "raw": {
+        "requested": "gpt-6.1-sol",
+        "observed": [
+          "gpt-6.1-sol"
+        ],
+        "serviceTier": "sdk-unrecognized-secret-sentinel"
+      },
+      "expected": "omit-modelIdentity"
+    },
+    {
+      "id": "tier-observed-not-array",
+      "raw": {
+        "requested": "gpt-6.1-sol",
+        "observed": [
+          "gpt-6.1-sol"
+        ],
+        "serviceTier": {
+          "requested": "default",
+          "observed": "sdk-unrecognized-secret-sentinel"
+        }
+      },
+      "expected": "omit-modelIdentity"
+    },
+    {
+      "id": "wrong-requested-tier",
+      "raw": {
+        "requested": "gpt-6.1-sol",
+        "observed": [
+          "gpt-6.1-sol"
+        ],
+        "serviceTier": {
+          "requested": "priority",
+          "observed": [
+            "default"
+          ]
+        }
+      },
+      "expected": "omit-modelIdentity"
+    }
+  ],
+  "harnessUseValidationOrder": [
+    "parse-file-environment-flag-layers",
+    "validate-explicit-selection-target",
+    "validate-contextual-model-and-auth"
+  ],
+  "setupFailure": {
+    "nativeErrorType": "SetupError",
+    "reasons": {
+      "credential-or-permission": "Check OPENAI_API_KEY and this account's permission to use the configured model, then retry. No fallback was selected.",
+      "model-unavailable": "Choose a model available to this OpenAI account or restore access to the configured model, then retry. No fallback was selected.",
+      "local-input": "Check the working directory, instruction and credential file paths, file permissions and configured input-byte limit, then retry."
+    },
+    "outerCode": "HARNESS_FAILED",
+    "exitCode": 22,
+    "unknownReasonKind": "execution",
+    "rawMessageForwarded": false
+  }
+}

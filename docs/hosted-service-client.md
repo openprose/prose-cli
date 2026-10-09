@@ -1,6 +1,6 @@
 # The OpenProse service from the CLI
 
-`prose cli` reaches the OpenProse hosted service for pricing, hosted runs, run records, saved programs, published results, jobs, the wallet and organizations. These commands are service operations. They do not select a model harness or run anything locally. `prose <FILE>` with the default `openprose` harness still reports `HOSTED_UNAVAILABLE`; use `prose cli run submit` to run hosted.
+`prose cli` reaches the OpenProse hosted service for pricing, hosted runs, run records, saved programs, published results, jobs, the wallet and organizations. These commands are service operations. They do not select a model harness or run anything locally. Local programs default to the packaged Agents SDK using `OPENAI_API_KEY`. Explicitly selecting the `openprose` harness for a local program reports `HOSTED_UNAVAILABLE`; use `prose cli run submit` to run hosted.
 
 ```sh
 prose cli service triage --json

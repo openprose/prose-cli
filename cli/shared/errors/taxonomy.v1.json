@@ -58,6 +58,14 @@
       "action": "Choose a strict adapter reported by the `cli harness list` runner operation."
     },
     {
+      "code": "KERNEL_RETRIEVAL_FAILED",
+      "boundary": "image",
+      "exitCode": 20,
+      "retryable": false,
+      "message": "The published OpenProse kernel could not be retrieved.",
+      "action": "Check your network connection and access to https://pkg.prose.md. Retry when the published kernel is available; no fallback was used."
+    },
+    {
       "code": "IMAGE_INVALID",
       "boundary": "image",
       "exitCode": 20,

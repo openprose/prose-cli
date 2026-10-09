@@ -21,7 +21,15 @@ Both runners support:
 - `--output human|json|jsonl`: rendering, independent of those completion rules.
 - `--native-log /absolute/new/file.jsonl`: optional private, bounded native-event capture for that same run. It does not prove fulfillment; see [capture limits](docs/native-capture.md).
 
-For example, after an ordinary build and supplying the provider credential in the process environment:
+The packaged local default is the Agents SDK with `gpt-6.1-sol`. Supply `OPENAI_API_KEY` in the process environment, then run your program without harness, model or authentication flags:
+
+```sh
+prose run program.md
+```
+
+Use `prose cli config explain --json -- run program.md` to inspect the effective configuration without inference. Save explicit alternatives in `~/.prose/cli.toml` or with `prose cli harness use`; see [user configuration](docs/user-configuration.md).
+
+For an explicitly selected Claude route:
 
 ```sh
 /path/to/prose --harness claude --auth-profile anthropic-api-key \
@@ -30,7 +38,7 @@ For example, after an ordinary build and supplying the provider credential in th
   --output jsonl --native-log /absolute/new-run/native.jsonl run program.md
 ```
 
-The native-log parent directory must already exist. The image determines how it loads the requested program. Default harness selection is still `openprose`, which reports `HOSTED_UNAVAILABLE`; select an installed harness explicitly. No fallback occurs.
+The native-log parent directory must already exist. The image determines how it loads the requested program. Missing SDK credentials give setup instructions; an incomplete SDK installation requires reinstalling the CLI. No harness, model or credential fallback occurs.
 
 ## Harnesses and environment profiles
 
@@ -39,7 +47,7 @@ The native-log parent directory must already exist. The image determines how it 
 | Claude | Installed login or explicit `anthropic-api-key`. The API profile adds native `--bare`, which in 2.1.243 restricts tools to Bash/Edit/Read even with an Agent tool request. Native `acceptEdits` is an explicit permission choice, not implied by API auth. |
 | Codex | Installed login or `openai-api-key` through a native custom Responses provider. Explicit `workspace-write` or `read-only` maps to native sandbox selection. Context/skill discovery is a separate concern. |
 | Prime / OMP | Explicit `provider/model` and credential profile. Provider-key routes use fresh private configuration; separate harness-login routes preserve native stores. Native tool use is supported. OMP validates its discovered tool inventory rather than requiring it empty. |
-| Agents SDK | Optional generic `prose-agents-sdk` executable, explicit model and `openai-api-key`, ordinary shell tool, no built-in delegation or cached-login route. See [installation and limits](docs/agents-sdk-adapter.md). |
+| Agents SDK | Packaged default `prose-agents-sdk` sibling, `gpt-6.1-sol` and `openai-api-key`. Public search/retrieval, shell files and fresh serial child contexts share aggregate limits; host OS permissions apply. See [installation and limits](docs/agents-sdk-adapter.md). |
 
 Exact admitted versions and platforms are checked at readiness; see the product docs and `cli harness list`. Selected auth is not proof of successful authentication, billing identity, or sufficient capabilities. See [credential routes](docs/api-credentials.md), [permissions](docs/permissions-and-native-notices.md), and [isolated evaluation](docs/isolated-evaluation.md).
 

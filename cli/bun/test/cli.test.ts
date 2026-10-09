@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { chmod, lstat, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import doctorFixture from "../../shared/fixtures/operations/doctor-report.json" with { type: "json" };
 import configurationFixture from "../../shared/fixtures/operations/configuration-explanation.json" with { type: "json" };
 import { humanHarnessList, runCli, type CliDependencies } from "../src/cli";
 import { harnesses } from "../src/core/harnesses";
@@ -83,14 +84,14 @@ function operationFixture() {
   return { ...io, cwd, userConfigPath };
 }
 
-function expectedConfiguration(cwd: string, userConfigPath: string) {
+function expectedConfiguration(cwd: string, userConfigPath: string, frozen:unknown=configurationFixture) {
   const replace = (value: unknown): unknown => {
     if(Array.isArray(value))return value.map(replace);
     if(value!==null && typeof value === "object")return Object.fromEntries(Object.entries(value).map(([key,item])=>[key,replace(item)]));
     if(typeof value === "string")return value.replaceAll("/workspace/config/openprose/cli.toml",userConfigPath).replaceAll("/workspace",cwd);
     return value;
   };
-  const report = replace(configurationFixture) as JsonRecord;
+  const report = replace(frozen) as JsonRecord;
   // This fixture starts in cli/bun; its known Git boundary is the repository
   // root, so discovery must report all three considered project locations.
   const repositoryRoot = resolve(import.meta.dir, "../../..");
@@ -509,9 +510,9 @@ describe("CLI behavior", () => {
     expect(observed).toMatchObject({ aborted: true, reason: "SIGINT" });
   });
 
-  test("the default is OpenProse billed and fails closed without fallback", async () => {
+  test("explicit OpenProse selection is billed by OpenProse and fails closed without fallback", async () => {
     const io = fixture();
-    const exit = await runCli(["run", "example.prose.md"], io.deps);
+    const exit = await runCli(["--harness", "openprose", "run", "example.prose.md"], io.deps);
 
     expect(exit).toBe(10);
     expect(io.invocations).toHaveLength(0);
@@ -522,7 +523,7 @@ describe("CLI behavior", () => {
 
   test("JSON failure emits one object on stdout and no diagnostic contamination", async () => {
     const io = fixture();
-    const exit = await runCli(["--output", "json", "run", "example.prose.md"], io.deps);
+    const exit = await runCli(["--harness", "openprose", "--output", "json", "run", "example.prose.md"], io.deps);
     expect(exit).toBe(10);
     const parsed = JSON.parse(io.stdout());
     expect(parsed).toMatchObject({
@@ -543,7 +544,7 @@ describe("CLI behavior", () => {
 
   test("JSONL failure has exactly one terminal event", async () => {
     const io = fixture();
-    const exit = await runCli(["--output=jsonl", "run", "example.prose.md"], io.deps);
+    const exit = await runCli(["--harness", "openprose", "--output=jsonl", "run", "example.prose.md"], io.deps);
     expect(exit).toBe(10);
     const records = io.stdout().trimEnd().split("\n").map((line) => JSON.parse(line));
     expect(records.at(-1)).toMatchObject({
@@ -944,14 +945,14 @@ describe("CLI behavior", () => {
     expect(await runCli(["cli", "harness", "list"], io.deps)).toBe(0);
     expect(io.stdout()).toBe([
       "Harnesses:",
-      "* openprose availability=not-implemented transport=hosted (selected)",
+      "  openprose availability=not-implemented transport=hosted",
       "  prime availability=missing transport=rpc",
       "  omp availability=missing transport=rpc",
       "    runtime prerequisite: bun; availability: missing; detected version: missing; required version: 1.3.14 or newer",
       "    runtime repair: npm install --global bun@1.3.14 @oh-my-pi/pi-coding-agent@18.0.9",
       "  codex availability=missing transport=exec-json",
       "  claude availability=missing transport=print-stream-json",
-      "  agents-sdk availability=missing transport=jsonl",
+      "* agents-sdk availability=missing transport=jsonl (selected)",
       "",
       "Test-only harnesses:",
       "  mock availability=available transport=deterministic,fake-process version=1.0.0",
@@ -1018,9 +1019,9 @@ describe("CLI behavior", () => {
     expect(inventory.find((item) => item.id === "codex")?.detectedVersion).toBe(detectedVersion);
   });
 
-  test("doctor emits the complete default report and returns the selected hosted problem exit", async () => {
+  test("doctor emits the complete explicitly hosted report and returns its problem exit", async () => {
     const io = operationFixture();
-    expect(await runCli(["--output", "json", "cli", "doctor"], io.deps)).toBe(10);
+    expect(await runCli(["--harness", "openprose", "--output", "json", "cli", "doctor"], io.deps)).toBe(10);
     expect(JSON.parse(io.stdout())).toMatchObject({
       schema: "openprose.doctor-report/1",
       ready: false,
@@ -1031,7 +1032,7 @@ describe("CLI behavior", () => {
       runner: { name: "bun", version: "0.1.0", commit: "development" },
       build: { profile: "development", testSeamsEnabled: true },
       cwd: io.cwd,
-      configuration: expectedConfiguration(io.cwd, io.userConfigPath),
+      configuration: expectedConfiguration(io.cwd, io.userConfigPath,doctorFixture.configuration),
     });
     expect(io.stderr()).toBe("");
     expect(io.invocations).toHaveLength(0);
@@ -1039,8 +1040,8 @@ describe("CLI behavior", () => {
   });
 
   test.each([
-    ["doctor", ["--transport", "unsupported", "--output", "json", "cli", "doctor"]],
-    ["run", ["--transport", "unsupported", "--output", "json", "run", "fixture.prose.md"]],
+    ["doctor", ["--harness", "openprose", "--transport", "unsupported", "--output", "json", "cli", "doctor"]],
+    ["run", ["--harness", "openprose", "--transport", "unsupported", "--output", "json", "run", "fixture.prose.md"]],
   ] as const)("%s rejects an unsupported hosted transport before hosted availability", async (_name, args) => {
     const io = operationFixture();
     expect(await runCli(args, io.deps)).toBe(20);

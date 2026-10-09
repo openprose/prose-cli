@@ -9,7 +9,7 @@ use prose_runner_core::runner::{
 use prose_runner_core::service::ServiceCommand;
 use prose_runner_core::{
     CancellationToken, OutputMode, SignalCancellationGuard, SystemClock, SystemContext,
-    SystemIdSource, parse_invocation, resolve_config,
+    SystemIdSource, parse_invocation,
 };
 use std::collections::BTreeSet;
 use std::io;
@@ -511,7 +511,21 @@ fn prepare_configuration(
         resolution_flags.model = None;
         resolution_flags.auth_profile = None;
     }
-    let mut config = match resolve_config(&resolution_flags, system) {
+    let mut config = match prose_runner_core::config::resolve_config_with_selection_validation(
+        &resolution_flags,
+        system,
+        || {
+            if let Action::Runner {
+                command: RunnerCommand::HarnessUse(harness),
+                ..
+            } = &parsed.action
+            {
+                prose_runner_core::runner::validate_harness_selection(harness, &parsed.globals)
+            } else {
+                Ok(())
+            }
+        },
+    ) {
         Ok(config) => config,
         Err(error) => {
             let mut error = error;
@@ -629,6 +643,15 @@ fn prepare(
         }
     ) {
         return prose_runner_core::runner::configuration_outcome(&config, mode);
+    }
+    if config.harness.value == "agents-sdk"
+        && matches!(parsed.action, Action::Forward { .. })
+        && !parsed.globals.dry_run
+    {
+        let ambient = std::env::vars_os().collect::<Vec<_>>();
+        if let Err(error) = prose_runner_core::runner::sdk_credential_preflight(&config, &ambient) {
+            return error_outcome(error, mode, &clock, &ids);
+        }
     }
     let image = match execution_image(&parsed, &config, cancellation) {
         Ok(image) => image,

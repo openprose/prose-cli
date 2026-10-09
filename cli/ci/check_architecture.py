@@ -121,6 +121,7 @@ ALLOWED_SHARED_REFERENCE_FILES = frozenset(
         "cli/shared/fixtures/kernel-startup/release.json",
         "cli/shared/fixtures/native-output-budget.json",
         "cli/shared/fixtures/transport-diagnostics.json",
+        "cli/shared/fixtures/service-word-corrections.json",
         "cli/conformance/fake-harness/fake_harness.py",
         "cli/shared/capabilities/transport-limits.v1.json",
         "cli/shared/capabilities/adapters/oracle.v1.json",

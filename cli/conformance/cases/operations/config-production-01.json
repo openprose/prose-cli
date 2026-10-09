@@ -44,13 +44,13 @@
       "diagnostics": [],
       "values": {
         "harness": {
-          "value": "openprose"
+          "value": "agents-sdk"
         },
         "model": {
-          "value": null
+          "value": "gpt-6.1-sol"
         },
         "authProfile": {
-          "value": null
+          "value": "openai-api-key"
         },
         "nativeMaxTurns": {
           "value": null
@@ -60,7 +60,19 @@
         }
       },
       "runtime": {
-        "nativeLimits": null
+        "nativeLimits": {
+          "maxTurns": 20,
+          "timeoutSeconds": 180,
+          "toolTimeoutSeconds": 30,
+          "maxOutputTokens": 12000,
+          "maxAggregateRequests": 20,
+          "maxAggregateHostedWebCalls": 20,
+          "maxAggregateFunctionTools": 80,
+          "maxObservedTotalTokens": 500000,
+          "maxRequestInputBytes": 256000,
+          "maxChildren": 8,
+          "maxChildDepth": 1
+        }
       }
     }
   }

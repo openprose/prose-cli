@@ -37,8 +37,8 @@ function withWorkspace(frozen: unknown): unknown {
 describe("frozen Phase-7 developer-experience parity", () => {
   test.each([
     {
-      name: "default hosted",
-      argv: ["--output", "json", "--dry-run", "write", "fixture request"],
+      name: "explicit hosted",
+      argv: ["--harness", "openprose", "--output", "json", "--dry-run", "write", "fixture request"],
       exitCode: 10,
       expected: hostedDryRunFixture,
     },
@@ -51,14 +51,16 @@ describe("frozen Phase-7 developer-experience parity", () => {
   ])("matches the exact $name dry-run authority without starting a harness", async ({ argv, exitCode, expected }) => {
     const io = fixture();
     expect(await runCli(argv, io.dependencies)).toBe(exitCode);
-    expect(JSON.parse(io.stdout())).toEqual(withWorkspace(expected));
+    const frozen=structuredClone(expected);
+    if(frozen.selection.harness === "openprose") {const source=frozen.configuration.find(item=>item.key==="harness")!;source.source="flag";source.location="--harness";}
+    expect(JSON.parse(io.stdout())).toEqual(withWorkspace(frozen));
     expect(io.stderr()).toBe("");
     expect(io.invocations).toHaveLength(0);
   });
 
   test("hosted JSONL refusal emits only the canonical failed terminal", async () => {
     const io = fixture();
-    expect(await runCli(["--output", "jsonl", "run", "fixture.prose.md"], io.dependencies)).toBe(10);
+    expect(await runCli(["--harness", "openprose", "--output", "jsonl", "run", "fixture.prose.md"], io.dependencies)).toBe(10);
     const records = io.stdout().trimEnd().split("\n").map((line) => JSON.parse(line));
     expect(records.map((record) => record.type)).toEqual(["runner.failed"]);
     expect(records[0].payload).toMatchObject({

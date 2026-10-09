@@ -676,7 +676,7 @@ impl EffectiveConfig {
             project_config,
             user_config,
             harness: Sourced {
-                value: "openprose".to_owned(),
+                value: "agents-sdk".to_owned(),
                 source: ConfigSource::default(),
             },
             transport: Sourced {
@@ -1039,7 +1039,29 @@ pub fn resolve_config(
     flags: &GlobalFlags,
     system: &SystemContext,
 ) -> Result<EffectiveConfig, RunnerError> {
-    resolve_config_inner(flags, system).map_err(|error| {
+    resolve_config_with_selection_validation(flags, system, || Ok(()))
+}
+
+/// Parse all configuration sources before validating an explicit saved selection.
+/// Ambient harness semantics are checked after this pure validation stage.
+///
+/// # Errors
+/// Returns configuration parse/semantic failures or the selection validator's error.
+pub fn resolve_config_with_selection_validation(
+    flags: &GlobalFlags,
+    system: &SystemContext,
+    validate_selection: impl FnOnce() -> Result<(), RunnerError>,
+) -> Result<EffectiveConfig, RunnerError> {
+    let selection_failed = std::cell::Cell::new(false);
+    resolve_config_inner(flags, system, || {
+        let result = validate_selection();
+        selection_failed.set(result.is_err());
+        result
+    })
+    .map_err(|error| {
+        if selection_failed.get() {
+            return error;
+        }
         if error
             .details
             .as_deref()
@@ -1061,6 +1083,7 @@ pub fn resolve_config(
 fn resolve_config_inner(
     flags: &GlobalFlags,
     system: &SystemContext,
+    validate_selection: impl FnOnce() -> Result<(), RunnerError>,
 ) -> Result<EffectiveConfig, RunnerError> {
     let requested_cwd = flags.cwd.as_ref().map_or_else(
         || system.current_dir.clone(),
@@ -1217,6 +1240,7 @@ fn resolve_config_inner(
     record_candidates(&mut config);
     apply_flags(&mut config, flags).map_err(|error| explanation_error(error, &config))?;
     record_candidates(&mut config);
+    validate_selection()?;
     contextual_defaults(&mut config).map_err(|error| explanation_error(error, &config))?;
     native_checks(&mut config).map_err(|error| explanation_error(error, &config))?;
     sanitize_overridden_profiles(&mut config);
@@ -2426,7 +2450,7 @@ mod tests {
             &context(&child, &parent.join("home")),
         )
         .unwrap();
-        assert_eq!(config.harness.value, "openprose");
+        assert_eq!(config.harness.value, "agents-sdk");
     }
 
     #[test]
@@ -2969,8 +2993,13 @@ pub(crate) fn native_limits(config: &EffectiveConfig) -> Option<serde_json::Valu
     } else {
         serde_json::json!(std::time::Duration::from_millis(ms).as_secs_f64())
     };
+    let turns = config
+        .native_max_turns
+        .value
+        .as_deref()
+        .map_or(20, |v| validate_native_turns(v).expect("validated"));
     Some(
-        serde_json::json!({"maxTurns":config.native_max_turns.value.as_deref().map_or(20, |v|validate_native_turns(v).expect("validated")),"timeoutSeconds":seconds,"toolTimeoutSeconds":tool_seconds,"maxOutputTokens":12000}),
+        serde_json::json!({"maxTurns":turns,"timeoutSeconds":seconds,"toolTimeoutSeconds":tool_seconds,"maxOutputTokens":12000,"maxAggregateRequests":turns,"maxAggregateHostedWebCalls":turns,"maxAggregateFunctionTools":80,"maxObservedTotalTokens":500_000,"maxRequestInputBytes":256_000,"maxChildren":8,"maxChildDepth":1}),
     )
 }
 

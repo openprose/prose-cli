@@ -710,6 +710,188 @@ fn known_runner_help_path(args: &[String]) -> bool {
 mod tests {
     use super::*;
 
+    #[test]
+    fn service_word_corrections_follow_the_shared_parser_oracle() {
+        let oracle: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../../shared/fixtures/service-word-corrections.json"
+        ))
+        .unwrap();
+        for case in oracle["cases"].as_array().unwrap() {
+            let words = |value: &serde_json::Value| {
+                value
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|word| word.as_str().unwrap().to_owned())
+                    .collect::<Vec<_>>()
+            };
+            let original = words(&case["argv"]);
+            if !case["rejectedOriginal"].is_null() {
+                let error = parse_invocation(original.clone()).unwrap_err();
+                assert_eq!(error.code, crate::ErrorCode::InvocationInvalid);
+                assert_eq!(
+                    error.details.as_ref().unwrap()["reason"],
+                    case["rejectedOriginal"]["reason"]
+                );
+                assert!(case["suggestedArgv"].is_null());
+                assert!(case["follow"].is_null());
+                assert_eq!(original, words(&case["originalArgvPreserved"]));
+                continue;
+            }
+            let parsed = parse_invocation(original.clone()).unwrap();
+            let suggested = match parsed.action {
+                Action::Forward {
+                    argv, service_hint, ..
+                } => {
+                    if case["boundary"] == "alias-only" {
+                        assert_eq!(
+                            argv,
+                            strings(&["prose", "--format", "json", "opaque-word", "opaque task"])
+                        );
+                    } else if !case["languageArgv"].is_null() {
+                        assert_eq!(argv, words(&case["languageArgv"]), "{}", case["id"]);
+                    } else {
+                        let at = original
+                            .iter()
+                            .position(|word| word == "run" || word == "help")
+                            .unwrap();
+                        let mut expected = vec!["prose".to_owned()];
+                        expected.extend_from_slice(&original[at..]);
+                        assert_eq!(argv, expected, "{}", case["id"]);
+                    }
+                    service_hint.unwrap()
+                }
+                Action::Runner {
+                    command:
+                        RunnerCommand::Service(crate::service::ServiceCommand::Invalid(invalid)),
+                    ..
+                } => {
+                    let Some(crate::service::Correction::Argv { argv, .. }) = invalid.correction
+                    else {
+                        panic!("missing correction: {}", case["id"]);
+                    };
+                    argv
+                }
+                other => panic!("unexpected action: {other:?}"),
+            };
+            assert_eq!(original, words(&case["originalArgvPreserved"]));
+            assert_eq!(suggested, words(&case["suggestedArgv"]), "{}", case["id"]);
+            let follow = parse_invocation(suggested.clone()).unwrap();
+            if case["follow"]["kind"] == "language" {
+                let Action::Forward { argv, .. } = follow.action else {
+                    panic!("expected language");
+                };
+                assert_eq!(argv, words(&case["follow"]["argv"]));
+                assert_eq!(
+                    follow.globals.harness.as_deref(),
+                    case["follow"]["global"]["harness"].as_str()
+                );
+            } else if case["follow"]["kind"] == "help" {
+                let Action::Runner {
+                    command: RunnerCommand::Service(crate::service::ServiceCommand::Help(text)),
+                    ..
+                } = follow.action
+                else {
+                    panic!("expected service help");
+                };
+                assert!(!text.is_empty());
+                assert_eq!(
+                    follow.globals.no_color,
+                    case["follow"]["globalDisplay"]["noColor"]
+                        .as_bool()
+                        .unwrap()
+                );
+                assert_eq!(
+                    follow.globals.verbose,
+                    case["follow"]["globalDisplay"]["verbose"]
+                        .as_bool()
+                        .unwrap()
+                );
+            } else if case["follow"]["kind"] == "account" {
+                assert!(matches!(
+                    follow.action,
+                    Action::Runner {
+                        command: RunnerCommand::OrgList,
+                        ..
+                    }
+                ));
+                assert_eq!(case["follow"]["operation"], "org-list");
+                assert_eq!(case["follow"]["manifestOperation"], "org.list");
+                assert_eq!(
+                    follow.globals.no_color,
+                    case["follow"]["globalDisplay"]["noColor"]
+                        .as_bool()
+                        .unwrap()
+                );
+                assert_eq!(
+                    follow.globals.verbose,
+                    case["follow"]["globalDisplay"]["verbose"]
+                        .as_bool()
+                        .unwrap()
+                );
+                assert!(follow.globals.harness.is_none());
+                assert!(follow.globals.cwd.is_none());
+                assert!(follow.globals.model.is_none());
+                assert!(!follow.globals.dry_run);
+            } else {
+                let invocation = match follow.action {
+                    Action::Runner {
+                        command:
+                            RunnerCommand::Service(crate::service::ServiceCommand::Invoke(invocation)),
+                        ..
+                    } => invocation,
+                    other => panic!(
+                        "correction did not parse as a service operation: {} {other:?}",
+                        case["id"]
+                    ),
+                };
+                assert!(
+                    invocation.error.is_none(),
+                    "{}: {:?}",
+                    case["id"],
+                    invocation.error
+                );
+                assert_eq!(
+                    invocation.operation,
+                    case["follow"]["operation"].as_str().unwrap()
+                );
+                assert_eq!(
+                    serde_json::to_value(invocation.arguments).unwrap(),
+                    case["follow"]["arguments"]
+                );
+                assert_eq!(
+                    serde_json::to_value(invocation.options).unwrap(),
+                    case["follow"]["options"]
+                );
+                assert_eq!(
+                    serde_json::to_value(invocation.flags).unwrap(),
+                    case["follow"]["flags"]
+                );
+                assert_eq!(
+                    invocation.preview,
+                    case["follow"]["preview"].as_bool().unwrap()
+                );
+                assert_eq!(
+                    follow.globals.no_color,
+                    case["follow"]["globalDisplay"]["noColor"]
+                        .as_bool()
+                        .unwrap()
+                );
+                assert_eq!(
+                    follow.globals.verbose,
+                    case["follow"]["globalDisplay"]["verbose"]
+                        .as_bool()
+                        .unwrap()
+                );
+                assert!(follow.globals.harness.is_none());
+                assert!(follow.globals.cwd.is_none());
+                assert!(follow.globals.model.is_none());
+                assert!(!follow.globals.dry_run);
+            }
+            assert_eq!(follow.globals.output, Some(OutputMode::Json));
+        }
+    }
+
     /// The retired service-selection option, spelled so the public-surface
     /// scan does not match this negative test.
     const RETIRED_OPTION: &str = concat!("--service-", "environment");
@@ -1058,14 +1240,12 @@ mod tests {
             parsed.action,
             Action::Forward {
                 argv: strings(&["prose", "run", "submit", "hello.prose"]),
-                service_hint: Some(strings(&[
-                    "--cwd",
-                    &cwd,
-                    "cli",
-                    "run",
-                    "submit",
-                    "hello.prose"
-                ])),
+                service_hint: Some(vec![
+                    "cli".to_owned(),
+                    "run".to_owned(),
+                    "submit".to_owned(),
+                    format!("{cwd}/hello.prose")
+                ]),
                 hosted_rejection: None,
                 hint_in_details_only: false,
             }

@@ -29,6 +29,57 @@
       "type": "integer",
       "exclusiveMinimum": 0,
       "maximum": 9007199254740991
+    },
+    "maxAggregateRequests": {
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991
+    },
+    "maxAggregateHostedWebCalls": {
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991
+    },
+    "maxAggregateFunctionTools": {
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991
+    },
+    "maxObservedTotalTokens": {
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991
+    },
+    "maxRequestInputBytes": {
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991
+    },
+    "maxChildren": {
+      "const": 8
+    },
+    "maxChildDepth": {
+      "const": 1
     }
-  }
+  },
+  "oneOf": [
+    {
+      "maxProperties": 4
+    },
+    {
+      "required": [
+        "maxTurns",
+        "timeoutSeconds",
+        "toolTimeoutSeconds",
+        "maxOutputTokens",
+        "maxAggregateRequests",
+        "maxAggregateHostedWebCalls",
+        "maxAggregateFunctionTools",
+        "maxObservedTotalTokens",
+        "maxRequestInputBytes",
+        "maxChildren",
+        "maxChildDepth"
+      ]
+    }
+  ]
 }
