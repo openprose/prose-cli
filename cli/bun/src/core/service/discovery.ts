@@ -159,7 +159,7 @@ async function modelList(context: Context): Promise<Json> {
 export function projectModels(shape: Shape, body: JsonObject): JsonObject {
   const models = shape.list(shape.field(body, "models", "models"), 64, "models").map((item) => shape.model(item, "models"));
   const result: JsonObject = { models, default_model: shape.model(shape.field(body, "default_model", "default_model"), "default_model") };
-  const entries = catalog(body);
+  const entries = catalog(body, true);
   if (entries !== undefined) result.catalog = entries;
   return result;
 }
@@ -180,9 +180,11 @@ const isModelId = (value: unknown): value is string => typeof value === "string"
  * each entry's `id` and `status`, plus `tier`, `summary` and `successor` when
  * valid. A missing or non-list catalog is undefined; the first 64 entries are
  * read; an entry without a model id or status token, a repeated id or a
- * `deprecated` model is skipped; an invalid optional field is left out.
+ * `deprecated` model is skipped; an invalid optional field is left out. A
+ * listing also skips `hidden` models: they are accepted when named but never
+ * shown.
  */
-function catalog(body: JsonObject): JsonObject[] | undefined {
+function catalog(body: JsonObject, listing = false): JsonObject[] | undefined {
   const entries = body.catalog;
   if (!Array.isArray(entries)) return undefined;
   const projected: JsonObject[] = [];
@@ -190,7 +192,7 @@ function catalog(body: JsonObject): JsonObject[] | undefined {
     if (raw === null || typeof raw !== "object" || Array.isArray(raw)) continue;
     const { id, status } = raw;
     if (!isModelId(id) || !token(status)) continue;
-    if (status === DEPRECATED || projected.some((known) => known.id === id)) continue;
+    if (status === DEPRECATED || (listing && status === HIDDEN) || projected.some((known) => known.id === id)) continue;
     const item: JsonObject = { id, status };
     if (token(raw.tier)) item.tier = raw.tier;
     const summary = raw.summary;
@@ -231,14 +233,6 @@ function modelsHuman(result: JsonObject, environment: Environment): string {
       text += typeof entry.summary === "string" ? `  ${id}: ${humanSafeScalar(entry.summary)}\n` : `  ${id}\n`;
     }
     text += nextLine(environment, TOPUP);
-  }
-  const hidden = entries.filter((entry) => entry.status === HIDDEN);
-  if (hidden.length > 0) {
-    text += "Also accepted (not recommended):\n";
-    for (const entry of hidden) {
-      const id = humanSafeScalar(entry.id as string);
-      text += typeof entry.successor === "string" ? `  ${id} → use ${humanSafeScalar(entry.successor)}\n` : `  ${id}\n`;
-    }
   }
   return text + nextLine(environment, ["run", "quote"]);
 }

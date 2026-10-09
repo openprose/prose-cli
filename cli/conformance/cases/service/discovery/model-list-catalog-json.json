@@ -2,7 +2,7 @@
   "id": "model-list-catalog-json",
   "feature": "discovery",
   "operation": "model.list",
-  "description": "`catalog` is projected through an allowlist (id, status, tier, summary, successor): internal entry fields are dropped, a deprecated model is never shown, an entry without a valid model id is skipped, an unknown status is kept, and an invalid tier or summary is left out.",
+  "description": "`catalog` is projected through an allowlist (id, status, tier, summary, successor): internal entry fields are dropped, a deprecated or hidden model is never shown, an entry without a valid model id is skipped, an unknown status is kept, and an invalid tier or summary is left out.",
   "argv": [
     "--output",
     "json",
@@ -104,11 +104,6 @@
           {
             "id": "model-luna",
             "status": "available"
-          },
-          {
-            "id": "model-sol-legacy",
-            "status": "hidden",
-            "successor": "model-sol"
           },
           {
             "id": "model-comet",

@@ -65,6 +65,9 @@ a candidate do not establish public availability or authorize publication.
 - `job contract list` reports each binding's saved settings
   (`run_configuration`), `effective_model`, `rev_id`, `bound_at` and
   `is_platform_default`.
+- `model list` no longer lists models the service marks `hidden`, in human
+  output or in `result.catalog`. They stay accepted when named (`--model`, a
+  job spec's `model`), and nothing else enumerates them.
 
 ## [0.15.0-rc.2] — 2026-10-02
 
