@@ -27,6 +27,9 @@
       {
         "method": "GET",
         "path": "/run/quote",
+        "query": {
+          "job_type": "schedule"
+        },
         "status": 200,
         "body": {
           "hold": {

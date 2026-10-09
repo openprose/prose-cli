@@ -2,7 +2,7 @@
   "id": "program-draft-requires-yes",
   "feature": "programs",
   "operation": "program.draft",
-  "description": "`program draft` is paid: without --yes it exits 2 with the planned POST /write (body digest) and sends nothing. The plan carries the flat run hold from GET /run/quote.",
+  "description": "`program draft` is paid: without --yes it exits 2 with the planned POST /write (body digest) and sends nothing. The plan carries the parameter-free run hold from GET /run/quote.",
   "argv": [
     "--output",
     "json",

@@ -2,7 +2,7 @@
   "id": "program-draft-preview-shows-hold",
   "feature": "programs",
   "operation": "program.draft",
-  "description": "A draft preview carries the flat run hold (GET /run/quote) and the model in plannedRequest.summary.",
+  "description": "A draft preview carries the parameter-free run hold (GET /run/quote) and the model in plannedRequest.summary.",
   "argv": [
     "--output",
     "json",

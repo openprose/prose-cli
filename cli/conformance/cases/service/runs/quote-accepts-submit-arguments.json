@@ -2,7 +2,7 @@
   "id": "quote-accepts-submit-arguments",
   "feature": "runs",
   "operation": "run.quote",
-  "description": "Quote takes the program, inputs and model `cli run submit` takes, so the quoted command is the one to submit; the hold does not depend on them.",
+  "description": "Quote takes the program, inputs and options `cli run submit` takes, so the quoted command is the one to submit. --model is sent with the quote; the program and inputs are not.",
   "argv": [
     "cli",
     "run",
@@ -50,6 +50,9 @@
       {
         "method": "GET",
         "path": "/run/quote",
+        "query": {
+          "model": "model-sol"
+        },
         "requestHeaders": {
           "Authorization": {
             "present": false
@@ -69,7 +72,7 @@
   },
   "exitCode": 0,
   "stdout": {
-    "text": "Environment: builtin\nHold: $1.02, set aside from the wallet while a run is live; not its price. The same for every program and model; released within 900 s when unused\nPrice: known only after a run settles; read it with `prose cli run show RUN_ID`\nNote: Unused hold is released when the run settles.\n"
+    "text": "Environment: builtin\nHold: $1.02, set aside from the wallet while a run is live; not its price. Released within 900 s when unused\nDepends on: model, reasoning effort, environment, declared tools and repositories; quoted from the options given, without the program's own run settings or declared tools\nPrice: known only after a run settles; read it with `prose cli run show RUN_ID`\nNote: Unused hold is released when the run settles.\n"
   },
   "stderr": {
     "text": ""

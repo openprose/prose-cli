@@ -70,8 +70,15 @@ printf '%s' '{"type":"webhook","delivery_mode":"test","name":"my-hook"}' \
   created**, then every `interval_seconds`. That is why `job create` is a money
   operation: its plan (`--preview` or `CONFIRMATION_REQUIRED`) includes the
   service's hold quote (`plannedRequest.quote`, from the anonymous
-  `GET /run/quote` for the default environment; a flat hold, independent of
-  program and model). With `--yes` no quote is read. A webhook with no
+  `GET /run/quote` with the spec's `model`, `reasoning_effort` and
+  `environment`, and `repositories=1` when it names a `repository_url` or
+  `context_repository_url`; the program's own run settings and declared tools
+  are not included), plus `job_type` (the spec's `type`) so the service can
+  price the model a job of that type runs on when the spec names none. A
+  service that does not read `job_type` prices its default run model instead,
+  which can differ from the default job model of a webhook or email job; give
+  `model` in the spec for an exact hold there.
+  With `--yes` no quote is read. A webhook with no
   `program_ref` starts no runs: its plan has effect `write`, no quote is read
   and no hold is shown.
 - `prose cli job create --help` prints minimal schedule and webhook specs and
@@ -86,7 +93,10 @@ printf '%s' '{"type":"webhook","delivery_mode":"test","name":"my-hook"}' \
   `model`, `reasoning_effort`, `environment`, `inputs` (name → string), `files`,
   `repository_url`, `repository_branch`, `output`. Webhook spec keys: `type`,
   and optionally `name`, `program_ref`, `delivery_mode` (`test` or `live`),
-  `receiver`, `receiver_secret`, `reply`, `reply_secret`.
+  `receiver`, `receiver_secret`, `reply`, `reply_secret`, and, with a
+  `program_ref`, the connected contract's `model`, `reasoning_effort`,
+  `repository_url`, `repository_branch` and `output` (without `program_ref`
+  the service refuses them).
 - A webhook `create` result carries `endpoint` and `signing_secret`. **They
   appear only in that result** (and in `rotate-secret`), never in `job show` or
   stderr. Human mode prints them once on stdout and a warning on stderr. Both

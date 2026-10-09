@@ -1,8 +1,8 @@
 {
-  "id": "job-create-unpinned-ref",
+  "id": "job-create-schedule-environment-quote",
   "feature": "jobs",
   "operation": "job.create",
-  "description": "A latest OWNER/SLUG program_ref is pinned at create time from GET /p/{owner}/{slug}; the preview's summary and body digest are of the pinned spec.",
+  "description": "A schedule's environment and repository_url are sent with the plan's quote as environment and repositories=1.",
   "argv": [
     "--output",
     "json",
@@ -16,7 +16,7 @@
   "files": [
     {
       "path": "spec.json",
-      "content": "{\"type\": \"schedule\", \"program_ref\": \"exowner1/jobs-example\", \"interval_seconds\": 86400}\n"
+      "content": "{\"type\": \"schedule\", \"program_ref\": \"exowner1/jobs-example@0123456789abcdef\", \"interval_seconds\": 86400, \"environment\": \"linux\", \"repository_url\": \"https://github.com/exowner1/context\"}"
     }
   ],
   "fixture": {
@@ -28,26 +28,10 @@
     "exchanges": [
       {
         "method": "GET",
-        "path": "/p/exowner1/jobs-example",
-        "status": 200,
-        "body": {
-          "program": {
-            "owner": "exowner1",
-            "slug": "jobs-example",
-            "visibility": "private",
-            "rev": 2,
-            "rev_id": "0123456789abcdef",
-            "commit_id": "1111111111111111",
-            "parent_commit_id": "2222222222222222",
-            "updated_at": 1790212199320
-          },
-          "is_owner": true
-        }
-      },
-      {
-        "method": "GET",
         "path": "/run/quote",
         "query": {
+          "environment": "linux",
+          "repositories": "1",
           "job_type": "schedule"
         },
         "status": 200,
@@ -75,8 +59,8 @@
       "problem": null,
       "result": {
         "plannedRequest": {
-          "bodyBytes": 99,
-          "bodySha256": "f7e8384cd4e572131d99234b02b8f3c69b0a9bddd545f7d745ba48bab463b30a",
+          "bodyBytes": 185,
+          "bodySha256": "1df5e93428e3e2e5977d384edcba1611d94058ed01a7e8d0610431e74543e74f",
           "description": "Create a job from a JSON spec.",
           "effect": "money",
           "method": "POST",

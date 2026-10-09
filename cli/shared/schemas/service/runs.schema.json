@@ -23,8 +23,8 @@
           "$ref": "common.schema.json#/$defs/holdQuote"
         },
         "holdBasis": {
-          "description": "The hold is a flat reservation, not a price estimate.",
-          "const": "flat hold, independent of program and model; a run's price is known only after it settles"
+          "description": "What the hold depends on and what this quote covers; the hold is a reservation, not a price estimate.",
+          "const": "depends on model, reasoning effort, environment, declared tools and repositories; quoted from the options given, without the program's own run settings or declared tools; a run's price is known only after it settles"
         },
         "note": {
           "type": "string",

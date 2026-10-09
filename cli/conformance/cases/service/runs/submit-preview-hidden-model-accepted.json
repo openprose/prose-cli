@@ -66,6 +66,9 @@
       {
         "method": "GET",
         "path": "/run/quote",
+        "query": {
+          "model": "model-sol-legacy"
+        },
         "requestHeaders": {
           "Authorization": {
             "present": false

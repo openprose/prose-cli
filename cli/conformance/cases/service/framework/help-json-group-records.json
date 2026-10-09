@@ -30,7 +30,7 @@
           {
             "arguments": [
               {
-                "description": "Program file, or - for standard input, as `cli run submit` takes it. Accepted so a quote names the same command as `cli run submit`; the hold does not depend on it.",
+                "description": "Program file, or - for standard input, as `cli run submit` takes it. Accepted so a quote names the same command as `cli run submit`; the quote does not read the program, so the program's own run settings and declared tools are not included.",
                 "name": "FILE",
                 "required": false,
                 "variadic": false
@@ -74,7 +74,7 @@
             "mutation": false,
             "options": [
               {
-                "description": "Run a saved program; a bare SLUG is your own program. @REV is a rev_id, or @N (@revN) for revision N of your own program; without @REV the latest revision is pinned. Accepted so a quote names the same command as `cli run submit`; the hold does not depend on it.",
+                "description": "Run a saved program; a bare SLUG is your own program. @REV is a rev_id, or @N (@revN) for revision N of your own program; without @REV the latest revision is pinned. Accepted so a quote names the same command as `cli run submit`; the quote does not read the program, so the program's own run settings and declared tools are not included.",
                 "name": "--from",
                 "repeatable": false,
                 "required": false,
@@ -96,7 +96,7 @@
               },
               {
                 "default": "the service's default_model (`cli model list`)",
-                "description": "Hosted model id (see `cli model list`). Accepted so a quote names the same command as `cli run submit`; the hold does not depend on it.",
+                "description": "Hosted model id (see `cli model list`). Sent with the quote: the hold depends on it.",
                 "name": "--model",
                 "repeatable": false,
                 "required": false,
@@ -110,7 +110,7 @@
                   "high",
                   "xhigh"
                 ],
-                "description": "Reasoning effort supported by the model. Accepted so a quote names the same command as `cli run submit`; the hold does not depend on it.",
+                "description": "Reasoning effort supported by the model. Sent with the quote: the hold depends on it.",
                 "name": "--reasoning-effort",
                 "repeatable": false,
                 "required": false,
@@ -118,7 +118,7 @@
               },
               {
                 "default": "the service's default environment",
-                "description": "Execution environment offered by the service (for example builtin or linux).",
+                "description": "Execution environment offered by the service (for example builtin or linux). Sent with the quote: the hold depends on it.",
                 "name": "--environment",
                 "repeatable": false,
                 "required": false,
@@ -133,14 +133,14 @@
                 "value": "RUNTIME"
               },
               {
-                "description": "Read-only repository context. Accepted so a quote names the same command as `cli run submit`; the hold does not depend on it.",
+                "description": "Read-only repository context. Any --repo or --commit-output sends repositories=1 with the quote: a bound repository adds to the hold.",
                 "name": "--repo",
                 "repeatable": true,
                 "required": false,
                 "value": "OWNER/NAME[@BRANCH]"
               },
               {
-                "description": "Writable repository that receives the run's commit. Accepted so a quote names the same command as `cli run submit`; the hold does not depend on it.",
+                "description": "Writable repository that receives the run's commit. Any --repo or --commit-output sends repositories=1 with the quote: a bound repository adds to the hold.",
                 "name": "--commit-output",
                 "repeatable": false,
                 "required": false,
@@ -153,7 +153,7 @@
               "stream": false
             },
             "preview": false,
-            "summary": "Report the hold a run reserves: money set aside from the wallet while the run is live. It is not the price. The environment is checked first.\nThe hold is flat, the same for every program and model, and what the run does not use is released when it settles. A run's price is known only after it settles (`cli run show RUN_ID`, price_cents). The program, inputs and model `cli run submit` takes are accepted, so you can quote the exact command you will submit."
+            "summary": "Report the hold a run reserves: money set aside from the wallet while the run is live. It is not the price. The environment is checked first.\nThe hold depends on the model, reasoning effort, environment, declared tools and bound repositories, and what the run does not use is released when it settles. The quote sends only the --model, --reasoning-effort, --environment, --repo and --commit-output you give. It does not read the program, so a program that sets its own model, effort or environment, or declares tools, can hold a different amount. A run's price is known only after it settles (`cli run show RUN_ID`, price_cents). The program, inputs and options `cli run submit` takes are accepted, so you can quote the exact command you will submit."
           },
           {
             "arguments": [

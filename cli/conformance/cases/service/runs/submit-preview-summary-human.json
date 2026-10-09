@@ -2,7 +2,7 @@
   "id": "submit-preview-summary-human",
   "feature": "runs",
   "operation": "run.submit",
-  "description": "The human preview prints plannedRequest.summary (model, input keys; never input values) and the flat hold.",
+  "description": "The human preview prints plannedRequest.summary (model, input keys; never input values) and the hold quoted for that model.",
   "argv": [
     "cli",
     "run",
@@ -52,6 +52,9 @@
       {
         "method": "GET",
         "path": "/run/quote",
+        "query": {
+          "model": "model-luna"
+        },
         "requestHeaders": {
           "Authorization": {
             "present": false

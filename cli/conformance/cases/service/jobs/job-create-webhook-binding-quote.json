@@ -1,8 +1,8 @@
 {
-  "id": "job-create-unpinned-ref",
+  "id": "job-create-webhook-binding-quote",
   "feature": "jobs",
   "operation": "job.create",
-  "description": "A latest OWNER/SLUG program_ref is pinned at create time from GET /p/{owner}/{slug}; the preview's summary and body digest are of the pinned spec.",
+  "description": "A webhook with a program may carry its contract's model, reasoning_effort and repository_url; the plan's quote sends the model, the effort and repositories=1.",
   "argv": [
     "--output",
     "json",
@@ -16,7 +16,7 @@
   "files": [
     {
       "path": "spec.json",
-      "content": "{\"type\": \"schedule\", \"program_ref\": \"exowner1/jobs-example\", \"interval_seconds\": 86400}\n"
+      "content": "{\"type\": \"webhook\", \"name\": \"pr-review\", \"delivery_mode\": \"test\", \"program_ref\": \"exowner1/jobs-example@0123456789abcdef\", \"model\": \"model-sol\", \"reasoning_effort\": \"high\", \"repository_url\": \"https://github.com/exowner1/context\"}"
     }
   ],
   "fixture": {
@@ -28,27 +28,17 @@
     "exchanges": [
       {
         "method": "GET",
-        "path": "/p/exowner1/jobs-example",
-        "status": 200,
-        "body": {
-          "program": {
-            "owner": "exowner1",
-            "slug": "jobs-example",
-            "visibility": "private",
-            "rev": 2,
-            "rev_id": "0123456789abcdef",
-            "commit_id": "1111111111111111",
-            "parent_commit_id": "2222222222222222",
-            "updated_at": 1790212199320
-          },
-          "is_owner": true
-        }
-      },
-      {
-        "method": "GET",
         "path": "/run/quote",
         "query": {
-          "job_type": "schedule"
+          "model": "model-sol",
+          "reasoning_effort": "high",
+          "repositories": "1",
+          "job_type": "webhook"
+        },
+        "requestHeaders": {
+          "Authorization": {
+            "present": false
+          }
         },
         "status": 200,
         "body": {
@@ -58,11 +48,6 @@
           },
           "pricing_policy_id": "pricing-policy.sha256.f114eadc02b7550e58f12c49996382b04f867cb774ac295506806f599ef1e3cd",
           "note": "Unused hold is released when the run settles."
-        },
-        "requestHeaders": {
-          "Authorization": {
-            "present": false
-          }
         }
       }
     ]
@@ -75,8 +60,8 @@
       "problem": null,
       "result": {
         "plannedRequest": {
-          "bodyBytes": 99,
-          "bodySha256": "f7e8384cd4e572131d99234b02b8f3c69b0a9bddd545f7d745ba48bab463b30a",
+          "bodyBytes": 229,
+          "bodySha256": "6642f65d92b035ae66b01992c9650209f1c611ac164d14a42c80705a5cf3fb05",
           "description": "Create a job from a JSON spec.",
           "effect": "money",
           "method": "POST",
@@ -89,9 +74,12 @@
             }
           },
           "summary": {
-            "interval_seconds": 86400,
+            "delivery_mode": "test",
+            "model": "model-sol",
+            "name": "pr-review",
             "programRef": "exowner1/jobs-example@0123456789abcdef",
-            "type": "schedule"
+            "reasoning_effort": "high",
+            "type": "webhook"
           }
         },
         "preview": true

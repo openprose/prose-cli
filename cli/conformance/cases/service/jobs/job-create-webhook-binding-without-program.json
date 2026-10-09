@@ -1,0 +1,62 @@
+{
+  "id": "job-create-webhook-binding-without-program",
+  "feature": "jobs",
+  "operation": "job.create",
+  "description": "Binding keys on a webhook without program_ref are left to the service: its 400 passes through as SERVICE_REQUEST_REJECTED with details.serviceMessage, and no quote is read.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "job",
+    "create",
+    "--spec-file",
+    "-",
+    "--yes"
+  ],
+  "stdin": "{\"type\":\"webhook\",\"delivery_mode\":\"test\",\"model\":\"model-sol\",\"repository_url\":\"https://github.com/exowner1/app\"}",
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/triggers",
+        "status": 400,
+        "body": {
+          "error": "Model, repository and output settings belong to a connected contract; supply program_ref."
+        },
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "job.deploy",
+      "operation": "job.create",
+      "problem": {
+        "action": "Correct the request as details.serviceMessage describes, then retry.",
+        "boundary": "hosted-service",
+        "code": "SERVICE_REQUEST_REJECTED",
+        "details": {
+          "serviceMessage": "Model, repository and output settings belong to a connected contract; supply program_ref.",
+          "serviceStatus": 400
+        },
+        "exitCode": 10,
+        "message": "The OpenProse service rejected the request.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "stderr": {
+    "text": ""
+  }
+}

@@ -2,7 +2,7 @@
   "id": "program-draft-preview-human",
   "feature": "programs",
   "operation": "program.draft",
-  "description": "Human draft preview: Summary and the flat Hold line.",
+  "description": "Human draft preview: Summary and the Hold line (the parameter-free run hold).",
   "argv": [
     "cli",
     "program",
