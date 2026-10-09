@@ -1,8 +1,8 @@
 {
-  "id": "triage-authenticated-human",
+  "id": "triage-jobs-limit-limited-human",
   "feature": "discovery",
   "operation": "service.triage",
-  "description": "Human triage: one line per section, the recent runs and jobs indented, then copyable next commands with a # reason; at most 25 lines on stdout and the environment label on stderr.",
+  "description": "The human triage Jobs line uses the account's limit from trigger_limit.",
   "argv": [
     "cli",
     "service",
@@ -169,7 +169,8 @@
           ],
           "max_triggers": 5,
           "trigger_limit": {
-            "kind": "unlimited"
+            "kind": "limited",
+            "max": 3
           },
           "types": []
         }
@@ -178,7 +179,7 @@
   },
   "exitCode": 0,
   "stdout": {
-    "text": "Service: ok, default model model-sol\nCredential: valid, from the credential store\nWallet: $3.12 available, $6.12 reserved (low: below $5.00)\nOrganization: exowner1 (admin)\nRuns: 2 recent, 1 live\n  run_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa  running  model-sol  2026-09-24T08:35:02.570Z\n  run_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb  completed  model-luna  2026-09-24T05:56:26.658Z\nJobs: 1 (unlimited)\n  7d9e4c1a-2b3f-4a5e-8c6d-9f0a1b2c3d4e  schedule  Nightly digest  (error)\nNext:\n  prose cli run watch run_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa  # run run_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa is running\n  prose cli wallet topup --amount-cents 500 --preview  # the available balance $3.12 is below $5.00\n  prose cli job show 7d9e4c1a-2b3f-4a5e-8c6d-9f0a1b2c3d4e  # job 7d9e4c1a-2b3f-4a5e-8c6d-9f0a1b2c3d4e reported an error\n"
+    "text": "Service: ok, default model model-sol\nCredential: valid, from the credential store\nWallet: $3.12 available, $6.12 reserved (low: below $5.00)\nOrganization: exowner1 (admin)\nRuns: 2 recent, 1 live\n  run_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa  running  model-sol  2026-09-24T08:35:02.570Z\n  run_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb  completed  model-luna  2026-09-24T05:56:26.658Z\nJobs: 1 of 3 allowed\n  7d9e4c1a-2b3f-4a5e-8c6d-9f0a1b2c3d4e  schedule  Nightly digest  (error)\nNext:\n  prose cli run watch run_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa  # run run_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa is running\n  prose cli wallet topup --amount-cents 500 --preview  # the available balance $3.12 is below $5.00\n  prose cli job show 7d9e4c1a-2b3f-4a5e-8c6d-9f0a1b2c3d4e  # job 7d9e4c1a-2b3f-4a5e-8c6d-9f0a1b2c3d4e reported an error\n"
   },
   "stderr": {
     "text": ""

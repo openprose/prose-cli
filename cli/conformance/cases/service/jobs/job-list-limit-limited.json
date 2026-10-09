@@ -1,8 +1,8 @@
 {
-  "id": "job-list-projection",
+  "id": "job-list-limit-limited",
   "feature": "jobs",
   "operation": "job.list",
-  "description": "`job list` keeps the public snake_case job fields, drops internal references, adoption, context repository ids and details and type receiver and driver details, and keeps the limit as max_jobs and job_limit.",
+  "description": "job_limit mirrors trigger_limit; max_jobs is the account's max when limited.",
   "argv": [
     "--output",
     "json",
@@ -61,7 +61,8 @@
           ],
           "max_triggers": 5,
           "trigger_limit": {
-            "kind": "unlimited"
+            "kind": "limited",
+            "max": 3
           },
           "types": [
             {
@@ -112,7 +113,8 @@
       "problem": null,
       "result": {
         "job_limit": {
-          "kind": "unlimited"
+          "kind": "limited",
+          "max": 3
         },
         "jobs": [
           {
@@ -150,7 +152,7 @@
             "url": null
           }
         ],
-        "max_jobs": null,
+        "max_jobs": 3,
         "types": [
           {
             "config_fields": [

@@ -1038,47 +1038,77 @@ fn get_json(
     context.send(&request)?.json_object()
 }
 
-/// The projected jobs and job limit (`max_jobs`) of a job list body (shared
-/// with `cli service triage`).
+/// The projected jobs and job limit of a job list body (shared with `cli
+/// service triage`).
 pub(super) fn project_jobs(body: &Map<String, Value>) -> Result<(Vec<Value>, Value), RunnerError> {
     let jobs = array(body.get("triggers").unwrap_or(&Value::Null), 1000, "jobs")?
         .iter()
         .map(project_job)
         .collect::<Result<Vec<_>, _>>()?;
-    let max = match body.get("max_triggers") {
-        None | Some(Value::Null) => Value::Null,
-        Some(value) => scalar(value, Kind::EpochMs, "max_jobs")?,
+    Ok((jobs, project_job_limit(body)?))
+}
+
+/// The account's job limit `{kind, max?}` from the service's `trigger_limit`
+/// entitlement. `max_triggers` is a legacy field holding the free ceiling, so
+/// it is read only when `trigger_limit` is absent or null (an older service).
+/// An unknown kind is `unavailable`, never guessed.
+fn project_job_limit(body: &Map<String, Value>) -> Result<Value, RunnerError> {
+    let limit = match body.get("trigger_limit") {
+        None | Some(Value::Null) => {
+            return Ok(match body.get("max_triggers").and_then(as_integer) {
+                Some(max) if max >= 0 => json!({"kind": "limited", "max": max}),
+                _ => json!({"kind": "unavailable"}),
+            });
+        }
+        Some(value) => object(value, "job_limit")?,
     };
-    Ok((jobs, max))
+    let kind = limit
+        .get("kind")
+        .and_then(Value::as_str)
+        .ok_or_else(|| protocol("job_limit.kind"))?;
+    Ok(match kind {
+        "limited" => {
+            let max = limit
+                .get("max")
+                .and_then(as_integer)
+                .filter(|max| *max >= 0)
+                .ok_or_else(|| protocol("job_limit.max"))?;
+            json!({"kind": "limited", "max": max})
+        }
+        "unlimited" => json!({"kind": "unlimited"}),
+        _ => json!({"kind": "unavailable"}),
+    })
+}
+
+/// `max_jobs` / triage `jobs.max`: the job limit's max when limited, else
+/// null.
+pub(super) fn limit_max(job_limit: &Value) -> Value {
+    if job_limit["kind"] == "limited" {
+        job_limit["max"].clone()
+    } else {
+        Value::Null
+    }
+}
+
+/// The human `Jobs:` line for `total` jobs under `job_limit`.
+pub(super) fn jobs_line(total: usize, job_limit: &Value) -> String {
+    match (job_limit["kind"].as_str(), job_limit["max"].as_i64()) {
+        (Some("limited"), Some(max)) => format!("Jobs: {total} of {max} allowed\n"),
+        (Some("unlimited"), _) => format!("Jobs: {total} (unlimited)\n"),
+        _ => format!("Jobs: {total} (limit unavailable; try again)\n"),
+    }
 }
 
 fn list(context: &mut Context<'_>) -> Result<Value, RunnerError> {
     let body = get_json(context, 0, "/triggers")?;
-    let (jobs, max) = project_jobs(&body)?;
-    let limit = object(
-        body.get("trigger_limit").unwrap_or(&Value::Null),
-        "job_limit",
-    )?;
-    let mut job_limit = Map::new();
-    copy(
-        &mut job_limit,
-        limit,
-        "job_limit",
-        &[
-            ("kind", Kind::Text(64), false),
-            ("limit", Kind::EpochMs, false),
-        ],
-    )?;
-    if !job_limit.contains_key("kind") {
-        return Err(protocol("job_limit.kind"));
-    }
+    let (jobs, job_limit) = project_jobs(&body)?;
     let types = array(body.get("types").unwrap_or(&Value::Null), 64, "types")?
         .iter()
         .map(project_type)
         .collect::<Result<Vec<_>, _>>()?;
     let result = json!({
         "jobs": jobs,
-        "max_jobs": max,
+        "max_jobs": limit_max(&job_limit),
         "job_limit": job_limit,
         "types": types,
     });
@@ -1812,11 +1842,7 @@ fn human_rotated(result: &Value) -> String {
 fn human_list(result: &Value) -> String {
     let jobs = result["jobs"].as_array().map_or(&[][..], Vec::as_slice);
     let mut text = String::new();
-    let limit = match &result["max_jobs"] {
-        Value::Number(max) => format!(" of {max} allowed"),
-        _ => String::new(),
-    };
-    let _ = writeln!(text, "Jobs: {}{limit}", jobs.len());
+    text.push_str(&jobs_line(jobs.len(), &result["job_limit"]));
     if jobs.is_empty() {
         text.push_str("No jobs.\n");
     }
@@ -1945,6 +1971,69 @@ mod tests {
         assert!(
             project_job(&json!({"id": "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10", "type": "webhook"}))
                 .is_err()
+        );
+    }
+
+    #[test]
+    fn job_limit_follows_the_entitlement_not_the_legacy_ceiling() {
+        let limit = |body: Value| project_job_limit(body.as_object().unwrap());
+        assert_eq!(
+            limit(
+                json!({"max_triggers": 5, "trigger_limit": {"kind": "limited", "max": 3, "x": 1}})
+            )
+            .unwrap(),
+            json!({"kind": "limited", "max": 3})
+        );
+        assert_eq!(
+            limit(json!({"max_triggers": 5, "trigger_limit": {"kind": "unlimited", "max": 9}}))
+                .unwrap(),
+            json!({"kind": "unlimited"})
+        );
+        for kind in ["unavailable", "metered", ""] {
+            assert_eq!(
+                limit(json!({"max_triggers": 5, "trigger_limit": {"kind": kind}})).unwrap(),
+                json!({"kind": "unavailable"})
+            );
+        }
+        assert_eq!(
+            limit(json!({"max_triggers": 5})).unwrap(),
+            json!({"kind": "limited", "max": 5})
+        );
+        assert_eq!(
+            limit(json!({"max_triggers": 5, "trigger_limit": null})).unwrap(),
+            json!({"kind": "limited", "max": 5})
+        );
+        assert_eq!(limit(json!({})).unwrap(), json!({"kind": "unavailable"}));
+        assert_eq!(
+            limit(json!({"max_triggers": "5"})).unwrap(),
+            json!({"kind": "unavailable"})
+        );
+        for bad in [
+            json!({"trigger_limit": {"kind": "limited"}}),
+            json!({"trigger_limit": {"kind": "limited", "max": -1}}),
+            json!({"trigger_limit": {"kind": "limited", "max": 1.5}}),
+            json!({"trigger_limit": {"kind": "limited", "max": "3"}}),
+            json!({"trigger_limit": {"max": 3}}),
+            json!({"trigger_limit": {"kind": 1}}),
+            json!({"trigger_limit": "limited"}),
+        ] {
+            assert!(limit(bad).is_err());
+        }
+    }
+
+    #[test]
+    fn job_limit_lines_and_max() {
+        let limited = json!({"kind": "limited", "max": 3});
+        let unlimited = json!({"kind": "unlimited"});
+        let unavailable = json!({"kind": "unavailable"});
+        assert_eq!(limit_max(&limited), json!(3));
+        assert_eq!(limit_max(&unlimited), Value::Null);
+        assert_eq!(limit_max(&unavailable), Value::Null);
+        assert_eq!(jobs_line(2, &limited), "Jobs: 2 of 3 allowed\n");
+        assert_eq!(jobs_line(2, &unlimited), "Jobs: 2 (unlimited)\n");
+        assert_eq!(
+            jobs_line(2, &unavailable),
+            "Jobs: 2 (limit unavailable; try again)\n"
         );
     }
 

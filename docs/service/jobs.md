@@ -145,8 +145,16 @@ sign with a library instead.
 
 `job list` returns `{jobs, max_jobs, job_limit, types}` (each type
 `{id, label, description, config_fields}`); an empty account is exit 0 with
-`jobs: []`. `job show` returns `{job, status}`. Every job field is built from
-its public field list, in snake_case (`interval_seconds`, `created_at`,
+`jobs: []`. `job_limit` is the account's entitlement from the service:
+`{kind: "limited", max}`, `{kind: "unlimited"}` (paid accounts) or
+`{kind: "unavailable"}` (the service could not check the entitlement; retry).
+A kind this client does not know is reported as `unavailable`, and an older
+service without one is read as limited at its `max_triggers`. `max_jobs` is
+`job_limit.max` when limited and `null` otherwise. The human first line is
+`Jobs: N of M allowed`, `Jobs: N (unlimited)` or
+`Jobs: N (limit unavailable; try again)`; `cli service triage` reports the
+same as `jobs.max` and `jobs.limit`. `job show` returns `{job, status}`.
+Every job field is built from its public field list, in snake_case (`interval_seconds`, `created_at`,
 `next_fire_at`, `last_run_id`, `program_ref`, …); any other service field
 (internal references, adoption and driver detail, repository ids and detail
 objects, receiver and reply details) is dropped, as is the webhook's relative

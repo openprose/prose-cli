@@ -16,7 +16,7 @@ import { RunnerFailure } from "../types";
 import { projectHealth, Shape } from "./discovery";
 import { jsonObject, requestFor, type Response } from "./http";
 import type { Context } from "./index";
-import { projectJobs } from "./jobs";
+import { jobsLine, projectJobs } from "./jobs";
 import type { Json, JsonObject } from "./manifest";
 import { organization } from "./organizations";
 import { argvText, redactDetails } from "./render";
@@ -179,7 +179,7 @@ async function runsSection(context: Context): Promise<JsonObject> {
 
 async function jobsSection(context: Context): Promise<JsonObject> {
   const body = jsonObject(await fetch(context, JOBS, "/triggers"));
-  const { jobs: all, max } = projectJobs(body);
+  const { jobs: all, limit, max } = projectJobs(body);
   const shown = all.slice(0, JOBS_SHOWN).map((entry) => {
     const job: JsonObject = {};
     for (const key of JOB_KEYS) {
@@ -188,7 +188,7 @@ async function jobsSection(context: Context): Promise<JsonObject> {
     }
     return job;
   });
-  return { total: all.length, max, jobs: shown };
+  return { total: all.length, max, limit, jobs: shown };
 }
 
 function objectOf(value: Json | undefined): JsonObject {
@@ -307,7 +307,7 @@ export function human(result: JsonObject): string {
     const jobs = objectOf(result.jobs);
     if (jobs.problem === null) {
       const total = typeof jobs.total === "number" ? jobs.total : 0;
-      out += typeof jobs.max === "number" ? `Jobs: ${total} of ${jobs.max} allowed\n` : `Jobs: ${total}\n`;
+      out += jobsLine(total, jobs.limit);
       for (const job of Array.isArray(jobs.jobs) ? jobs.jobs.map(objectOf) : []) {
         const name = Object.hasOwn(job, "name") ? text(job.name) : "-";
         out += `  ${text(job.id)}  ${text(job.type)}  ${name}${Object.hasOwn(job, "last_error") ? "  (error)" : ""}\n`;

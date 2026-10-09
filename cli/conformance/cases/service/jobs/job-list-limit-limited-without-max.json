@@ -1,9 +1,11 @@
 {
-  "id": "job-list-human",
+  "id": "job-list-limit-limited-without-max",
   "feature": "jobs",
   "operation": "job.list",
-  "description": "Human `job list` prints one line per job with id, type, name, program, interval and next fire time.",
+  "description": "A limited trigger_limit without a max is SERVICE_PROTOCOL_INVALID naming job_limit.max.",
   "argv": [
+    "--output",
+    "json",
     "cli",
     "job",
     "list"
@@ -55,28 +57,11 @@
               "lastError": null,
               "nextFireAt": null,
               "lastEventAt": 1789504569023
-            },
-            {
-              "id": "7b2e4d19-6a3c-4e85-b1f0-9c4d8e2a6b73",
-              "type": "schedule",
-              "name": null,
-              "internalRef": "opaque-1",
-              "url": null,
-              "intervalSeconds": 86400,
-              "mode": null,
-              "repositoryId": null,
-              "repositoryFullName": null,
-              "repositoryBranch": null,
-              "contextRepositoryId": 1000001,
-              "contextRepositoryFullName": "exowner1/example-repo",
-              "contextRepositoryBranch": "main",
-              "createdAt": 1788438667830,
-              "adopted": false
             }
           ],
           "max_triggers": 5,
           "trigger_limit": {
-            "kind": "unlimited"
+            "kind": "limited"
           },
           "types": [
             {
@@ -91,6 +76,25 @@
                 "fired_at"
               ],
               "driver": "scheduled"
+            },
+            {
+              "id": "webhook",
+              "label": "Webhook",
+              "description": "Receives events from your code.",
+              "config_fields": [
+                "program_ref"
+              ],
+              "emits": [
+                "webhook_payload_json"
+              ],
+              "driver": "webhook",
+              "webhook": {
+                "receivers": [
+                  {
+                    "id": "slack"
+                  }
+                ]
+              }
             }
           ]
         },
@@ -100,11 +104,25 @@
       }
     ]
   },
-  "exitCode": 0,
+  "exitCode": 10,
   "stdout": {
-    "text": "Jobs: 2 (unlimited)\n3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10 webhook name=test-slack program=exowner1/slack-hello@97ddf3a447f534a7 interval=- next=-\n7b2e4d19-6a3c-4e85-b1f0-9c4d8e2a6b73 schedule name=- program=- interval=86400 next=-\nTypes: schedule\n"
-  },
-  "stderr": {
-    "text": ""
+    "json": {
+      "interaction": "job.list",
+      "operation": "job.list",
+      "problem": {
+        "action": "Retry later and report the sanitized error code if it persists.",
+        "boundary": "protocol",
+        "code": "SERVICE_PROTOCOL_INVALID",
+        "details": {
+          "reason": "unexpected job response: job_limit.max"
+        },
+        "exitCode": 10,
+        "message": "The OpenProse service returned an invalid response.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
   }
 }

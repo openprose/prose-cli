@@ -1,8 +1,8 @@
 {
-  "id": "job-list-projection",
+  "id": "job-list-limit-unknown-kind",
   "feature": "jobs",
   "operation": "job.list",
-  "description": "`job list` keeps the public snake_case job fields, drops internal references, adoption, context repository ids and details and type receiver and driver details, and keeps the limit as max_jobs and job_limit.",
+  "description": "A trigger_limit kind this client does not know is reported as unavailable rather than guessed.",
   "argv": [
     "--output",
     "json",
@@ -61,7 +61,8 @@
           ],
           "max_triggers": 5,
           "trigger_limit": {
-            "kind": "unlimited"
+            "kind": "metered",
+            "max": 7
           },
           "types": [
             {
@@ -112,7 +113,7 @@
       "problem": null,
       "result": {
         "job_limit": {
-          "kind": "unlimited"
+          "kind": "unavailable"
         },
         "jobs": [
           {

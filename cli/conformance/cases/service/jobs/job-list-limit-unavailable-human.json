@@ -1,8 +1,8 @@
 {
-  "id": "job-list-human",
+  "id": "job-list-limit-unavailable-human",
   "feature": "jobs",
   "operation": "job.list",
-  "description": "Human `job list` prints one line per job with id, type, name, program, interval and next fire time.",
+  "description": "An unavailable limit (the service's entitlement lookup failed) is shown as unavailable, never as the legacy ceiling.",
   "argv": [
     "cli",
     "job",
@@ -76,7 +76,7 @@
           ],
           "max_triggers": 5,
           "trigger_limit": {
-            "kind": "unlimited"
+            "kind": "unavailable"
           },
           "types": [
             {
@@ -102,7 +102,7 @@
   },
   "exitCode": 0,
   "stdout": {
-    "text": "Jobs: 2 (unlimited)\n3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10 webhook name=test-slack program=exowner1/slack-hello@97ddf3a447f534a7 interval=- next=-\n7b2e4d19-6a3c-4e85-b1f0-9c4d8e2a6b73 schedule name=- program=- interval=86400 next=-\nTypes: schedule\n"
+    "text": "Jobs: 2 (limit unavailable; try again)\n3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10 webhook name=test-slack program=exowner1/slack-hello@97ddf3a447f534a7 interval=- next=-\n7b2e4d19-6a3c-4e85-b1f0-9c4d8e2a6b73 schedule name=- program=- interval=86400 next=-\nTypes: schedule\n"
   },
   "stderr": {
     "text": ""

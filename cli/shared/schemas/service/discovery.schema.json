@@ -491,6 +491,7 @@
                     "problem",
                     "total",
                     "max",
+                    "limit",
                     "jobs"
                   ],
                   "properties": {
@@ -510,7 +511,11 @@
                           "type": "integer",
                           "minimum": 0
                         }
-                      ]
+                      ],
+                      "description": "The account's maximum number of jobs when limited; null when unlimited or unavailable."
+                    },
+                    "limit": {
+                      "$ref": "jobs.schema.json#/$defs/jobLimit"
                     },
                     "jobs": {
                       "type": "array",
