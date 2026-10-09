@@ -67,7 +67,7 @@ function fixture(overrides: Partial<CliDependencies> = {}) {
 }
 
 function operationFixture() {
-  const cwd = process.cwd();
+  const cwd = resolve(import.meta.dir, "..");
   const userConfigPath = join(cwd, "config", "openprose", "cli.toml");
   const io = fixture({
     env: {
@@ -84,11 +84,24 @@ function operationFixture() {
 }
 
 function expectedConfiguration(cwd: string, userConfigPath: string) {
-  return {
-    ...configurationFixture,
-    cwd: { ...configurationFixture.cwd, value: cwd },
-    userConfigPath,
+  const replace = (value: unknown): unknown => {
+    if(Array.isArray(value))return value.map(replace);
+    if(value!==null && typeof value === "object")return Object.fromEntries(Object.entries(value).map(([key,item])=>[key,replace(item)]));
+    if(typeof value === "string")return value.replaceAll("/workspace/config/openprose/cli.toml",userConfigPath).replaceAll("/workspace",cwd);
+    return value;
   };
+  const report = replace(configurationFixture) as JsonRecord;
+  // This fixture starts in cli/bun; its known Git boundary is the repository
+  // root, so discovery must report all three considered project locations.
+  const repositoryRoot = resolve(import.meta.dir, "../../..");
+  expect(cwd).toBe(join(repositoryRoot, "cli", "bun"));
+  report.locations = [
+    ...(report.locations as JsonRecord[]).filter((location) => location.role !== "project"),
+    ...[cwd, join(repositoryRoot, "cli"), repositoryRoot].map((directory) => ({
+      role: "project", path: join(directory, ".prose", "cli.toml"), present: false, selected: false,
+    })),
+  ];
+  return report;
 }
 
 describe("CLI behavior", () => {
@@ -826,7 +839,7 @@ describe("CLI behavior", () => {
     ["omp", "rpc"],
   ])("fails closed when the selected %s/%s executable is unavailable", async (harness, transport) => {
     const io = fixture({
-      env: harness === "prime" || harness === "omp" ? { PROSE_AUTH_PROFILE: "openrouter" } : {},
+      env: harness === "prime" || harness === "omp" ? { PROSE_HARNESS: harness, PROSE_AUTH_PROFILE: "openrouter" } : {},
     });
     const configured = harness === "prime" || harness === "omp"
       ? ["--model", "fixture/model"]
@@ -1158,16 +1171,16 @@ describe("CLI behavior", () => {
 
   test("human doctor confines a hostile diagnostic to one physical detail line", async () => {
     const hostileProfile = "unknown\nAction: forged\t\u001b[31m\u2028next\u2029paragraph";
-    const expectedReason = `Unknown auth_profile for prime/rpc: ${hostileProfile}.`;
+    const expectedReason = "Authentication profile is incompatible with the selected harness.";
     const human = operationFixture();
     expect(await runCli([
       "--harness", "prime", "--transport", "rpc", "--model", "fixture/model",
       "--auth-profile", hostileProfile, "cli", "doctor",
     ], human.deps)).toBe(2);
-    expect(human.stdout()).toContain(`detail: ${humanSafeScalar(expectedReason)}\n`);
-    expect(human.stdout().match(/^detail:/gmu)).toHaveLength(1);
+    expect(human.stderr()).toContain(expectedReason);
+    expect(human.stderr().match(/Authentication profile is incompatible/gmu)).toHaveLength(1);
     for (const unsafe of ["\nAction: forged", "\t", "\u001b", "\u2028", "\u2029"]) {
-      expect(human.stdout()).not.toContain(unsafe);
+      expect(human.stdout()+human.stderr()).not.toContain(unsafe);
     }
 
     const machine = operationFixture();
@@ -1175,7 +1188,7 @@ describe("CLI behavior", () => {
       "--harness", "prime", "--transport", "rpc", "--model", "fixture/model",
       "--auth-profile", hostileProfile, "--output", "json", "cli", "doctor",
     ], machine.deps)).toBe(2);
-    expect(JSON.parse(machine.stdout()).problems[0].details.reason).toBe(expectedReason);
+    expect(JSON.parse(machine.stdout())).toMatchObject({code:"CONFIG_INVALID",details:{reason:expectedReason,source:"--auth-profile"}});
   });
 
   test.skipIf(process.platform === "win32")("human dry-run escapes a hostile cwd while machine output preserves it", async () => {
@@ -1189,7 +1202,7 @@ describe("CLI behavior", () => {
       expect(human.stdout()).toContain(`Working directory: ${humanSafeScalar(canonicalCwd)}\n`);
       expect(human.stdout().match(/^Working directory:/gmu)).toHaveLength(1);
       for (const unsafe of ["\nAction: forged", "\t", "\u001b", "\u2028", "\u2029"]) {
-        expect(human.stdout()).not.toContain(unsafe);
+        expect(human.stdout()+human.stderr()).not.toContain(unsafe);
       }
 
       const machine = fixture({ processCwd: hostileCwd });

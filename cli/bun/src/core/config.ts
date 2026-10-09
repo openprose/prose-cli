@@ -1,12 +1,15 @@
+import { harnessById } from "./harnesses";
+import { installedAdapterDefinition } from "../adapters/recipes";
+import type { InstalledAdapterId } from "../adapters/types";
 import { PUBLISHED_KERNEL_STARTUP } from "./build";
 import {nativeOutputLimits,validateNativeOutputBytes} from "../adapters/output-budget";
 import {nativeLimits} from "../adapters/sdk-limits";
-import { access, chmod, lstat, mkdir, readFile, realpath, rename, stat, unlink, writeFile } from "node:fs/promises";
+import { access, chmod, lstat, mkdir, readFile, realpath, rename, stat, unlink, writeFile, link } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { dirname, join, parse, posix, resolve, win32 } from "node:path";
 import type { GlobalFlags, EffectiveConfiguration, EffectiveValues, SourceKind, ValueSource } from "./types";
 import { failure } from "./errors";
-import { quote } from "./output";
+import { quote, configurationExplanation } from "./output";
 import { RunnerFailure } from "./types";
 import { nativeProfileArgv, validateNativeConfiguration } from "../adapters/native-profile";
 
@@ -16,6 +19,7 @@ export interface ConfigDependencies {
   userConfigPath?: string;
   platform?: NodeJS.Platform;
   homeDir?: string;
+  targetArgv?: string[];
 }
 
 type ConfigKey = keyof EffectiveValues;
@@ -42,6 +46,8 @@ const fileKeyMap: Record<string, ConfigKey> = {
   permission_mode: "permissionMode",
   codex_compatibility: "codexCompatibility",
 };
+
+export const CONFIGURATION_KEYS = Object.keys(fileKeyMap);
 
 /**
  * The configuration keys in their one validation order (the order of `values`
@@ -112,6 +118,28 @@ export async function resolveConfiguration(
   flags: GlobalFlags,
   dependencies: ConfigDependencies,
 ): Promise<EffectiveConfiguration> {
+  try {return await resolveConfigured(flags,dependencies);}
+  catch(caught) {throw earlyConfigurationFailure(caught,dependencies);}
+}
+
+function earlyConfigurationFailure(caught:unknown,dependencies:ConfigDependencies):unknown {
+    if(!(caught instanceof RunnerFailure) || caught.code!=="CONFIG_INVALID" || caught.details?.configurationExplanation!==undefined)throw caught;
+    const source=String(caught.details?.source ?? "configuration");
+    const reason=String(caught.details?.reason ?? "Runner configuration is invalid.");
+    const values=Object.fromEntries(SETTINGS.map(([key])=>[key,{value:defaults[key] ?? (key==="nativeProfile"?"default":["nativeAddDirs","nativeAllowTools"].includes(key)?[]:null),source:{kind:"default",location:"built-in"}}]));
+    const candidates=Object.fromEntries(Object.entries(values).map(([key,entry])=>[key,[{...entry,selected:true}]]));
+    return failure("CONFIG_INVALID",{...caught.details,configurationExplanation:{
+      schema:"openprose.configuration-explanation/1",
+      cwd:{value:dependencies.processCwd,source:{kind:"default",location:"process cwd"}},
+      projectConfigPath:null,userConfigPath:null,values,
+      target:dependencies.targetArgv===undefined?null:{argv:dependencies.targetArgv},
+      locations:[],candidates,diagnostics:[{code:"CONFIG_INVALID",severity:"error",source,reason}],
+      runtime:{transport:null,permissionMode:null,authProfile:null,billingOwner:null,nativeLimits:null,nativeOutputLimits:null},
+    }});
+}
+
+async function resolveConfigured(flags: GlobalFlags,dependencies: ConfigDependencies):Promise<EffectiveConfiguration> {
+  if((dependencies.platform ?? process.platform) === "win32") dependencies={...dependencies,env:Object.fromEntries(Object.entries(dependencies.env).map(([key,value])=>[key.toUpperCase(),value]))};
   const requestedCwd = flags.cwd === undefined ? dependencies.processCwd : resolve(dependencies.processCwd, flags.cwd);
   const cwdLocation = flags.cwd === undefined ? "process cwd" : "--cwd";
   let cwd: string;
@@ -127,30 +155,88 @@ export async function resolveConfiguration(
   const userConfigPath = dependencies.userConfigPath ?? defaultUserConfigPath(dependencies);
   const pathApi = (dependencies.platform ?? process.platform) === "win32" ? win32 : posix;
   if (userConfigPath.length === 0 || !pathApi.isAbsolute(userConfigPath)) {
-    fail("OpenProse user configuration path must be absolute.");
+    fail("OpenProse user configuration path must be absolute.","user configuration path");
   }
-  const projectConfigPath = await discoverProjectConfig(cwd);
+  const locations: NonNullable<EffectiveConfiguration["locations"]> = [];
+  const diagnostics: NonNullable<EffectiveConfiguration["diagnostics"]> = [];
+  let projectConfigPath: string | null = null;
+  const legacyConfigPath = dependencies.userConfigPath === undefined && dependencies.env.PROSE_CONFIG_DIR === undefined
+    ? legacyUserConfigPath(dependencies) : null;
+  if(dependencies.userConfigPath === undefined && dependencies.env.PROSE_CONFIG_DIR === undefined && dependencies.env.XDG_CONFIG_HOME !== undefined && legacyConfigPath === null) diagnostics.push({code:"LEGACY_CONFIG_ROOT_INVALID",severity:"warning",source:"XDG_CONFIG_HOME",reason:"Legacy configuration root is not a non-empty absolute path and is ignored."});
   const values: EffectiveValues = { ...defaults };
   const sources = Object.fromEntries(
-    (Object.keys(defaults) as ConfigKey[]).map((key) => [key, { kind: "default", location: "built-in" }]),
+    SETTINGS.map(([key]) => [key, { kind: "default", location: "built-in" }]),
   ) as { [K in ConfigKey]: ValueSource };
-
-  // The same physical file is loaded once; in both roles the nearest
-  // project role is authoritative.
-  const userConfig = await regularFile(userConfigPath);
-  if (userConfig !== null && userConfig !== projectConfigPath) {
-    const user = await readConfig(userConfig, true);
-    apply(values, sources, user.values, "user-config", user.locations);
-  }
-  if (projectConfigPath !== null) {
-    const project = await readConfig(projectConfigPath);
-    apply(values, sources, project.values, "project-config", project.locations);
-  }
-
-  const environment = parseEnvironment(dependencies.env);
-  apply(values, sources, environment.values, "environment", environment.locations);
-  const invocation = parseFlags(flags);
-  apply(values, sources, invocation.values, "flag", invocation.locations);
+  const candidates: NonNullable<EffectiveConfiguration["candidates"]> = Object.fromEntries(SETTINGS.map(([key]) => [key, [{value: values[key] ?? (key === "nativeProfile" ? "default" : ["nativeAddDirs","nativeAllowTools"].includes(key) ? [] : null), source: sources[key], selected: true}]]));
+  const config: EffectiveConfiguration = { cwd, cwdSource: flags.cwd === undefined ? {kind:"default",location:"process cwd"} : {kind:"flag",location:"--cwd"}, values, sources, projectConfigPath, userConfigPath, legacyConfigPath, activeUserConfigPath:null, target:dependencies.targetArgv === undefined ? null : {argv:dependencies.targetArgv}, locations, candidates, diagnostics };
+  const owners: Partial<Record<ConfigKey,string>> = {};
+  const candidateHarnesses = new WeakMap<object,string>();
+  const ranks: Partial<Record<ConfigKey,number>> = {};
+  let currentHarness = values.harness, harnessRank = 0;
+  const overlay = (parsed: ParsedValues, kind: SourceKind, rank: number) => {
+    if (parsed.values.harness !== undefined) {currentHarness=parsed.values.harness;harnessRank=rank;}
+    for (const key of Object.keys(parsed.values) as ConfigKey[]) {
+      const source = {kind,location:parsed.locations[key] ?? kind};
+      for (const candidate of candidates[key]!) candidate.selected=false;
+      const candidate={value:parsed.values[key],source,selected:true};
+      candidateHarnesses.set(candidate,currentHarness);
+      candidates[key]!.push(candidate);
+      owners[key]=currentHarness; ranks[key]=rank;
+    }
+    apply(values,sources,parsed.values,kind,parsed.locations);
+  };
+  try {
+    projectConfigPath=await discoverProjectConfig(cwd,locations);config.projectConfigPath=projectConfigPath;
+    locations.unshift({role:"user",path:userConfigPath,present:false,selected:false});
+    const userConfig = await strictConfigFile(userConfigPath);
+    const legacyConfig = legacyConfigPath === null || legacyConfigPath === userConfigPath ? null : await regularFile(legacyConfigPath);
+    locations[0]={role:"user",path:userConfigPath,present:userConfig!==null,selected:userConfig!==null};
+    if (legacyConfigPath !== null && legacyConfigPath !== userConfigPath) locations.splice(1,0,{role:"legacy-user",path:legacyConfigPath,present:legacyConfig!==null,selected:userConfig===null&&legacyConfig!==null});
+    config.activeUserConfigPath = userConfig !== null ? userConfigPath : legacyConfig !== null ? legacyConfigPath : null;
+    if (config.activeUserConfigPath !== null && (userConfig ?? legacyConfig) !== projectConfigPath) overlay(await readConfig(config.activeUserConfigPath,true),"user-config",1);
+    if (legacyConfig !== null && userConfig === null) diagnostics.push({code:"LEGACY_CONFIG_ACTIVE",severity:"warning",source:legacyConfigPath!,reason:"Legacy user configuration is active; run prose cli config migrate to copy explicit settings."});
+    if (legacyConfig !== null && userConfig !== null && legacyConfig !== userConfig) {
+      let reason="Canonical user configuration is authoritative; legacy values are ignored.";
+      try {
+        const old=await readConfig(legacyConfig,true); const now=await readConfig(userConfig,true);
+        const differing=SETTINGS.filter(([key]) => old.values[key]!==undefined&&JSON.stringify(old.values[key])!==JSON.stringify(now.values[key])).map(([,key])=>key);
+        if(differing.length) reason+=` Differing explicit keys: ${differing.join(", ")}.`;
+      } catch {reason+=" Ignored legacy configuration is invalid.";}
+      diagnostics.push({code:"LEGACY_CONFIG_IGNORED",severity:"warning",source:legacyConfigPath!,reason});
+    }
+    if (projectConfigPath !== null) overlay(await readConfig(projectConfigPath),"project-config",2);
+    overlay(parseEnvironment(dependencies.env),"environment",3);
+    overlay(parseFlags(flags),"flag",4);
+    candidates.authProfile=candidates.authProfile!.filter(candidate=>{
+      if(candidate.selected || candidate.value===null)return true;
+      const owner=candidateHarnesses.get(candidate);
+      const descriptor=owner===undefined ? undefined : harnessById(owner);
+      if(descriptor?.runtime!=="installed-process")return true;
+      const definition=installedAdapterDefinition(`${owner}/${descriptor.transports[0]}` as InstalledAdapterId);
+      if(typeof candidate.value==="string" && definition.credentialGroups[candidate.value]!==undefined)return true;
+      diagnostics.push({code:"CONFIG_CANDIDATE_INVALID",severity:"warning",source:candidate.source.location,reason:"Incompatible overridden authentication profile is omitted."});
+      return false;
+    });
+    for (const key of ["model","authProfile"] as const) {
+      if (sources[key].kind === "default") {
+        const value = key === "model" ? (values.harness === "agents-sdk" ? "gpt-6.1-sol" : null)
+          : ({"agents-sdk":"openai-api-key",codex:"cached-chatgpt-login",claude:"claude-subscription"} as Record<string,string>)[values.harness] ?? null;
+        values[key]=value;
+        if (value!==null) sources[key]={kind:"default",location:`built-in:${values.harness}`};
+        candidates[key]![0]={value,source:sources[key],selected:true};
+      } else if (owners[key] !== values.harness && (ranks[key] ?? 0)<harnessRank) {
+        fail(`Inherited ${key === "authProfile" ? "auth_profile" : key} belongs to a different harness; replace it at the harness-selecting layer.`,sources[key].location);
+      }
+    }
+    const descriptor=harnessById(values.harness);
+    const transport=values.transport === "auto" ? descriptor?.transports[0] ?? null : values.transport;
+    if (descriptor?.runtime === "installed-process" && transport!==null) {
+      const definition=installedAdapterDefinition(`${values.harness}/${descriptor.transports[0]}` as InstalledAdapterId);
+      if(["prime","omp"].includes(values.harness) && values.model!==null && !values.model.split("/").every(segment=>segment.length>0&&!/[\s\p{Cc}]/u.test(segment))) throw failure("CONFIG_INVALID",{adapterId:`${values.harness}/${descriptor.transports[0]}`,source:sources.model.location,reason:"Prime and OMP models must be a fully qualified provider/model with no empty, whitespace, or control-character segments."});
+      if(["prime","omp"].includes(values.harness) && values.model!==null && !values.model.includes("/")) throw failure("CONFIG_INVALID",{adapterId:`${values.harness}/${descriptor.transports[0]}`,source:sources.model.location,reason:"Prime and OMP models must be a fully qualified provider/model with no empty, whitespace, or control-character segments."});
+      if(values.authProfile !== null && definition.credentialGroups[values.authProfile] === undefined) throw failure("CONFIG_INVALID",{adapterId:`${values.harness}/${descriptor.transports[0]}`,reason:"Authentication profile is incompatible with the selected harness.",source:sources.authProfile.location,supportedAuthProfiles:Object.keys(definition.credentialGroups)});
+    }
+    if(values.harness==="agents-sdk" && values.permissionMode!==null)throw failure("CONFIG_INVALID",{adapterId:"agents-sdk/jsonl",source:sources.permissionMode.location,reason:"Unsupported explicit permission mode for this harness."});
 
   if (values.codexCompatibility !== "qualified" && values.harness !== "codex") fail("Codex compatibility probe requires the codex harness.", sources.codexCompatibility?.location);
 
@@ -173,35 +259,61 @@ export async function resolveConfiguration(
     try { await validateNativeConfiguration(values, cwd); }
     catch (caught) { at(["nativeAddDirs"], () => { throw caught; }); }
   }
-  return {
-    cwd,
-    cwdSource: flags.cwd === undefined
-      ? { kind: "default", location: "process cwd" }
-      : { kind: "flag", location: "--cwd" },
-    values,
-    sources,
-    projectConfigPath,
-    userConfigPath,
-  };
+    config.runtime = {
+      transport: values.transport === "auto" ? descriptor?.transports[0] ?? null : values.transport,
+      permissionMode: values.permissionMode ?? null,
+      authProfile: values.authProfile,
+      billingOwner: descriptor?.billingOwner ?? null,
+      nativeLimits: nativeLimits(values) ?? null,
+      nativeOutputLimits: nativeOutputLimits(values) ?? null,
+    };
+    return config;
+  } catch (caught) {
+    if (caught instanceof RunnerFailure && caught.code === "CONFIG_INVALID") {
+      const rejectedSource=String(caught.details?.source ?? "configuration");
+      for(const [key] of SETTINGS) if(sources[key].location===rejectedSource && sources[key].kind!=="default") {
+        const safe=(candidates[key] ?? []).filter(candidate=>candidate.source.location!==rejectedSource);
+        const previous=safe.at(-1);
+        if(previous) {
+          safe.forEach((candidate,index)=>{candidate.selected=index===safe.length-1;});
+          sources[key]=previous.source;
+          if(previous.value===null && !["model","authProfile","permissionMode"].includes(key))delete values[key];
+          else Object.assign(values,{[key]:previous.value});
+        }
+        candidates[key]=safe;
+      }
+      diagnostics.push({code:"CONFIG_INVALID",severity:"error",source:rejectedSource,reason:String(caught.details?.reason ?? "Runner configuration is invalid.")});
+      throw failure("CONFIG_INVALID",{...(caught.details ?? {}),configurationExplanation:configurationExplanation(config)});
+    }
+    throw caught;
+  }
 }
 
 function defaultUserConfigPath(dependencies: ConfigDependencies): string {
-  const platform = dependencies.platform ?? process.platform;
-  const pathApi = platform === "win32" ? win32 : posix;
-  const requireRoot = (value: string | undefined, name: string): string => {
-    if (value === undefined || value.length === 0 || !pathApi.isAbsolute(value)) {
-      fail(`${name} must be a non-empty absolute path to locate OpenProse user configuration.`);
-    }
-    return value;
-  };
-  const xdg = dependencies.env.XDG_CONFIG_HOME;
-  if (xdg !== undefined) return pathApi.join(requireRoot(xdg, "XDG_CONFIG_HOME"), "openprose", "cli.toml");
-  if (platform === "win32") {
-    return pathApi.join(requireRoot(dependencies.env.APPDATA, "APPDATA"), "OpenProse", "cli.toml");
+  const platform=dependencies.platform ?? process.platform;
+  const pathApi=platform === "win32" ? win32 : posix;
+  const override=dependencies.env.PROSE_CONFIG_DIR;
+  if(override!==undefined) {
+    if(!override || !pathApi.isAbsolute(override)) fail("PROSE_CONFIG_DIR must be a non-empty absolute path to locate OpenProse user configuration.","PROSE_CONFIG_DIR");
+    return pathApi.join(override,"cli.toml");
   }
-  const home = requireRoot(dependencies.homeDir ?? dependencies.env.HOME, "HOME");
-  if (platform === "darwin") return pathApi.join(home, "Library", "Application Support", "OpenProse", "cli.toml");
-  return pathApi.join(home, ".config", "openprose", "cli.toml");
+  const home=dependencies.homeDir ?? (platform === "win32" ? dependencies.env.USERPROFILE ?? dependencies.env.HOME : dependencies.env.HOME);
+  if(!home || !pathApi.isAbsolute(home)) fail(`${platform === "win32" ? "USERPROFILE" : "HOME"} must be a non-empty absolute path to locate OpenProse user configuration.`,platform === "win32" ? "USERPROFILE" : "HOME");
+  return pathApi.join(home,".prose","cli.toml");
+}
+function legacyUserConfigPath(dependencies: ConfigDependencies): string | null {
+  const platform=dependencies.platform ?? process.platform;
+  const pathApi=platform === "win32" ? win32 : posix;
+  const xdg=dependencies.env.XDG_CONFIG_HOME;
+  if(xdg!==undefined) return xdg && pathApi.isAbsolute(xdg) ? pathApi.join(xdg,"openprose","cli.toml") : null;
+  if(platform === "win32") return dependencies.env.APPDATA && pathApi.isAbsolute(dependencies.env.APPDATA) ? pathApi.join(dependencies.env.APPDATA,"OpenProse","cli.toml") : null;
+  const home=dependencies.homeDir ?? dependencies.env.HOME;
+  if(!home || !pathApi.isAbsolute(home)) return null;
+  return platform === "darwin" ? pathApi.join(home,"Library","Application Support","OpenProse","cli.toml") : pathApi.join(home,".config","openprose","cli.toml");
+}
+async function strictConfigFile(path: string): Promise<string | null> {
+  try { const info=await stat(path); if(!info.isFile()) return null; return await realpath(path); }
+  catch(caught) {if(caught instanceof RunnerFailure)throw caught;if((caught as NodeJS.ErrnoException).code === "ENOENT")return null;fail("Cannot read configuration file.",path);}
 }
 
 /** The canonical path of `path` when it is a regular file (symlinks followed), else null. */
@@ -213,10 +325,12 @@ async function regularFile(path: string): Promise<string | null> {
   catch { fail(`Cannot read configuration file: ${path}.`, path); }
 }
 
-async function discoverProjectConfig(cwd: string): Promise<string | null> {
+async function discoverProjectConfig(cwd: string, locations: NonNullable<EffectiveConfiguration["locations"]>): Promise<string | null> {
   let directory = cwd;
   while (true) {
-    const candidate = await regularFile(join(directory, ".prose", "cli.toml"));
+    const considered = join(directory, ".prose", "cli.toml");
+    const candidate = await strictConfigFile(considered);
+    locations.push({role:"project",path:considered,present:candidate!==null,selected:candidate!==null});
     if (candidate !== null) return candidate;
     if (await exists(join(directory, ".git"))) return null;
     const parent = dirname(directory);
@@ -409,7 +523,7 @@ function validateFileValues(raw: Partial<Record<ConfigKey, string | boolean | st
  */
 const RETIRED_USER_KEY = "service_environment";
 
-function parseFlatToml(source: string, path: string, allowService = true): ParsedValues {
+function parseFlatToml(source: string, path: string, allowService = true, syntaxOnly = false): ParsedValues {
   const rawValues: Partial<Record<ConfigKey, string | boolean | string[]>> = {};
   const locations: Partial<Record<ConfigKey, string>> = {};
   const seen = new Set<string>();
@@ -458,12 +572,12 @@ function parseFlatToml(source: string, path: string, allowService = true): Parse
     if (rawKey === RETIRED_USER_KEY) {
       if (!allowService) configLineFailure(path, lineNumber, "Configuration contains an unknown key.");
     } else {
-      checkFileType(key!, rawKey, parsed, location);
+      if(!syntaxOnly) checkFileType(key!, rawKey, parsed, location);
       rawValues[key!] = parsed;
       locations[key!] = location;
     }
   }
-  return { values: validateFileValues(rawValues, locations), locations };
+  return { values: syntaxOnly ? rawValues as PartialValues : validateFileValues(rawValues, locations), locations };
 }
 
 async function readConfig(path: string, allowService = false): Promise<ParsedValues> {
@@ -685,6 +799,7 @@ async function writeUserSelection(path: string, targetKeys: Set<string>, bundle:
       if (!current.isFile() || current.isSymbolicLink()) {
         fail("OpenProse user configuration changed to an unsafe file before replacement.", path);
       }
+      if(decodeConfiguration(await readFile(path),path)!==original) fail("OpenProse user configuration changed before replacement.",path);
     } catch (caught) {
       if (caught instanceof RunnerFailure) throw caught;
       if ((caught as NodeJS.ErrnoException).code !== "ENOENT") throw caught;
@@ -712,4 +827,100 @@ function parseStringArray(raw:string,path:string,line:number):{value:string[];en
     if(raw[cursor]!==",") configLineFailure(path,line,"Expected comma or array end.");
     cursor++;
   }
+}
+
+/** Only explicit user settings are copied or removed; inherited values are never saved. */
+export async function mutateUserConfiguration(config: EffectiveConfiguration, operation: "migrate" | "unset", keys: string[]): Promise<NonNullable<EffectiveConfiguration["mutation"]>> {
+  const destination=config.userConfigPath;
+  if(operation === "unset") {
+    try {const info=await lstat(destination);if(!info.isFile() || info.isSymbolicLink())fail("OpenProse user configuration must be a regular non-symlink file.",destination);}
+    catch(caught) {if(caught instanceof RunnerFailure)throw caught;if((caught as NodeJS.ErrnoException).code!=="ENOENT")fail("OpenProse user configuration cannot be read safely.",destination);}
+  }
+  const legacy=config.activeUserConfigPath !== destination ? config.activeUserConfigPath ?? null : null;
+  if(operation === "migrate") {
+    try {await lstat(destination);fail("Canonical user configuration already exists; migration never overwrites it.",destination);}
+    catch(caught) {if(caught instanceof RunnerFailure)throw caught;if((caught as NodeJS.ErrnoException).code!=="ENOENT")fail("Canonical user configuration cannot be read safely.",destination);}
+    if(legacy===null) fail("No legacy user configuration exists to migrate.",destination);
+    const bytes=await safeUserBytes(legacy);
+    validateUserSettingsBundle(bytes,legacy);
+    await createUserConfiguration(destination,bytes);
+    return {operation,changed:true,path:destination,sourcePath:legacy,keys:[]};
+  }
+  if(config.activeUserConfigPath===null || config.activeUserConfigPath===undefined) return {operation,changed:false,path:destination,sourcePath:null,keys};
+  const active=config.activeUserConfigPath;
+  const bytes=await safeUserBytes(active,operation !== "unset");
+  const original=decodeConfiguration(bytes,active);
+  const retained=original.split(/(?<=\n)/u).filter(line=>{
+    const match=/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=/u.exec(line); return match?.[1]===undefined || !keys.includes(match[1]);
+  }).join("");
+  validateUserSettingsBundle(new TextEncoder().encode(retained),destination);
+  const changed=retained!==original || legacy!==null;
+  if(changed) {
+    if(legacy!==null) await createUserConfiguration(destination,new TextEncoder().encode(retained));
+    else await replaceUserBytes(destination,new TextEncoder().encode(retained),bytes);
+  }
+  return {operation,changed,path:destination,sourcePath:legacy,keys};
+}
+async function safeUserBytes(path: string, validateValues=true): Promise<Uint8Array> {
+  const info=await lstat(path);
+  if(!info.isFile() || info.isSymbolicLink()) fail("OpenProse user configuration must be a regular non-symlink file.",path);
+  const bytes=await readFile(path);parseFlatToml(decodeConfiguration(bytes,path),path,true,!validateValues);return bytes;
+}
+async function createUserConfiguration(path: string, bytes: Uint8Array): Promise<void> {
+  const parent=dirname(path);await secureUserConfigParent(parent);
+  const temporary=join(parent,`.cli.toml.openprose-${process.pid}-${randomUUID()}.tmp`);
+  try {
+    await writeFile(temporary,bytes,{mode:0o600,flag:"wx"});
+    await secureUserConfigParent(parent);
+    // Atomic no-replace creation. A concurrently created destination is never overwritten.
+    await link(temporary,path);
+  } catch(caught) {
+    fail((caught as NodeJS.ErrnoException).code === "EEXIST" ? "Canonical user configuration already exists; migration never overwrites it." : "OpenProse user configuration could not be created atomically.",path);
+  } finally {try {await unlink(temporary);}catch{/* no temporary file */}}
+}
+async function replaceUserBytes(path: string, bytes: Uint8Array, original: Uint8Array): Promise<void> {
+  const parent=dirname(path);await secureUserConfigParent(parent);
+  const temporary=join(parent,`.cli.toml.openprose-${process.pid}-${randomUUID()}.tmp`);
+  try {
+    await writeFile(temporary,bytes,{mode:0o600,flag:"wx"});
+    const current=await safeUserBytes(path,false);
+    if(!Buffer.from(current).equals(Buffer.from(original))) fail("OpenProse user configuration changed before replacement.",path);
+    await secureUserConfigParent(parent);await rename(temporary,path);
+  } catch(caught) {if(caught instanceof RunnerFailure)throw caught;fail("OpenProse user configuration could not be written atomically.",path);}
+  finally {try {await unlink(temporary);}catch{/* already renamed */}}
+}
+
+/** Mutation preflight examines only the user locations, never project or execution overrides. */
+export async function prepareUserConfigurationMutation(dependencies: ConfigDependencies): Promise<EffectiveConfiguration> {
+  try {return await prepareUserMutation(dependencies);}
+  catch(caught) {throw earlyConfigurationFailure(caught,dependencies);}
+}
+async function prepareUserMutation(dependencies:ConfigDependencies):Promise<EffectiveConfiguration> {
+  let cwd:string;
+  try {
+    if(!(await stat(dependencies.processCwd)).isDirectory())fail(`Working directory is not a directory: ${dependencies.processCwd}.`,"process cwd");
+    cwd=await realpath(dependencies.processCwd);
+  }catch(caught){if(caught instanceof RunnerFailure)throw caught;fail(`Working directory does not exist or cannot be read: ${dependencies.processCwd}.`,"process cwd");}
+  if((dependencies.platform ?? process.platform) === "win32")dependencies={...dependencies,env:Object.fromEntries(Object.entries(dependencies.env).map(([key,value])=>[key.toUpperCase(),value]))};
+  const userConfigPath=dependencies.userConfigPath ?? defaultUserConfigPath(dependencies);
+  const pathApi=(dependencies.platform ?? process.platform) === "win32" ? win32:posix;
+  if(!pathApi.isAbsolute(userConfigPath))fail("OpenProse user configuration path must be absolute.","user configuration path");
+  const legacyConfigPath=dependencies.userConfigPath===undefined&&dependencies.env.PROSE_CONFIG_DIR===undefined ? legacyUserConfigPath(dependencies):null;
+  const user=await strictConfigFile(userConfigPath);
+  const legacy=legacyConfigPath===null ? null:await regularFile(legacyConfigPath);
+  const values={...defaults};
+  const sources=Object.fromEntries(SETTINGS.map(([key])=>[key,{kind:"default",location:"built-in"}])) as EffectiveConfiguration["sources"];
+  return {cwd,cwdSource:{kind:"default",location:"process cwd"},values,sources,userConfigPath,legacyConfigPath,activeUserConfigPath:user!==null ? userConfigPath:legacy!==null ? legacyConfigPath:null,projectConfigPath:null,target:null,diagnostics:[],locations:[{role:"user",path:userConfigPath,present:user!==null,selected:user!==null},...(legacyConfigPath===null ? []:[{role:"legacy-user" as const,path:legacyConfigPath,present:legacy!==null,selected:user===null&&legacy!==null}])],candidates:{}};
+}
+function validateUserSettingsBundle(bytes: Uint8Array, path: string): void {
+  const parsed=parseFlatToml(decodeConfiguration(bytes,path),path,true);
+  const harness=parsed.values.harness;
+  if(harness===undefined)return;
+  const descriptor=harnessById(harness);
+  if(descriptor?.runtime!=="installed-process")return;
+  const adapterId=`${harness}/${descriptor.transports[0]}` as InstalledAdapterId;
+  const definition=installedAdapterDefinition(adapterId);
+  if(parsed.values.authProfile!==undefined && parsed.values.authProfile!==null && definition.credentialGroups[parsed.values.authProfile]===undefined) fail("Authentication profile is incompatible with the selected harness.",parsed.locations.authProfile);
+  const model=parsed.values.model;
+  if(["prime","omp"].includes(harness)&&model!==undefined&&model!==null&&(!model.includes("/")||model.split("/").some(segment=>!segment || /[\s\p{Cc}]/u.test(segment))))fail("Prime and OMP models must be a fully qualified provider/model with no empty, whitespace, or control-character segments.",parsed.locations.model);
 }

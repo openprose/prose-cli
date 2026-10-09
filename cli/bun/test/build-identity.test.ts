@@ -180,7 +180,7 @@ describe("standalone build identity and seam exclusion", () => {
             ...(model === undefined ? {} : { PROSE_MODEL: model }),
           });
           expect(attempted.exitCode).toBe(2);
-          expect(await Bun.file(join(configRoot, "openprose", "cli.toml")).exists()).toBeFalse();
+          expect(await Bun.file(join(root, `${harness}-${label}-home`, ".prose", "cli.toml")).exists()).toBeFalse();
           expect(await Bun.file(join(root, `${harness}-injection`)).exists()).toBeFalse();
         }
 
@@ -191,7 +191,7 @@ describe("standalone build identity and seam exclusion", () => {
           PROSE_MODEL: "openai/gpt-5.4",
         });
         expect(selected.exitCode, selected.stderr).toBe(0);
-        expect(await readFile(join(validConfigRoot, "openprose", "cli.toml"), "utf8")).toBe([
+        expect(await readFile(join(root, `${harness}-valid-home`, ".prose", "cli.toml"), "utf8")).toBe([
           `auth_profile = ${JSON.stringify(authProfile)}`,
           `harness = ${JSON.stringify(harness)}`,
           'model = "openai/gpt-5.4"',

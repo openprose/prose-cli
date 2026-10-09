@@ -908,3 +908,49 @@ PR47 Linux admission failure. Publish the fixture's observed descendantPID
 before unrelated logging and validate a nonzero numericPID before procfs.
 Preserve300ms/3s bounds and killed-or-zombie assertion. Production logic,
 cleanup deadlines and frozen qualified RC3 binaries remain unchanged.
+
+## IMP-097 configuration contract and independent implementations — October 6, 2026
+
+Lead Codex `/root`, session `01a1133b-e47b-7b32-af8e-2655afa0259c`, branch `codex/imp-097-user-configuration`, base `e780725`. Root owns Git/index, design and integration.
+
+`/root/configuration_contract` exact paths: `docs/user-configuration.md` (new), `cli/shared/schemas/configuration-explanation.schema.json`, `cli/shared/fixtures/config/production-v2.json` (new), and twelve new case files `cli/conformance/cases/operations/config-production-01.json` through `config-production-12.json`. Scope: frozen observable design and shared black-box acceptance before product implementation. No product code/runner edits/dependency changes/Git or inference. Root must lease runner plumbing if required.
+
+Root exact paths for Rust implementation: `cli/rust/crates/prose-runner-core/src/config.rs`, `cli/rust/crates/prose-runner-core/src/invocation.rs`, `cli/rust/crates/prose-cli/src/main.rs`, `cli/rust/crates/prose-cli/tests/cli.rs`; shared runner plumbing and schemas require separate recorded extension. Bun implementation reserved for later independent agent; no agent edits both product trees.
+
+Root integration lease extension: `cli/rust/crates/prose-runner-core/src/runner.rs`, `cli/conformance/runner/run.py`, `cli/conformance/runner/test_runner.py`, `cli/conformance/cases/case-manifest.schema.json`, `cli/shared/tests/test_contracts.py`, `cli/bun/test/shared-contract.test.ts` solely for new config corpus plumbing/schema registration. Existing counts and safety must match actual corpus, no relaxed assertions.
+
+`/root/configuration_contract` Bun implementation wave exact paths: `cli/bun/src/core/config.ts`, `cli/bun/src/core/args.ts`, `cli/bun/src/core/types.ts`, `cli/bun/src/core/output.ts`, `cli/bun/src/cli.ts`, `cli/bun/test/config.test.ts`, `cli/bun/test/args.test.ts`. Implements frozen `docs/user-configuration.md` independently from Rust, using shared production-v2 corpus/schema. May request focused new testpath; no Rust/shared/runner edits/Git/index/provider calls. Root integrates and runs full admission.
+
+IMP-097 Bun lease extension: `/root/configuration_contract` exact new test path `cli/bun/test/config-production.test.ts` for real runCli execution of independent shared setup cases.
+
+`/root/conformance_plumbing` replaces root's reserved plumbing lease on exact paths `cli/conformance/runner/run.py`, `cli/conformance/runner/test_runner.py`, `cli/conformance/cases/case-manifest.schema.json`, `cli/shared/tests/test_contracts.py`. Scope: provider-free configurationFixture setup and independently asserted unchanged/absent/expected-file effects, safe isolated roots, case/schema validation and actual counts. No product/schema-explanation edits/Git/deps/model calls. Root owns remaining shared/Bun schema registration and integration.
+
+IMP-097 Bun fixture reconciliation lease: `/root/configuration_contract` exact paths `cli/bun/test/discovery.test.ts`, `cli/bun/test/reporting-parity.test.ts`, `cli/bun/test/cli.test.ts`, `cli/bun/test/dx-parity.test.ts`, `cli/bun/test/adapters-installed.test.ts` solely to reconcile intended new explanation/contextual defaults/safe validation behavior. Preserve process lifecycle/transport/budget assertions, require focused failure evidence before edits, and report shared fixture changes for root. No passing by suppressing or skipping failures.
+
+IMP-097 root reclaims frozen explanation schema for nullable default permissionMode correction only; closed explicit permission values remain unchanged.
+
+IMP-097 fixture reconciliation extension: `/root/configuration_contract` owns `cli/shared/fixtures/operations/configuration-explanation.json`, `cli/shared/fixtures/config/optional-reporting.json`, `cli/shared/fixtures/dx/dry-run-default-hosted.json`, `cli/shared/fixtures/dx/dry-run-mock.json`, `cli/shared/fixtures/dx/dry-run-prime.json` for measured complete explanation/default-profile and public auth-profile reporting. Preserve concise summary defaultsOmitted and other fields. Root retains schema and Rust.
+
+IMP-097 independent Rust black-box test wave: `/root/sdk_final_review` owns new `cli/rust/crates/prose-cli/tests/config_production.rs` only, provider-free isolated migration/unset/exact explanation/redaction evidence against frozen design. No existing source/Git/dependency edits.
+
+IMP-097 Bun measured compiled-identity fixture extension: `/root/configuration_contract` owns `cli/bun/test/build-identity.test.ts` for canonical HOME/.prose saved-path assertions only. Preserve build digest/signature/reproducibility assertions.
+
+IMP-097 root fixture consistency extension: `cli/shared/fixtures/operations/doctor-report.json` configuration subobject only, to match the same resolver explanation oracle required by existing shared contract.
+
+IMP-097 Rust measured fixture reconciliation: `/root/sdk_final_review` owns `cli/rust/crates/prose-cli/tests/cli.rs` in place of root, limited to observed existing expectation changes for canonical paths, full explanation and earlier safe semantic validation. Preserve independent safety/lifecycle checks and report actual source failures. Root retains all production Rust.
+
+IMP-097 actual differential repair wave: `/root/conformance_plumbing` owns `cli/conformance/cases/operations/harness-use-user.json`, `harness-use-prime-bundle.json`, `harness-use-omp-bundle.json`, `config-production-03.json`, `config-production-04.json`, `config-production-05.json`, `config-production-09.json`, `config-production-10.json` in that same directory, plus `cli/conformance/runner/run.py` and `test_runner.py`. Scope canonical path controls, complete frozen expected source/diagnostic array objects and truthful isolated Git discovery boundary before filesystem baselines. Do not relax normalization/deep comparisons; preserve within-workspace ancestor discovery.
+
+IMP-097 root full-admission repair lease: `cli/ci/check_architecture.py`, `cli/ci/test_check_architecture.py` only to stop propagating argv taint through Rust's nonbinding discard pattern `_`. Preserve real aliases and opaque-program file-read prohibitions; regression must show actual argv-derived reads still fail.
+
+IMP-097 root formatting-only integration: completed independent test lanes release `cli/rust/crates/prose-cli/tests/cli.rs` and `cli/rust/crates/prose-cli/tests/config_production.rs` to root for Rust1.87 rustfmt corrections required by full admission. No test semantics change.
+
+IMP-097 root Clippy admission cleanup extends exact lease to `cli/rust/crates/prose-cli/tests/service_programs.rs` only for removing an already-unused serde_json::json import exposed by all-target admission. Root keeps main.rs configuration preparation refactor and config.rs documentation/style corrections; no altered runtime behavior or lint suppression.
+
+IMP-097 root compiled test-seam reconciliation: `cli/rust/crates/prose-cli/tests/cli.rs` three saved-bundle byte expectations only, in `harness_use_persists_an_explicit_prime_bundle_from_suffix_or_prefix_without_spawning`, `codex_claude_and_openprose_switches_clear_stale_bundle_values`, and `assert_harness_guidance_executes_directly`. Full-admission failures show the frozen alphabetic auth_profile/harness/model publication order; preserve exact comparisons and no-spawn/unchanged checks.
+
+IMP-097 measured full-Bun admission repair: `configuration_contract` owns `cli/bun/test/cli.test.ts` expectedConfiguration location adaptation only. Shared complete report originates in a one-directory fixture; the real worktree fixture visits cwd, cli and repository root before its Git boundary. Retain independent complete comparisons and explicit expected filesystem context; no production/shared-schema changes or received-report copying. Root owns integration.
+
+IMP-097 measured adapter adversary admission: `config_assessment` owns `cli/conformance/adversarial/adapter-products/test_adapter_products.py` to diagnose the 16 configuration-before-readiness failures in full admission 13. Preserve credential canaries, strict schema/exit/readiness checks and no-spawn assertions. Correct valid fixture inputs only after measuring actual stdout. No product changes, Git or heavy builds.
+
+IMP-097 measured release rehearsal admission: `conformance_plumbing` owns `cli/ci/rehearse_release.py` and `cli/ci/test_rehearse_release.py` narrowly to update the frozen current-corpus count from 64 to the reviewed 76 configuration cases and exact 3N/2N/5N validation totals. Preserve historical snapshot replay, mutations, secretion/redaction, custody and wrong-count rejection. Existing full14 passed packaging and failed only this stale gate. No dynamic relaxation, Git or heavy real rehearsal builds. Root integrates SDK branch-specific 100-case count after merge.

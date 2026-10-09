@@ -62,6 +62,9 @@ pub enum RunnerCommand {
     HarnessUse(String),
     CleanupPrime(String),
     ConfigExplain,
+    ConfigExplainTarget(Vec<String>),
+    ConfigMigrate,
+    ConfigUnset(Vec<String>),
     AuthStatus,
     AuthLogin,
     AuthLogout,
@@ -487,10 +490,10 @@ fn parse_runner_command(
         {
             if !matches!(
                 harness_id.as_str(),
-                "openprose" | "prime" | "omp" | "codex" | "claude"
+                "openprose" | "agents-sdk" | "prime" | "omp" | "codex" | "claude"
             ) {
                 return Err(RunnerError::invocation(
-                    "Harness selection must be one of openprose, prime, omp, codex, or claude.",
+                    "Harness selection must be one of openprose, agents-sdk, prime, omp, codex, or claude.",
                 ));
             }
             (RunnerCommand::HarnessUse(harness_id.clone()), tail)
@@ -499,7 +502,50 @@ fn parse_runner_command(
             (RunnerCommand::CleanupPrime(handle.clone()), tail)
         }
         [config, explain, tail @ ..] if config == "config" && explain == "explain" => {
+            if let Some(separator) = tail.iter().position(|word| word == "--") {
+                let json = match &tail[..separator] {
+                    [] => false,
+                    [flag] if flag == "--json" => true,
+                    _ => {
+                        return Err(RunnerError::invocation(
+                            "Config explain accepts only --json before the target separator.",
+                        ));
+                    }
+                };
+                if *globals != GlobalFlags::default() {
+                    return Err(RunnerError::invocation(
+                        "Pass target runner options after the config explain separator.",
+                    ));
+                }
+                let target = parse_invocation(tail[separator + 1..].iter().cloned())?;
+                let Action::Forward { argv, .. } = target.action else {
+                    return Err(RunnerError::invocation(
+                        "Config explain target must be a language invocation, not a runner operation.",
+                    ));
+                };
+                *globals = target.globals;
+                return Ok(Action::Runner {
+                    command: RunnerCommand::ConfigExplainTarget(argv),
+                    json,
+                });
+            }
             (RunnerCommand::ConfigExplain, tail)
+        }
+        [config, migrate, tail @ ..] if config == "config" && migrate == "migrate" => {
+            (RunnerCommand::ConfigMigrate, tail)
+        }
+        [config, unset, tail @ ..] if config == "config" && unset == "unset" => {
+            let json = tail.last().is_some_and(|flag| flag == "--json");
+            let keys = if json { &tail[..tail.len() - 1] } else { tail };
+            if keys.is_empty() || keys.iter().any(|key| key.starts_with('-')) {
+                return Err(RunnerError::invocation(
+                    "Config unset requires one or more configuration file keys.",
+                ));
+            }
+            return Ok(Action::Runner {
+                command: RunnerCommand::ConfigUnset(keys.to_vec()),
+                json,
+            });
         }
         [org, list, tail @ ..] if org == "org" && list == "list" => (RunnerCommand::OrgList, tail),
         [auth, status, tail @ ..] if auth == "auth" && status == "status" => {
@@ -720,7 +766,7 @@ mod tests {
             ),
             (
                 vec!["cli", "harness", "use", "nope"],
-                "Harness selection must be one of openprose, prime, omp, codex, or claude.",
+                "Harness selection must be one of openprose, agents-sdk, prime, omp, codex, or claude.",
             ),
         ] {
             assert_invocation_error(&args, reason);

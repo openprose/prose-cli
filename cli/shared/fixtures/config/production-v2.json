@@ -1,0 +1,183 @@
+{
+  "schema": "openprose.configuration-production-corpus/2",
+  "summary": "Deterministic provider-free setup and side-effect checks for the twelve matching black-box cases. Paths are relative to the isolated product workspace. No setup invokes a product or provider. Root runner must compare unchanged bytes, explicit absent paths and outputAbsent strings after execution.",
+  "cases": [
+    {
+      "id": "operations.config-production-01",
+      "setup": {
+        "files": {},
+        "directories": [],
+        "checks": {
+          "unchangedFiles": true,
+          "absent": [
+            "home/.prose/cli.toml"
+          ]
+        }
+      }
+    },
+    {
+      "id": "operations.config-production-02",
+      "setup": {
+        "files": {},
+        "directories": [],
+        "checks": {
+          "unchangedFiles": true,
+          "absent": [
+            "home/.prose/cli.toml"
+          ]
+        }
+      }
+    },
+    {
+      "id": "operations.config-production-03",
+      "setup": {
+        "files": {
+          "home/.prose/cli.toml": "timeout = \"1m\"\n",
+          ".prose/cli.toml": "timeout = \"2m\"\n"
+        },
+        "directories": [],
+        "checks": {
+          "unchangedFiles": true,
+          "absent": []
+        }
+      }
+    },
+    {
+      "id": "operations.config-production-04",
+      "setup": {
+        "files": {
+          "config/openprose/cli.toml": "# Keep this preference\nharness = \"codex\"\nmodel = \"gpt-6.1-sol\"\nverbose = true\n"
+        },
+        "directories": [],
+        "checks": {
+          "unchangedFiles": true,
+          "absent": [
+            "home/.prose/cli.toml"
+          ]
+        }
+      }
+    },
+    {
+      "id": "operations.config-production-05",
+      "setup": {
+        "files": {
+          "home/.prose/cli.toml": "harness = \"agents-sdk\"\n",
+          "config/openprose/cli.toml": "# Keep this preference\nharness = \"codex\"\nmodel = \"gpt-6.1-sol\"\nverbose = true\n"
+        },
+        "directories": [],
+        "checks": {
+          "unchangedFiles": true,
+          "absent": []
+        }
+      }
+    },
+    {
+      "id": "operations.config-production-06",
+      "setup": {
+        "files": {
+          "config/openprose/cli.toml": "# Keep this preference\nharness = \"codex\"\nmodel = \"gpt-6.1-sol\"\nverbose = true\n"
+        },
+        "directories": [],
+        "checks": {
+          "unchangedFiles": [
+            "config/openprose/cli.toml"
+          ],
+          "files": {
+            "home/.prose/cli.toml": "# Keep this preference\nharness = \"codex\"\nmodel = \"gpt-6.1-sol\"\nverbose = true\n"
+          },
+          "absent": []
+        }
+      }
+    },
+    {
+      "id": "operations.config-production-07",
+      "setup": {
+        "files": {
+          "config/openprose/cli.toml": "# Keep this preference\nharness = \"codex\"\nmodel = \"gpt-6.1-sol\"\nverbose = true\n",
+          "home/.prose/cli.toml": "verbose = false\n"
+        },
+        "directories": [],
+        "checks": {
+          "unchangedFiles": true,
+          "absent": []
+        }
+      }
+    },
+    {
+      "id": "operations.config-production-08",
+      "setup": {
+        "files": {
+          "home/.prose/cli.toml": "# Keep this comment\ntimeout = \"2m\"\nverbose = true\n"
+        },
+        "directories": [],
+        "checks": {
+          "files": {
+            "home/.prose/cli.toml": "# Keep this comment\nverbose = true\n"
+          },
+          "absent": []
+        }
+      }
+    },
+    {
+      "id": "operations.config-production-09",
+      "setup": {
+        "files": {
+          "home/.prose/cli.toml": "model = \"safe-model\"\napi_key = \"fixture-secret-do-not-print\"\n"
+        },
+        "directories": [],
+        "checks": {
+          "unchangedFiles": true,
+          "absent": [],
+          "outputAbsent": [
+            "fixture-secret-do-not-print",
+            "api_key ="
+          ]
+        }
+      }
+    },
+    {
+      "id": "operations.config-production-10",
+      "setup": {
+        "files": {
+          "home/.prose/cli.toml": "harness = \"codex\"\nauth_profile = \"cached-chatgpt-login\"\nmodel = \"gpt-6.1-sol\"\n"
+        },
+        "directories": [],
+        "checks": {
+          "unchangedFiles": true,
+          "absent": []
+        }
+      }
+    },
+    {
+      "id": "operations.config-production-11",
+      "setup": {
+        "files": {
+          "custom root/cli.toml": "timeout = \"7m\"\n",
+          "home/.prose/cli.toml": "timeout = \"8m\"\n",
+          "config/openprose/cli.toml": "timeout = \"9m\"\n"
+        },
+        "directories": [],
+        "checks": {
+          "unchangedFiles": true,
+          "absent": []
+        }
+      }
+    },
+    {
+      "id": "operations.config-production-12",
+      "setup": {
+        "files": {
+          "work space/.prose/cli.toml": "timeout = \"6m\"\n",
+          ".prose/cli.toml": "timeout = \"5m\"\n"
+        },
+        "directories": [],
+        "checks": {
+          "unchangedFiles": true,
+          "absent": [
+            "home/.prose/cli.toml"
+          ]
+        }
+      }
+    }
+  ]
+}

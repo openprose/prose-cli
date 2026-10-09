@@ -1221,6 +1221,10 @@ def _tainted_names(code: str, *, rust: bool) -> set[str]:
     while changed:
         changed = False
         for name, expression in assignments:
+            # Rust's `_` is a discard pattern, never a bound local. Treating
+            # it as an alias also taints unrelated closure parameters `|_|`.
+            if rust and name == "_":
+                continue
             if name not in tainted and (
                 seed in expression
                 or ".argv" in expression

@@ -20,6 +20,9 @@
         "fixedTimestamp": { "type": "string", "format": "date-time" },
         "fixedMonotonicMs": { "type": "integer", "minimum": 0 },
         "network": { "const": "denied" },
+        "configurationFixture": {
+          "enum": ["operations.config-production-01", "operations.config-production-02", "operations.config-production-03", "operations.config-production-04", "operations.config-production-05", "operations.config-production-06", "operations.config-production-07", "operations.config-production-08", "operations.config-production-09", "operations.config-production-10", "operations.config-production-11", "operations.config-production-12"]
+        },
         "omitEnvironment": {
           "type": "array",
           "uniqueItems": true,

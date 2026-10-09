@@ -38,12 +38,12 @@
       "schema": "openprose.harness-selection/1",
       "harness": "omp",
       "scope": "user",
-      "path": "{{WORKSPACE}}/config/openprose/cli.toml",
+      "path": "{{WORKSPACE}}/home/.prose/cli.toml",
       "changed": true
     },
     "fileEffects": [
       {
-        "path": "{{WORKSPACE}}/config/openprose/cli.toml",
+        "path": "{{WORKSPACE}}/home/.prose/cli.toml",
         "utf8": "auth_profile = \"omp-harness-login\"\nharness = \"omp\"\nmodel = \"fixture/model\"\n"
       }
     ]

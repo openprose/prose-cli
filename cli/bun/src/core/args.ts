@@ -1,3 +1,4 @@
+import { CONFIGURATION_KEYS } from "./config";
 import { parsePackageCommand } from "./package-args";
 import { invocationFailure } from "./errors";
 import { quote } from "./output";
@@ -152,6 +153,23 @@ function globalKind(name: string): boolean | undefined {
 
 function parseOperation(global: GlobalFlags, tokens: readonly string[], full: readonly string[]): ParsedEntrypoint {
   if (tokens[0] === "weave") return { kind: "weave", global, argv: [...tokens.slice(1)] };
+  if (tokens[0] === "config" && tokens[1] === "explain" && tokens.includes("--")) {
+    const separator = tokens.indexOf("--");
+    const prefix = tokens.slice(2, separator);
+    if (prefix.some(token => token !== "--json") || prefix.length > 1 || Object.keys(global).length > 0) invalid("Exact configuration explanation requires options inside its target vector.");
+    const target = parseEntrypoint(tokens.slice(separator + 1));
+    if (target.kind !== "language" || target.argv.length < 2 || (target.redirect !== undefined && target.redirect.language !== true)) invalid("Configuration explanation requires a local language command.");
+    return { kind: "operation", global: target.global, operation: "config-explain", json: prefix.includes("--json"), targetArgv: target.argv };
+  }
+  if (tokens[0] === "config" && ["migrate", "unset"].includes(tokens[1] ?? "")) {
+    if(tokens.length === 3 && ["--help","-h"].includes(tokens[2]!)) return {kind:"help",global};
+    const rest = tokens.slice(2); const json = rest.at(-1) === "--json";
+    if (json) rest.pop();
+    if (Object.keys(global).some(key => !["output", "color", "verbose"].includes(key))) invalid("Configuration mutation does not accept runner execution flags.");
+    if (tokens[1] === "migrate" && rest.length !== 0) invalid("Configuration migrate does not accept operands.");
+    if (tokens[1] === "unset" && (rest.length === 0 || rest.some(key => !CONFIGURATION_KEYS.includes(key)))) invalid("Configuration unset requires known configuration keys.");
+    return { kind: "operation", global, operation: tokens[1] === "migrate" ? "config-migrate" : "config-unset", json, configKeys: [...new Set(rest)] };
+  }
   // Help is text in every mode, so `--json` beside a help request is
   // dropped.
   const unjson = helpWithoutJson(tokens) ?? tokens;
@@ -226,8 +244,8 @@ function withInvocationAction(error: RunnerFailure, action: string): RunnerFailu
 
 function parseHarnessUse(global: GlobalFlags, args: readonly string[]): ParsedEntrypoint {
   const harness = args[0];
-  if (harness === undefined || !["openprose", "prime", "omp", "codex", "claude"].includes(harness)) {
-    invalid("Harness selection must be one of openprose, prime, omp, codex, or claude.");
+  if (harness === undefined || !["openprose", "agents-sdk", "prime", "omp", "codex", "claude"].includes(harness)) {
+    invalid("Harness selection must be one of openprose, agents-sdk, prime, omp, codex, or claude.");
   }
 
   let json = false;
@@ -280,6 +298,7 @@ function knownRunnerHelpPath(args: readonly string[]): boolean {
 }
 
 export function inferOutputMode(args: readonly string[]): OutputMode {
+  if (args[0] === "cli" && args[1] === "config" && args.slice(2, args.indexOf("--") < 0 ? args.length : args.indexOf("--")).includes("--json")) return "json";
   let index = 0;
   let mode: OutputMode = "human";
   while (index < args.length) {
