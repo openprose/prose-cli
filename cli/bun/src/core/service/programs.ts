@@ -162,10 +162,7 @@ async function list(context: Context): Promise<Json> {
 
 /** `program show` reads anonymously when no credential is configured (public programs). */
 async function hasCredential(context: Context): Promise<boolean> {
-  const value = context.deps.env[context.environment.credentialEnv];
-  if (value !== undefined && value !== "") return true;
-  try { return (await context.transport.storedCredential()) !== null; }
-  catch { return false; }
+  return await context.credentialConfigured();
 }
 
 function fileLine(label: string, file: JsonObject, target: string | undefined): string {

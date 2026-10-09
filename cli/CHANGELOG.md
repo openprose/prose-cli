@@ -23,6 +23,15 @@ a candidate do not establish public availability or authorize publication.
   the help no longer call the hold flat. `run quote --model` with a model the
   service does not offer now returns `SERVICE_REQUEST_REJECTED` instead of
   being ignored.
+- Quotes are program-aware: the `run submit` plan posts its exact submission
+  body to the quote, `run quote FILE` posts the program and `run quote --from`
+  names it, and the `job create` plan names its pinned `program_ref`, so the
+  program's own run settings and declared tools count; explicit options
+  override them. `run quote` reports the service's `basis` (each value and its
+  source). The CLI still never inspects program text.
+- `sync_service_interactions.py` accepts the service's public interaction
+  projection (`openprose.*-interactions/2`), which carries no principals
+  table; the vendored catalog is re-vendored from it.
 - `job create` webhook specs accept `model`, `reasoning_effort`,
   `repository_url`, `repository_branch` and `output` for the connected
   contract (the service requires `program_ref` with them).

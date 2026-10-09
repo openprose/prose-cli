@@ -272,25 +272,6 @@ fn list(context: &mut Context<'_>) -> Result<Value, RunnerError> {
     Ok(json!({ "programs": programs }))
 }
 
-/// `program show` reads anonymously when no credential is configured (public
-/// programs); a configured key is always sent, so owners see private ones.
-fn has_credential(context: &mut Context<'_>) -> bool {
-    let variable = context.environment.credential_env;
-    if context
-        .system
-        .environment
-        .get(variable)
-        .is_some_and(|value| !value.is_empty())
-    {
-        return true;
-    }
-    let environment = context.environment.clone();
-    matches!(
-        context.transport.stored_credential(&environment),
-        Ok(Some(_))
-    )
-}
-
 /// A bare SLUG that is not one of the caller's programs: when the caller's
 /// program list (manifest request 2) has one slug within two edits, the
 /// suggestion is the same command with that slug. The listing is advisory: a
@@ -375,7 +356,10 @@ fn show(context: &mut Context<'_>) -> Result<Value, RunnerError> {
         path.push_str(rev);
     }
     let mut request = Request::from_manifest(context.operation, 0, path);
-    request.bearer = has_credential(context);
+    // `program show` reads anonymously when no credential is configured
+    // (public programs); a configured key is always sent, so owners see
+    // private ones.
+    request.bearer = context.has_credential();
     let body = context.send(&request)?.json_object()?;
     let record = body.get("program").cloned().unwrap_or(Value::Null);
     let program = project(&record, true, false)?;

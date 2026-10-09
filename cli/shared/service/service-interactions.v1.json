@@ -497,6 +497,21 @@
         {
           "method": "GET",
           "path": "/run/quote",
+          "auth": "api_key_or_session_token"
+        },
+        {
+          "method": "GET",
+          "path": "/run/quote",
+          "auth": "none"
+        },
+        {
+          "method": "POST",
+          "path": "/run/quote",
+          "auth": "api_key_or_session_token"
+        },
+        {
+          "method": "POST",
+          "path": "/run/quote",
           "auth": "none"
         }
       ]

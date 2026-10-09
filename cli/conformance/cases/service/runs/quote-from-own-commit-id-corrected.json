@@ -1,0 +1,118 @@
+{
+  "id": "quote-from-own-commit-id-corrected",
+  "feature": "runs",
+  "operation": "run.quote",
+  "description": "`run quote --from SLUG@COMMIT_ID` names the rev_id to pass, as `run submit` does; nothing is quoted.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "quote",
+    "--from",
+    "hello@2222222222222222"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "clock": {
+      "start": "2026-09-24T01:00:00.000Z",
+      "stepMs": 0
+    },
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/health",
+        "status": 200,
+        "body": {
+          "status": "ok",
+          "environments": {
+            "default": "builtin",
+            "available": [
+              "builtin",
+              "linux"
+            ]
+          },
+          "models": [
+            "model-luna",
+            "model-sol"
+          ],
+          "default_model": "model-luna",
+          "version": "9.9.9-extra",
+          "capabilities": {
+            "web:search": {
+              "available": true,
+              "tool": "web_search"
+            }
+          }
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/programs/hello/revisions",
+        "status": 200,
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "body": {
+          "revisions": [
+            {
+              "owner": "octo",
+              "slug": "hello",
+              "rev": 2,
+              "rev_id": "0123456789abcdef",
+              "commit_id": "1111111111111111",
+              "parent_commit_id": "2222222222222222",
+              "updated_at": 1790212199320
+            },
+            {
+              "owner": "octo",
+              "slug": "hello",
+              "rev": 1,
+              "rev_id": "fedcba9876543210",
+              "commit_id": "2222222222222222",
+              "parent_commit_id": null,
+              "updated_at": 1790212000000
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "run.quote",
+      "operation": "run.quote",
+      "problem": {
+        "action": "Pass the rev_id: `prose --output json cli run quote --from hello@fedcba9876543210`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "2222222222222222 is the commit_id of octo/hello rev 1, not a rev_id; a program reference pins the rev_id, fedcba9876543210",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "run",
+            "quote",
+            "--from",
+            "hello@fedcba9876543210"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "stderr": {
+    "text": ""
+  }
+}

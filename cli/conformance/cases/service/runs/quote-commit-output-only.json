@@ -82,7 +82,7 @@
           "hold_usd": "1.02",
           "ttl_seconds": 900
         },
-        "holdBasis": "depends on model, reasoning effort, environment, declared tools and repositories; quoted from the options given, without the program's own run settings or declared tools; a run's price is known only after it settles",
+        "holdBasis": "depends on model, reasoning effort, environment, declared tools and repositories; quoted for the program and options given (basis names where each came from); a run's price is known only after it settles",
         "note": "Unused hold is released when the run settles."
       },
       "schema": "openprose.service-operation/1"

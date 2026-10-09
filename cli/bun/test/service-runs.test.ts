@@ -87,6 +87,32 @@ describe("Service run lifecycle", () => {
     expect(problem.details.reason).toBe("--input notes file \"big.txt\" is larger than 1048576 bytes");
   });
 
+  test("a quote basis is projected only when well formed", () => {
+    const entry = (value: unknown, source = "program") => ({ value, source });
+    const basis = { model: entry("model-luna"), reasoning_effort: entry("medium"), environment: entry("builtin", "default"), tools: entry([], "default"), repositories: entry(2, "request") };
+    expect(__test.projectBasis(basis as never) as unknown).toEqual(basis);
+    expect(__test.basisLine(__test.projectBasis(basis as never))).toBe("model model-luna (program); reasoning effort medium (program); environment builtin (default); tools none (default); repositories 2 (request)");
+    expect(__test.projectBasis({ ...basis, extra: entry("x"), model: { ...entry("model-luna"), note: "x" } } as never) as unknown).toEqual(basis);
+    const malformed = [
+      { ...basis, model: undefined },
+      { ...basis, model: { value: "model-luna" } },
+      { ...basis, model: entry("") },
+      { ...basis, model: entry("x".repeat(65)) },
+      { ...basis, environment: entry("built\nin") },
+      { ...basis, tools: entry(Array.from({ length: 17 }, (_, index) => `tool-${index}`)) },
+      { ...basis, repositories: entry(-1) },
+      { ...basis, repositories: entry(1.5) },
+      { ...basis, reasoning_effort: entry("medium", "service") },
+    ];
+    for (const value of malformed) expect(() => __test.projectBasis(value as never)).toThrow();
+    const reason = (value: unknown): unknown => {
+      try { __test.projectBasis(value as never); } catch (caught) { return (caught as { details?: { reason?: unknown } }).details?.reason; }
+      return undefined;
+    };
+    expect(reason([])).toBe("quote basis is malformed");
+    expect(reason({ ...basis, tools: entry("web:search"), repositories: entry(-1) })).toBe("quote basis.tools is missing or malformed");
+  });
+
   test("a program file over 1 MiB is rejected before any request", async () => {
     const result = await cli(submit("big.prose.md", "--yes"), (home) => {
       writeFileSync(join(home, "big.prose.md"), "x".repeat(MEBIBYTE + 1));
@@ -99,7 +125,7 @@ describe("Service run lifecycle", () => {
     const result = await cli(submit("p.prose.md", "--input", "notes=@max.txt", "--preview"), (home) => {
       writeFileSync(join(home, "p.prose.md"), "Reply ok.\n");
       writeFileSync(join(home, "max.txt"), "y".repeat(MEBIBYTE));
-    }, { environment: "production", exchanges: [{ method: "GET", path: "/run/quote", status: 200, body: { hold: { hold_usd: "1.02", ttl_seconds: 900 }, pricing_policy_id: "p" } }] });
+    }, { environment: "production", exchanges: [{ method: "POST", path: "/run/quote", status: 200, body: { hold: { hold_usd: "1.02", ttl_seconds: 900 }, pricing_policy_id: "p" } }] });
     expect(result.code).toBe(0);
     const planned = JSON.parse(result.stdout).result.plannedRequest;
     expect(planned.bodyBytes).toBeGreaterThan(MEBIBYTE);

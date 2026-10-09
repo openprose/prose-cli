@@ -106,11 +106,11 @@ use is released. Short runs usually cost a few cents.
 
 Estimate from your own history: `prose cli wallet usage` prints runs and
 prices by day, and `prose cli wallet balance` shows what is available and
-what is reserved right now. `prose cli run quote --json` reports the hold for
-the `--model`, `--reasoning-effort`, `--environment`, `--repo` and
-`--commit-output` you give it. It does not read the program, so a program
-that sets its own model, effort or environment, or declares tools, can hold a
-different amount.
+what is reserved right now. `prose cli run quote FILE --json` (or `--from
+OWNER/SLUG`) reports the hold for that program, including its own run
+settings and declared tools; `--model`, `--reasoning-effort`, `--environment`,
+`--repo` and `--commit-output` override them. `result.basis` names where each
+value came from (request, program or default).
 
 Premium models unlock with any wallet top-up; `prose cli model list` shows
 each model's status.
@@ -199,8 +199,8 @@ A command that spends money, publishes, deletes or cannot be undone needs
 invalidates the old one now), `details.plannedRequest` (the method, what the
 request does as `description`, its non-secret inputs as `summary`: model, programRef, inputKeys,
 amount_cents, slug; and for `cli run submit`, `cli program draft` and a paid
-`cli job create` the service's hold quote for the options or spec given, and
-for `cli program draft` the parameter-free quote),
+`cli job create` the service's hold quote for that program and the options or
+spec given, and for `cli program draft` the parameter-free quote),
 `details.confirmArgv` and
 `details.previewArgv`. `--preview` prints the same plan, exits 0 and changes
 nothing. An unknown `--model`, an `--environment` or `--runtime` that

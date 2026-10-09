@@ -184,6 +184,7 @@
             "organization_not_found",
             "paid_model_required",
             "paid_top_up_required",
+            "program_not_found",
             "provider_tier_unavailable",
             "rate_limited",
             "reserved_slug",

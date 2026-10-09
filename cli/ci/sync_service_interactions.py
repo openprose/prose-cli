@@ -5,8 +5,10 @@
     python3 cli/ci/sync_service_interactions.py --check [--from EXPORT_FILE]
 
 EXPORT_FILE is the OpenProse service's interaction export: a JSON object
-with `schema` (an `openprose.*-interactions/1` id),
-`principals` and `interactions`, where each interaction has an `id`, a
+with `schema` (an `openprose.*-interactions/1` id), `principals` and
+`interactions`. The service's public projection (`openprose.*-interactions/2`)
+is also accepted; it lists only allowlisted interactions and carries no
+`principals` table. In both, each interaction has an `id`, a
 `principal`, an `effect`, `reversible`, an `agent` policy and its `routes`
 (`method`, `path`, `auth`). The export is checked against that public
 format, then projected before it is written to
@@ -45,7 +47,10 @@ MANIFEST = SERVICE / "operations.v1.json"
 
 SCHEMA = "openprose.service-interactions/1"
 # An export names its own interactions schema; the projection always uses SCHEMA.
-EXPORT_SCHEMA = re.compile(r"^openprose\.[a-z0-9-]+-interactions/1$")
+EXPORT_SCHEMA = re.compile(r"^openprose\.[a-z0-9-]+-interactions/[12]$")
+# The public projection (/2) publishes no principals table; its interactions
+# must still use only the public principals.
+PUBLIC_EXPORT_SCHEMA = re.compile(r"^openprose\.[a-z0-9-]+-interactions/2$")
 # The public export format: the fields this client reads. An export must
 # carry them; the vendored projection carries exactly them.
 TOP_KEYS = {"schema", "principals", "interactions"}
@@ -115,7 +120,11 @@ def validate_interactions(doc: dict, exact: bool) -> dict:
 
 def validate_export(data: bytes) -> dict:
     """Checks an export against the public format. Raises SyncError on any violation."""
-    return validate_interactions(parse(data), exact=False)
+    doc = parse(data)
+    schema = doc.get("schema")
+    if isinstance(schema, str) and PUBLIC_EXPORT_SCHEMA.match(schema) and "principals" not in doc:
+        doc = dict(doc, principals=sorted(PRINCIPALS))
+    return validate_interactions(doc, exact=False)
 
 
 def manifest_usage(manifest: dict) -> tuple[set[str], set[tuple[str, str, str, str]]]:

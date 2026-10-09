@@ -1,0 +1,122 @@
+{
+  "id": "quote-basis-malformed",
+  "feature": "runs",
+  "operation": "run.quote",
+  "description": "A malformed basis is SERVICE_PROTOCOL_INVALID.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "run",
+    "quote",
+    "--from",
+    "exowner1/hello"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/health",
+        "status": 200,
+        "body": {
+          "status": "ok",
+          "environments": {
+            "default": "builtin",
+            "available": [
+              "builtin",
+              "linux"
+            ]
+          },
+          "models": [
+            "model-luna",
+            "model-sol"
+          ],
+          "default_model": "model-luna",
+          "version": "9.9.9-extra",
+          "capabilities": {
+            "web:search": {
+              "available": true,
+              "tool": "web_search"
+            }
+          }
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/run/quote",
+        "query": {
+          "program_ref": "exowner1/hello"
+        },
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          }
+        },
+        "status": 200,
+        "body": {
+          "hold": {
+            "hold_usd": "1.02",
+            "ttl_seconds": 900
+          },
+          "pricing_policy_id": "pricing-policy.sha256.f114eadc02b7550e58f12c49996382b04f867cb774ac295506806f599ef1e3cd",
+          "note": "Unused hold is released when the run settles.",
+          "basis": {
+            "model": {
+              "value": "model-luna",
+              "source": "program"
+            },
+            "reasoning_effort": {
+              "value": "medium",
+              "source": "program"
+            },
+            "environment": {
+              "value": "builtin",
+              "source": "default"
+            },
+            "tools": {
+              "value": "web:search",
+              "source": "program"
+            },
+            "repositories": {
+              "value": 0,
+              "source": "default"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "run.quote",
+      "operation": "run.quote",
+      "problem": {
+        "action": "Retry later and report the sanitized error code if it persists.",
+        "boundary": "protocol",
+        "code": "SERVICE_PROTOCOL_INVALID",
+        "details": {
+          "reason": "quote basis.tools is missing or malformed"
+        },
+        "exitCode": 10,
+        "message": "The OpenProse service returned an invalid response.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "9.9.9-extra",
+    "web_search"
+  ],
+  "stderr": {
+    "text": ""
+  }
+}

@@ -402,16 +402,19 @@ fn quote_fields(body: &Map<String, Value>) -> Result<Value, RunnerError> {
 
 /// `run quote` `holdBasis`: what the hold depends on and what the quote
 /// covers; the hold is not a price estimate.
-const HOLD_BASIS: &str = "depends on model, reasoning effort, environment, declared tools and repositories; quoted from the options given, without the program's own run settings or declared tools; a run's price is known only after it settles";
+const HOLD_BASIS: &str = "depends on model, reasoning effort, environment, declared tools and repositories; quoted for the program and options given (basis names where each came from); a run's price is known only after it settles";
 
 /// The `run quote` human line naming what the hold depends on.
-const HOLD_DEPENDS_ON: &str = "Depends on: model, reasoning effort, environment, declared tools and repositories; quoted from the options given, without the program's own run settings or declared tools";
+const HOLD_DEPENDS_ON: &str = "Depends on: model, reasoning effort, environment, declared tools and repositories; quoted for the program and options given";
+
+/// The most declared tools a quote basis names.
+const MAX_BASIS_TOOLS: usize = 16;
 
 /// Adds the hold options the caller gave to a `GET /run/quote` request, in
 /// manifest order. Only given options are sent, never defaults, so a quote
 /// without them stays parameter-free. Any bound repository sends
-/// `repositories=1`. The program is never read, so declared tools are not
-/// sent.
+/// `repositories=1`. With a `program_ref` they override the program's own
+/// values.
 pub(super) fn hold_query(
     mut request: Request,
     model: Option<&str>,
@@ -432,7 +435,101 @@ pub(super) fn hold_query(
     request
 }
 
+/// The `basis` of a quote: where each hold input came from. `None` when the
+/// service sends none (older services); anything else must be the five
+/// `{value, source}` entries, or the quote is `SERVICE_PROTOCOL_INVALID`.
+fn quote_basis(body: &Map<String, Value>) -> Result<Option<Value>, RunnerError> {
+    let basis = match body.get("basis") {
+        None | Some(Value::Null) => return Ok(None),
+        Some(Value::Object(basis)) => basis,
+        Some(_) => return Err(protocol("quote basis is malformed")),
+    };
+    let mut projected = Map::new();
+    for key in [
+        "model",
+        "reasoning_effort",
+        "environment",
+        "tools",
+        "repositories",
+    ] {
+        let malformed = || protocol(format!("quote basis.{key} is missing or malformed"));
+        let entry = basis
+            .get(key)
+            .and_then(Value::as_object)
+            .ok_or_else(malformed)?;
+        let source = entry
+            .get("source")
+            .and_then(Value::as_str)
+            .filter(|source| matches!(*source, "request" | "program" | "job_default" | "default"))
+            .ok_or_else(malformed)?;
+        let text = |value: &Value| {
+            value
+                .as_str()
+                .is_some_and(|text| render::valid_text(text, 64))
+        };
+        let value = entry.get("value").ok_or_else(malformed)?;
+        let valid = match key {
+            "tools" => value
+                .as_array()
+                .is_some_and(|tools| tools.len() <= MAX_BASIS_TOOLS && tools.iter().all(text)),
+            "repositories" => value.is_u64(),
+            _ => text(value),
+        };
+        if !valid {
+            return Err(malformed());
+        }
+        projected.insert(key.to_owned(), json!({"value": value, "source": source}));
+    }
+    Ok(Some(Value::Object(projected)))
+}
+
+/// The human `Basis:` line: each value with where it came from.
+fn basis_line(basis: &Value) -> String {
+    let part = |key: &str, label: &str| {
+        let entry = &basis[key];
+        let value = match &entry["value"] {
+            Value::Array(tools) if tools.is_empty() => "none".to_owned(),
+            Value::Array(tools) => tools
+                .iter()
+                .filter_map(Value::as_str)
+                .map(human_safe_scalar)
+                .collect::<Vec<_>>()
+                .join(", "),
+            Value::String(text) => human_safe_scalar(text),
+            other => other.to_string(),
+        };
+        format!(
+            "{label} {value} ({})",
+            entry["source"].as_str().unwrap_or_default()
+        )
+    };
+    format!(
+        "Basis: {}; {}; {}; {}; {}",
+        part("model", "model"),
+        part("reasoning_effort", "reasoning effort"),
+        part("environment", "environment"),
+        part("tools", "tools"),
+        part("repositories", "repositories")
+    )
+}
+
+/// The `POST /run/quote` request (3) for `run quote FILE`: the program and
+/// run options exactly as `run submit` sends them, never inputs.
+fn program_quote(context: &Context<'_>, file: &str) -> Result<Request, RunnerError> {
+    let options = run_options(context)?;
+    let program_text = read_program(context, file)?;
+    let mut body = Map::new();
+    body.insert("content".into(), json!(program_text));
+    let mut request = Request::from_manifest(context.operation, 3, "/run/quote");
+    request.query = add_run_options(&mut body, &options);
+    request.body = Some(render::canonical(&Value::Object(body)).into_bytes());
+    Ok(request)
+}
+
 fn quote(context: &mut Context<'_>) -> Result<Value, RunnerError> {
+    let file = context.argument("FILE").map(str::to_owned);
+    let from = context.option("--from").map(str::to_owned);
+    check_program_source(file.as_deref(), from.as_deref())?;
     let requested = context.option("--environment").map(str::to_owned);
     if let Some(environment) = &requested {
         if !valid_token(environment) {
@@ -442,9 +539,27 @@ fn quote(context: &mut Context<'_>) -> Result<Value, RunnerError> {
             )));
         }
     }
+    let program = file
+        .as_deref()
+        .map(|file| program_quote(context, file))
+        .transpose()?;
+    let reference = from
+        .as_deref()
+        .map(|value| program_ref::parse_own_allowed_with(value, true))
+        .transpose()?;
     let health = context
         .send(&Request::from_manifest(context.operation, 0, "/health"))?
         .json_object()?;
+    if program.is_some() {
+        // FILE: an environment or runtime the service does not offer is
+        // refused exactly as `run submit` refuses it.
+        check_offered_in(
+            context,
+            &Value::Object(health.clone()),
+            requested.as_deref(),
+            context.option("--runtime"),
+        )?;
+    }
     let environments = health.get("environments").cloned().unwrap_or(Value::Null);
     let available = environments["available"]
         .as_array()
@@ -475,13 +590,40 @@ fn quote(context: &mut Context<'_>) -> Result<Value, RunnerError> {
     };
     let repositories_bound = !context.invocation.option_values("--repo").is_empty()
         || context.option("--commit-output").is_some();
-    let request = hold_query(
-        Request::from_manifest(context.operation, 1, "/run/quote"),
-        context.option("--model"),
-        context.option("--reasoning-effort"),
-        requested.as_deref(),
-        repositories_bound,
-    );
+    let request = if let Some(mut request) = program {
+        // FILE: the service prices the program text (request 3).
+        request.bearer = context.has_credential();
+        request
+    } else if let Some(mut reference) = reference {
+        // --from: the service prices the saved program (request 2). A
+        // reference naming an owner is sent as given; a bare SLUG or `@N`
+        // is the caller's own program, pinned (and a given revision
+        // checked) through the caller's revisions first (request 4), as
+        // `run submit --from` does.
+        let program_ref = if reference.owner.is_empty() || reference.rev_number.is_some() {
+            program_ref::resolve_to_run(context, &mut reference, 4, None, Some("--from"), true)?
+        } else {
+            from.clone().unwrap_or_default()
+        };
+        let mut request = hold_query(
+            Request::from_manifest(context.operation, 2, "/run/quote")
+                .query("program_ref", program_ref),
+            context.option("--model"),
+            context.option("--reasoning-effort"),
+            requested.as_deref(),
+            repositories_bound,
+        );
+        request.bearer = context.has_credential();
+        request
+    } else {
+        hold_query(
+            Request::from_manifest(context.operation, 1, "/run/quote"),
+            context.option("--model"),
+            context.option("--reasoning-effort"),
+            requested.as_deref(),
+            repositories_bound,
+        )
+    };
     let body = context.send(&request)?.json_object()?;
     let hold = quote_fields(&body)?;
     let note = match body.get("note") {
@@ -489,6 +631,13 @@ fn quote(context: &mut Context<'_>) -> Result<Value, RunnerError> {
         Some(Value::String(note)) => clean_line(note, 512),
         Some(_) => return Err(protocol("quote note is malformed")),
     };
+    let basis = quote_basis(&body)?;
+    // The service names the environment it priced (the program's own, for
+    // example); without a basis it is the requested or default one.
+    let environment = basis
+        .as_ref()
+        .and_then(|basis| basis["environment"]["value"].as_str())
+        .map_or(environment, str::to_owned);
     let mut text = format!("Environment: {}\n", human_safe_scalar(&environment));
     let _ = writeln!(
         text,
@@ -497,6 +646,9 @@ fn quote(context: &mut Context<'_>) -> Result<Value, RunnerError> {
         hold["ttl_seconds"]
     );
     let _ = writeln!(text, "{HOLD_DEPENDS_ON}");
+    if let Some(basis) = &basis {
+        let _ = writeln!(text, "{}", basis_line(basis));
+    }
     let _ = writeln!(
         text,
         "Price: known only after a run settles; read it with `{}`",
@@ -506,12 +658,16 @@ fn quote(context: &mut Context<'_>) -> Result<Value, RunnerError> {
         let _ = writeln!(text, "Note: {}", human_safe_scalar(&note));
     }
     context.human = Some(text);
-    Ok(json!({
+    let mut result = json!({
         "environment": environment,
         "hold": hold,
         "holdBasis": HOLD_BASIS,
         "note": note,
-    }))
+    });
+    if let Some(basis) = basis {
+        result["basis"] = basis;
+    }
+    Ok(result)
 }
 
 // ---------------------------------------------------------------------------
@@ -1547,42 +1703,37 @@ struct Submission {
     source_sha256: Option<String>,
     session: Option<String>,
     wait_ms: u64,
-    environment: Option<String>,
-    /// The hold options sent with the plan's quote: --model,
-    /// --reasoning-effort and whether any repository is bound.
-    model: Option<String>,
-    reasoning_effort: Option<String>,
-    repositories_bound: bool,
 }
 
-fn prepare_submission(context: &mut Context<'_>) -> Result<Submission, RunnerError> {
-    let file = context.argument("FILE").map(str::to_owned);
-    let from = context.option("--from").map(str::to_owned);
-    match (&file, &from) {
-        (Some(_), Some(_)) => {
-            return Err(invalid(
-                "give either FILE or --from OWNER/SLUG[@REV], not both",
-            ));
-        }
-        (None, None) => {
-            return Err(invalid(
-                "missing program: give FILE, - for standard input, or --from OWNER/SLUG[@REV]",
-            ));
-        }
-        _ => {}
+/// Refuses FILE together with `--from`, and a URL as FILE (`run submit` and
+/// `run quote` alike).
+fn check_program_source(file: Option<&str>, from: Option<&str>) -> Result<(), RunnerError> {
+    if file.is_some() && from.is_some() {
+        return Err(invalid(
+            "give either FILE or --from OWNER/SLUG[@REV], not both",
+        ));
     }
-    if let Some(file) = file.as_deref().filter(|file| looks_like_url(file)) {
+    if let Some(file) = file.filter(|file| looks_like_url(file)) {
         return Err(invalid(format!(
             "URL sources are not supported ({file_quoted}); save the program to a file or run a saved program with --from OWNER/SLUG[@REV]",
             file_quoted = crate::error::quote(file)
         )));
     }
-    let reference = from
-        .as_deref()
-        .map(|value| program_ref::parse_own_allowed_with(value, true))
-        .transpose()?;
-    let session = session_option(context)?;
-    let wait_ms = wait_option(context)?;
+    Ok(())
+}
+
+/// The validated run options a submission body carries, read the same way
+/// by `run submit` and `run quote FILE`.
+struct RunOptions {
+    model: Option<String>,
+    reasoning_effort: Option<String>,
+    environment: Option<String>,
+    runtime: Option<String>,
+    repositories: Vec<Repository>,
+    commit: Option<Repository>,
+}
+
+fn run_options(context: &Context<'_>) -> Result<RunOptions, RunnerError> {
     let model = context.option("--model").map(str::to_owned);
     if let Some(model) = model.as_deref().filter(|model| !valid_model(model)) {
         return Err(invalid(format!(
@@ -1637,35 +1788,42 @@ fn prepare_submission(context: &mut Context<'_>) -> Result<Submission, RunnerErr
             )));
         }
     }
-    let inputs = parse_inputs(context)?;
-    let repositories_bound = !repositories.is_empty() || commit.is_some();
-    let quoted_model = model.clone();
-    let quoted_effort = effort.clone();
-    let mut body = Map::new();
-    let mut source_sha256 = None;
-    if let Some(file) = &file {
-        let cwd = context.system.current_dir.clone();
-        let program_text = super::fs::read_text(&cwd, file, MAX_PROGRAM_BYTES, "program file")?;
-        if program_text.trim().is_empty() {
-            return Err(invalid(format!(
-                "program file {file_quoted} is empty",
-                file_quoted = crate::error::quote(file)
-            )));
-        }
-        source_sha256 = Some(format!("{:x}", Sha256::digest(program_text.as_bytes())));
-        check_parameters(&program_text, &inputs)?;
-        body.insert("content".into(), json!(program_text));
+    Ok(RunOptions {
+        model,
+        reasoning_effort: effort,
+        environment,
+        runtime,
+        repositories,
+        commit,
+    })
+}
+
+/// Reads a program FILE (or `-`): at most 1 MiB of UTF-8, not blank.
+fn read_program(context: &Context<'_>, file: &str) -> Result<String, RunnerError> {
+    let cwd = context.system.current_dir.clone();
+    let program_text = super::fs::read_text(&cwd, file, MAX_PROGRAM_BYTES, "program file")?;
+    if program_text.trim().is_empty() {
+        return Err(invalid(format!(
+            "program file {file_quoted} is empty",
+            file_quoted = crate::error::quote(file)
+        )));
     }
-    if !inputs.is_empty() {
-        body.insert("inputs".into(), json!(inputs));
-    }
-    if let Some(model) = model {
+    Ok(program_text)
+}
+
+/// Adds the options' `model`, `reasoning_effort`, `repositories` and `output`
+/// to a submission body and returns its query after `live` and `session`:
+/// `environment`, `runtime`, `repositories` (the body's array as canonical
+/// JSON) and `output_repository`, each only when given.
+fn add_run_options(body: &mut Map<String, Value>, options: &RunOptions) -> Vec<(String, String)> {
+    if let Some(model) = &options.model {
         body.insert("model".into(), json!(model));
     }
-    if let Some(effort) = effort {
+    if let Some(effort) = &options.reasoning_effort {
         body.insert("reasoning_effort".into(), json!(effort));
     }
-    let repository_values = repositories
+    let repository_values = options
+        .repositories
         .iter()
         .map(|repository| {
             let mut value = Map::new();
@@ -1677,10 +1835,10 @@ fn prepare_submission(context: &mut Context<'_>) -> Result<Submission, RunnerErr
         })
         .collect::<Vec<_>>();
     let mut extra_query = Vec::new();
-    if let Some(environment) = &environment {
+    if let Some(environment) = &options.environment {
         extra_query.push(("environment".to_owned(), environment.clone()));
     }
-    if let Some(runtime) = &runtime {
+    if let Some(runtime) = &options.runtime {
         extra_query.push(("runtime".to_owned(), runtime.clone()));
     }
     if !repository_values.is_empty() {
@@ -1690,7 +1848,7 @@ fn prepare_submission(context: &mut Context<'_>) -> Result<Submission, RunnerErr
         ));
         body.insert("repositories".into(), Value::Array(repository_values));
     }
-    if let Some(commit) = &commit {
+    if let Some(commit) = &options.commit {
         let mut output = Map::new();
         output.insert("type".into(), json!("commit"));
         output.insert("repository".into(), json!(commit.url()));
@@ -1700,18 +1858,54 @@ fn prepare_submission(context: &mut Context<'_>) -> Result<Submission, RunnerErr
         body.insert("output".into(), Value::Object(output));
         extra_query.push(("output_repository".to_owned(), commit.url()));
     }
-    if let Some(model) = body.get("model").and_then(Value::as_str).map(str::to_owned) {
+    extra_query
+}
+
+fn prepare_submission(context: &mut Context<'_>) -> Result<Submission, RunnerError> {
+    let file = context.argument("FILE").map(str::to_owned);
+    let from = context.option("--from").map(str::to_owned);
+    if file.is_none() && from.is_none() {
+        return Err(invalid(
+            "missing program: give FILE, - for standard input, or --from OWNER/SLUG[@REV]",
+        ));
+    }
+    check_program_source(file.as_deref(), from.as_deref())?;
+    let reference = from
+        .as_deref()
+        .map(|value| program_ref::parse_own_allowed_with(value, true))
+        .transpose()?;
+    let session = session_option(context)?;
+    let wait_ms = wait_option(context)?;
+    let options = run_options(context)?;
+    let inputs = parse_inputs(context)?;
+    let mut body = Map::new();
+    let mut source_sha256 = None;
+    if let Some(file) = &file {
+        let program_text = read_program(context, file)?;
+        source_sha256 = Some(format!("{:x}", Sha256::digest(program_text.as_bytes())));
+        check_parameters(&program_text, &inputs)?;
+        body.insert("content".into(), json!(program_text));
+    }
+    if !inputs.is_empty() {
+        body.insert("inputs".into(), json!(inputs));
+    }
+    let extra_query = add_run_options(&mut body, &options);
+    if let Some(model) = &options.model {
         // An unknown model fails before confirmation (request 4).
-        context.check_model(4, &model)?;
+        context.check_model(4, model)?;
     }
     // So do an environment or runtime the service does not offer (GET /health).
-    check_offered(context, environment.as_deref(), runtime.as_deref())?;
+    check_offered(
+        context,
+        options.environment.as_deref(),
+        options.runtime.as_deref(),
+    )?;
     if let Some(mut reference) = reference {
         // A bare SLUG, `@N` and the caller's own pinned revisions resolve
         // through the caller's revisions (request 3); a latest reference
         // reads the newest rev_id (request 0).
         let pinned =
-            program_ref::resolve_to_run(context, &mut reference, 3, 0, Some("--from"), true)?;
+            program_ref::resolve_to_run(context, &mut reference, 3, Some(0), Some("--from"), true)?;
         body.insert("program_ref".into(), json!(pinned));
     }
     let body = render::canonical(&Value::Object(body)).into_bytes();
@@ -1727,10 +1921,6 @@ fn prepare_submission(context: &mut Context<'_>) -> Result<Submission, RunnerErr
         source_sha256,
         session,
         wait_ms,
-        environment,
-        model: quoted_model,
-        reasoning_effort: quoted_effort,
-        repositories_bound,
     })
 }
 
@@ -1891,6 +2081,19 @@ fn check_offered(
         Err(error) if error.code == ErrorCode::Cancelled => return Err(error),
         Err(_) => return Ok(()),
     };
+    check_offered_in(context, &health, environment, runtime)
+}
+
+/// [`check_offered`] against a `/health` body already read: an
+/// `--environment` or `--runtime` the body lists none of is refused with the
+/// corrected command; an absent or empty list leaves the check to the
+/// service.
+fn check_offered_in(
+    context: &Context<'_>,
+    health: &Value,
+    environment: Option<&str>,
+    runtime: Option<&str>,
+) -> Result<(), RunnerError> {
     for (option, key, value) in [
         ("--environment", "environments", environment),
         ("--runtime", "runtimes", runtime),
@@ -2027,14 +2230,12 @@ fn submit(context: &mut Context<'_>) -> Result<Value, RunnerError> {
         let placeholder = submission.session.as_deref().unwrap_or("{session}");
         let query = submit_query(placeholder, &submission.extra_query);
         let mut planned = context.planned(2, "/run", &query, Some(&submission.body));
-        let quote_request = hold_query(
-            Request::from_manifest(context.operation, 1, "/run/quote")
-                .class(TransportClass::Control),
-            submission.model.as_deref(),
-            submission.reasoning_effort.as_deref(),
-            submission.environment.as_deref(),
-            submission.repositories_bound,
-        );
+        // The quote prices exactly this submission: the same body bytes and
+        // the `POST /run` query without `live` and `session`.
+        let mut quote_request = Request::from_manifest(context.operation, 1, "/run/quote")
+            .class(TransportClass::Control);
+        quote_request.query.clone_from(&submission.extra_query);
+        quote_request.body = Some(submission.body.clone());
         // The quote is advisory: a failed quote never hides the plan.
         if let Ok(Ok(body)) = context
             .send(&quote_request)
@@ -2886,5 +3087,62 @@ mod tests {
             (kind.as_str(), data),
             ("unrecognized", json!({"name": "browser_live_view"}))
         );
+    }
+
+    fn basis_body(tools: Value, repositories: Value) -> Map<String, Value> {
+        let entry = |value: Value, source: &str| json!({"value": value, "source": source});
+        json!({"basis": {
+            "model": entry(json!("model-luna"), "request"),
+            "reasoning_effort": entry(json!("medium"), "program"),
+            "environment": entry(json!("builtin"), "default"),
+            "tools": entry(tools, "program"),
+            "repositories": entry(repositories, "default"),
+            "later": "ignored",
+        }})
+        .as_object()
+        .unwrap()
+        .clone()
+    }
+
+    #[test]
+    fn quote_basis_is_optional_closed_and_strict() {
+        assert_eq!(quote_basis(&Map::new()).unwrap(), None);
+        let basis = quote_basis(&basis_body(json!(["web:search", "shell"]), json!(0)))
+            .unwrap()
+            .unwrap();
+        assert_eq!(basis.as_object().unwrap().len(), 5);
+        assert_eq!(
+            basis_line(&basis),
+            "Basis: model model-luna (request); reasoning effort medium (program); environment builtin (default); tools web:search, shell (program); repositories 0 (default)"
+        );
+        let none = quote_basis(&basis_body(json!([]), json!(2)))
+            .unwrap()
+            .unwrap();
+        assert!(basis_line(&none).contains("; tools none (program); repositories 2 (default)"));
+        let seventeen = (0..17).map(|n| json!(format!("t{n}"))).collect::<Vec<_>>();
+        for (tools, repositories) in [
+            (json!("web:search"), json!(0)),
+            (Value::Array(seventeen), json!(0)),
+            (json!(["a\u{7}"]), json!(0)),
+            (json!([""]), json!(0)),
+            (json!(["x".repeat(65)]), json!(0)),
+            (json!([]), json!(-1)),
+            (json!([]), json!(1.5)),
+            (json!([]), json!("1")),
+        ] {
+            let error = quote_basis(&basis_body(tools, repositories)).unwrap_err();
+            assert_eq!(error.code, ErrorCode::ServiceProtocolInvalid);
+        }
+        let mut wrong_source = basis_body(json!([]), json!(0));
+        wrong_source["basis"]["model"]["source"] = json!("guess");
+        assert!(quote_basis(&wrong_source).is_err());
+        let mut missing = basis_body(json!([]), json!(0));
+        missing["basis"]
+            .as_object_mut()
+            .unwrap()
+            .remove("environment");
+        assert!(quote_basis(&missing).is_err());
+        let not_object = json!({"basis": []}).as_object().unwrap().clone();
+        assert!(quote_basis(&not_object).is_err());
     }
 }

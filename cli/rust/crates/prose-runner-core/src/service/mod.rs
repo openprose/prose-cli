@@ -4090,6 +4090,23 @@ impl Context<'_> {
         Ok(token)
     }
 
+    /// Whether a credential is configured (the environment variable, or a
+    /// stored key). A request whose manifest `auth` is `optional` sends the
+    /// key exactly when one is configured, and is anonymous otherwise.
+    pub fn has_credential(&mut self) -> bool {
+        let variable = self.environment.credential_env;
+        if self
+            .system
+            .environment
+            .get(variable)
+            .is_some_and(|value| !value.is_empty())
+        {
+            return true;
+        }
+        let environment = self.environment.clone();
+        matches!(self.transport.stored_credential(&environment), Ok(Some(_)))
+    }
+
     /// Names the credential source of a service authentication failure
     ///: an environment key is not replaced by `cli auth login`.
     fn annotate_auth(&self, error: &mut RunnerError) {

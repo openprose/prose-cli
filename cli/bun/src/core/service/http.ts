@@ -63,8 +63,8 @@ export interface HoldOptions {
 /**
  * The `GET /run/quote` query (manifest order): only what was given, never a
  * default, so a quote with no such option stays parameter-free. Any bound
- * repository sends `repositories=1`; declared tools are never sent, because
- * the CLI does not read the program.
+ * repository sends `repositories=1`; declared tools are never sent: the CLI
+ * does not read the program (with a program_ref the service does).
  */
 export function holdQuery(options: HoldOptions): Array<[string, string]> {
   const query: Array<[string, string]> = [];
