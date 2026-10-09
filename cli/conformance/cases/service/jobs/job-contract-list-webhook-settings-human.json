@@ -1,0 +1,81 @@
+{
+  "id": "job-contract-list-webhook-settings-human",
+  "feature": "jobs",
+  "operation": "job.contract.list",
+  "description": "Human contract list adds a settings line per binding; input values are never printed.",
+  "argv": [
+    "cli",
+    "job",
+    "contract",
+    "list",
+    "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/triggers/3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10/contracts",
+        "status": 200,
+        "body": {
+          "contracts": [
+            {
+              "program_ref": "exowner1/slack-hello@97ddf3a447f534a7",
+              "owner": "exowner1",
+              "slug": "slack-hello",
+              "rev_id": "97ddf3a447f534a7",
+              "content": "# private program text",
+              "is_platform_default": false,
+              "enabled": true,
+              "bound_at": 1789501241012,
+              "inputs": {
+                "channel": "C0123",
+                "cost_center": "ops",
+                "limit": 3
+              },
+              "model": "model-luna",
+              "effective_model": "model-luna",
+              "reasoning_effort": "high",
+              "repositories": [
+                {
+                  "url": "https://github.com/exowner1/app",
+                  "branch": "main"
+                }
+              ],
+              "output": {
+                "type": "commit",
+                "repository": "https://github.com/exowner1/app"
+              },
+              "environment": "linux",
+              "files": [
+                {
+                  "name": "notes.md",
+                  "size": 12,
+                  "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                }
+              ]
+            }
+          ],
+          "max_contracts": 5
+        },
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "exowner1/slack-hello@97ddf3a447f534a7 enabled=true model=model-luna\n  settings: reasoning effort high; repository https://github.com/exowner1/app@main; commit output https://github.com/exowner1/app; inputs channel, cost_center, limit; files notes.md\n"
+  },
+  "forbid": [
+    "private program text"
+  ],
+  "stderr": {
+    "text": ""
+  }
+}

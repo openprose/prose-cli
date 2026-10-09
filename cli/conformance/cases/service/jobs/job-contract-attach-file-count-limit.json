@@ -1,0 +1,106 @@
+{
+  "id": "job-contract-attach-file-count-limit",
+  "feature": "jobs",
+  "operation": "job.contract.attach",
+  "description": "More than 20 --file options are refused before any request: a binding stores at most 20 files.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "job",
+    "contract",
+    "attach",
+    "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10",
+    "exowner1/jobs-example@0123456789abcdef",
+    "--file",
+    "n0=notes.md",
+    "--file",
+    "n1=notes.md",
+    "--file",
+    "n2=notes.md",
+    "--file",
+    "n3=notes.md",
+    "--file",
+    "n4=notes.md",
+    "--file",
+    "n5=notes.md",
+    "--file",
+    "n6=notes.md",
+    "--file",
+    "n7=notes.md",
+    "--file",
+    "n8=notes.md",
+    "--file",
+    "n9=notes.md",
+    "--file",
+    "n10=notes.md",
+    "--file",
+    "n11=notes.md",
+    "--file",
+    "n12=notes.md",
+    "--file",
+    "n13=notes.md",
+    "--file",
+    "n14=notes.md",
+    "--file",
+    "n15=notes.md",
+    "--file",
+    "n16=notes.md",
+    "--file",
+    "n17=notes.md",
+    "--file",
+    "n18=notes.md",
+    "--file",
+    "n19=notes.md",
+    "--file",
+    "n20=notes.md",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "job.contracts",
+      "operation": "job.contract.attach",
+      "problem": {
+        "action": "Correct the value named in Detail; `prose --output json cli job contract attach --help` shows the accepted syntax.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "--file was given 21 times; a binding stores at most 20 files",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "job",
+            "contract",
+            "attach",
+            "--help"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "stderr": {
+    "text": ""
+  },
+  "files": [
+    {
+      "path": "notes.md",
+      "content": "Reply in the house style.\n"
+    }
+  ]
+}

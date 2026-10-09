@@ -2,7 +2,7 @@
   "id": "job-contract-attach-model-refused",
   "feature": "jobs",
   "operation": "job.contract.attach",
-  "description": "--model is refused because the service ignores a model on attach.",
+  "description": "--model applies to webhook jobs only; for another job type it is refused before the binding is sent.",
   "argv": [
     "--output",
     "json",
@@ -22,7 +22,62 @@
       "production": "rr_test_0123456789abcdef0123456789abcdef"
     },
     "storeAvailable": true,
-    "exchanges": []
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/triggers/3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10",
+        "status": 200,
+        "body": {
+          "trigger": {
+            "id": "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10",
+            "type": "email",
+            "name": null,
+            "internalRef": "opaque-1",
+            "url": null,
+            "intervalSeconds": null,
+            "mode": null,
+            "repositoryId": null,
+            "repositoryFullName": null,
+            "repositoryBranch": null,
+            "contextRepositoryId": null,
+            "contextRepositoryFullName": null,
+            "contextRepositoryBranch": null,
+            "createdAt": 1790212421024,
+            "adopted": false
+          },
+          "status": {
+            "configured": true,
+            "active": true,
+            "receiver": {
+              "profile": "openprose"
+            },
+            "receiverSecretConfigured": false,
+            "reply": null,
+            "replySecretConfigured": false,
+            "replies": [],
+            "replyDeliveries": [],
+            "deliveryMode": "test",
+            "secretRotatedAt": 1790212422203,
+            "lastEventAt": null,
+            "lastRunId": null,
+            "lastError": null,
+            "counts": {
+              "pending": 0,
+              "pending_funds": 0,
+              "claimed": 0,
+              "completed": 0,
+              "failed": 0,
+              "billing_pending": 0,
+              "ambiguous": 0
+            }
+          },
+          "endpoint": "/webhooks/triggers/3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10"
+        },
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        }
+      }
+    ]
   },
   "exitCode": 2,
   "stdout": {
@@ -30,11 +85,11 @@
       "interaction": "job.contracts",
       "operation": "job.contract.attach",
       "problem": {
-        "action": "Correct the value named in Detail; `prose --output json cli job contract attach --help` shows the accepted syntax.",
+        "action": "Attach without those options: `prose --output json cli job contract attach 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10 exowner1/jobs-example@0123456789abcdef --yes`.",
         "boundary": "invocation",
         "code": "INVOCATION_INVALID",
         "details": {
-          "reason": "the service does not accept --model when attaching a contract; attached contracts run on the service's default job model (see `cli job contract list`)",
+          "reason": "job 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10 is an email job; run settings (--model, --reasoning-effort, --repo, --commit-output, --input, --inputs-file, --environment, --file, --replace, --allow-reset and the --clear options) apply to webhook jobs only",
           "suggestedArgv": [
             "--output",
             "json",
@@ -42,7 +97,9 @@
             "job",
             "contract",
             "attach",
-            "--help"
+            "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10",
+            "exowner1/jobs-example@0123456789abcdef",
+            "--yes"
           ]
         },
         "exitCode": 2,
@@ -53,5 +110,8 @@
       "result": null,
       "schema": "openprose.service-operation/1"
     }
+  },
+  "stderr": {
+    "text": ""
   }
 }

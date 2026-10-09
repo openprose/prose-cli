@@ -150,7 +150,7 @@ fn ascii_all(value: &str, allowed: impl Fn(u8) -> bool) -> bool {
 }
 
 /// `^[a-z0-9][a-z0-9_-]{0,63}$` (environment and runtime ids).
-fn valid_token(value: &str) -> bool {
+pub(super) fn valid_token(value: &str) -> bool {
     let bytes = value.as_bytes();
     (1..=64).contains(&bytes.len())
         && (bytes[0].is_ascii_lowercase() || bytes[0].is_ascii_digit())
@@ -160,7 +160,7 @@ fn valid_token(value: &str) -> bool {
 }
 
 /// `^[a-z0-9][a-z0-9.-]{0,63}$` (hosted model ids).
-fn valid_model(value: &str) -> bool {
+pub(super) fn valid_model(value: &str) -> bool {
     let bytes = value.as_bytes();
     (1..=64).contains(&bytes.len())
         && (bytes[0].is_ascii_lowercase() || bytes[0].is_ascii_digit())
@@ -1570,14 +1570,16 @@ fn detached_result(context: &mut Context<'_>, follow: &Follow, fallback: &str) -
 // ---------------------------------------------------------------------------
 // run submit
 
-struct Repository {
-    owner: String,
-    name: String,
-    branch: Option<String>,
+/// A GitHub repository given as `OWNER/NAME[@BRANCH]` (`--repo`,
+/// `--commit-output`); shared with `job contract attach`.
+pub(super) struct Repository {
+    pub(super) owner: String,
+    pub(super) name: String,
+    pub(super) branch: Option<String>,
 }
 
 impl Repository {
-    fn url(&self) -> String {
+    pub(super) fn url(&self) -> String {
         format!("https://github.com/{}/{}", self.owner, self.name)
     }
 
@@ -1586,7 +1588,7 @@ impl Repository {
     }
 }
 
-fn parse_repository(option: &str, value: &str) -> Result<Repository, RunnerError> {
+pub(super) fn parse_repository(option: &str, value: &str) -> Result<Repository, RunnerError> {
     let error = || {
         invalid(format!(
             "{option} {value_quoted} must be OWNER/NAME or OWNER/NAME@BRANCH (a GitHub repository)",
@@ -1611,11 +1613,13 @@ fn parse_repository(option: &str, value: &str) -> Result<Repository, RunnerError
     })
 }
 
-fn valid_input_key(key: &str) -> bool {
+pub(super) fn valid_input_key(key: &str) -> bool {
     (1..=128).contains(&key.chars().count()) && !key.chars().any(is_control)
 }
 
-fn parse_inputs(context: &Context<'_>) -> Result<BTreeMap<String, String>, RunnerError> {
+/// `--inputs-file` then `--input KEY=VALUE|KEY=@FILE` (an `--input` wins);
+/// shared with `job contract attach`.
+pub(super) fn parse_inputs(context: &Context<'_>) -> Result<BTreeMap<String, String>, RunnerError> {
     let cwd = context.system.current_dir.clone();
     let mut inputs = BTreeMap::new();
     if let Some(file) = context.option("--inputs-file") {
@@ -1684,6 +1688,14 @@ fn parse_inputs(context: &Context<'_>) -> Result<BTreeMap<String, String>, Runne
         inputs.insert(key.to_owned(), value);
     }
     Ok(inputs)
+}
+
+/// `--commit-output` names a repository the runs do not read as context.
+pub(super) fn commit_output_mismatch(commit: &Repository) -> RunnerError {
+    invalid(format!(
+        "--commit-output {}/{} must also be given as --repo {}/{}[@BRANCH]; the service commits only to a context repository",
+        commit.owner, commit.name, commit.owner, commit.name
+    ))
 }
 
 fn looks_like_url(value: &str) -> bool {
@@ -1782,10 +1794,7 @@ fn run_options(context: &Context<'_>) -> Result<RunOptions, RunnerError> {
             .iter()
             .any(|repository| repository.same(commit))
         {
-            return Err(invalid(format!(
-                "--commit-output {}/{} must also be given as --repo {}/{}[@BRANCH]; the service commits only to a context repository",
-                commit.owner, commit.name, commit.owner, commit.name
-            )));
+            return Err(commit_output_mismatch(commit));
         }
     }
     Ok(RunOptions {
@@ -2236,14 +2245,16 @@ fn submit(context: &mut Context<'_>) -> Result<Value, RunnerError> {
             .class(TransportClass::Control);
         quote_request.query.clone_from(&submission.extra_query);
         quote_request.body = Some(submission.body.clone());
-        // The quote is advisory: a failed quote never hides the plan.
-        if let Ok(Ok(body)) = context
-            .send(&quote_request)
-            .map(|response| response.json_object())
-        {
-            if let Ok(hold) = quote_fields(&body) {
-                planned["quote"] = json!({"hold": hold});
+        // The quote is advisory: a failed quote never hides the plan; only
+        // an interrupt stops here.
+        match context.send(&quote_request) {
+            Ok(response) => {
+                if let Ok(hold) = response.json_object().and_then(|body| quote_fields(&body)) {
+                    planned["quote"] = json!({"hold": hold});
+                }
             }
+            Err(error) if error.code == ErrorCode::Cancelled => return Err(error),
+            Err(_) => {}
         }
         if let Gate::Preview(result) = context.gate(planned)? {
             return Ok(result);

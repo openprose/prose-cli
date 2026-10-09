@@ -1,0 +1,159 @@
+{
+  "id": "job-contract-attach-webhook-replace-human",
+  "feature": "jobs",
+  "operation": "job.contract.attach",
+  "description": "--replace moves a webhook binding to another revision: a full replace carrying the old binding's model, reasoning effort, repository, inputs and environment; --clear-files accepts that stored files are not carried.",
+  "argv": [
+    "cli",
+    "job",
+    "contract",
+    "attach",
+    "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10",
+    "exowner1/jobs-example@fedcba9876543210",
+    "--replace",
+    "exowner1/jobs-example@0123456789abcdef",
+    "--clear-files",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/triggers/3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10",
+        "status": 200,
+        "body": {
+          "trigger": {
+            "id": "3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10",
+            "type": "webhook",
+            "name": null,
+            "internalRef": "opaque-1",
+            "url": null,
+            "intervalSeconds": null,
+            "mode": null,
+            "repositoryId": null,
+            "repositoryFullName": null,
+            "repositoryBranch": null,
+            "contextRepositoryId": null,
+            "contextRepositoryFullName": null,
+            "contextRepositoryBranch": null,
+            "createdAt": 1790212421024,
+            "adopted": false
+          },
+          "status": {
+            "configured": true,
+            "active": true,
+            "receiver": {
+              "profile": "openprose"
+            },
+            "receiverSecretConfigured": false,
+            "reply": null,
+            "replySecretConfigured": false,
+            "replies": [],
+            "replyDeliveries": [],
+            "deliveryMode": "test",
+            "secretRotatedAt": 1790212422203,
+            "lastEventAt": null,
+            "lastRunId": null,
+            "lastError": null,
+            "counts": {
+              "pending": 0,
+              "pending_funds": 0,
+              "claimed": 0,
+              "completed": 0,
+              "failed": 0,
+              "billing_pending": 0,
+              "ambiguous": 0
+            }
+          },
+          "endpoint": "/webhooks/triggers/3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10"
+        },
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/triggers/3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10/contracts",
+        "status": 200,
+        "body": {
+          "contracts": [
+            {
+              "program_ref": "exowner1/jobs-example@0123456789abcdef",
+              "owner": "exowner1",
+              "slug": "jobs-example",
+              "rev_id": "0123456789abcdef",
+              "content": "# private program text",
+              "is_platform_default": false,
+              "enabled": true,
+              "bound_at": 1789501241012,
+              "inputs": {
+                "channel": "C0123",
+                "cost_center": "ops"
+              },
+              "model": "model-luna",
+              "effective_model": "model-luna",
+              "reasoning_effort": "low",
+              "repositories": [
+                {
+                  "url": "https://github.com/exowner1/app",
+                  "branch": "main"
+                }
+              ],
+              "output": null,
+              "environment": "builtin",
+              "files": [
+                {
+                  "name": "notes.md",
+                  "size": 12,
+                  "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+                }
+              ]
+            }
+          ],
+          "max_contracts": 5
+        },
+        "requestHeaders": {
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/triggers/3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10/contracts",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          }
+        },
+        "expectedBody": {
+          "program_ref": "exowner1/jobs-example@fedcba9876543210",
+          "replace_program_ref": "exowner1/jobs-example@0123456789abcdef",
+          "model": "model-luna",
+          "reasoning_effort": "low",
+          "repository_url": "https://github.com/exowner1/app",
+          "repository_branch": "main",
+          "inputs": {
+            "channel": "C0123",
+            "cost_center": "ops"
+          },
+          "environment": "builtin"
+        },
+        "status": 201,
+        "body": {
+          "bound": "exowner1/jobs-example@fedcba9876543210"
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "Attached exowner1/jobs-example@fedcba9876543210 to job 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10.\n  settings: reasoning effort low; repository https://github.com/exowner1/app@main; inputs channel, cost_center\nList the job's contracts with `cli job contract list 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10`.\n"
+  },
+  "stderr": {
+    "text": ""
+  }
+}

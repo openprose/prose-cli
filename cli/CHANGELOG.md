@@ -43,6 +43,28 @@ a candidate do not establish public availability or authorize publication.
   sends), `job_limit.kind` is one of `limited`, `unlimited` or `unavailable`,
   and triage gains `jobs.limit`. An older service without `trigger_limit` still reads as limited
   at `max_triggers`.
+- `job contract attach` sets a webhook job's run settings: `--model`,
+  `--reasoning-effort`, `--repo`, `--commit-output`, `--input` /
+  `--inputs-file`, `--environment`, `--file`, `--clear-repo`,
+  `--clear-commit-output`, `--clear-input`, `--clear-files` and `--replace`.
+  Its plan quotes the hold for the binding as it will run. Re-attaching a
+  bound program changes only the options given instead of resetting its
+  settings. `--model` is no longer refused. The options are refused for other
+  job types, and a plain re-attach sends only `program_ref`. On a service that
+  does not report a binding's stored files and environment, re-binding a bound
+  webhook program is refused unless the files and environment are given or
+  `--allow-reset` accepts resetting them; `--replace` likewise needs `--file`,
+  `--clear-files` or `--allow-reset` when the old binding has stored files.
+- The published `cli service operations` size budget is raised from 98,304 to
+  106,496 bytes for the new job options.
+- An interrupt during a plan's advisory quote (`run submit`, `program draft`,
+  `program save`, `job contract attach`) now stops the command instead of being
+  swallowed.
+- `run quote --help` is reworded more briefly to keep `cli service operations`
+  within its size budget.
+- `job contract list` reports each binding's saved settings
+  (`run_configuration`), `effective_model`, `rev_id`, `bound_at` and
+  `is_platform_default`.
 
 ## [0.15.0-rc.2] — 2026-10-02
 

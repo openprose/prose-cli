@@ -209,7 +209,7 @@
             "--json"
           ],
           "schema": "openprose.service-operations/1",
-          "sha256": "87e68b5f8f2e0125f7f6afc548a2d888bdd9c645261c59935fd4e3e7dc388bbb"
+          "sha256": "901444a098ac3be99d5d6e6be150b7b0df521d9458933b1267e44ac714d5a8a1"
         },
         "nouns": {
           "auth": [
@@ -448,7 +448,7 @@
               "prose cli run quote hello.prose.md --input topic=cats --json"
             ],
             "id": "run.quote",
-            "summary": "Report the hold a run reserves: money set aside from the wallet while the run is live. It is not the price. The environment is checked first.\nThe hold depends on the model, reasoning effort, environment, declared tools and bound repositories, and what the run does not use is released when it settles. With FILE or --from the service prices that program, including its own run settings and declared tools; --model, --reasoning-effort, --environment, --repo and --commit-output override them. `basis` names where each value came from (request, program or default). A run's price is known only after it settles (`cli run show RUN_ID`, price_cents). The program, inputs and options `cli run submit` takes are accepted, so you can quote the exact command you will submit."
+            "summary": "Report the hold a run reserves: money set aside from the wallet while the run is live. It is not the price. The environment is checked first.\nThe hold depends on the model, reasoning effort, environment, declared tools and bound repositories; what the run does not use is released when it settles. With FILE or --from the service prices that program, including its own run settings and declared tools; the run-setting options override them. `basis` names where each value came from (request, program or a default). A run's price is known only after it settles (`cli run show RUN_ID`, price_cents). It takes what `cli run submit` takes, so you can quote the exact command you will submit."
           },
           {
             "command": [
@@ -866,10 +866,11 @@
             "confirm": true,
             "effect": "write",
             "examples": [
-              "prose cli job contract attach 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10 exowner1/hello@0123456789abcdef --yes"
+              "prose cli job contract attach 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10 exowner1/hello@0123456789abcdef --yes",
+              "prose cli job contract attach 3c1a9e57-0b4d-4f2a-9e61-5d7b2c8a4f10 exowner1/hello@0123456789abcdef --repo exowner1/app@main --reasoning-effort medium --yes"
             ],
             "id": "job.contract.attach",
-            "summary": "Attach a pinned program to a job."
+            "summary": "Attach a pinned program to a job. The options set a webhook job's run settings; re-attaching a bound program changes only those given."
           },
           {
             "command": [
