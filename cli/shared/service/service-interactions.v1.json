@@ -272,6 +272,20 @@
       ]
     },
     {
+      "id": "program.copy",
+      "principal": "customer",
+      "effect": "outward",
+      "reversible": false,
+      "agent": "confirm",
+      "routes": [
+        {
+          "method": "POST",
+          "path": "/p/{owner}/{slug}/copy",
+          "auth": "api_key"
+        }
+      ]
+    },
+    {
       "id": "program.delete",
       "principal": "customer",
       "effect": "destructive",

@@ -1,0 +1,86 @@
+{
+  "id": "program-list-org-human",
+  "feature": "programs",
+  "operation": "program.list",
+  "description": "Human `program list --org ORG` lines add owner_kind= and copied_from= columns.",
+  "argv": [
+    "cli",
+    "program",
+    "list",
+    "--org",
+    "acme"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/programs",
+        "query": {
+          "workspace": "acme"
+        },
+        "requestHeaders": {
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          },
+          "User-Agent": {
+            "pattern": "^prose-cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"
+          },
+          "Accept": "application/json",
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "status": 200,
+        "body": {
+          "programs": [
+            {
+              "owner": "acme",
+              "slug": "hello",
+              "visibility": "private",
+              "rev": 1,
+              "rev_id": "0123456789abcdef",
+              "commit_id": "1111111111111111",
+              "parent_commit_id": null,
+              "updated_at": 1790212199320,
+              "owner_kind": "organization",
+              "copied_from": {
+                "owner": "alice",
+                "slug": "hello",
+                "rev_id": "fedcba9876543210"
+              }
+            },
+            {
+              "owner": "acme",
+              "slug": "tool",
+              "visibility": "public",
+              "rev": 2,
+              "rev_id": "2222222222222222",
+              "commit_id": "3333333333333333",
+              "parent_commit_id": null,
+              "updated_at": 1790212199320,
+              "owner_kind": "organization"
+            }
+          ],
+          "workspace": {
+            "slug": "acme",
+            "name": "Acme",
+            "role": "reader"
+          }
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "acme/hello  rev 1  private  rev_id=0123456789abcdef  ref=acme/hello@0123456789abcdef  owner_kind=organization  copied_from=alice/hello@fedcba9876543210\nacme/tool  rev 2  public  rev_id=2222222222222222  ref=acme/tool@2222222222222222  owner_kind=organization\n"
+  },
+  "stderr": {
+    "text": ""
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

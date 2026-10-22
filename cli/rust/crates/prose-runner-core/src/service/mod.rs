@@ -32,6 +32,7 @@ pub mod run_records;
 pub mod runs;
 pub mod triage;
 pub mod wallet;
+pub mod workspace;
 
 use crate::error::ErrorCode;
 use crate::output::CommandOutcome;
@@ -4086,6 +4087,9 @@ pub struct Context<'a> {
     /// The OWNER of an own-scope `OWNER/SLUG` confirmed as the
     /// caller; the plan carries it as `plannedRequest.owner`.
     pub verified_owner: Option<String>,
+    /// The organization namespace (`--org`) a program verb acts in; the plan
+    /// carries it as `plannedRequest.organization`.
+    pub organization: Option<String>,
     credential: Option<String>,
     /// Where the credential came from: `environment` or `store`.
     credential_source: Option<&'static str>,
@@ -4360,6 +4364,9 @@ impl Context<'_> {
         let mut planned = render::planned_request(self.operation, template, path, query, body);
         if let Some(owner) = &self.verified_owner {
             planned["owner"] = json!({"handle": owner, "verified": true});
+        }
+        if let Some(organization) = &self.organization {
+            planned["organization"] = json!(organization);
         }
         planned
     }
@@ -5223,6 +5230,7 @@ pub fn execute(
         run_id: None,
         human: None,
         verified_owner: None,
+        organization: None,
         credential: None,
         credential_source: None,
         key_rejected: std::cell::Cell::new(false),

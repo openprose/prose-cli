@@ -1,0 +1,81 @@
+{
+  "id": "program-copy-requires-yes",
+  "feature": "programs",
+  "operation": "program.copy",
+  "description": "Copying shares the text with the organization: without --yes it is planned, with `to` in the summary.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "program",
+    "copy",
+    "bob/tool@0123456789abcdef",
+    "--to",
+    "acme"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "program.copy",
+      "operation": "program.copy",
+      "problem": {
+        "action": "Rerun the same command with --yes to confirm, or with --preview to see what it would do without sending anything.",
+        "boundary": "invocation",
+        "code": "CONFIRMATION_REQUIRED",
+        "details": {
+          "confirmArgv": [
+            "--output",
+            "json",
+            "cli",
+            "program",
+            "copy",
+            "bob/tool@0123456789abcdef",
+            "--to",
+            "acme",
+            "--yes"
+          ],
+          "plannedRequest": {
+            "bodyBytes": 13,
+            "bodySha256": "7e003eb4e7b66994dd6f80d4739a71adc8982578920ed2bde1b1d51135ba88c4",
+            "description": "Copy a program into an organization.",
+            "effect": "outward",
+            "method": "POST",
+            "operation": "program.copy",
+            "summary": {
+              "to": "acme"
+            }
+          },
+          "previewArgv": [
+            "--output",
+            "json",
+            "cli",
+            "program",
+            "copy",
+            "bob/tool@0123456789abcdef",
+            "--to",
+            "acme",
+            "--preview"
+          ],
+          "reason": "--yes is required because every member of the organization can read the copy"
+        },
+        "exitCode": 2,
+        "message": "This service operation requires explicit confirmation.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

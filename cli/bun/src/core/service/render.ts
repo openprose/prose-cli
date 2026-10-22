@@ -223,6 +223,7 @@ function effectText(planned: JsonObject): string {
   } else if (effect === "outward") {
     text = operation === "run.share" ? "creates a public 24-hour link that cannot be revoked"
       : operation === "program.visibility" ? "changes who can see the program"
+      : operation === "program.copy" ? "shares the program with every member of the organization"
       : operation === "result.publish" ? "publishes a public result" : "makes something public";
   } else if (effect === "destructive") text = "cannot be undone";
   else if (effect === "write") text = Object.hasOwn(WRITE_EFFECTS, operation) ? WRITE_EFFECTS[operation]! : "changes your account";
@@ -406,8 +407,13 @@ function planLine(planned: JsonObject): string {
   return humanSafeScalar(typeof planned.description === "string" ? planned.description : "");
 }
 
-/** `Owner: HANDLE (verified as you)` for a plan whose OWNER/SLUG was confirmed as the caller. */
+/**
+ * `Owner: HANDLE (verified as you)` for a plan whose OWNER/SLUG was confirmed
+ * as the caller, or `Organization: ORG` for a plan in an organization's
+ * namespace (`--org`).
+ */
 function ownerLine(planned: JsonObject): string | undefined {
+  if (typeof planned.organization === "string") return `Organization: ${humanSafeScalar(planned.organization)}`;
   const owner = planned.owner;
   if (owner === null || typeof owner !== "object" || Array.isArray(owner)) return undefined;
   const { handle, verified } = owner as JsonObject;

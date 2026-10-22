@@ -15,6 +15,7 @@ operations and behave the same in the Rust and Bun builds.
 | `prose cli program visibility SLUG public\|private` | `PUT /programs/{slug}/visibility` | yes | yes |
 | `prose cli program delete SLUG` | `DELETE /programs/{slug}` | yes | yes |
 | `prose cli program revisions SLUG` | `GET /programs/{slug}/revisions` | yes | no |
+| `prose cli program copy [OWNER/]SLUG[@REV] --to ORG [--slug NEW]` | `POST /p/{owner}/{slug}[@rev]/copy` | yes | yes |
 | `prose cli program draft SENTENCE [--current FILE] [--model M] [--output-file FILE]` | `POST /write` (paid) | yes | yes |
 
 Add `--json` (or `--output json|jsonl`) for machine output; every result is an
@@ -125,6 +126,90 @@ private also removes its published results (see [results](results.md)).
 never reaches that answer unless `OWNER` was confirmed as you (see above). Any other program
 404 is `SERVICE_RESOURCE_NOT_FOUND` with `details.resource` `{kind: "program",
 id}` and `details.suggestedArgv` `cli program list`.
+
+## Organization workspaces: `--org ORG` and `program copy`
+
+You work either in your personal workspace (your own namespace, the default)
+or in an organization's. `list`, `show`, `save`, `visibility`, `delete` and
+`revisions` take `--org ORG` (the organization's slug, as `cli org list` prints
+it) to act in that organization's namespace, `ORG/SLUG`. Without `--org`
+nothing changes: the commands act on your personal programs.
+
+```sh
+prose cli program list --org acme --json
+prose cli program save hello hello.prose.md --org acme
+prose cli program visibility hello public --org acme --yes
+prose cli program copy hello --to acme --preview
+prose cli program copy hello --to acme --yes
+```
+
+- Who can read a program: a private personal program only you; a private
+  organization program every member of that organization; a public program
+  everyone.
+- What a member can do depends on their role: a **reader** reads and runs,
+  a **developer** also creates, edits and copies programs in, and an
+  **admin** also changes visibility and deletes. Runs are billed to whoever
+  starts them, as before.
+- With `--org`, a bare `SLUG` names the organization's program, and
+  `OWNER/SLUG` is accepted when `OWNER` is the organization (letter case
+  ignored); another `OWNER` exits 2 naming the bare slug. No owner lookup is
+  sent. The plan (`--preview`, `CONFIRMATION_REQUIRED`) carries
+  `plannedRequest.organization`, and human output prints `Organization: ORG`.
+- Before `save`, `visibility` or `delete` with `--org` (`--preview`
+  included), the CLI reads `GET /programs?workspace=ORG`. The service must
+  echo the organization; this also proves you are a member. A service that
+  does not echo it (one that ignores `?workspace=` would list your own
+  programs) gets `SERVICE_FEATURE_DISABLED` and nothing is written, so an
+  organization command can never change a personal program. `list --org`
+  refuses a listing without the echo the same way, and `revisions --org`
+  refuses revisions owned by anyone but the organization.
+- `program copy SOURCE --to ORG` copies a program into an organization.
+  `SOURCE` is your own personal `SLUG[@REV]` (its owner is read from its
+  revisions) or any `OWNER/SLUG[@REV]` you can read; without `@REV` the latest
+  revision is copied. `--slug NEW` saves the copy under another slug. The
+  copy is private to the organization's members, records its source as
+  `copied_from`, and leaves the original unchanged. Copying shares the
+  program's text with every member, so it needs `--yes` (or `--preview`),
+  like `visibility`. The plan summary names `to` (and `slug`). A slug the
+  organization already has is `SERVICE_WRITE_CONFLICT` (`serviceCode`
+  `program_exists`) with the service's message.
+- Program records may carry `owner_kind` (`personal` or `organization`) and
+  `copied_from` (`{owner, slug, rev_id, ref}`; a malformed source is
+  dropped, never fatal). Human `list` lines add
+  `owner_kind=` and `copied_from=` columns, and human `show` prints
+  `Owner: ORG (organization)` and `Copied from: REF` on stderr, so stdout stays
+  the program text.
+- Errors in an organization's namespace. The service answers a non-member
+  and an unknown organization with the same 404, and a non-member and a
+  missing program alike, so the CLI says which cases a 404 can mean:
+  - `list --org` and the confirmation read of `save`, `visibility` and
+    `delete`: the organization was not found, or you are not a member
+    (`SERVICE_RESOURCE_NOT_FOUND`, `details.resource` `{kind:
+    "organization", id}`, `cli org list` as `details.suggestedArgv`);
+  - `show`, `revisions` and `visibility` with `--org`: the organization has
+    no such program you can read, or you are not a member (`{kind:
+    "program", id: "ORG/SLUG"}`, `cli program list --org ORG`). A confirmed
+    `delete --org` of a missing program exits 0 with `alreadyAbsent: true`,
+    because membership was confirmed first;
+  - `copy`: the source was not found, or you are not a member of the target;
+  - a role that does not allow the verb is `SERVICE_REQUEST_REJECTED`
+    (`serviceCode` `organization_forbidden`) whose reason names the role the
+    verb needs, with `details.requiredRole`;
+  - an organization that cannot hold programs (for example the personal
+    organization named after your login, or a reserved name) is
+    `SERVICE_REQUEST_REJECTED` (`serviceCode`
+    `workspace_namespace_unavailable`) with the service's message. A slug
+    longer than 39 characters (a program owner's limit) exits 2 before any
+    request;
+  - a service without organization programs answers `--org` with
+    `SERVICE_FEATURE_DISABLED`; nothing falls back to your personal programs.
+- `--org` and `--to` take a lowercase slug; an upper-case slug exits 2 naming
+  the lowercase one. `--workspace` suggests `--org` (or `--to` for `copy`),
+  and `program cp` suggests `program copy`.
+- There is no `PROSE_ORG` environment default. A namespace that silently
+  redirected `save`, `visibility` and `delete` into a shared organization would
+  be easy to miss, and an environment variable would suggest that `run`,
+  `job` and `wallet` follow it too. Pass `--org` on each command.
 
 ## Draft a program with the hosted writer (paid)
 

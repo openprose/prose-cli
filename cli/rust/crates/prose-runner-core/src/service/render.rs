@@ -355,6 +355,7 @@ fn effect_text(planned: &Value) -> String {
         ("money", _) => "costs money",
         ("outward", "run.share") => "creates a public 24-hour link that cannot be revoked",
         ("outward", "program.visibility") => "changes who can see the program",
+        ("outward", "program.copy") => "shares the program with every member of the organization",
         ("outward", "result.publish") => "publishes a public result",
         ("outward", _) => "makes something public",
         ("destructive", _) => "cannot be undone",
@@ -712,8 +713,12 @@ fn plan_line(planned: &Value) -> String {
 }
 
 /// `Owner: HANDLE (verified as you)` for a plan whose `OWNER/SLUG` was
-/// confirmed as the caller.
+/// confirmed as the caller, or `Organization: ORG` for a plan in an
+/// organization's namespace (`--org`).
 fn owner_line(planned: &Value) -> Option<String> {
+    if let Some(organization) = planned["organization"].as_str() {
+        return Some(format!("Organization: {}", human_safe_scalar(organization)));
+    }
     let handle = planned["owner"]["handle"].as_str()?;
     (planned["owner"]["verified"] == true)
         .then(|| format!("Owner: {} (verified as you)", human_safe_scalar(handle)))

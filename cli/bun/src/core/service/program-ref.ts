@@ -7,6 +7,7 @@ import type { Context } from "./index";
 import type { JsonObject } from "./manifest";
 import { explainNotFound } from "./not-found";
 import { argvText } from "./render";
+import { scoped } from "./workspace";
 
 /** `revNumber` is a numeric `@N` revision (only `program show` resolves it). */
 export interface ProgramRef { owner: string; slug: string; rev?: string; revNumber?: number }
@@ -105,6 +106,12 @@ export async function fillOwner(context: Context, reference: ProgramRef, index: 
   reference.owner = own.owner;
 }
 
+/** SERVICE_RESOURCE_NOT_FOUND for a SLUG the `--org` organization has no readable program of. */
+export function missingInOrganization(context: Context, organization: string, slug: string, details: Record<string, unknown> = {}): RunnerFailure {
+  const reason = `organization ${organization} has no program ${quote(slug)} you can read, or you are not a member of it; list its programs with \`${context.command(`program list --org ${organization}`)}\``;
+  return explainNotFound(failure("SERVICE_RESOURCE_NOT_FOUND", { ...details, reason }), context.environment, context.mode, "program", `${organization}/${slug}`, ["program", "list", "--org", organization]);
+}
+
 /** SERVICE_RESOURCE_NOT_FOUND for a bare SLUG the caller has not saved. */
 function missingOwn(context: Context, slug: string, details: Record<string, unknown>): RunnerFailure {
   const reason = `you have no saved program ${quote(slug)}; list yours with \`${context.command("program list")}\`, or pass OWNER/SLUG for another owner's public program`;
@@ -147,19 +154,21 @@ function ownRevisions(body: JsonObject, slug: string): { owner: string; revision
  * the caller's own programs; the owner is filled too. Another owner's program
  * has no revision listing, so its `@N` is refused with the rev_id to use.
  */
-export async function resolveRevNumber(context: Context, reference: ProgramRef, index: number): Promise<void> {
+export async function resolveRevNumber(context: Context, reference: ProgramRef, index: number, organization?: string): Promise<void> {
   const number = reference.revNumber;
   if (number === undefined) return;
   const slug = reference.slug;
   const other = (): RunnerFailure => {
     const name = `${reference.owner}/${slug}`;
+    // In an organization's namespace (--org) the listing is the organization's: the program is missing there.
+    if (organization !== undefined) return missingInOrganization(context, organization, slug);
     return invocationFailure(`revision numbers such as @${number} resolve only for your own programs; for ${name} pass the 16-hex-digit rev_id, which \`${context.command(`program show ${name} --json`)}\` prints (latest) as \`ref\``);
   };
-  const request = { ...requestFor(context.operation, index, `/programs/${encodeSegment(slug)}/revisions`), class: "control" as const };
+  const request = { ...scoped(requestFor(context.operation, index, `/programs/${encodeSegment(slug)}/revisions`), organization), class: "control" as const };
   let body: JsonObject;
   try { body = jsonObject(await context.send(request)); }
   catch (caught) {
-    if (caught instanceof RunnerFailure && caught.code === "SERVICE_RESOURCE_NOT_FOUND") throw reference.owner !== "" ? other() : missingOwn(context, slug, caught.details ?? {});
+    if (caught instanceof RunnerFailure && caught.code === "SERVICE_RESOURCE_NOT_FOUND" && !(organization !== undefined && caught.details?.serviceCode === "organization_not_found")) throw reference.owner !== "" ? other() : missingOwn(context, slug, caught.details ?? {});
     throw caught;
   }
   const own = ownRevisions(body, slug);
@@ -170,7 +179,8 @@ export async function resolveRevNumber(context: Context, reference: ProgramRef, 
   if (match === undefined || typeof rev !== "string" || !validRev(rev)) {
     const newest = typeof own.revisions[0]?.rev === "number" ? own.revisions[0].rev : undefined;
     const tail = newest === undefined ? "" : `; the newest is rev ${newest}`;
-    throw invocationFailure(`${own.owner}/${slug} has no revision ${number}${tail}; list them with \`${context.command(`program revisions ${slug}`)}\``);
+    const listing = organization === undefined ? `program revisions ${slug}` : `program revisions ${slug} --org ${organization}`;
+    throw invocationFailure(`${own.owner}/${slug} has no revision ${number}${tail}; list them with \`${context.command(listing)}\``);
   }
   reference.owner = own.owner;
   reference.rev = rev;

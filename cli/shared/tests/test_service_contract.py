@@ -876,7 +876,13 @@ class ServiceContractTest(unittest.TestCase):
             self.assertNotIn(phrase, tables["commandRewrites"], f"{phrase!r} is both an alias and a rewrite")
         ids = {operation["id"] for operation in self.manifest["operations"]}
         for name, removal in tables["optionRemovals"].items():
-            self.assertNotIn(name, options, f"option removal {name} drops a real option")
+            # A removal applies to its operations (every operation when it
+            # lists none) and must not drop a real option of any of them.
+            scope = [operation for operation in self.manifest["operations"]
+                     if not removal["operations"] or operation["id"] in removal["operations"]]
+            real = {"--json", "--yes", "--preview", "--help", "--output"}
+            real |= {option["name"] for operation in scope for option in operation["options"]}
+            self.assertNotIn(name, real, f"option removal {name} drops a real option")
             self.assertNotIn(name, tables["optionAliases"], f"{name} is both an alias and a removal")
             self.assertTrue(set(removal["operations"]) <= ids, f"option removal {name} names an unknown operation")
         for name in tables["secretFileOptions"]:

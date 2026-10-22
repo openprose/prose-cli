@@ -209,7 +209,7 @@
             "--json"
           ],
           "schema": "openprose.service-operations/1",
-          "sha256": "901444a098ac3be99d5d6e6be150b7b0df521d9458933b1267e44ac714d5a8a1"
+          "sha256": "20ca69e0e39a281d2996f84c47fe19a9e5063658fd37f66ea16d00fd90533d45"
         },
         "nouns": {
           "auth": [
@@ -257,6 +257,7 @@
             "withdraw"
           ],
           "program": [
+            "copy",
             "delete",
             "draft",
             "list",
@@ -578,10 +579,11 @@
             "confirm": false,
             "effect": "read",
             "examples": [
-              "prose cli program list --json"
+              "prose cli program list --json",
+              "prose cli program list --org acme --json"
             ],
             "id": "program.list",
-            "summary": "List this account's saved programs."
+            "summary": "List this account's saved programs, or an organization's with --org."
           },
           {
             "command": [
@@ -593,7 +595,8 @@
             "effect": "read",
             "examples": [
               "prose cli program show exowner1/hello --json",
-              "prose cli program show exowner1/hello@0123456789abcdef --output-file hello.prose.md"
+              "prose cli program show exowner1/hello@0123456789abcdef --output-file hello.prose.md",
+              "prose cli program show hello --org acme --json"
             ],
             "id": "program.show",
             "summary": "Show a saved program and its content."
@@ -608,7 +611,8 @@
             "effect": "write",
             "examples": [
               "prose cli program save hello hello.prose.md --preview",
-              "prose cli program save hello hello.prose.md --message 'First draft'"
+              "prose cli program save hello hello.prose.md --message 'First draft'",
+              "prose cli program save hello hello.prose.md --org acme --preview"
             ],
             "id": "program.save",
             "summary": "Save a new revision of a program; a new program is private. Visibility is never changed by save (use `cli program visibility`)."
@@ -622,7 +626,8 @@
             "confirm": true,
             "effect": "outward",
             "examples": [
-              "prose cli program visibility hello public --yes"
+              "prose cli program visibility hello public --yes",
+              "prose cli program visibility hello private --org acme --yes"
             ],
             "id": "program.visibility",
             "summary": "Make a program public or private."
@@ -637,7 +642,8 @@
             "effect": "destructive",
             "examples": [
               "prose cli program delete hello --preview",
-              "prose cli program delete hello --yes"
+              "prose cli program delete hello --yes",
+              "prose cli program delete hello --org acme --preview"
             ],
             "id": "program.delete",
             "summary": "Delete a saved program and its revisions. A program that is already gone exits 0 with alreadyAbsent: true. OWNER/SLUG is refused (exit 2) unless OWNER is confirmed as you."
@@ -651,10 +657,26 @@
             "confirm": false,
             "effect": "read",
             "examples": [
-              "prose cli program revisions hello --json"
+              "prose cli program revisions hello --json",
+              "prose cli program revisions hello --org acme --json"
             ],
             "id": "program.revisions",
             "summary": "List a program's revisions, newest first."
+          },
+          {
+            "command": [
+              "cli",
+              "program",
+              "copy"
+            ],
+            "confirm": true,
+            "effect": "outward",
+            "examples": [
+              "prose cli program copy hello --to acme --preview",
+              "prose cli program copy exowner1/hello@0123456789abcdef --to acme --slug hello-copy --yes"
+            ],
+            "id": "program.copy",
+            "summary": "Copy a program into an organization. The copy records where it came from (copied_from) and the original is unchanged."
           },
           {
             "command": [

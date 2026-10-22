@@ -73,6 +73,12 @@
           "type": "string",
           "maxLength": 1024,
           "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+        },
+        "owner_kind": {
+          "$ref": "#/$defs/ownerKind"
+        },
+        "copied_from": {
+          "$ref": "#/$defs/copiedFrom"
         }
       }
     },
@@ -148,6 +154,12 @@
         },
         "content": {
           "$ref": "common.schema.json#/$defs/text"
+        },
+        "owner_kind": {
+          "$ref": "#/$defs/ownerKind"
+        },
+        "copied_from": {
+          "$ref": "#/$defs/copiedFrom"
         }
       }
     },
@@ -344,6 +356,55 @@
             "settling",
             "unknown"
           ]
+        }
+      }
+    },
+    "ownerKind": {
+      "description": "Who owns the program's namespace: `personal` (an account's own namespace) or `organization`. Copied from the service's `owner_kind` when it sends a known value; absent otherwise.",
+      "enum": [
+        "personal",
+        "organization"
+      ]
+    },
+    "copiedFrom": {
+      "description": "The program this one was copied from (`program copy`), as the service recorded it. `ref` is OWNER/SLUG@rev_id when the service names the revision.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "owner",
+        "slug"
+      ],
+      "properties": {
+        "owner": {
+          "$ref": "common.schema.json#/$defs/handle"
+        },
+        "slug": {
+          "$ref": "common.schema.json#/$defs/slug"
+        },
+        "rev_id": {
+          "$ref": "common.schema.json#/$defs/revId"
+        },
+        "ref": {
+          "$ref": "common.schema.json#/$defs/programRef"
+        }
+      }
+    },
+    "programCopy": {
+      "description": "`program copy`: the new program in the organization's namespace. Its `copied_from` names the source; the source is unchanged.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "program"
+      ],
+      "properties": {
+        "program": {
+          "$ref": "#/$defs/programMeta"
+        },
+        "url": {
+          "type": "string",
+          "pattern": "^https://[^\\s/]+/p/[^\\s]+$",
+          "maxLength": 256,
+          "description": "The absolute URL of the copy, when the service names one."
         }
       }
     }

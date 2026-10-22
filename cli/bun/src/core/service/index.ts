@@ -41,6 +41,8 @@ export class Context {
   human: string | undefined;
   /** The OWNER of an own-scope OWNER/SLUG confirmed as the caller; the plan carries it as plannedRequest.owner. */
   verifiedOwner: string | undefined;
+  /** The organization namespace (`--org`) a program verb acts in; the plan carries it as plannedRequest.organization. */
+  organization: string | undefined;
   private credential: string | undefined;
   /** Where the credential came from: `environment` or `store`. */
   private credentialSource: "environment" | "store" | undefined;
@@ -172,6 +174,7 @@ export class Context {
   planned(index: number, path: string, query: Array<[string, string]> = [], body?: Uint8Array): JsonObject {
     const planned = plannedRequest(this.operation, this.request(index), path, query, body);
     if (this.verifiedOwner !== undefined) planned.owner = { handle: this.verifiedOwner, verified: true };
+    if (this.organization !== undefined) planned.organization = this.organization;
     return planned;
   }
 

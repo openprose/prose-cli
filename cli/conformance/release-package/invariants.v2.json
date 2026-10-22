@@ -7,7 +7,7 @@
   ],
   "cases": [
     {"id": "version", "argv": ["--version"], "exitCode": 0, "stdout": {"kind": "version"}},
-    {"id": "help", "argv": ["--help"], "exitCode": 0, "stdout": {"kind": "exact-file", "path": "../cases/fixtures/runner-help.txt", "byteLength": 7759, "sha256": "b8b63ec4086867ba27050dc4a451e7cc22ea012b1e82e0254f6c356f5eb62ca0"}},
+    {"id": "help", "argv": ["--help"], "exitCode": 0, "stdout": {"kind": "exact-file", "path": "../cases/fixtures/runner-help.txt", "byteLength": 7764, "sha256": "923ef99bb9476e747275e484db42119369a23804e4b18a4c511622b67097f673"}},
     {"id": "config-explain", "argv": ["--output", "json", "cli", "config", "explain"], "exitCode": 0, "stdout": {"kind": "json", "schema": "openprose.configuration-explanation/1"}},
     {"id": "harness-list", "argv": ["--output", "json", "cli", "harness", "list"], "exitCode": 0, "stdout": {"kind": "json", "schema": "openprose.harness-list/1"}},
     {"id": "doctor-default", "argv": ["--output", "json", "cli", "doctor"], "exitCode": 10, "stdout": {"kind": "json", "schema": "openprose.doctor-report/1"}},

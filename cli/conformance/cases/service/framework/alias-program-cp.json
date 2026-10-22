@@ -1,0 +1,60 @@
+{
+  "id": "alias-program-cp",
+  "feature": "framework",
+  "operation": "program.copy",
+  "description": "`program cp` suggests `program copy`.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "program",
+    "cp",
+    "hello",
+    "--to",
+    "acme",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": null,
+      "operation": "cli",
+      "problem": {
+        "action": "Use `cli program copy`: `prose --output json cli program copy hello --to acme --yes`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "unknown command `cli program cp`; did you mean `cli program copy`? Commands: copy, delete, draft, list, revisions, save, show, visibility",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "program",
+            "copy",
+            "hello",
+            "--to",
+            "acme",
+            "--yes"
+          ]
+        },
+        "exitCode": 2,
+        "message": "Unknown command.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

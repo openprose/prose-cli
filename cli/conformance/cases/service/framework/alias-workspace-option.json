@@ -1,0 +1,56 @@
+{
+  "id": "alias-workspace-option",
+  "feature": "framework",
+  "operation": "program.list",
+  "description": "`--workspace` is not an option; it suggests --org.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "program",
+    "list",
+    "--workspace",
+    "acme"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "programs.list",
+      "operation": "program.list",
+      "problem": {
+        "action": "Replace --workspace with --org: `prose --output json cli program list --org acme`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "unknown option --workspace for `cli program list`; did you mean --org?",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "program",
+            "list",
+            "--org",
+            "acme"
+          ]
+        },
+        "exitCode": 2,
+        "message": "Unknown option.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

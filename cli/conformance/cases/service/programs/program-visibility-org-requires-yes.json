@@ -1,0 +1,112 @@
+{
+  "id": "program-visibility-org-requires-yes",
+  "feature": "programs",
+  "operation": "program.visibility",
+  "description": "Without --yes an organization visibility change is planned, naming the organization.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "program",
+    "visibility",
+    "hello",
+    "public",
+    "--org",
+    "acme"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/programs",
+        "query": {
+          "workspace": "acme"
+        },
+        "requestHeaders": {
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          },
+          "User-Agent": {
+            "pattern": "^prose-cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"
+          },
+          "Accept": "application/json",
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "status": 200,
+        "body": {
+          "programs": [],
+          "workspace": {
+            "slug": "acme",
+            "name": "Acme",
+            "role": "admin"
+          }
+        }
+      }
+    ]
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "program.set_visibility",
+      "operation": "program.visibility",
+      "problem": {
+        "action": "Rerun the same command with --yes to confirm, or with --preview to see what it would do without sending anything.",
+        "boundary": "invocation",
+        "code": "CONFIRMATION_REQUIRED",
+        "details": {
+          "confirmArgv": [
+            "--output",
+            "json",
+            "cli",
+            "program",
+            "visibility",
+            "hello",
+            "public",
+            "--org",
+            "acme",
+            "--yes"
+          ],
+          "plannedRequest": {
+            "bodyBytes": 23,
+            "bodySha256": "b608e9b07c18727de02e851421550faa562591d5377b0c0286199373f39f83da",
+            "description": "Make a program public or private.",
+            "effect": "outward",
+            "method": "PUT",
+            "operation": "program.visibility",
+            "organization": "acme",
+            "summary": {
+              "visibility": "public"
+            }
+          },
+          "previewArgv": [
+            "--output",
+            "json",
+            "cli",
+            "program",
+            "visibility",
+            "hello",
+            "public",
+            "--org",
+            "acme",
+            "--preview"
+          ],
+          "reason": "--yes is required because it changes who can read the program; public makes it readable by anyone"
+        },
+        "exitCode": 2,
+        "message": "This service operation requires explicit confirmation.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

@@ -1,0 +1,103 @@
+{
+  "id": "program-revisions-org",
+  "feature": "programs",
+  "operation": "program.revisions",
+  "description": "`program revisions SLUG --org ORG` lists the organization program's revisions.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "program",
+    "revisions",
+    "acme/hello",
+    "--org",
+    "acme"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/programs/hello/revisions",
+        "query": {
+          "workspace": "acme"
+        },
+        "requestHeaders": {
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          },
+          "User-Agent": {
+            "pattern": "^prose-cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"
+          },
+          "Accept": "application/json",
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "status": 200,
+        "body": {
+          "revisions": [
+            {
+              "owner": "acme",
+              "slug": "hello",
+              "rev": 2,
+              "rev_id": "2222222222222222",
+              "commit_id": "3333333333333333",
+              "parent_commit_id": "1111111111111111",
+              "updated_at": 1790212199320
+            },
+            {
+              "owner": "acme",
+              "slug": "hello",
+              "rev": 1,
+              "rev_id": "0123456789abcdef",
+              "commit_id": "1111111111111111",
+              "parent_commit_id": null,
+              "updated_at": 1790212199320
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "program.revisions",
+      "operation": "program.revisions",
+      "problem": null,
+      "result": {
+        "revisions": [
+          {
+            "commit_id": "3333333333333333",
+            "owner": "acme",
+            "parent_commit_id": "1111111111111111",
+            "ref": "acme/hello@2222222222222222",
+            "rev": 2,
+            "rev_id": "2222222222222222",
+            "slug": "hello",
+            "updated_at": 1790212199320,
+            "updated_at_iso": "2026-09-24T01:09:59.320Z"
+          },
+          {
+            "commit_id": "1111111111111111",
+            "owner": "acme",
+            "parent_commit_id": null,
+            "ref": "acme/hello@0123456789abcdef",
+            "rev": 1,
+            "rev_id": "0123456789abcdef",
+            "slug": "hello",
+            "updated_at": 1790212199320,
+            "updated_at_iso": "2026-09-24T01:09:59.320Z"
+          }
+        ]
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

@@ -1,0 +1,51 @@
+{
+  "id": "program-copy-pinned-preview",
+  "feature": "programs",
+  "operation": "program.copy",
+  "description": "A pinned OWNER/SLUG@REV previews without any request.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "program",
+    "copy",
+    "bob/tool@0123456789abcdef",
+    "--to",
+    "acme",
+    "--preview"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "program.copy",
+      "operation": "program.copy",
+      "problem": null,
+      "result": {
+        "plannedRequest": {
+          "bodyBytes": 13,
+          "bodySha256": "7e003eb4e7b66994dd6f80d4739a71adc8982578920ed2bde1b1d51135ba88c4",
+          "description": "Copy a program into an organization.",
+          "effect": "outward",
+          "method": "POST",
+          "operation": "program.copy",
+          "summary": {
+            "to": "acme"
+          }
+        },
+        "preview": true
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

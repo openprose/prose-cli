@@ -1,4 +1,4 @@
-//! Service programs: `program list|show|save|visibility|delete|revisions|draft`.
+//! Service programs: `program list|show|save|visibility|delete|revisions|copy|draft`.
 //!
 //! Projections follow `shared/schemas/service/programs.schema.json`. Server
 //! field names are kept verbatim (snake case). Program bytes are never
@@ -10,6 +10,7 @@ use super::fs;
 use super::http::{Request, StreamOpen, encode_segment};
 use super::program_ref::{self, valid_rev, valid_slug};
 use super::sse::{SseItem, StreamEnd};
+use super::workspace::{self, Role};
 use super::{Context, Gate};
 use crate::RunnerError;
 use crate::error::{ErrorCode, human_safe_scalar};
@@ -40,6 +41,7 @@ pub fn execute(context: &mut Context<'_>) -> Result<Value, RunnerError> {
         "program.visibility" => visibility(context),
         "program.delete" => delete(context),
         "program.revisions" => revisions(context),
+        "program.copy" => copy(context),
         "program.draft" => draft(context),
         _ => context.not_implemented(),
     }
@@ -66,11 +68,92 @@ pub fn is_text(value: &str) -> bool {
 /// Request index of `GET /programs/{slug}/revisions` in save, visibility and
 /// delete (the OWNER/SLUG check).
 const OWNER_CHECK: usize = 1;
+/// Request index of `GET /programs?workspace=ORG` in save, visibility and
+/// delete (the `--org` confirmation).
+const ORGANIZATION_CHECK: usize = 2;
 
 /// `<SLUG>`, parsed before any request: a bare slug, or `OWNER/SLUG` when
 /// OWNER is the caller (checked by `confirm_own_slug`).
 fn slug_reference(context: &Context<'_>) -> Result<program_ref::ProgramRef, RunnerError> {
     program_ref::own_slug_argument(context)
+}
+
+/// The `<SLUG>` of an owner-scoped verb and the organization it acts in:
+/// with `--org ORG`, OWNER (when given) must be ORG and the plan names the
+/// organization; without it, `OWNER/SLUG` must be the caller (`creates` is a
+/// first save).
+fn scoped_slug(
+    context: &mut Context<'_>,
+    creates: bool,
+) -> Result<(program_ref::ProgramRef, Option<String>), RunnerError> {
+    let reference = slug_reference(context)?;
+    let organization = workspace::organization_option(context, "--org")?;
+    match &organization {
+        None => {
+            program_ref::confirm_own_slug(context, &reference, OWNER_CHECK, creates)?;
+        }
+        Some(organization) => {
+            let given = context.argument("SLUG").unwrap_or_default().to_owned();
+            workspace::require_same_organization(
+                context,
+                &reference.owner,
+                &reference.slug,
+                organization,
+                &given,
+            )?;
+            // A service that ignores `?workspace=` must never receive the
+            // write.
+            workspace::confirm_organization(context, ORGANIZATION_CHECK, organization)?;
+            context.organization = Some(organization.clone());
+        }
+    }
+    Ok((reference, organization))
+}
+
+/// Sends an organization-scoped request; organization failures name the
+/// organization and the role `what` needs. With `slug`, a plain 404 is that
+/// program missing from the organization (or the caller not being a
+/// member); without it, every 404 is the organization.
+fn send_scoped(
+    context: &mut Context<'_>,
+    request: &Request,
+    organization: Option<&str>,
+    role: Role,
+    what: &str,
+    slug: Option<&str>,
+) -> Result<Map<String, Value>, RunnerError> {
+    let error = match context.send(request) {
+        Ok(response) => return response.json_object(),
+        Err(error) => error,
+    };
+    let Some(organization) = organization else {
+        return Err(error);
+    };
+    let explained = workspace::organization_failure(
+        context,
+        error,
+        organization,
+        role,
+        what,
+        "--org",
+        slug.is_none(),
+    );
+    Err(match slug {
+        Some(slug)
+            if explained.code == ErrorCode::ServiceResourceNotFound && unexplained(&explained) =>
+        {
+            program_ref::missing_in_organization(context, organization, slug, explained)
+        }
+        _ => explained,
+    })
+}
+
+/// A not-found error no handler has named a resource for yet.
+fn unexplained(error: &RunnerError) -> bool {
+    error
+        .details
+        .as_ref()
+        .is_none_or(|details| !details.contains_key("resource"))
 }
 
 /// Checks an `--output-file` target before any request (it must not exist
@@ -209,6 +292,11 @@ fn project(
     if let Some(text) = message(get("message"))? {
         out.insert("message".into(), json!(text));
     }
+    // Revisions carry neither; program records may name their namespace
+    // kind and source.
+    if with_visibility {
+        workspace::project_workspace(object, &mut out)?;
+    }
     if with_content {
         match get("content") {
             Value::String(text) if is_text(text) => {
@@ -247,25 +335,45 @@ fn name_of(program: &Value) -> String {
 
 fn list(context: &mut Context<'_>) -> Result<Value, RunnerError> {
     let with_content = context.flag("--with-content");
-    let request = Request::from_manifest(context.operation, 0, "/programs");
-    let body = context.send(&request)?.json_object()?;
+    let organization = workspace::organization_option(context, "--org")?;
+    let request = workspace::scoped(
+        Request::from_manifest(context.operation, 0, "/programs"),
+        organization.as_deref(),
+    );
+    let body = send_scoped(
+        context,
+        &request,
+        organization.as_deref(),
+        Role::Reader,
+        "listing its programs",
+        None,
+    )?;
+    if let Some(organization) = &organization {
+        workspace::require_echo(&body, organization)?;
+    }
     let programs = items(&body, "programs")?
         .iter()
         .map(|record| project(record, true, with_content))
         .collect::<Result<Vec<_>, _>>()?;
     let mut human = String::new();
     if programs.is_empty() {
-        human.push_str("No saved programs.\n");
+        match &organization {
+            None => human.push_str("No saved programs.\n"),
+            Some(organization) => {
+                let _ = writeln!(human, "No programs in organization {organization}.");
+            }
+        }
     }
     for program in &programs {
         let _ = writeln!(
             human,
-            "{}  rev {}  {}  rev_id={}  ref={}",
+            "{}  rev {}  {}  rev_id={}  ref={}{}",
             name_of(program),
             program["rev"],
             program["visibility"].as_str().unwrap_or_default(),
             program["rev_id"].as_str().unwrap_or_default(),
-            program["ref"].as_str().unwrap_or_default()
+            program["ref"].as_str().unwrap_or_default(),
+            workspace::workspace_columns(program)
         );
     }
     context.human = Some(human);
@@ -281,9 +389,13 @@ fn nearest_own_program(
     error: RunnerError,
     given: &str,
     slug: &str,
+    organization: Option<&str>,
 ) -> RunnerError {
-    let request = Request::from_manifest(context.operation, 2, "/programs")
-        .class(super::http::TransportClass::Control);
+    let request = workspace::scoped(
+        Request::from_manifest(context.operation, 2, "/programs"),
+        organization,
+    )
+    .class(super::http::TransportClass::Control);
     let Ok(body) = context
         .send(&request)
         .and_then(|response| response.json_object())
@@ -311,10 +423,18 @@ fn nearest_own_program(
             let _ = write!(reason, "; did you mean {near}?");
         }
     }
-    let fixed = given.replacen(slug, &near, 1);
+    // Only the slug changes: an OWNER/ prefix is kept as given.
+    let fixed = given.split_once('/').map_or_else(
+        || given.replacen(slug, &near, 1),
+        |(owner, rest)| format!("{owner}/{}", rest.replacen(slug, &near, 1)),
+    );
+    let whose = organization.map_or_else(
+        || "you have".to_owned(),
+        |organization| format!("organization {organization} has"),
+    );
     context.corrected(
         error,
-        &format!("Run `{{command}}`: {near} is the closest program you have"),
+        &format!("Run `{{command}}`: {near} is the closest program {whose}"),
         context.argv_with_argument(given, &fixed),
     )
 }
@@ -325,6 +445,19 @@ fn show(context: &mut Context<'_>) -> Result<Value, RunnerError> {
         .unwrap_or_default()
         .to_owned();
     let mut reference = program_ref::parse_own_allowed_with(&given, true)?;
+    let organization = workspace::organization_option(context, "--org")?;
+    if let Some(organization) = &organization {
+        // With --org a bare SLUG is the organization's program; OWNER must
+        // be it.
+        workspace::require_same_organization(
+            context,
+            &reference.owner,
+            &reference.slug,
+            organization,
+            &given,
+        )?;
+        organization.clone_into(&mut reference.owner);
+    }
     if let Some(target) = context.option("--output-file") {
         preflight_output(&context.system.current_dir, target)?;
     }
@@ -333,18 +466,26 @@ fn show(context: &mut Context<'_>) -> Result<Value, RunnerError> {
     let by_number = reference.rev_number.is_some();
     let bare = reference.owner.is_empty();
     let resolved = if by_number {
-        program_ref::resolve_rev_number(context, &mut reference, 1)
+        program_ref::resolve_rev_number(context, &mut reference, 1, organization.as_deref())
     } else {
         program_ref::fill_owner(context, &mut reference, 1)
     };
     if let Err(error) = resolved {
-        return Err(
-            if bare && error.code == ErrorCode::ServiceResourceNotFound {
-                nearest_own_program(context, error, &given, &reference.slug)
-            } else {
-                error
-            },
-        );
+        return Err(match &organization {
+            Some(organization) => workspace::organization_failure(
+                context,
+                error,
+                organization,
+                Role::Reader,
+                "reading its programs",
+                "--org",
+                false,
+            ),
+            None if bare && error.code == ErrorCode::ServiceResourceNotFound => {
+                nearest_own_program(context, error, &given, &reference.slug, None)
+            }
+            None => error,
+        });
     }
     let mut path = format!(
         "/p/{}/{}",
@@ -360,7 +501,25 @@ fn show(context: &mut Context<'_>) -> Result<Value, RunnerError> {
     // (public programs); a configured key is always sent, so owners see
     // private ones.
     request.bearer = context.has_credential();
-    let body = context.send(&request)?.json_object()?;
+    let body = match context.send(&request) {
+        Ok(response) => response.json_object()?,
+        // The organization's program is missing, or private to members.
+        Err(error)
+            if organization.is_some() && error.code == ErrorCode::ServiceResourceNotFound =>
+        {
+            let organization = organization.as_deref().unwrap_or_default();
+            let missing =
+                program_ref::missing_in_organization(context, organization, &reference.slug, error);
+            return Err(nearest_own_program(
+                context,
+                missing,
+                &given,
+                &reference.slug,
+                Some(organization),
+            ));
+        }
+        Err(error) => return Err(error),
+    };
     let record = body.get("program").cloned().unwrap_or(Value::Null);
     let program = project(&record, true, false)?;
     if !program["owner"]
@@ -395,6 +554,10 @@ fn show(context: &mut Context<'_>) -> Result<Value, RunnerError> {
         );
         let _ = std::io::Write::write_all(context.err, note.as_bytes());
     }
+    if context.mode == crate::OutputMode::Human {
+        let notes = workspace::workspace_notes(&program);
+        let _ = std::io::Write::write_all(context.err, notes.as_bytes());
+    }
     Ok(json!({ "program": program, "is_owner": is_owner, "file": file }))
 }
 
@@ -414,6 +577,7 @@ fn file_line(label: &str, file: &Value, target: Option<&str>) -> String {
 
 fn save(context: &mut Context<'_>) -> Result<Value, RunnerError> {
     let reference = slug_reference(context)?;
+    workspace::organization_option(context, "--org")?;
     let source = context.argument("FILE").unwrap_or_default().to_owned();
     let text = fs::read_text(
         &context.system.current_dir,
@@ -447,11 +611,14 @@ fn save(context: &mut Context<'_>) -> Result<Value, RunnerError> {
         }
         body.insert("base_commit_id".into(), json!(base));
     }
-    program_ref::confirm_own_slug(context, &reference, OWNER_CHECK, true)?;
+    let (_, organization) = scoped_slug(context, true)?;
     let slug = reference.slug;
     let body = Value::Object(body);
     let path = format!("/programs/{}", encode_segment(&slug));
-    let request = Request::from_manifest(context.operation, 0, path.clone()).json_body(&body);
+    let request = workspace::scoped(
+        Request::from_manifest(context.operation, 0, path.clone()).json_body(&body),
+        organization.as_deref(),
+    );
     let planned = context.planned(0, &path, &[], request.body.as_deref());
     if let Gate::Preview(result) = context.gate(planned)? {
         return Ok(result);
@@ -464,6 +631,17 @@ fn save(context: &mut Context<'_>) -> Result<Value, RunnerError> {
         }
         if error.code == ErrorCode::GithubLinkRequired {
             error = refine_save_forbidden(error, &response.body, context.known_credential());
+        }
+        if let Some(organization) = &organization {
+            error = workspace::organization_failure(
+                context,
+                error,
+                organization,
+                Role::Developer,
+                "saving a program",
+                "--org",
+                true,
+            );
         }
         return Err(error);
     }
@@ -568,21 +746,37 @@ fn visibility_argument(context: &Context<'_>) -> Result<String, RunnerError> {
 }
 
 fn visibility(context: &mut Context<'_>) -> Result<Value, RunnerError> {
-    let reference = slug_reference(context)?;
+    slug_reference(context)?;
     let value = visibility_argument(context)?;
-    program_ref::confirm_own_slug(context, &reference, OWNER_CHECK, false)?;
+    let (reference, organization) = scoped_slug(context, false)?;
     let slug = reference.slug;
     let body = json!({ "visibility": value });
     let path = format!("/programs/{}/visibility", encode_segment(&slug));
-    let request = Request::from_manifest(context.operation, 0, path.clone()).json_body(&body);
+    let request = workspace::scoped(
+        Request::from_manifest(context.operation, 0, path.clone()).json_body(&body),
+        organization.as_deref(),
+    );
     let planned = context.planned(0, &path, &[], request.body.as_deref());
     if let Gate::Preview(result) = context.gate(planned)? {
         return Ok(result);
     }
-    let reply = context
-        .send(&request)
-        .map_err(unsaved_program)?
-        .json_object()?;
+    let reply = send_scoped(
+        context,
+        &request,
+        organization.as_deref(),
+        Role::Admin,
+        "changing a program's visibility",
+        Some(&slug),
+    )
+    .map_err(|error| {
+        let unsaved = unsaved_program(error.clone());
+        match &organization {
+            Some(organization) if unsaved != error => {
+                program_ref::missing_in_organization(context, organization, &slug, unsaved)
+            }
+            _ => unsaved,
+        }
+    })?;
     let program = project(reply.get("program").unwrap_or(&Value::Null), true, false)?;
     context.human = Some(format!(
         "{} is now {}\n",
@@ -612,48 +806,92 @@ fn unsaved_program(error: RunnerError) -> RunnerError {
 }
 
 fn delete(context: &mut Context<'_>) -> Result<Value, RunnerError> {
-    let reference = slug_reference(context)?;
-    program_ref::confirm_own_slug(context, &reference, OWNER_CHECK, false)?;
+    let (reference, organization) = scoped_slug(context, false)?;
     let slug = reference.slug;
+    let name = organization.as_ref().map_or_else(
+        || slug.clone(),
+        |organization| format!("{organization}/{slug}"),
+    );
     let path = format!("/programs/{}", encode_segment(&slug));
     let planned = context.planned(0, &path, &[], None);
     if let Gate::Preview(result) = context.gate(planned)? {
         return Ok(result);
     }
-    let request = Request::from_manifest(context.operation, 0, path);
+    let request = workspace::scoped(
+        Request::from_manifest(context.operation, 0, path),
+        organization.as_deref(),
+    );
     let reply = match context.send(&request) {
         Ok(response) => response.json_object()?,
-        // A confirmed delete is idempotent: nothing to delete
-        // is the goal state.
-        Err(error) if error.code == ErrorCode::ServiceResourceNotFound => {
+        Err(error) => {
+            // A confirmed delete is idempotent: nothing to delete is the goal
+            // state. In an organization membership was confirmed first, so a
+            // plain 404 is the program; an organization 404 is not.
+            let error = match &organization {
+                Some(organization) => workspace::organization_failure(
+                    context,
+                    error,
+                    organization,
+                    Role::Admin,
+                    "deleting a program",
+                    "--org",
+                    false,
+                ),
+                None => error,
+            };
+            if error.code != ErrorCode::ServiceResourceNotFound || !unexplained(&error) {
+                return Err(error);
+            }
             context.human = Some(format!(
-                "Program {slug} was already absent; nothing was deleted.\n"
+                "Program {name} was already absent; nothing was deleted.\n"
             ));
             return Ok(json!({ "slug": slug, "deleted": true, "alreadyAbsent": true }));
         }
-        Err(error) => return Err(error),
     };
     if reply.get("deleted") != Some(&Value::Bool(true)) {
         return Err(protocol("the service did not confirm the deletion"));
     }
-    context.human = Some(format!("Deleted {slug}\n"));
+    context.human = Some(format!("Deleted {name}\n"));
     Ok(json!({ "slug": slug, "deleted": true }))
 }
 
 fn revisions(context: &mut Context<'_>) -> Result<Value, RunnerError> {
     // OWNER/SLUG is checked against the owner these (own) revisions name.
     let reference = slug_reference(context)?;
+    let organization = workspace::organization_option(context, "--org")?;
+    if let Some(organization) = &organization {
+        let given = context.argument("SLUG").unwrap_or_default().to_owned();
+        workspace::require_same_organization(
+            context,
+            &reference.owner,
+            &reference.slug,
+            organization,
+            &given,
+        )?;
+    }
     let slug = reference.slug.clone();
     let path = format!("/programs/{}/revisions", encode_segment(&slug));
-    let request = Request::from_manifest(context.operation, 0, path);
-    let owned = !reference.owner.is_empty();
-    let body = match context.send(&request) {
+    let request = workspace::scoped(
+        Request::from_manifest(context.operation, 0, path),
+        organization.as_deref(),
+    );
+    // With --org the listing is the organization's, so OWNER needs no
+    // confirmation.
+    let owned = !reference.owner.is_empty() && organization.is_none();
+    let body = match send_scoped(
+        context,
+        &request,
+        organization.as_deref(),
+        Role::Reader,
+        "reading its programs",
+        Some(&slug),
+    ) {
         // OWNER/SLUG of a program the caller has not saved: OWNER cannot be
         // confirmed, which is not "your program is missing".
         Err(error) if owned && error.code == ErrorCode::ServiceResourceNotFound => {
             return Err(program_ref::unconfirmed_owner(context, &reference));
         }
-        other => other?.json_object()?,
+        other => other?,
     };
     if owned
         && body
@@ -663,7 +901,14 @@ fn revisions(context: &mut Context<'_>) -> Result<Value, RunnerError> {
     {
         return Err(program_ref::unconfirmed_owner(context, &reference));
     }
-    program_ref::check_owner(&reference, &body)?;
+    match &organization {
+        None => program_ref::check_owner(&reference, &body)?,
+        // A service that ignores `?workspace=` answers with the caller's own
+        // revisions.
+        Some(organization) => {
+            workspace::require_organization_owner(items(&body, "revisions")?, organization)?;
+        }
+    }
     let revisions = items(&body, "revisions")?
         .iter()
         .map(|record| project(record, false, false))
@@ -688,6 +933,121 @@ fn revisions(context: &mut Context<'_>) -> Result<Value, RunnerError> {
     }
     context.human = Some(human);
     Ok(json!({ "revisions": revisions }))
+}
+
+/// `program copy OWNER/SLUG[@REV] --to ORG`: copies a program into an
+/// organization's namespace. A bare SLUG is the caller's own personal
+/// program (its owner is read from its revisions, manifest request 1). The
+/// copy records its source (`copied_from`); the source is unchanged.
+fn copy(context: &mut Context<'_>) -> Result<Value, RunnerError> {
+    let given = context
+        .argument("OWNER/SLUG[@REV]")
+        .unwrap_or_default()
+        .to_owned();
+    let mut reference = program_ref::parse_own_allowed(&given)?;
+    let to = workspace::organization_option(context, "--to")?.unwrap_or_default();
+    let rename = context.option("--slug").map(str::to_owned);
+    if let Some(rename) = rename.as_deref().filter(|rename| !valid_slug(rename)) {
+        let lower = rename.to_ascii_lowercase();
+        let error = invalid(format!(
+            "--slug {} must be a program slug: lowercase letters, digits and hyphens, at most 64 characters",
+            crate::error::quote(rename)
+        ));
+        return Err(if lower != rename && valid_slug(&lower) {
+            context.corrected(
+                error,
+                &format!("Pass {lower}: `{{command}}`"),
+                context.argv_with_option("--slug", &lower),
+            )
+        } else {
+            error
+        });
+    }
+    let target = rename.clone().unwrap_or_else(|| reference.slug.clone());
+    // A bare SLUG the caller has not saved names `cli program list`.
+    program_ref::fill_owner(context, &mut reference, 1)?;
+    let path = workspace::copy_path(&reference.owner, &reference.slug, reference.rev.as_deref());
+    let body = match &rename {
+        Some(rename) => json!({ "to": to, "slug": rename }),
+        None => json!({ "to": to }),
+    };
+    let request = Request::from_manifest(context.operation, 0, path.clone()).json_body(&body);
+    let planned = context.planned(0, &path, &[], request.body.as_deref());
+    if let Gate::Preview(result) = context.gate(planned)? {
+        return Ok(result);
+    }
+    let response = context.send_raw(&request)?;
+    if !(200..300).contains(&response.status) {
+        let mut error = context.classify(&request, &response);
+        // A 403 without a code is the service's slug refusal (or the key
+        // itself).
+        if error.code == ErrorCode::ServiceAuthRequired && response.status == 403 {
+            error = refine_save_forbidden(error, &response.body, context.known_credential());
+        }
+        let explained = workspace::organization_failure(
+            context,
+            error,
+            &to,
+            Role::Developer,
+            "copying a program into it",
+            "--to",
+            false,
+        );
+        if explained.code == ErrorCode::ServiceResourceNotFound && unexplained(&explained) {
+            // The service answers a missing source and a non-member the same
+            // way.
+            return Err(explained.with_detail(
+                "reason",
+                format!(
+                    "program {} was not found, or you are not a member of organization {to}",
+                    human_safe_scalar(&given)
+                ),
+            ));
+        }
+        return Err(explained);
+    }
+    let reply = response.json_object()?;
+    let program = project(reply.get("program").unwrap_or(&Value::Null), true, false)?;
+    if !program["owner"]
+        .as_str()
+        .is_some_and(|owner| owner.eq_ignore_ascii_case(&to))
+        || program["slug"] != target.as_str()
+    {
+        return Err(protocol("the service returned a different program"));
+    }
+    let mut result = Map::new();
+    match reply.get("url") {
+        None | Some(Value::Null) => {}
+        Some(url) => {
+            let absolute = url
+                .as_str()
+                .filter(|url| {
+                    url.starts_with("/p/")
+                        && url.len() > 3
+                        && url.len() <= 256
+                        && !url.chars().any(char::is_whitespace)
+                })
+                .and_then(|url| super::render::absolute_url(&context.environment, url))
+                .ok_or_else(|| protocol("the service response has no valid `url`"))?;
+            result.insert("url".into(), json!(absolute));
+        }
+    }
+    let from = if program["copied_from"].is_object() {
+        workspace::copied_text(&program["copied_from"])
+    } else {
+        reference.rev.as_deref().map_or_else(
+            || format!("{}/{}", reference.owner, reference.slug),
+            |rev| program_ref::ref_of(&reference.owner, &reference.slug, rev),
+        )
+    };
+    context.human = Some(format!(
+        "Copied {from} to {} rev {}: ref {}; the original is unchanged\n",
+        name_of(&program),
+        program["rev"],
+        program["ref"].as_str().unwrap_or_default()
+    ));
+    result.insert("program".into(), program);
+    Ok(Value::Object(result))
 }
 
 /// A sentence: non-blank, at most 4096 code points, no control characters

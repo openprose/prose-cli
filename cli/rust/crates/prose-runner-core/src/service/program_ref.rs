@@ -230,22 +230,54 @@ fn missing_own(context: &Context<'_>, slug: &str, error: RunnerError) -> RunnerE
     )
 }
 
-/// `GET /programs/{slug}/revisions` (manifest request `index`): the body, or
-/// `None` on 404.
+/// `SERVICE_RESOURCE_NOT_FOUND` for a SLUG the `--org` organization has no
+/// readable program of.
+pub fn missing_in_organization(
+    context: &Context<'_>,
+    organization: &str,
+    slug: &str,
+    error: RunnerError,
+) -> RunnerError {
+    let reason = format!(
+        "organization {organization} has no program {} you can read, or you are not a member of it; list its programs with `{}`",
+        crate::error::quote(slug),
+        context.command(&format!("program list --org {organization}"))
+    );
+    super::not_found::explain_not_found(
+        error.with_detail("reason", reason),
+        context.mode,
+        "program",
+        &format!("{organization}/{slug}"),
+        Some(&["program", "list", "--org", organization]),
+    )
+}
+
+/// `GET /programs/{slug}/revisions` (manifest request `index`), in the
+/// `organization` namespace when one is given: the body, or `None` on 404.
+/// An organization the caller cannot see stays an error.
 fn send_revisions(
     context: &mut Context<'_>,
     slug: &str,
     index: usize,
+    organization: Option<&str>,
 ) -> Result<Result<serde_json::Map<String, Value>, RunnerError>, RunnerError> {
-    let request = Request::from_manifest(
-        context.operation,
-        index,
-        format!("/programs/{}/revisions", encode_segment(slug)),
+    let request = super::workspace::scoped(
+        Request::from_manifest(
+            context.operation,
+            index,
+            format!("/programs/{}/revisions", encode_segment(slug)),
+        ),
+        organization,
     )
     .class(super::http::TransportClass::Control);
     match context.send(&request) {
         Ok(response) => Ok(Ok(response.json_object()?)),
-        Err(error) if error.code == ErrorCode::ServiceResourceNotFound => Ok(Err(error)),
+        Err(error)
+            if error.code == ErrorCode::ServiceResourceNotFound
+                && !(organization.is_some() && super::workspace::organization_missing(&error)) =>
+        {
+            Ok(Err(error))
+        }
         Err(error) => Err(error),
     }
 }
@@ -262,7 +294,7 @@ pub fn fill_owner(
         return Ok(());
     }
     let slug = reference.slug.clone();
-    let body = match send_revisions(context, &slug, index)? {
+    let body = match send_revisions(context, &slug, index, None)? {
         Ok(body) => body,
         Err(error) => return Err(missing_own(context, &slug, error)),
     };
@@ -286,19 +318,30 @@ pub fn resolve_rev_number(
     context: &mut Context<'_>,
     reference: &mut ProgramRef,
     index: usize,
+    organization: Option<&str>,
 ) -> Result<(), RunnerError> {
     let Some(number) = reference.rev_number else {
         return Ok(());
     };
     let slug = reference.slug.clone();
     let other = |context: &Context<'_>, reference: &ProgramRef| {
+        // In an organization's namespace (--org) the listing is the
+        // organization's: the program is missing there.
+        if let Some(organization) = organization {
+            return missing_in_organization(
+                context,
+                organization,
+                &slug,
+                RunnerError::catalog(ErrorCode::ServiceResourceNotFound),
+            );
+        }
         let name = format!("{}/{slug}", reference.owner);
         RunnerError::invocation(format!(
             "revision numbers such as @{number} resolve only for your own programs; for {name} pass the 16-hex-digit rev_id, which `{}` prints (latest) as `ref`",
             context.command(&format!("program show {name} --json"))
         ))
     };
-    let body = match send_revisions(context, &slug, index)? {
+    let body = match send_revisions(context, &slug, index, organization)? {
         Ok(body) => body,
         Err(_) if !reference.owner.is_empty() => return Err(other(context, reference)),
         Err(error) => return Err(missing_own(context, &slug, error)),
@@ -326,9 +369,13 @@ pub fn resolve_rev_number(
             .first()
             .and_then(|item| item["rev"].as_u64())
             .map_or_else(String::new, |rev| format!("; the newest is rev {rev}"));
+        let listing = organization.map_or_else(
+            || format!("program revisions {slug}"),
+            |organization| format!("program revisions {slug} --org {organization}"),
+        );
         return Err(RunnerError::invocation(format!(
             "{owner}/{slug} has no revision {number}{newest}; list them with `{}`",
-            context.command(&format!("program revisions {slug}"))
+            context.command(&listing)
         )));
     };
     reference.rev = Some(rev.to_owned());
@@ -366,7 +413,7 @@ pub fn resolve_to_run(
         || (verify_pinned && reference.rev.is_some())
     {
         let slug = reference.slug.clone();
-        let body = send_revisions(context, &slug, list)?;
+        let body = send_revisions(context, &slug, list, None)?;
         let own = match &body {
             Ok(body) => own_revisions(body, &slug)?,
             Err(_) => None,
@@ -585,7 +632,7 @@ pub fn confirm_own_slug(
         return Ok(String::new());
     }
     let slug = reference.slug.clone();
-    let body = send_revisions(context, &slug, index)?.ok();
+    let body = send_revisions(context, &slug, index, None)?.ok();
     let own = match &body {
         Some(body) => own_revisions(body, &slug)?,
         None => None,
