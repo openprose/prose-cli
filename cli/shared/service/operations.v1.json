@@ -3,7 +3,7 @@
   "contract": "service/1",
   "interactionsSource": {
     "file": "service-interactions.v1.json",
-    "sha256": "2a272f2afc0ef4c87431b947f71af6ce5a7fe8dc731f96e106c25e156a077a01"
+    "sha256": "7288b8b0ba2dd8570bc544a9b3761cb615534a9859deeef497290f0c1226ec50"
   },
   "grammar": {
     "usage": "prose [--output human|json|jsonl] cli <command> [ARGUMENTS] [OPTIONS]",
@@ -202,6 +202,9 @@
         ],
         "cat": [
           "show"
+        ],
+        "cp": [
+          "copy"
         ],
         "credits": [
           "balance"
@@ -427,6 +430,9 @@
         "--offset": [
           "--before"
         ],
+        "--org": [
+          "--to"
+        ],
         "--page": [
           "--before"
         ],
@@ -438,6 +444,10 @@
         ],
         "--var": [
           "--input"
+        ],
+        "--workspace": [
+          "--org",
+          "--to"
         ],
         "-j": [
           "--json"
@@ -1168,6 +1178,11 @@
         "body": "amount_cents",
         "field": "amount_cents",
         "kind": "cents"
+      },
+      {
+        "body": "to",
+        "field": "to",
+        "kind": "text"
       }
     ],
     "summaryRule": "plannedRequest.summary copies only the listed non-secret top-level JSON body fields (text of 1 to 200 characters without control characters, safe integers, cents as a safe integer that human output also shows in dollars, or the sorted keys of an object); it is omitted when none is present; secrets, program text and input values never appear"
@@ -1209,7 +1224,9 @@
       "reserved_slug": "SERVICE_REQUEST_REJECTED",
       "immutable_organization_identity": "SERVICE_REQUEST_REJECTED",
       "organization_forbidden": "SERVICE_REQUEST_REJECTED",
-      "program_not_found": "SERVICE_RESOURCE_NOT_FOUND"
+      "program_not_found": "SERVICE_RESOURCE_NOT_FOUND",
+      "workspace_namespace_unavailable": "SERVICE_REQUEST_REJECTED",
+      "program_exists": "SERVICE_WRITE_CONFLICT"
     },
     "routeOverrides": [
       {
@@ -3325,7 +3342,7 @@
       ],
       "contract": "service/1",
       "feature": "programs",
-      "summary": "List this account's saved programs.",
+      "summary": "List this account's saved programs, or an organization's with --org.",
       "interaction": "programs.list",
       "interactions": [
         "programs.list"
@@ -3336,6 +3353,13 @@
           "name": "--with-content",
           "value": null,
           "description": "Include each program's content.",
+          "repeatable": false,
+          "required": false
+        },
+        {
+          "name": "--org",
+          "value": "ORG",
+          "description": "Act in this organization's namespace (its slug, as `cli org list` prints it) instead of your own; without it the command acts on your personal programs.",
           "repeatable": false,
           "required": false
         }
@@ -3353,7 +3377,10 @@
             "path": "/programs",
             "auth": "api_key_or_session_token"
           },
-          "response": "programs-list"
+          "response": "programs-list",
+          "query": {
+            "workspace": "{org}"
+          }
         }
       ],
       "effect": "read",
@@ -3389,7 +3416,8 @@
         }
       ],
       "examples": [
-        "prose cli program list --json"
+        "prose cli program list --json",
+        "prose cli program list --org acme --json"
       ]
     },
     {
@@ -3423,6 +3451,13 @@
           "description": "Write the bytes to FILE, which must not exist, instead of including them in the result.",
           "repeatable": false,
           "required": false
+        },
+        {
+          "name": "--org",
+          "value": "ORG",
+          "description": "Read the program from this organization's namespace: a bare SLUG names the organization's program, and OWNER/SLUG must name the same organization.",
+          "repeatable": false,
+          "required": false
         }
       ],
       "requests": [
@@ -3446,13 +3481,16 @@
           "path": "/programs/{slug}/revisions",
           "auth": "bearer",
           "body": null,
-          "when": "bare SLUG or a numeric @N",
+          "when": "bare SLUG or a numeric @N; with --org only a numeric @N",
           "catalogRoute": {
             "method": "GET",
             "path": "/programs/{slug}/revisions",
             "auth": "api_key_or_session_token"
           },
-          "response": "program-revisions"
+          "response": "program-revisions",
+          "query": {
+            "workspace": "{org}"
+          }
         },
         {
           "interaction": "programs.list",
@@ -3460,13 +3498,16 @@
           "path": "/programs",
           "auth": "bearer",
           "body": null,
-          "when": "a bare SLUG is not one of your programs (the nearest slug is suggested)",
+          "when": "a bare SLUG is not one of your programs, or of the --org organization's (the nearest slug is suggested)",
           "catalogRoute": {
             "method": "GET",
             "path": "/programs",
             "auth": "api_key_or_session_token"
           },
-          "response": "programs-list"
+          "response": "programs-list",
+          "query": {
+            "workspace": "{org}"
+          }
         }
       ],
       "effect": "read",
@@ -3510,7 +3551,8 @@
       ],
       "examples": [
         "prose cli program show exowner1/hello --json",
-        "prose cli program show exowner1/hello@0123456789abcdef --output-file hello.prose.md"
+        "prose cli program show exowner1/hello@0123456789abcdef --output-file hello.prose.md",
+        "prose cli program show hello --org acme --json"
       ]
     },
     {
@@ -3526,12 +3568,13 @@
       "interaction": "program.save",
       "interactions": [
         "program.save",
-        "program.revisions"
+        "program.revisions",
+        "programs.list"
       ],
       "arguments": [
         {
           "name": "SLUG",
-          "description": "Program slug owned by this account; OWNER/SLUG as `cli program list` prints it is accepted when OWNER is confirmed as you, and refused (exit 2) when it cannot be.",
+          "description": "Program slug owned by this account, or by the --org organization; OWNER/SLUG as `cli program list` prints it is accepted when OWNER is confirmed as you (or equals --org), and refused (exit 2) when it cannot be.",
           "required": true,
           "variadic": false
         },
@@ -3556,6 +3599,13 @@
           "description": "Expected current commit id; a newer revision yields SERVICE_WRITE_CONFLICT.",
           "repeatable": false,
           "required": false
+        },
+        {
+          "name": "--org",
+          "value": "ORG",
+          "description": "Act in this organization's namespace (its slug, as `cli org list` prints it) instead of your own; without it the command acts on your personal programs.",
+          "repeatable": false,
+          "required": false
         }
       ],
       "requests": [
@@ -3571,7 +3621,10 @@
             "path": "/programs/{slug}",
             "auth": "api_key_or_session_token"
           },
-          "response": "program-conflict"
+          "response": "program-conflict",
+          "query": {
+            "workspace": "{org}"
+          }
         },
         {
           "interaction": "program.revisions",
@@ -3579,13 +3632,33 @@
           "path": "/programs/{slug}/revisions",
           "auth": "bearer",
           "body": null,
-          "when": "OWNER/SLUG",
+          "when": "OWNER/SLUG without --org",
           "catalogRoute": {
             "method": "GET",
             "path": "/programs/{slug}/revisions",
             "auth": "api_key_or_session_token"
           },
-          "response": "program-revisions"
+          "response": "program-revisions",
+          "query": {
+            "workspace": "{org}"
+          }
+        },
+        {
+          "interaction": "programs.list",
+          "method": "GET",
+          "path": "/programs",
+          "auth": "bearer",
+          "body": null,
+          "when": "--org: confirms the organization before any write (the service must echo it)",
+          "catalogRoute": {
+            "method": "GET",
+            "path": "/programs",
+            "auth": "api_key_or_session_token"
+          },
+          "response": "programs-list",
+          "query": {
+            "workspace": "{org}"
+          }
         }
       ],
       "effect": "write",
@@ -3621,7 +3694,8 @@
       ],
       "examples": [
         "prose cli program save hello hello.prose.md --preview",
-        "prose cli program save hello hello.prose.md --message 'First draft'"
+        "prose cli program save hello hello.prose.md --message 'First draft'",
+        "prose cli program save hello hello.prose.md --org acme --preview"
       ]
     },
     {
@@ -3637,12 +3711,13 @@
       "interaction": "program.set_visibility",
       "interactions": [
         "program.set_visibility",
-        "program.revisions"
+        "program.revisions",
+        "programs.list"
       ],
       "arguments": [
         {
           "name": "SLUG",
-          "description": "Program slug owned by this account; OWNER/SLUG as `cli program list` prints it is accepted when OWNER is confirmed as you, and refused (exit 2) when it cannot be.",
+          "description": "Program slug owned by this account, or by the --org organization; OWNER/SLUG as `cli program list` prints it is accepted when OWNER is confirmed as you (or equals --org), and refused (exit 2) when it cannot be.",
           "required": true,
           "variadic": false
         },
@@ -3653,7 +3728,15 @@
           "variadic": false
         }
       ],
-      "options": [],
+      "options": [
+        {
+          "name": "--org",
+          "value": "ORG",
+          "description": "Act in this organization's namespace (its slug, as `cli org list` prints it) instead of your own; without it the command acts on your personal programs.",
+          "repeatable": false,
+          "required": false
+        }
+      ],
       "requests": [
         {
           "interaction": "program.set_visibility",
@@ -3667,7 +3750,10 @@
             "path": "/programs/{slug}/visibility",
             "auth": "api_key_or_session_token"
           },
-          "response": "program-visibility"
+          "response": "program-visibility",
+          "query": {
+            "workspace": "{org}"
+          }
         },
         {
           "interaction": "program.revisions",
@@ -3675,13 +3761,33 @@
           "path": "/programs/{slug}/revisions",
           "auth": "bearer",
           "body": null,
-          "when": "OWNER/SLUG",
+          "when": "OWNER/SLUG without --org",
           "catalogRoute": {
             "method": "GET",
             "path": "/programs/{slug}/revisions",
             "auth": "api_key_or_session_token"
           },
-          "response": "program-revisions"
+          "response": "program-revisions",
+          "query": {
+            "workspace": "{org}"
+          }
+        },
+        {
+          "interaction": "programs.list",
+          "method": "GET",
+          "path": "/programs",
+          "auth": "bearer",
+          "body": null,
+          "when": "--org: confirms the organization before any write (the service must echo it)",
+          "catalogRoute": {
+            "method": "GET",
+            "path": "/programs",
+            "auth": "api_key_or_session_token"
+          },
+          "response": "programs-list",
+          "query": {
+            "workspace": "{org}"
+          }
         }
       ],
       "effect": "outward",
@@ -3725,7 +3831,8 @@
         }
       ],
       "examples": [
-        "prose cli program visibility hello public --yes"
+        "prose cli program visibility hello public --yes",
+        "prose cli program visibility hello private --org acme --yes"
       ]
     },
     {
@@ -3741,17 +3848,26 @@
       "interaction": "program.delete",
       "interactions": [
         "program.delete",
-        "program.revisions"
+        "program.revisions",
+        "programs.list"
       ],
       "arguments": [
         {
           "name": "SLUG",
-          "description": "Program slug owned by this account; OWNER/SLUG as `cli program list` prints it is accepted when OWNER is confirmed as you, and refused (exit 2) when it cannot be.",
+          "description": "Program slug owned by this account, or by the --org organization; OWNER/SLUG as `cli program list` prints it is accepted when OWNER is confirmed as you (or equals --org), and refused (exit 2) when it cannot be.",
           "required": true,
           "variadic": false
         }
       ],
-      "options": [],
+      "options": [
+        {
+          "name": "--org",
+          "value": "ORG",
+          "description": "Act in this organization's namespace (its slug, as `cli org list` prints it) instead of your own; without it the command acts on your personal programs.",
+          "repeatable": false,
+          "required": false
+        }
+      ],
       "requests": [
         {
           "interaction": "program.delete",
@@ -3765,7 +3881,10 @@
             "path": "/programs/{slug}",
             "auth": "api_key_or_session_token"
           },
-          "response": "program-delete"
+          "response": "program-delete",
+          "query": {
+            "workspace": "{org}"
+          }
         },
         {
           "interaction": "program.revisions",
@@ -3773,13 +3892,33 @@
           "path": "/programs/{slug}/revisions",
           "auth": "bearer",
           "body": null,
-          "when": "OWNER/SLUG",
+          "when": "OWNER/SLUG without --org",
           "catalogRoute": {
             "method": "GET",
             "path": "/programs/{slug}/revisions",
             "auth": "api_key_or_session_token"
           },
-          "response": "program-revisions"
+          "response": "program-revisions",
+          "query": {
+            "workspace": "{org}"
+          }
+        },
+        {
+          "interaction": "programs.list",
+          "method": "GET",
+          "path": "/programs",
+          "auth": "bearer",
+          "body": null,
+          "when": "--org: confirms the organization before any write (the service must echo it)",
+          "catalogRoute": {
+            "method": "GET",
+            "path": "/programs",
+            "auth": "api_key_or_session_token"
+          },
+          "response": "programs-list",
+          "query": {
+            "workspace": "{org}"
+          }
         }
       ],
       "effect": "destructive",
@@ -3824,7 +3963,8 @@
       ],
       "examples": [
         "prose cli program delete hello --preview",
-        "prose cli program delete hello --yes"
+        "prose cli program delete hello --yes",
+        "prose cli program delete hello --org acme --preview"
       ]
     },
     {
@@ -3844,12 +3984,20 @@
       "arguments": [
         {
           "name": "SLUG",
-          "description": "Program slug owned by this account; OWNER/SLUG as `cli program list` prints it is accepted when OWNER is confirmed as you, and refused (exit 2) when it cannot be.",
+          "description": "Program slug owned by this account, or by the --org organization; OWNER/SLUG as `cli program list` prints it is accepted when OWNER is confirmed as you (or equals --org), and refused (exit 2) when it cannot be.",
           "required": true,
           "variadic": false
         }
       ],
-      "options": [],
+      "options": [
+        {
+          "name": "--org",
+          "value": "ORG",
+          "description": "Act in this organization's namespace (its slug, as `cli org list` prints it) instead of your own; without it the command acts on your personal programs.",
+          "repeatable": false,
+          "required": false
+        }
+      ],
       "requests": [
         {
           "interaction": "program.revisions",
@@ -3863,7 +4011,10 @@
             "path": "/programs/{slug}/revisions",
             "auth": "api_key_or_session_token"
           },
-          "response": "program-revisions"
+          "response": "program-revisions",
+          "query": {
+            "workspace": "{org}"
+          }
         }
       ],
       "effect": "read",
@@ -3907,7 +4058,122 @@
         }
       ],
       "examples": [
-        "prose cli program revisions hello --json"
+        "prose cli program revisions hello --json",
+        "prose cli program revisions hello --org acme --json"
+      ]
+    },
+    {
+      "id": "program.copy",
+      "command": [
+        "cli",
+        "program",
+        "copy"
+      ],
+      "contract": "service/1",
+      "feature": "programs",
+      "summary": "Copy a program into an organization. The copy records where it came from (copied_from) and the original is unchanged.",
+      "interaction": "program.copy",
+      "interactions": [
+        "program.copy",
+        "program.revisions"
+      ],
+      "arguments": [
+        {
+          "name": "OWNER/SLUG[@REV]",
+          "description": "The program to copy. A bare SLUG[@REV] is your own personal program; OWNER/SLUG[@REV] is any program you can read. Without @REV the latest revision is copied; @REV is the 16-hex-digit rev_id.",
+          "required": true,
+          "variadic": false
+        }
+      ],
+      "options": [
+        {
+          "name": "--to",
+          "value": "ORG",
+          "description": "The organization to copy into (its slug, as `cli org list` prints it). Copying needs the developer role there.",
+          "repeatable": false,
+          "required": true
+        },
+        {
+          "name": "--slug",
+          "value": "SLUG",
+          "description": "Save the copy under this slug instead of the source's (a slug the organization already has is SERVICE_WRITE_CONFLICT).",
+          "repeatable": false,
+          "required": false
+        }
+      ],
+      "requests": [
+        {
+          "interaction": "program.copy",
+          "method": "POST",
+          "path": "/p/{owner}/{slug}/copy",
+          "auth": "bearer",
+          "body": "json",
+          "when": "always",
+          "catalogRoute": {
+            "method": "POST",
+            "path": "/p/{owner}/{slug}/copy",
+            "auth": "api_key"
+          },
+          "response": "program-copy"
+        },
+        {
+          "interaction": "program.revisions",
+          "method": "GET",
+          "path": "/programs/{slug}/revisions",
+          "auth": "bearer",
+          "body": null,
+          "when": "bare SLUG",
+          "catalogRoute": {
+            "method": "GET",
+            "path": "/programs/{slug}/revisions",
+            "auth": "api_key_or_session_token"
+          },
+          "response": "program-revisions"
+        }
+      ],
+      "effect": "outward",
+      "mutation": true,
+      "confirm": true,
+      "confirmReason": "every member of the organization can read the copy",
+      "preview": true,
+      "transport": "control",
+      "output": {
+        "schema": "service/programs.schema.json#/$defs/programCopy",
+        "stream": false,
+        "paged": false
+      },
+      "notFound": {
+        "resource": "program",
+        "id": "{OWNER/SLUG[@REV]}",
+        "list": [
+          "program",
+          "list"
+        ]
+      },
+      "exitCodes": [
+        {
+          "exit": 0,
+          "meaning": "success"
+        },
+        {
+          "exit": 2,
+          "meaning": "invalid invocation, configuration or CONFIRMATION_REQUIRED"
+        },
+        {
+          "exit": 10,
+          "meaning": "service or credential error"
+        },
+        {
+          "exit": 24,
+          "meaning": "interrupted",
+          "codes": [
+            "CANCELLED"
+          ]
+        }
+      ],
+      "examples": [
+        "prose cli program copy hello --to acme --preview",
+        "prose cli program copy exowner1/hello@0123456789abcdef --to acme --slug hello-copy --yes"
       ]
     },
     {

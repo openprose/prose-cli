@@ -1,0 +1,33 @@
+{
+  "id": "program-copy-preview-human",
+  "feature": "programs",
+  "operation": "program.copy",
+  "description": "A human copy preview says the copy is shared with the organization's members.",
+  "argv": [
+    "cli",
+    "program",
+    "copy",
+    "bob/tool@0123456789abcdef",
+    "--to",
+    "acme",
+    "--preview"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "Preview: Copy a program into an organization.\nSummary: to acme\nEffect: shares the program with every member of the organization\nNothing was changed.\n"
+  },
+  "stderr": {
+    "text": ""
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

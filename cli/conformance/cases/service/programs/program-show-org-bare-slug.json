@@ -1,0 +1,96 @@
+{
+  "id": "program-show-org-bare-slug",
+  "feature": "programs",
+  "operation": "program.show",
+  "description": "`program show SLUG --org ORG` reads /p/ORG/SLUG directly; copied_from may be the reference text.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "program",
+    "show",
+    "hello",
+    "--org",
+    "acme"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/p/acme/hello",
+        "requestHeaders": {
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          },
+          "User-Agent": {
+            "pattern": "^prose-cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"
+          },
+          "Accept": "application/json",
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "status": 200,
+        "body": {
+          "program": {
+            "owner": "acme",
+            "slug": "hello",
+            "visibility": "private",
+            "rev": 1,
+            "rev_id": "0123456789abcdef",
+            "commit_id": "1111111111111111",
+            "parent_commit_id": null,
+            "updated_at": 1790212199320,
+            "content": "---\nname: hello\nkind: function\n---\n\n### Returns\n\n- `text`: exactly `ok`\n",
+            "owner_kind": "organization",
+            "copied_from": "alice/hello@fedcba9876543210"
+          },
+          "is_owner": false
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "program.read",
+      "operation": "program.show",
+      "problem": null,
+      "result": {
+        "file": {
+          "bytes": 72,
+          "content": "---\nname: hello\nkind: function\n---\n\n### Returns\n\n- `text`: exactly `ok`\n",
+          "sha256": "0ace12f3833dd1c6c70fc7b87013fdc9eb9bc67375d9c4d32289b28aecd87852",
+          "written": false
+        },
+        "is_owner": false,
+        "program": {
+          "commit_id": "1111111111111111",
+          "copied_from": {
+            "owner": "alice",
+            "ref": "alice/hello@fedcba9876543210",
+            "rev_id": "fedcba9876543210",
+            "slug": "hello"
+          },
+          "owner": "acme",
+          "owner_kind": "organization",
+          "parent_commit_id": null,
+          "ref": "acme/hello@0123456789abcdef",
+          "rev": 1,
+          "rev_id": "0123456789abcdef",
+          "slug": "hello",
+          "updated_at": 1790212199320,
+          "updated_at_iso": "2026-09-24T01:09:59.320Z",
+          "visibility": "private"
+        }
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

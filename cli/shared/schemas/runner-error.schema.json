@@ -191,12 +191,14 @@
             "organization_not_found",
             "paid_model_required",
             "paid_top_up_required",
+            "program_exists",
             "program_not_found",
             "provider_tier_unavailable",
             "rate_limited",
             "reserved_slug",
             "slug_taken",
             "wallet_exhausted",
+            "workspace_namespace_unavailable",
             "write_conflict"
           ]
         },
@@ -339,6 +341,14 @@
           "minLength": 9,
           "maxLength": 2048,
           "pattern": "^https://[!-~]+$"
+        },
+        "requiredRole": {
+          "description": "The organization role an organization-scoped program verb needs (`organization_forbidden`): reader reads and runs, developer also creates, edits and copies in, admin also changes visibility and deletes.",
+          "enum": [
+            "reader",
+            "developer",
+            "admin"
+          ]
         }
       }
     }
@@ -873,7 +883,7 @@
             "const": "The OpenProse service rejected the request."
           },
           "action": {
-            "description": "The taxonomy Action, or one that names only the details present (reason, serviceMessage, serviceCode), or, when none is present, the operation's help (also details.suggestedArgv).",
+            "description": "The taxonomy Action, or one that names only the details present (reason, serviceMessage, serviceCode), or, when none is present, the operation's help (also details.suggestedArgv). For an organization-scoped program verb (`--org`, `program copy --to`): the role to ask for (organization_forbidden), or another organization (workspace_namespace_unavailable).",
             "anyOf": [
               {
                 "const": "Correct the request using whichever of details.reason, details.serviceMessage and details.serviceCode are present, then retry."
@@ -883,6 +893,12 @@
               },
               {
                 "pattern": "^The service gave no reason; check the command against `prose [^`]*`, then retry\\.$"
+              },
+              {
+                "pattern": "^Ask an admin of [a-z0-9-]+ (for the (reader|developer) role|to make you an admin), or (act on your own programs without --org|copy into another organization)\\.$"
+              },
+              {
+                "pattern": "^(Choose another organization \\(`prose [^`]*` lists your organizations\\), or act on your own programs without --org|Copy into another organization \\(`prose [^`]*` lists your organizations\\))\\.$"
               }
             ]
           }
@@ -928,6 +944,9 @@
               },
               {
                 "pattern": "^Run `prose [^`]*`: [a-z0-9-]+ is the closest [a-z]+ you have\\.$"
+              },
+              {
+                "pattern": "^Run `prose [^`]*`: [a-z0-9-]+ is the closest [a-z]+ organization [a-z0-9-]+ has\\.$"
               },
               {
                 "pattern": "^Use the listed path [^`]*: `prose [^`]*`\\.$"

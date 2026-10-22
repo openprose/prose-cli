@@ -1,0 +1,83 @@
+{
+  "id": "program-copy-not-member",
+  "feature": "programs",
+  "operation": "program.copy",
+  "description": "The service answers a missing source and a non-member of the target the same way; the reason names both.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "program",
+    "copy",
+    "bob/tool@0123456789abcdef",
+    "--to",
+    "acme",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/p/bob/tool@0123456789abcdef/copy",
+        "requestHeaders": {
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          },
+          "User-Agent": {
+            "pattern": "^prose-cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"
+          },
+          "Accept": "application/json",
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "status": 404,
+        "expectedBody": {
+          "to": "acme"
+        },
+        "body": {
+          "error": "Not found"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "program.copy",
+      "operation": "program.copy",
+      "problem": {
+        "action": "Run `prose --output json cli program list` to find the right program, then retry with it.",
+        "boundary": "hosted-service",
+        "code": "SERVICE_RESOURCE_NOT_FOUND",
+        "details": {
+          "reason": "program bob/tool@0123456789abcdef was not found, or you are not a member of organization acme",
+          "resource": {
+            "id": "bob/tool@0123456789abcdef",
+            "kind": "program"
+          },
+          "serviceStatus": 404,
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "program",
+            "list"
+          ]
+        },
+        "exitCode": 10,
+        "message": "The requested OpenProse service resource was not found.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

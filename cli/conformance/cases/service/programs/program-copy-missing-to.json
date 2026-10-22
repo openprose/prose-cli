@@ -1,0 +1,55 @@
+{
+  "id": "program-copy-missing-to",
+  "feature": "programs",
+  "operation": "program.copy",
+  "description": "--to is required.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "program",
+    "copy",
+    "hello",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "program.copy",
+      "operation": "program.copy",
+      "problem": {
+        "action": "Add --to ORG; `prose --output json cli program copy --help` shows the options of `cli program copy`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "missing required option --to for `cli program copy`",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "program",
+            "copy",
+            "--help"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

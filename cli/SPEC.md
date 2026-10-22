@@ -2467,6 +2467,38 @@ manifest's `intentInference.distance`) with that `example show` command as
 names the nearest value on a typo. `org rename ORG --name NAME` equals the
 positional `NAME`.
 
+**Organization workspaces.** `program list|show|save|visibility|delete|revisions`
+take `--org ORG`, a lowercase organization slug of at most 39 characters (a
+program owner's limit; a longer valid slug, an upper-case slug or any other
+value exits 2 before any request). The `/programs` routes then carry the query
+`workspace=ORG`, and `show` reads `/p/ORG/SLUG`; without `--org` no query is
+sent and nothing else changes. With `--org` a bare `SLUG` names the
+organization's program, `OWNER/SLUG` must name the same organization (case
+ignored) and no owner lookup is sent, and plans carry
+`plannedRequest.organization`. `save`, `visibility` and `delete` with
+`--org` first send `GET /programs?workspace=ORG` (before the confirmation
+gate, `--preview` included); a reply that does not echo `workspace.slug` ORG,
+like `list --org` without that echo or `revisions --org` naming another
+owner, is `SERVICE_FEATURE_DISABLED` with nothing written, so a service that
+ignores the query never receives an organization write. `program copy [OWNER/]SLUG[@REV] --to ORG
+[--slug NEW]` posts `{to, slug?}` to `/p/{owner}/{slug}[@rev]/copy` (a bare
+`SLUG` is the caller's own, its owner read from its revisions); it is
+confirm-class, and a 403 without a code is refined as for `program save`.
+Program records project the service's `owner_kind` (known values only, as
+`personal` or `organization`) and `copied_from` (`{owner, slug, rev_id?,
+ref?}`, from an object or the reference text; a malformed one is dropped).
+The service answers a
+non-member like a missing organization or program, so in an organization a
+404 names both meanings: `list` and the confirmation read name `{kind:
+organization, id: ORG}` with `cli org list` (as does
+`organization_not_found` anywhere); `show`, `revisions` and `visibility`
+name `{kind: program, id: ORG/SLUG}` with `cli program list --org ORG`; a
+plain 404 on `delete --org` after the confirmation read is `alreadyAbsent`. `organization_forbidden` names the role the verb needs in
+`details.reason` and `details.requiredRole` (reader: read; developer: save
+and copy; admin: visibility and delete), and
+`workspace_namespace_unavailable` says the organization cannot hold
+programs.
+
 **Preview fidelity, job spec schemas and confirmation reasons.** `plannedRequest` gains an optional `summary`: the non-secret top-level
 JSON body fields the manifest lists in `confirmation.summaryFields` (`type`,
 `slug`, `name`, `program_ref` as `programRef`, `model`, `reasoning_effort`, the

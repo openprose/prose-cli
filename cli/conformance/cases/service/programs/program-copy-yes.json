@@ -1,0 +1,123 @@
+{
+  "id": "program-copy-yes",
+  "feature": "programs",
+  "operation": "program.copy",
+  "description": "`program copy SLUG --to ORG --yes` reads the caller's owner, then POSTs {to} to the source's copy route.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "program",
+    "copy",
+    "hello",
+    "--to",
+    "acme",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/programs/hello/revisions",
+        "requestHeaders": {
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          },
+          "User-Agent": {
+            "pattern": "^prose-cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"
+          },
+          "Accept": "application/json",
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "status": 200,
+        "body": {
+          "revisions": [
+            {
+              "owner": "alice",
+              "slug": "hello",
+              "rev": 1,
+              "rev_id": "fedcba9876543210",
+              "commit_id": "1111111111111111",
+              "parent_commit_id": null,
+              "updated_at": 1790212199320
+            }
+          ]
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/p/alice/hello/copy",
+        "requestHeaders": {
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          },
+          "User-Agent": {
+            "pattern": "^prose-cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"
+          },
+          "Accept": "application/json",
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "status": 201,
+        "expectedBody": {
+          "to": "acme"
+        },
+        "body": {
+          "program": {
+            "owner": "acme",
+            "slug": "hello",
+            "visibility": "private",
+            "rev": 1,
+            "rev_id": "0123456789abcdef",
+            "commit_id": "1111111111111111",
+            "parent_commit_id": null,
+            "updated_at": 1790212199320,
+            "content": "---\nname: hello\nkind: function\n---\n\n### Returns\n\n- `text`: exactly `ok`\n",
+            "owner_kind": "org",
+            "copied_from": "alice/hello@fedcba9876543210"
+          },
+          "url": "/p/acme/hello",
+          "copied_from": "alice/hello@fedcba9876543210"
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "program.copy",
+      "operation": "program.copy",
+      "problem": null,
+      "result": {
+        "program": {
+          "commit_id": "1111111111111111",
+          "copied_from": {
+            "owner": "alice",
+            "ref": "alice/hello@fedcba9876543210",
+            "rev_id": "fedcba9876543210",
+            "slug": "hello"
+          },
+          "owner": "acme",
+          "owner_kind": "organization",
+          "parent_commit_id": null,
+          "ref": "acme/hello@0123456789abcdef",
+          "rev": 1,
+          "rev_id": "0123456789abcdef",
+          "slug": "hello",
+          "updated_at": 1790212199320,
+          "updated_at_iso": "2026-09-24T01:09:59.320Z",
+          "visibility": "private"
+        },
+        "url": "https://run-prose-production.openprose.workers.dev/p/acme/hello"
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

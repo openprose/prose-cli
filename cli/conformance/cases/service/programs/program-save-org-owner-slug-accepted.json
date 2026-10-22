@@ -1,0 +1,83 @@
+{
+  "id": "program-save-org-owner-slug-accepted",
+  "feature": "programs",
+  "operation": "program.save",
+  "description": "OWNER/SLUG equal to --org (any letter case) is accepted without an owner lookup.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "program",
+    "save",
+    "ACME/hello",
+    "hello.prose.md",
+    "--org",
+    "acme",
+    "--preview"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/programs",
+        "query": {
+          "workspace": "acme"
+        },
+        "requestHeaders": {
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          },
+          "User-Agent": {
+            "pattern": "^prose-cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"
+          },
+          "Accept": "application/json",
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "status": 200,
+        "body": {
+          "programs": [],
+          "workspace": {
+            "slug": "acme",
+            "name": "Acme",
+            "role": "admin"
+          }
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "files": [
+    {
+      "path": "hello.prose.md",
+      "content": "---\nname: hello\nkind: function\n---\n\n### Returns\n\n- `text`: exactly `ok`\n"
+    }
+  ],
+  "stdout": {
+    "json": {
+      "interaction": "program.save",
+      "operation": "program.save",
+      "problem": null,
+      "result": {
+        "plannedRequest": {
+          "bodyBytes": 94,
+          "bodySha256": "e32b9c676a7a9830b9e69f7571661ed0095e63c19693f5c450dc716afa1700f9",
+          "description": "Save a new revision of a program; a new program is private.",
+          "effect": "write",
+          "method": "PUT",
+          "operation": "program.save",
+          "organization": "acme"
+        },
+        "preview": true
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

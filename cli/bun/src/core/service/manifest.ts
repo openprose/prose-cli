@@ -959,7 +959,7 @@ export function unknown(args: readonly string[], original: readonly string[]): S
 }
 
 /** ASCII-only lowercase, as Rust `to_ascii_lowercase`. */
-function asciiLower(value: string): string {
+export function asciiLower(value: string): string {
   return value.replace(/[A-Z]/gu, (letter) => letter.toLowerCase());
 }
 

@@ -1,0 +1,56 @@
+{
+  "id": "program-list-org-uppercase",
+  "feature": "programs",
+  "operation": "program.list",
+  "description": "An upper-case --org names the lower-case slug before any request.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "program",
+    "list",
+    "--org",
+    "Acme"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "programs.list",
+      "operation": "program.list",
+      "problem": {
+        "action": "Pass acme: `prose --output json cli program list --org acme`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "--org \"Acme\" must be an organization slug in lowercase; pass \"acme\"",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "program",
+            "list",
+            "--org",
+            "acme"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

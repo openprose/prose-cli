@@ -10,6 +10,7 @@ import { runCli } from "../src/cli";
 import { isText, MAX_PROGRAM_BYTES } from "../src/core/service/programs";
 import { parseOwnAllowed, parseOwnSlug, parseProgramRef, refOf } from "../src/core/service/program-ref";
 import { canonicalJson } from "../src/core/service/render";
+import { copyPath, projectWorkspace, validNamespace } from "../src/core/service/workspace";
 
 const KEY = "rr_test_0123456789abcdef0123456789abcdef";
 const SAVE = ["--output", "json", "cli", "program", "save", "demo", "big.prose.md"];
@@ -113,5 +114,41 @@ describe("program references", () => {
     expect(reason(() => parseOwnSlug("Hello"))).not.toContain("^");
     expect(reason(() => parseOwnSlug("a/hello@0123456789abcdef"))).toContain('pass "hello" without @');
     expect(() => parseOwnSlug("a/b/c")).toThrow();
+  });
+});
+
+describe("program workspaces", () => {
+  test("owner_kind keeps known values only and copied_from accepts an object or a reference", () => {
+    const out: Record<string, unknown> = {};
+    projectWorkspace({ owner_kind: "org", copied_from: "alice/hello@fedcba9876543210" }, out as never);
+    expect(out).toEqual({ owner_kind: "organization", copied_from: { owner: "alice", slug: "hello", rev_id: "fedcba9876543210", ref: "alice/hello@fedcba9876543210" } });
+    const camel: Record<string, unknown> = {};
+    projectWorkspace({ ownerKind: "user", copiedFrom: { owner: "alice", slug: "hello", rev_id: null } }, camel as never);
+    expect(camel).toEqual({ owner_kind: "personal", copied_from: { owner: "alice", slug: "hello" } });
+    const unknown: Record<string, unknown> = {};
+    projectWorkspace({ owner_kind: "team" }, unknown as never);
+    expect(unknown).toEqual({});
+    // Informational: a malformed source is dropped, never fatal to the record.
+    for (const bad of ["hello", "alice/Hello", "alice/hello@1", 7, { owner: "alice" }]) {
+      const out: Record<string, unknown> = {};
+      projectWorkspace({ copied_from: bad } as never, out as never);
+      expect(out).toEqual({});
+    }
+  });
+
+  test("namespaces are organization slugs a program owner can be", () => {
+    expect(validNamespace("acme")).toBe(true);
+    expect(validNamespace("a-1")).toBe(true);
+    for (const bad of ["Acme", "-acme", "acme-", "", "a".repeat(40)]) expect(validNamespace(bad)).toBe(false);
+    expect(copyPath("alice", "hello", undefined)).toBe("/p/alice/hello/copy");
+    expect(copyPath("alice", "hello", "0123456789abcdef")).toBe("/p/alice/hello@0123456789abcdef/copy");
+  });
+
+  test("a personal command line sends no workspace query", async () => {
+    const result = await cli(["--output", "json", "cli", "program", "list"], (root) => fixture(root, [
+      { method: "GET", path: "/programs", status: 200, body: { programs: [RECORD] } },
+    ]));
+    expect(result.code).toBe(0);
+    expect(JSON.parse(result.stdout).result.programs[0].owner_kind).toBeUndefined();
   });
 });

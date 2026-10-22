@@ -1,0 +1,68 @@
+{
+  "id": "program-show-org-human",
+  "feature": "programs",
+  "operation": "program.show",
+  "description": "Human `program show --org` prints the text on stdout and the owner kind and source on stderr.",
+  "argv": [
+    "cli",
+    "program",
+    "show",
+    "hello",
+    "--org",
+    "acme"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/p/acme/hello",
+        "requestHeaders": {
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          },
+          "User-Agent": {
+            "pattern": "^prose-cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"
+          },
+          "Accept": "application/json",
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "status": 200,
+        "body": {
+          "program": {
+            "owner": "acme",
+            "slug": "hello",
+            "visibility": "private",
+            "rev": 1,
+            "rev_id": "0123456789abcdef",
+            "commit_id": "1111111111111111",
+            "parent_commit_id": null,
+            "updated_at": 1790212199320,
+            "content": "---\nname: hello\nkind: function\n---\n\n### Returns\n\n- `text`: exactly `ok`\n",
+            "owner_kind": "organization",
+            "copied_from": {
+              "owner": "alice",
+              "slug": "hello",
+              "rev_id": "fedcba9876543210"
+            }
+          },
+          "is_owner": false
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "---\nname: hello\nkind: function\n---\n\n### Returns\n\n- `text`: exactly `ok`\n"
+  },
+  "stderr": {
+    "text": "Owner: acme (organization)\nCopied from: alice/hello@fedcba9876543210\n"
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

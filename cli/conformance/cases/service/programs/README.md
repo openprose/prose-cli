@@ -1,6 +1,6 @@
 # programs cases
 
-Shared black-box cases for `cli program list|show|save|visibility|delete|revisions|draft`. Ids are prefixed `program-` because case ids are global across
+Shared black-box cases for `cli program list|show|save|visibility|delete|revisions|copy|draft`, including their organization workspace forms (`--org ORG`, `copy --to ORG`; the `*-org*` and `program-copy-*` cases). Ids are prefixed `program-` because case ids are global across
 features. Expected outputs were computed from the fixtures, the result schemas
 in `shared/schemas/service/programs.schema.json` and the error taxonomy, not
 captured from a product. See [`../README.md`](../README.md) for the case format

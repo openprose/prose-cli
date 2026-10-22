@@ -5,7 +5,7 @@ Usage:
 
 Hosted OpenProse service commands (never prompt):
   prose cli run quote|submit|watch|input|cancel|list|show|download|share [--json]
-  prose cli program list|show|save|visibility|delete|revisions|draft [--json]
+  prose cli program list|show|save|visibility|delete|revisions|copy|draft [--json]
   prose cli job list|show|create|update|configure|delete|deliveries|rotate-secret|contract [--json]
   prose cli wallet balance|events|usage|redeem|topup [--json]
   prose cli auth login|status|logout [--json]

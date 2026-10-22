@@ -1,0 +1,97 @@
+{
+  "id": "program-copy-slug-rename",
+  "feature": "programs",
+  "operation": "program.copy",
+  "description": "`--slug NEW` copies under another slug and sends it as `slug`.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "program",
+    "copy",
+    "bob/tool@0123456789abcdef",
+    "--to",
+    "acme",
+    "--slug",
+    "tool-copy",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/p/bob/tool@0123456789abcdef/copy",
+        "requestHeaders": {
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          },
+          "User-Agent": {
+            "pattern": "^prose-cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"
+          },
+          "Accept": "application/json",
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "status": 201,
+        "expectedBody": {
+          "to": "acme",
+          "slug": "tool-copy"
+        },
+        "body": {
+          "program": {
+            "owner": "acme",
+            "slug": "tool-copy",
+            "visibility": "private",
+            "rev": 1,
+            "rev_id": "0123456789abcdef",
+            "commit_id": "1111111111111111",
+            "parent_commit_id": null,
+            "updated_at": 1790212199320,
+            "content": "---\nname: hello\nkind: function\n---\n\n### Returns\n\n- `text`: exactly `ok`\n",
+            "owner_kind": "org",
+            "copied_from": "bob/tool@0123456789abcdef"
+          },
+          "url": "/p/acme/tool-copy"
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "program.copy",
+      "operation": "program.copy",
+      "problem": null,
+      "result": {
+        "program": {
+          "commit_id": "1111111111111111",
+          "copied_from": {
+            "owner": "bob",
+            "ref": "bob/tool@0123456789abcdef",
+            "rev_id": "0123456789abcdef",
+            "slug": "tool"
+          },
+          "owner": "acme",
+          "owner_kind": "organization",
+          "parent_commit_id": null,
+          "ref": "acme/tool-copy@0123456789abcdef",
+          "rev": 1,
+          "rev_id": "0123456789abcdef",
+          "slug": "tool-copy",
+          "updated_at": 1790212199320,
+          "updated_at_iso": "2026-09-24T01:09:59.320Z",
+          "visibility": "private"
+        },
+        "url": "https://run-prose-production.openprose.workers.dev/p/acme/tool-copy"
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

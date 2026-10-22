@@ -29,7 +29,7 @@
         "boundary": "invocation",
         "code": "INVOCATION_INVALID",
         "details": {
-          "reason": "unknown command `cli program shwo`; did you mean `cli program show`? Commands: delete, draft, list, revisions, save, show, visibility",
+          "reason": "unknown command `cli program shwo`; did you mean `cli program show`? Commands: copy, delete, draft, list, revisions, save, show, visibility",
           "suggestedArgv": [
             "--output",
             "json",

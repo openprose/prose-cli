@@ -1,4 +1,4 @@
-// Service programs: `program list|show|save|visibility|delete|revisions|draft`.
+// Service programs: `program list|show|save|visibility|delete|revisions|copy|draft`.
 // Mirrors cli/rust/crates/prose-runner-core/src/service/programs.rs; both are
 // pinned by cli/conformance/cases/service/programs/. Projections follow
 // shared/schemas/service/programs.schema.json with server field names kept
@@ -14,7 +14,9 @@ import { encodeSegment, jsonObject, requestFor, withJsonBody, type Request } fro
 import type { Context } from "./index";
 import type { Json, JsonObject } from "./manifest";
 import { absoluteUrl } from "./render";
-import { checkOwner, confirmOwnSlug, fillOwner, ownSlugReference, parseOwnAllowed, parseOwnSlug, refOf, resolveRevNumber, unconfirmedOwner, validOwner, validRev, validSlug } from "./program-ref";
+import { checkOwner, confirmOwnSlug, fillOwner, missingInOrganization, ownSlugReference, parseOwnAllowed, refOf, resolveRevNumber, unconfirmedOwner, validOwner, validRev, validSlug, type ProgramRef } from "./program-ref";
+import { confirmOrganization, copiedText, copyPath, organizationFailure, organizationOption, projectWorkspace, requireEcho, requireOrganizationOwner, requireSameOrganization, scoped, workspaceColumns, workspaceNotes, type Role } from "./workspace";
+import { asciiLower } from "./manifest";
 import { didYouMean } from "./manifest";
 import { addIso, publicBilling, runErrorText, sanitizeServiceMessage, validText } from "./render";
 import { eventJson } from "./sse";
@@ -34,6 +36,7 @@ export async function execute(context: Context): Promise<Json> {
     case "program.visibility": return await visibility(context);
     case "program.delete": return await remove(context);
     case "program.revisions": return await revisions(context);
+    case "program.copy": return await copy(context);
     case "program.draft": return await draft(context);
     default: return await context.notImplemented();
   }
@@ -50,12 +53,44 @@ export function isText(value: string): boolean {
 
 /** Request index of GET /programs/{slug}/revisions in save, visibility and delete (the OWNER/SLUG check). */
 const OWNER_CHECK = 1;
+/** Request index of GET /programs?workspace=ORG in save, visibility and delete (the --org confirmation). */
+const ORGANIZATION_CHECK = 2;
 
-/** `<SLUG>`, or `OWNER/SLUG` when OWNER is the caller; `creates` is a first save. */
-async function ownSlugArgument(context: Context, creates: boolean): Promise<string> {
+/**
+ * The `<SLUG>` of an owner-scoped verb and the organization it acts in:
+ * with `--org ORG`, OWNER (when given) must be ORG and the plan names the
+ * organization; without it, `OWNER/SLUG` must be the caller (`creates` is a
+ * first save).
+ */
+async function scopedSlug(context: Context, creates: boolean): Promise<{ reference: ProgramRef; organization: string | undefined }> {
   const reference = ownSlugReference(context);
-  await confirmOwnSlug(context, reference, OWNER_CHECK, creates);
-  return reference.slug;
+  const organization = organizationOption(context, "--org");
+  if (organization === undefined) await confirmOwnSlug(context, reference, OWNER_CHECK, creates);
+  else {
+    requireSameOrganization(context, reference.owner, reference.slug, organization, context.argument("SLUG") ?? "");
+    // A service that ignores `?workspace=` must never receive the write.
+    await confirmOrganization(context, ORGANIZATION_CHECK, organization);
+    context.organization = organization;
+  }
+  return { reference, organization };
+}
+
+/**
+ * Sends an organization-scoped request; organization failures name the
+ * organization and the role `what` needs. With `slug`, a plain 404 is that
+ * program missing from the organization (or the caller not being a member);
+ * without it, every 404 is the organization.
+ */
+async function sendScoped(context: Context, request: Request, organization: string | undefined, role: Role, what: string, slug?: string): Promise<Json> {
+  try { return jsonObject(await context.send(request)); }
+  catch (caught) {
+    if (organization === undefined) throw caught;
+    const explained = organizationFailure(context, caught, organization, role, what, "--org", slug === undefined);
+    if (slug !== undefined && explained instanceof RunnerFailure && explained.code === "SERVICE_RESOURCE_NOT_FOUND" && explained.details?.resource === undefined) {
+      throw missingInOrganization(context, organization, slug, explained.details ?? {});
+    }
+    throw explained;
+  }
 }
 
 /** Checks an --output-file target before any request; the file is created only after success. */
@@ -133,6 +168,8 @@ function project(record: Json | undefined, withVisibility: boolean, withContent:
   addIso(out, ["updated_at"]);
   const text = message(record.message);
   if (text !== undefined) out.message = text;
+  // Revisions carry neither; program records may name their namespace kind and source.
+  if (withVisibility) projectWorkspace(record, out);
   if (withContent) {
     const content = record.content;
     if (typeof content === "string") { if (isText(content)) out.content = content; }
@@ -152,10 +189,12 @@ const nameOf = (program: JsonObject): string => `${program.owner as string}/${pr
 
 async function list(context: Context): Promise<Json> {
   const withContent = context.flag("--with-content");
-  const body = jsonObject(await context.send(requestFor(context.operation, 0, "/programs")));
+  const organization = organizationOption(context, "--org");
+  const body = await sendScoped(context, scoped(requestFor(context.operation, 0, "/programs"), organization), organization, "reader", "listing its programs") as JsonObject;
+  if (organization !== undefined) requireEcho(body, organization);
   const programs = items(body, "programs").map((record) => project(record, true, withContent));
-  let human = programs.length === 0 ? "No saved programs.\n" : "";
-  for (const program of programs) human += `${nameOf(program)}  rev ${program.rev as number}  ${program.visibility as string}  rev_id=${program.rev_id as string}  ref=${program.ref as string}\n`;
+  let human = programs.length > 0 ? "" : organization === undefined ? "No saved programs.\n" : `No programs in organization ${organization}.\n`;
+  for (const program of programs) human += `${nameOf(program)}  rev ${program.rev as number}  ${program.visibility as string}  rev_id=${program.rev_id as string}  ref=${program.ref as string}${workspaceColumns(program)}\n`;
   context.human = human;
   return { programs };
 }
@@ -179,9 +218,9 @@ function fileLine(label: string, file: JsonObject, target: string | undefined): 
  * suggestion is the same command with that slug. The listing is advisory: a
  * failed listing keeps `error` (mirrors Rust `nearest_own_program`).
  */
-async function nearestOwnProgram(context: Context, error: RunnerFailure, given: string, slug: string): Promise<RunnerFailure> {
+async function nearestOwnProgram(context: Context, error: RunnerFailure, given: string, slug: string, organization?: string): Promise<RunnerFailure> {
   let body: JsonObject;
-  try { body = jsonObject(await context.send({ ...requestFor(context.operation, 2, "/programs"), class: "control" as const })); }
+  try { body = jsonObject(await context.send({ ...scoped(requestFor(context.operation, 2, "/programs"), organization), class: "control" as const })); }
   catch (caught) {
     if (caught instanceof RunnerFailure) return error;
     throw caught;
@@ -194,29 +233,48 @@ async function nearestOwnProgram(context: Context, error: RunnerFailure, given: 
   const details = { ...(error.details ?? {}) };
   if (typeof details.reason === "string") details.reason = `${details.reason}; did you mean ${near}?`;
   const withReason = new RunnerFailure({ code: error.code, boundary: error.boundary, message: error.message, action: error.action, exitCode: error.exitCode, retryable: error.retryable, details });
-  return context.corrected(withReason, `Run \`{command}\`: ${near} is the closest program you have`, context.argvWithArgument(given, given.replace(slug, near)));
+  const whose = organization === undefined ? "you have" : `organization ${organization} has`;
+  // Only the slug changes: an OWNER/ prefix is kept as given.
+  const slash = given.indexOf("/");
+  const fixed = given.slice(0, slash + 1) + given.slice(slash + 1).replace(slug, near);
+  return context.corrected(withReason, `Run \`{command}\`: ${near} is the closest program ${whose}`, context.argvWithArgument(given, fixed));
 }
 
 async function show(context: Context): Promise<Json> {
   const given = context.argument("OWNER/SLUG[@REV]") ?? "";
   const reference = parseOwnAllowed(given, true);
+  const organization = organizationOption(context, "--org");
+  if (organization !== undefined) {
+    // With --org a bare SLUG is the organization's program; OWNER must be it.
+    requireSameOrganization(context, reference.owner, reference.slug, organization, given);
+    reference.owner = organization;
+  }
   const target = context.option("--output-file");
   if (target !== undefined) preflightOutput(context.cwd, target);
   // A bare SLUG is the caller's own program and a numeric @N is resolved to
   // its rev_id (manifest request 1).
   const byNumber = reference.revNumber !== undefined;
-  const bare = reference.owner === "";
+  const bare = reference.owner === "" || organization !== undefined;
   try {
-    if (byNumber) await resolveRevNumber(context, reference, 1);
+    if (byNumber) await resolveRevNumber(context, reference, 1, organization);
     else await fillOwner(context, reference, 1);
   } catch (caught) {
+    if (organization !== undefined) throw organizationFailure(context, caught, organization, "reader", "reading its programs");
     if (bare && caught instanceof RunnerFailure && caught.code === "SERVICE_RESOURCE_NOT_FOUND") throw await nearestOwnProgram(context, caught, given, reference.slug);
     throw caught;
   }
   let path = `/p/${encodeSegment(reference.owner)}/${encodeSegment(reference.slug)}`;
   if (reference.rev !== undefined) path += `@${reference.rev}`;
   const request: Request = { ...requestFor(context.operation, 0, path), bearer: await hasCredential(context) };
-  const body = jsonObject(await context.send(request));
+  let body: JsonObject;
+  try { body = jsonObject(await context.send(request)); }
+  catch (caught) {
+    // The organization's program is missing, or private to members.
+    if (organization !== undefined && caught instanceof RunnerFailure && caught.code === "SERVICE_RESOURCE_NOT_FOUND") {
+      throw await nearestOwnProgram(context, missingInOrganization(context, organization, reference.slug, caught.details ?? {}), given, reference.slug, organization);
+    }
+    throw caught;
+  }
   const record = body.program;
   const program = project(record, true, false);
   if ((program.owner as string).toLowerCase() !== reference.owner.toLowerCase() || program.slug !== reference.slug
@@ -230,6 +288,7 @@ async function show(context: Context): Promise<Json> {
   const file = writtenFile(context, new TextEncoder().encode(source));
   context.human = typeof file.content === "string" ? file.content : fileLine(nameOf(program), file, target);
   if (byNumber && context.mode === "human") context.err(`Resolved ${humanSafeScalar(given)} to ${program.ref as string} (rev ${program.rev as number}).\n`);
+  if (context.mode === "human") context.err(workspaceNotes(program));
   return { program, is_owner: isOwner, file };
 }
 
@@ -239,6 +298,7 @@ function trimAscii(value: string): string {
 
 async function save(context: Context): Promise<Json> {
   const reference = ownSlugReference(context);
+  organizationOption(context, "--org");
   const source = context.argument("FILE") ?? "";
   const text = await readText(context.cwd, source, MAX_PROGRAM_BYTES, "FILE");
   if (text.length === 0) throw invocationFailure(`FILE ${quote(source)} is empty; a program needs content`);
@@ -254,10 +314,10 @@ async function save(context: Context): Promise<Json> {
     if (!validRev(base)) throw invocationFailure(`--base ${quote(base)} must be a commit_id: 16 lowercase hex digits`);
     body.base_commit_id = base;
   }
-  await confirmOwnSlug(context, reference, OWNER_CHECK, true);
+  const { organization } = await scopedSlug(context, true);
   const slug = reference.slug;
   const path = `/programs/${encodeSegment(slug)}`;
-  const request = withJsonBody(requestFor(context.operation, 0, path), body);
+  const request = scoped(withJsonBody(requestFor(context.operation, 0, path), body), organization);
   const gate = context.gate(context.planned(0, path, [], request.body));
   if (gate.kind === "preview") return gate.result;
   const response = await context.sendRaw(request);
@@ -265,7 +325,7 @@ async function save(context: Context): Promise<Json> {
     const error = context.classify(request, response);
     if (error.code === "SERVICE_WRITE_CONFLICT") withCurrent(error, response.body);
     if (error.code === "GITHUB_LINK_REQUIRED") throw refineSaveForbidden(error, response.body, context.knownCredential());
-    throw error;
+    throw organization === undefined ? error : organizationFailure(context, error, organization, "developer", "saving a program", "--org", true);
   }
   const reply = jsonObject(response);
   const program = project(reply.program, true, false);
@@ -330,18 +390,21 @@ function visibilityArgument(context: Context): string {
 }
 
 async function visibility(context: Context): Promise<Json> {
-  const reference = ownSlugReference(context);
+  ownSlugReference(context);
   const value = visibilityArgument(context);
-  await confirmOwnSlug(context, reference, OWNER_CHECK, false);
+  const { reference, organization } = await scopedSlug(context, false);
   const slug = reference.slug;
   const path = `/programs/${encodeSegment(slug)}/visibility`;
-  const request = withJsonBody(requestFor(context.operation, 0, path), { visibility: value });
+  const request = scoped(withJsonBody(requestFor(context.operation, 0, path), { visibility: value }), organization);
   const gate = context.gate(context.planned(0, path, [], request.body));
   if (gate.kind === "preview") return gate.result;
-  let response;
-  try { response = await context.send(request); }
-  catch (caught) { throw unsavedProgram(caught); }
-  const reply = jsonObject(response);
+  let reply: JsonObject;
+  try { reply = await sendScoped(context, request, organization, "admin", "changing a program's visibility", slug) as JsonObject; }
+  catch (caught) {
+    const unsaved = unsavedProgram(caught);
+    if (organization !== undefined && unsaved !== caught && unsaved instanceof RunnerFailure) throw missingInOrganization(context, organization, slug, unsaved.details ?? {});
+    throw unsaved;
+  }
   const program = project(reply.program, true, false);
   context.human = `${nameOf(program)} is now ${program.visibility as string}\n`;
   return { program };
@@ -356,30 +419,38 @@ function unsavedProgram(caught: unknown): unknown {
 }
 
 async function remove(context: Context): Promise<Json> {
-  const slug = await ownSlugArgument(context, false);
+  const { reference, organization } = await scopedSlug(context, false);
+  const slug = reference.slug;
+  const name = organization === undefined ? slug : `${organization}/${slug}`;
   const path = `/programs/${encodeSegment(slug)}`;
   const gate = context.gate(context.planned(0, path));
   if (gate.kind === "preview") return gate.result;
   let reply: JsonObject;
-  try { reply = jsonObject(await context.send(requestFor(context.operation, 0, path))); }
+  try { reply = jsonObject(await context.send(scoped(requestFor(context.operation, 0, path), organization))); }
   catch (caught) {
     // A confirmed delete is idempotent: nothing to delete is the goal state.
-    if (!(caught instanceof RunnerFailure) || caught.code !== "SERVICE_RESOURCE_NOT_FOUND") throw caught;
-    context.human = `Program ${slug} was already absent; nothing was deleted.\n`;
+    // In an organization membership was confirmed first, so a plain 404 is
+    // the program; an organization 404 is not.
+    const explained = organization === undefined ? caught : organizationFailure(context, caught, organization, "admin", "deleting a program");
+    if (!(explained instanceof RunnerFailure) || explained.code !== "SERVICE_RESOURCE_NOT_FOUND" || explained.details?.resource !== undefined) throw explained;
+    context.human = `Program ${name} was already absent; nothing was deleted.\n`;
     return { slug, deleted: true, alreadyAbsent: true };
   }
   if (reply.deleted !== true) throw protocol("the service did not confirm the deletion");
-  context.human = `Deleted ${slug}\n`;
+  context.human = `Deleted ${name}\n`;
   return { slug, deleted: true };
 }
 
 async function revisions(context: Context): Promise<Json> {
   // OWNER/SLUG is checked against the owner these (own) revisions name.
   const reference = ownSlugReference(context);
+  const organization = organizationOption(context, "--org");
+  if (organization !== undefined) requireSameOrganization(context, reference.owner, reference.slug, organization, context.argument("SLUG") ?? "");
   const slug = reference.slug;
-  const owned = reference.owner !== "";
+  // With --org the listing is the organization's, so OWNER needs no confirmation.
+  const owned = reference.owner !== "" && organization === undefined;
   let body: JsonObject;
-  try { body = jsonObject(await context.send(requestFor(context.operation, 0, `/programs/${encodeSegment(slug)}/revisions`))); }
+  try { body = await sendScoped(context, scoped(requestFor(context.operation, 0, `/programs/${encodeSegment(slug)}/revisions`), organization), organization, "reader", "reading its programs", slug) as JsonObject; }
   catch (caught) {
     // OWNER/SLUG of a program the caller has not saved: OWNER cannot be
     // confirmed, which is not "your program is missing".
@@ -387,7 +458,9 @@ async function revisions(context: Context): Promise<Json> {
     throw caught;
   }
   if (owned && Array.isArray(body.revisions) && body.revisions.length === 0) throw unconfirmedOwner(context, reference);
-  checkOwner(reference, body);
+  if (organization === undefined) checkOwner(reference, body);
+  // A service that ignores `?workspace=` answers with the caller's own revisions.
+  else requireOrganizationOwner(items(body, "revisions").map((item) => (item !== null && typeof item === "object" && !Array.isArray(item) ? item.owner : undefined)), organization);
   const list = items(body, "revisions").map((record) => project(record, false, false));
   let human = list.length === 0 ? "No revisions.\n" : "";
   for (const revision of list) {
@@ -397,6 +470,58 @@ async function revisions(context: Context): Promise<Json> {
   }
   context.human = human;
   return { revisions: list };
+}
+
+/**
+ * `program copy OWNER/SLUG[@REV] --to ORG`: copies a program into an
+ * organization's namespace. A bare SLUG is the caller's own personal program
+ * (its owner is read from its revisions, manifest request 1). The copy
+ * records its source (`copied_from`); the source is unchanged.
+ */
+async function copy(context: Context): Promise<Json> {
+  const given = context.argument("OWNER/SLUG[@REV]") ?? "";
+  const reference = parseOwnAllowed(given);
+  const to = organizationOption(context, "--to")!;
+  const rename = context.option("--slug");
+  if (rename !== undefined && !validSlug(rename)) {
+    const lower = asciiLower(rename);
+    const error = invocationFailure(`--slug ${quote(rename)} must be a program slug: lowercase letters, digits and hyphens, at most 64 characters`);
+    throw lower !== rename && validSlug(lower) ? context.corrected(error, `Pass ${lower}: \`{command}\``, context.argvWithOption("--slug", lower)) : error;
+  }
+  const target = rename ?? reference.slug;
+  // A bare SLUG the caller has not saved names `cli program list`.
+  await fillOwner(context, reference, 1);
+  const path = copyPath(reference.owner, reference.slug, reference.rev);
+  const request = withJsonBody(requestFor(context.operation, 0, path), rename === undefined ? { to } : { to, slug: rename });
+  const gate = context.gate(context.planned(0, path, [], request.body));
+  if (gate.kind === "preview") return gate.result;
+  const response = await context.sendRaw(request);
+  if (response.status < 200 || response.status >= 300) {
+    let error = context.classify(request, response);
+    // A 403 without a code is the service's slug refusal (or the key itself).
+    if (error.code === "SERVICE_AUTH_REQUIRED" && response.status === 403) error = refineSaveForbidden(error, response.body, context.knownCredential());
+    const explained = organizationFailure(context, error, to, "developer", "copying a program into it", "--to");
+    if (explained instanceof RunnerFailure && explained.code === "SERVICE_RESOURCE_NOT_FOUND" && explained.details?.resource === undefined) {
+      // The service answers a missing source and a non-member the same way.
+      throw new RunnerFailure({ code: explained.code, boundary: explained.boundary, message: explained.message, action: explained.action, exitCode: explained.exitCode, retryable: explained.retryable,
+        details: { ...(explained.details ?? {}), reason: `program ${humanSafeScalar(given)} was not found, or you are not a member of organization ${to}` } });
+    }
+    throw explained;
+  }
+  const reply = jsonObject(response);
+  const program = project(reply.program, true, false);
+  if ((program.owner as string).toLowerCase() !== to || program.slug !== target) throw protocol("the service returned a different program");
+  const result: JsonObject = { program };
+  const url = reply.url;
+  if (url !== undefined && url !== null) {
+    const absolute = typeof url === "string" && url.startsWith("/p/") && url.length > 3 && url.length <= 256 && !/\s/u.test(url) ? absoluteUrl(context.environment, url) : undefined;
+    if (absolute === undefined) throw protocol("the service response has no valid `url`");
+    result.url = absolute;
+  }
+  const source = program.copied_from as JsonObject | undefined;
+  const from = source !== undefined ? copiedText(source) : reference.rev === undefined ? `${reference.owner}/${reference.slug}` : refOf(reference.owner, reference.slug, reference.rev);
+  context.human = `Copied ${from} to ${nameOf(program)} rev ${program.rev as number}: ref ${program.ref as string}; the original is unchanged\n`;
+  return result;
 }
 
 function validSentence(value: string): boolean {

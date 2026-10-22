@@ -1,0 +1,58 @@
+{
+  "id": "program-list-org-empty-human",
+  "feature": "programs",
+  "operation": "program.list",
+  "description": "An organization with no programs prints `No programs in organization ORG.`",
+  "argv": [
+    "cli",
+    "program",
+    "list",
+    "--org",
+    "acme"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/programs",
+        "query": {
+          "workspace": "acme"
+        },
+        "requestHeaders": {
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          },
+          "User-Agent": {
+            "pattern": "^prose-cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"
+          },
+          "Accept": "application/json",
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "status": 200,
+        "body": {
+          "programs": [],
+          "workspace": {
+            "slug": "acme",
+            "name": "Acme",
+            "role": "reader"
+          }
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "No programs in organization acme.\n"
+  },
+  "stderr": {
+    "text": ""
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

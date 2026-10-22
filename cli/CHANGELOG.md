@@ -13,6 +13,26 @@ a candidate do not establish public availability or authorize publication.
 
 ### Hosted service
 
+- Organization workspaces. `program list|show|save|visibility|delete|revisions`
+  take `--org ORG` to act in an organization's namespace (`ORG/SLUG`); without
+  it they act on your personal programs as before. `program copy
+  [OWNER/]SLUG[@REV] --to ORG [--slug NEW]` copies a program into an
+  organization, which records `copied_from` and leaves the original
+  unchanged; it needs `--yes` or `--preview`. Program records carry
+  `owner_kind` and `copied_from` when the service sends them, and human `list`
+  and `show` print them. Organization writes first confirm the organization
+  (`GET /programs?workspace=ORG` must echo it), so a service without
+  organization programs gets `SERVICE_FEATURE_DISABLED` and never a write.
+  A 404 in an organization names both of its meanings (not a member, or no
+  such program); a role that does not allow the verb names the role it
+  needs (`details.requiredRole`); an organization that cannot hold programs
+  says so (`workspace_namespace_unavailable`); a copy conflict carries
+  `program_exists`. Plans in an organization carry
+  `plannedRequest.organization`. `--workspace` suggests `--org`, and `program
+  cp` suggests `program copy`. The vendored service interactions add
+  `program.copy`.
+- Option removals are checked per operation: `--to` stays a removed option
+  of `run share` while `program copy` takes it.
 - Hold quotes follow the service's per-run holds. `run quote` and the
   `run submit` plan send the given `--model`, `--reasoning-effort` and
   `--environment`, plus `repositories=1` for any `--repo` or

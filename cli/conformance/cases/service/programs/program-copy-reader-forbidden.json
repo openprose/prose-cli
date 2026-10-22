@@ -1,0 +1,75 @@
+{
+  "id": "program-copy-reader-forbidden",
+  "feature": "programs",
+  "operation": "program.copy",
+  "description": "A reader cannot copy in; the error names the developer role.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "program",
+    "copy",
+    "bob/tool@0123456789abcdef",
+    "--to",
+    "acme",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/p/bob/tool@0123456789abcdef/copy",
+        "requestHeaders": {
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          },
+          "User-Agent": {
+            "pattern": "^prose-cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"
+          },
+          "Accept": "application/json",
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "status": 403,
+        "expectedBody": {
+          "to": "acme"
+        },
+        "body": {
+          "error": "Copying into this organization needs the developer or admin role.",
+          "code": "organization_forbidden"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "program.copy",
+      "operation": "program.copy",
+      "problem": {
+        "action": "Ask an admin of acme for the developer role, or copy into another organization.",
+        "boundary": "hosted-service",
+        "code": "SERVICE_REQUEST_REJECTED",
+        "details": {
+          "reason": "your role in organization acme does not allow this: copying a program into it needs the developer role (reader can read and run; developer can also create, edit and copy in; admin can also change visibility and delete)",
+          "requiredRole": "developer",
+          "serviceCode": "organization_forbidden",
+          "serviceStatus": 403
+        },
+        "exitCode": 10,
+        "message": "The OpenProse service rejected the request.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

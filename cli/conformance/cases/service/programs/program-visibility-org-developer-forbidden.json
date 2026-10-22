@@ -1,0 +1,105 @@
+{
+  "id": "program-visibility-org-developer-forbidden",
+  "feature": "programs",
+  "operation": "program.visibility",
+  "description": "Only an admin changes visibility; a developer's refusal names the admin role.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "program",
+    "visibility",
+    "hello",
+    "public",
+    "--org",
+    "acme",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/programs",
+        "query": {
+          "workspace": "acme"
+        },
+        "requestHeaders": {
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          },
+          "User-Agent": {
+            "pattern": "^prose-cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"
+          },
+          "Accept": "application/json",
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "status": 200,
+        "body": {
+          "programs": [],
+          "workspace": {
+            "slug": "acme",
+            "name": "Acme",
+            "role": "admin"
+          }
+        }
+      },
+      {
+        "method": "PUT",
+        "path": "/programs/hello/visibility",
+        "query": {
+          "workspace": "acme"
+        },
+        "requestHeaders": {
+          "X-OpenProse-Client": {
+            "pattern": "^cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\+(rust|bun)$"
+          },
+          "User-Agent": {
+            "pattern": "^prose-cli/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"
+          },
+          "Accept": "application/json",
+          "Authorization": "Bearer rr_test_0123456789abcdef0123456789abcdef"
+        },
+        "status": 403,
+        "expectedBody": {
+          "visibility": "public"
+        },
+        "body": {
+          "error": "Changing a program's visibility needs the organization admin role.",
+          "code": "organization_forbidden"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "program.set_visibility",
+      "operation": "program.visibility",
+      "problem": {
+        "action": "Ask an admin of acme to make you an admin, or act on your own programs without --org.",
+        "boundary": "hosted-service",
+        "code": "SERVICE_REQUEST_REJECTED",
+        "details": {
+          "reason": "your role in organization acme does not allow this: changing a program's visibility needs the admin role (reader can read and run; developer can also create, edit and copy in; admin can also change visibility and delete)",
+          "requiredRole": "admin",
+          "serviceCode": "organization_forbidden",
+          "serviceStatus": 403
+        },
+        "exitCode": 10,
+        "message": "The OpenProse service rejected the request.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "rr_test_0123456789abcdef0123456789abcdef"
+  ]
+}

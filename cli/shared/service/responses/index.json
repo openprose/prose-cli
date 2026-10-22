@@ -115,6 +115,13 @@
       "schema": "program-save.schema.json"
     },
     {
+      "name": "program-copy",
+      "method": "POST",
+      "path": "/p/{owner}/{slug}/copy",
+      "probed": false,
+      "schema": "program-copy.schema.json"
+    },
+    {
       "name": "program-conflict",
       "method": "PUT",
       "path": "/programs/{slug}",
