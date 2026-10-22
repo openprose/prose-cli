@@ -956,6 +956,13 @@ fn lister(
         "ACCOUNT_ID" => invocation
             .argument("ORG")
             .map(|org| ("members", words(&["org", "member", "list", org]))),
+        "INVITATION_ID" => Some((
+            "invitations",
+            match invocation.argument("ORG") {
+                Some(org) => words(&["org", "invitation", "list", org]),
+                None => words(&["org", "invitation", "list"]),
+            },
+        )),
         _ => None,
     }
 }
@@ -3232,7 +3239,7 @@ fn parse_operation_arguments(
             ));
         }
     }
-    let mut values = positionals.into_iter();
+    let mut values = positionals.into_iter().peekable();
     for argument in &arguments {
         let name = argument["name"].as_str().unwrap_or_default().to_owned();
         let missing = |invocation: &ServiceInvocation| {
@@ -3263,7 +3270,13 @@ fn parse_operation_arguments(
             }
             continue;
         }
-        match values.next() {
+        // A formatted argument takes only a positional of its shape; one that
+        // does not fit stays for the next argument or is the extra one.
+        let next = match argument["format"].as_str() {
+            Some(format) => values.next_if(|(_, value)| fits_format(format, value)),
+            None => values.next(),
+        };
+        match next {
             Some((_, value)) => {
                 invocation.arguments.insert(name, vec![value]);
             }
@@ -3285,7 +3298,7 @@ fn parse_operation_arguments(
             ));
         }
         if let Some(rejection) = extra_argument_rejection(
-            &options, invocation, at, &extra, &command, &words, positions,
+            &options, &arguments, invocation, at, &extra, &command, &words, positions,
         ) {
             return Err(rejection);
         }
@@ -3875,6 +3888,33 @@ fn spec_key_rejection(
     Some(rejection)
 }
 
+/// Whether `value` has the shape of a manifest argument `format`; `uuid` is
+/// a lowercase 8-4-4-4-12 hex UUID.
+fn fits_format(format: &str, value: &str) -> bool {
+    match format {
+        "uuid" => {
+            let bytes = value.as_bytes();
+            bytes.len() == 36
+                && bytes.iter().enumerate().all(|(index, byte)| {
+                    if matches!(index, 8 | 13 | 18 | 23) {
+                        *byte == b'-'
+                    } else {
+                        byte.is_ascii_digit() || (b'a'..=b'f').contains(byte)
+                    }
+                })
+        }
+        _ => true,
+    }
+}
+
+/// A manifest argument `format` in words.
+fn format_text(format: &str) -> &'static str {
+    match format {
+        "uuid" => "a lowercase UUID",
+        _ => "a formatted value",
+    }
+}
+
 /// An unexpected positional argument with a known meaning.
 /// On an operation that reads a secret from a `secretFileOptions` option
 /// (`cli wallet redeem CODE`) the argument is presumed to be the secret: it
@@ -3882,9 +3922,13 @@ fn spec_key_rejection(
 /// input. Otherwise, when exactly one required value option is missing, the
 /// argument is its value (`cli wallet topup 500` -> `--amount-cents 500`),
 /// unless the option names a file that does not exist or a number and the
-/// argument is not a whole number.
+/// argument is not a whole number. A formatted argument (manifest
+/// `format`) never takes a positional that does not fit it, so on a secret
+/// operation such a positional is presumed to be the secret too.
+#[allow(clippy::too_many_arguments)]
 fn extra_argument_rejection(
     options: &[Value],
+    arguments: &[Value],
     invocation: &ServiceInvocation,
     at: usize,
     extra: &str,
@@ -3897,9 +3941,19 @@ fn extra_argument_rejection(
         secret_placeholder(name).map(|placeholder| (name, placeholder))
     });
     if let Some((name, placeholder)) = secret {
-        let given = invocation.options.contains_key(name);
+        let given = invocation.options.contains_key(name) || !invocation.arguments.is_empty();
+        let formatted = arguments
+            .iter()
+            .filter_map(|argument| {
+                let shape = format_text(argument["format"].as_str()?);
+                Some(format!(
+                    ", or takes <{}>, {shape}",
+                    argument["name"].as_str()?
+                ))
+            })
+            .collect::<String>();
         let reason = format!(
-            "`{command}` never takes the {} as an argument, so the argument was not echoed; it reads {name}, a file or - for standard input",
+            "`{command}` never takes the {} as an argument, so the argument was not echoed; it reads {name}, a file or - for standard input{formatted}",
             placeholder.to_lowercase()
         );
         return Some(if given {

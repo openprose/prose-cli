@@ -1,0 +1,53 @@
+{
+  "id": "invite-login-account-not-found-human",
+  "feature": "organizations",
+  "operation": "org.invite",
+  "description": "Human account_not_found names the login and what the invitee must run.",
+  "argv": [
+    "cli",
+    "org",
+    "invite",
+    "acme-research",
+    "--login",
+    "octocat",
+    "--role",
+    "developer",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/organizations/acme-research/invitations",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          },
+          "Accept": "application/json",
+          "Content-Type": "application/json"
+        },
+        "status": 404,
+        "body": {
+          "error": "No account with that GitHub login has used organizations on this deployment yet.",
+          "code": "account_not_found"
+        },
+        "expectedBody": {
+          "githubLogin": "octocat",
+          "role": "developer"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "text": ""
+  },
+  "stderr": {
+    "text": "OpenProse: SERVICE_RESOURCE_NOT_FOUND: The requested OpenProse service resource was not found.\nDetail: no account with GitHub login octocat has used organizations on the service yet\nService code: account_not_found\nAction: Ask @octocat to sign in and run `prose cli org list` once, then invite them again.\n"
+  }
+}

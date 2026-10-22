@@ -290,6 +290,8 @@ fn summary_label(field: &str) -> &str {
         "interval_seconds" => "every",
         "delivery_mode" => "delivery mode",
         "amount_cents" => "amount",
+        "githubLogin" => "GitHub login",
+        "accountId" => "account",
         other => other,
     }
 }

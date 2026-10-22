@@ -230,8 +230,18 @@
           "auth": "api_key"
         },
         {
+          "method": "GET",
+          "path": "/organizations/invitations",
+          "auth": "api_key"
+        },
+        {
           "method": "POST",
           "path": "/organizations/invitations/accept",
+          "auth": "api_key"
+        },
+        {
+          "method": "POST",
+          "path": "/organizations/invitations/{id}/accept",
           "auth": "api_key"
         },
         {
@@ -242,6 +252,11 @@
         {
           "method": "PATCH",
           "path": "/organizations/{name}",
+          "auth": "api_key"
+        },
+        {
+          "method": "GET",
+          "path": "/organizations/{name}/invitations",
           "auth": "api_key"
         },
         {

@@ -1,0 +1,50 @@
+{
+  "id": "invite-login-preview",
+  "feature": "organizations",
+  "operation": "org.invite",
+  "description": "The plan's summary names the reading: githubLogin for a login, accountId for an account id.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "org",
+    "invite",
+    "acme-research",
+    "@octocat",
+    "--role",
+    "developer",
+    "--preview"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "organizations.manage",
+      "operation": "org.invite",
+      "problem": null,
+      "result": {
+        "plannedRequest": {
+          "bodyBytes": 44,
+          "bodySha256": "8d7c31d162604df80f79fc82c06f769e2d9255883b8a3aaef828cb2dbbf2f19b",
+          "description": "Invite a GitHub login or an account.",
+          "effect": "write",
+          "method": "POST",
+          "operation": "org.invite",
+          "summary": {
+            "githubLogin": "octocat",
+            "role": "developer"
+          }
+        },
+        "preview": true
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

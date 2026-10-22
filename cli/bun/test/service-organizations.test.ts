@@ -5,8 +5,8 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runCli } from "../src/cli";
-import { manifest } from "../src/core/service/manifest";
-import { expiresIn, invitation, organization } from "../src/core/service/organizations";
+import { fitsFormat, manifest } from "../src/core/service/manifest";
+import { expiresIn, githubLogin, invitation, organization } from "../src/core/service/organizations";
 import { RunnerFailure } from "../src/core/types";
 
 const ORG = {
@@ -89,6 +89,27 @@ describe("organizations", () => {
       token: "t",
     });
     expect(reason(() => invitation({ invitation: entry }))).toBe("the service response has a missing or invalid token");
+  });
+
+  test("an invitation keeps the service's github_login (string or null) and refuses any other value", () => {
+    const entry = { id: "inv_1", organization_id: ORG.id, account_id: "cus_x", role: "reader", created_by: "cus_admin", created_at: 1, expires_at: 2 };
+    expect((invitation({ invitation: { ...entry, github_login: "octocat" }, token: "t" }).invitation as Record<string, unknown>).github_login).toBe("octocat");
+    expect((invitation({ invitation: { ...entry, github_login: null }, token: "t" }).invitation as Record<string, unknown>).github_login).toBeNull();
+    expect(Object.hasOwn(invitation({ invitation: entry, token: "t" }).invitation as object, "github_login")).toBe(false);
+    for (const bad of [7, "", "tab\there", "x".repeat(65)]) {
+      expect(reason(() => invitation({ invitation: { ...entry, github_login: bad }, token: "t" }))).toBe("the service response has a missing or invalid invitation.github_login");
+    }
+  });
+
+  test("a GitHub login is 1-39 letters, digits or single interior hyphens", () => {
+    for (const good of ["a", "octocat", "Octo-Cat", "a1-b2-c3", "x".repeat(39)]) expect(githubLogin(good)).toBe(true);
+    for (const bad of ["", "-a", "a-", "a--b", "octo_cat", "@octocat", "x".repeat(40), "cus_x", "ö"]) expect(githubLogin(bad)).toBe(false);
+  });
+
+  test("an argument format admits only a lowercase UUID", () => {
+    expect(fitsFormat("uuid", "7e6d5c4b-3a29-4817-8f6e-5d4c3b2a1908")).toBe(true);
+    for (const bad of ["7E6D5C4B-3A29-4817-8F6E-5D4C3B2A1908", "7e6d5c4b3a2948178f6e5d4c3b2a1908", "x".repeat(72), ""]) expect(fitsFormat("uuid", bad)).toBe(false);
+    expect(fitsFormat(undefined, "anything")).toBe(true);
   });
 
   test("--expires-in accepts whole seconds from 1 to 2592000 only", () => {

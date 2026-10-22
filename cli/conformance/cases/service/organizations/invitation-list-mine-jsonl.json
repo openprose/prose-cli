@@ -1,0 +1,85 @@
+{
+  "id": "invitation-list-mine-jsonl",
+  "feature": "organizations",
+  "operation": "org.invitation.list",
+  "description": "--output jsonl prints one record per invitation and the page trailer.",
+  "argv": [
+    "--output",
+    "jsonl",
+    "cli",
+    "org",
+    "invitation",
+    "list"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/organizations/invitations",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          },
+          "Accept": "application/json"
+        },
+        "status": 200,
+        "body": {
+          "invitations": [
+            {
+              "id": "7e6d5c4b-3a29-4817-8f6e-5d4c3b2a1908",
+              "organization": {
+                "id": "5b0e7c1a-3f2d-4e8b-9a61-2c4d8e0f1a23",
+                "slug": "acme-research",
+                "name": "Acme Research"
+              },
+              "role": "developer",
+              "created_by_login": "octo-admin",
+              "created_at": 1790100000000,
+              "expires_at": 1790704800000
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "jsonl": [
+      {
+        "collection": "invitations",
+        "index": 0,
+        "operation": "org.invitation.list",
+        "record": {
+          "created_at": 1790100000000,
+          "created_at_iso": "2026-09-22T18:00:00.000Z",
+          "created_by_login": "octo-admin",
+          "expires_at": 1790704800000,
+          "expires_at_iso": "2026-09-29T18:00:00.000Z",
+          "id": "7e6d5c4b-3a29-4817-8f6e-5d4c3b2a1908",
+          "organization": {
+            "id": "5b0e7c1a-3f2d-4e8b-9a61-2c4d8e0f1a23",
+            "slug": "acme-research",
+            "name": "Acme Research"
+          },
+          "role": "developer"
+        },
+        "schema": "openprose.service-record/1"
+      },
+      {
+        "collection": "invitations",
+        "count": 1,
+        "exitCode": 0,
+        "interaction": "organizations.manage",
+        "meta": {},
+        "nextBefore": null,
+        "operation": "org.invitation.list",
+        "schema": "openprose.service-page/1"
+      }
+    ]
+  }
+}

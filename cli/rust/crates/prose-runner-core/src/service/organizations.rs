@@ -1,6 +1,7 @@
 //! Service organization management: `org show|create|rename|default`,
-//! `org member list|role|remove`, `org invite` and
-//! `org invitation revoke|accept`. There is no `org delete` (the service always
+//! `org member list|role|remove`, `org invite` (a GitHub login or an account
+//! id) and `org invitation list|revoke|accept` (accept by invitation id or
+//! with the one-time token). There is no `org delete` (the service always
 //! refuses it). `org list` stays the frozen service operation in
 //! `service_account.rs`.
 //!
@@ -91,6 +92,10 @@ const MEMBER_HINT: &str = "ORG exists but has no such member; run `prose cli org
 const INVITATION_HINT: &str = "ORG exists but has no invitation with this INVITATION_ID; `prose cli org invite` prints the invitation id";
 /// A rejected `invitation accept` (the `invalid_invitation` code is dropped).
 const ACCEPT_HINT: &str = "the invitation token is invalid, expired, revoked, already used, or was issued to a different account";
+/// A rejected `invitation accept INVITATION_ID`.
+const ACCEPT_ID_HINT: &str = "the invitation is invalid, expired, revoked, already used, or was issued to a different account; `prose cli org invitation list` shows the invitations you can accept";
+/// What a GitHub login is, for the invitee errors.
+const LOGIN_RULE: &str = "a GitHub login is 1-39 letters, digits or single interior hyphens; pass an account id with --account";
 
 fn service_code(error: &RunnerError) -> Option<&str> {
     error
@@ -137,31 +142,33 @@ pub fn execute(context: &mut Context<'_>) -> Result<Value, RunnerError> {
         "org.member.role" => member_role(context),
         "org.member.remove" => member_remove(context),
         "org.invite" => invite(context),
+        "org.invitation.list" => invitation_list(context),
         "org.invitation.revoke" => invitation_revoke(context),
         "org.invitation.accept" => invitation_accept(context),
         _ => context.not_implemented(),
     }
 }
 
-/// Plans a mutation, passes the confirmation gate, then sends it. `Ok(Err)`
-/// carries the `--preview` result. `target` names, for the human preview,
-/// what the request acts on that its Summary does not show (the JSON plan
-/// carries the path and the body digest); a secret body field is never
-/// among them. `missing` is the not-found hint for member and invitation
-/// routes.
+/// Plans a mutation (the operation's manifest request `index`), passes the
+/// confirmation gate, then sends it. `Ok(Err)` carries the `--preview`
+/// result. `target` names, for the human preview, what the request acts on
+/// that its Summary does not show (the JSON plan carries the path and the
+/// body digest); a secret body field is never among them. `missing` is the
+/// not-found hint for member and invitation routes.
 fn confirm_and_send(
     context: &mut Context<'_>,
+    index: usize,
     org: &str,
     path: &str,
     body: Option<&Value>,
     target: &[(&str, String)],
     missing: Option<&str>,
 ) -> Result<Result<Map<String, Value>, Value>, RunnerError> {
-    let mut request = http::Request::from_manifest(context.operation, 0, path);
+    let mut request = http::Request::from_manifest(context.operation, index, path);
     if let Some(body) = body {
         request = request.json_body(body);
     }
-    let planned = context.planned(0, path, &[], request.body.as_deref());
+    let planned = context.planned(index, path, &[], request.body.as_deref());
     if let Gate::Preview(result) = context.gate(planned)? {
         context.human = Some(with_target(render::human_result(&result), target));
         return Ok(Err(result));
@@ -285,7 +292,7 @@ fn create(context: &mut Context<'_>) -> Result<Value, RunnerError> {
     }
     body.insert("slug".into(), json!(slug));
     let body = Value::Object(body);
-    match confirm_and_send(context, "", "/organizations", Some(&body), &[], None)? {
+    match confirm_and_send(context, 0, "", "/organizations", Some(&body), &[], None)? {
         Err(preview) => Ok(preview),
         Ok(body) => {
             let result = organization_result(&body)?;
@@ -331,7 +338,7 @@ fn rename(context: &mut Context<'_>) -> Result<Value, RunnerError> {
     let path = format!("/organizations/{}", segment(&org));
     let body = json!({"name": name});
     let target = [("Organization", org.clone())];
-    match confirm_and_send(context, &org, &path, Some(&body), &target, None)? {
+    match confirm_and_send(context, 0, &org, &path, Some(&body), &target, None)? {
         Err(preview) => Ok(preview),
         Ok(body) => {
             let result = organization_result(&body)?;
@@ -350,6 +357,7 @@ fn set_default(context: &mut Context<'_>) -> Result<Value, RunnerError> {
     let target = [("Organization", org.clone())];
     match confirm_and_send(
         context,
+        0,
         &org,
         "/organizations/default",
         Some(&body),
@@ -506,9 +514,14 @@ fn member_list(context: &mut Context<'_>) -> Result<Value, RunnerError> {
         )
     };
     for entry in &members {
-        let handle = entry["handle"]
+        let handle = entry["github_login"]
             .as_str()
-            .map(|handle| format!(" ({})", human_safe_scalar(handle)))
+            .map(|login| format!(" (@{})", human_safe_scalar(login)))
+            .or_else(|| {
+                entry["handle"]
+                    .as_str()
+                    .map(|handle| format!(" ({})", human_safe_scalar(handle)))
+            })
             .unwrap_or_default();
         let _ = writeln!(
             text,
@@ -535,6 +548,7 @@ fn member_role(context: &mut Context<'_>) -> Result<Value, RunnerError> {
     let target = [("Organization", org.clone()), ("Member", label.clone())];
     match confirm_and_send(
         context,
+        0,
         &org,
         &path,
         Some(&body),
@@ -568,7 +582,7 @@ fn member_remove(context: &mut Context<'_>) -> Result<Value, RunnerError> {
         segment(&account)
     );
     let target = [("Organization", org.clone()), ("Member", label.clone())];
-    match confirm_and_send(context, &org, &path, None, &target, Some(MEMBER_HINT))? {
+    match confirm_and_send(context, 0, &org, &path, None, &target, Some(MEMBER_HINT))? {
         Err(preview) => Ok(preview),
         Ok(body) => {
             let result = ok(&body)?;
@@ -582,13 +596,95 @@ fn member_remove(context: &mut Context<'_>) -> Result<Value, RunnerError> {
     }
 }
 
+/// Whom `org invite` invites: the service resolves a GitHub login to the
+/// account that used it; an account id is sent as given.
+enum Invitee {
+    Login(String),
+    Account(String),
+}
+
+/// A GitHub login: 1-39 ASCII letters, digits or single interior hyphens.
+fn is_login(value: &str) -> bool {
+    let bytes = value.as_bytes();
+    (1..=39).contains(&bytes.len())
+        && bytes
+            .iter()
+            .all(|byte| byte.is_ascii_alphanumeric() || *byte == b'-')
+        && bytes.first().is_some_and(u8::is_ascii_alphanumeric)
+        && bytes.last().is_some_and(u8::is_ascii_alphanumeric)
+        && !value.contains("--")
+}
+
+/// The invitee from exactly one of INVITEE, `--login` and `--account`.
+/// INVITEE is a login when it starts with `@` or can be one (and does not
+/// start with `cus_`), else an account id.
+fn invitee(context: &Context<'_>) -> Result<Invitee, RunnerError> {
+    let positional = context.argument("INVITEE");
+    let login = context.option("--login");
+    let account = context.option("--account");
+    let given = [positional.is_some(), login.is_some(), account.is_some()]
+        .iter()
+        .filter(|given| **given)
+        .count();
+    if given > 1 {
+        return Err(invalid(
+            "give the invitee once: INVITEE, --login LOGIN or --account ACCOUNT_ID",
+        ));
+    }
+    if let Some(value) = account {
+        if !valid_text(value, MAX_ID) {
+            return Err(invalid(format!(
+                "--account must be 1-{MAX_ID} characters with no control characters"
+            )));
+        }
+        return Ok(Invitee::Account(value.to_owned()));
+    }
+    if let Some(value) = login {
+        if !valid_text(value, MAX_ID) {
+            return Err(invalid(format!(
+                "--login must be 1-{MAX_ID} characters with no control characters"
+            )));
+        }
+        let stripped = value.strip_prefix('@').unwrap_or(value);
+        if !is_login(stripped) {
+            return Err(invalid(format!(
+                "--login {} is not a GitHub login; {LOGIN_RULE}",
+                crate::error::quote(value)
+            )));
+        }
+        return Ok(Invitee::Login(stripped.to_owned()));
+    }
+    if positional.is_none() {
+        return Err(invalid(
+            "missing the invitee: give a GitHub login or an account id as INVITEE, or --login LOGIN or --account ACCOUNT_ID",
+        ));
+    }
+    let value = text_argument(context, "INVITEE", MAX_ID)?;
+    if let Some(stripped) = value.strip_prefix('@') {
+        if !is_login(stripped) {
+            return Err(invalid(format!(
+                "<INVITEE> {} starts with @ but is not a GitHub login; {LOGIN_RULE}",
+                crate::error::quote(&value)
+            )));
+        }
+        return Ok(Invitee::Login(stripped.to_owned()));
+    }
+    if !value.starts_with("cus_") && is_login(&value) {
+        return Ok(Invitee::Login(value));
+    }
+    Ok(Invitee::Account(value))
+}
+
 fn invite(context: &mut Context<'_>) -> Result<Value, RunnerError> {
     let org = segment_argument(context, "ORG", MAX_REF)?;
-    let account = text_argument(context, "ACCOUNT_ID", MAX_ID)?;
+    let invitee = invitee(context)?;
     let role = role_value(context.option("--role").unwrap_or_default(), "--role")?;
     let mut body = Map::new();
-    let mut target = vec![("Organization", org.clone()), ("Account", account.clone())];
-    body.insert("accountId".into(), json!(account));
+    let mut target = vec![("Organization", org.clone())];
+    match &invitee {
+        Invitee::Login(login) => body.insert("githubLogin".into(), json!(login)),
+        Invitee::Account(account) => body.insert("accountId".into(), json!(account)),
+    };
     if let Some(value) = context.option("--expires-in") {
         let seconds = expires_in(value)?;
         body.insert("expiresInSeconds".into(), json!(seconds));
@@ -600,15 +696,25 @@ fn invite(context: &mut Context<'_>) -> Result<Value, RunnerError> {
     body.insert("role".into(), json!(role));
     let path = format!("/organizations/{}/invitations", segment(&org));
     let body = Value::Object(body);
-    match confirm_and_send(context, &org, &path, Some(&body), &target, None)? {
+    let sent =
+        confirm_and_send(context, 0, &org, &path, Some(&body), &target, None).map_err(|error| {
+            match &invitee {
+                Invitee::Login(login) => login_error(error, login),
+                Invitee::Account(_) => error,
+            }
+        })?;
+    match sent {
         Err(preview) => Ok(preview),
         Ok(body) => {
             let result = invitation(&body)?;
             let entry = &result["invitation"];
+            let id = human_safe_scalar(entry["id"].as_str().unwrap_or_default());
+            let who = entry["github_login"].as_str().map_or_else(
+                || human_safe_scalar(entry["account_id"].as_str().unwrap_or_default()),
+                |login| format!("@{}", human_safe_scalar(login)),
+            );
             let text = format!(
-                "Invitation {} for {} as {} (expires {}).\nToken: {}\nThe token appears only here. The invitee accepts with `prose cli org invitation accept --token-file FILE`.\n",
-                human_safe_scalar(entry["id"].as_str().unwrap_or_default()),
-                human_safe_scalar(entry["account_id"].as_str().unwrap_or_default()),
+                "Invitation {id} for {who} as {} (expires {}).\nToken: {}\nThe token appears only here. The invitee accepts with `prose cli org invitation accept {id} --yes` (their `prose cli org invitation list` shows it) or with the token: `prose cli org invitation accept --token-file FILE --yes`.\n",
                 entry["role"].as_str().unwrap_or_default(),
                 super::render::iso_ms(&entry["expires_at"])
                     .unwrap_or_else(|| entry["expires_at"].to_string()),
@@ -617,6 +723,39 @@ fn invite(context: &mut Context<'_>) -> Result<Value, RunnerError> {
             context.human = Some(context.localize(&text));
             Ok(result)
         }
+    }
+}
+
+/// The service could not resolve an invited login to one account.
+fn login_error(error: RunnerError, login: &str) -> RunnerError {
+    match (error.code, service_code(&error)) {
+        (ErrorCode::ServiceResourceNotFound, Some("account_not_found")) => {
+            let mut error = error
+                .with_detail("resource", json!({"kind": "account", "id": login}))
+                .with_detail(
+                    "reason",
+                    format!(
+                        "no account with GitHub login {login} has used organizations on the service yet"
+                    ),
+                );
+            // Not localized: the invitee runs it on their own machine.
+            error.action = format!(
+                "Ask @{login} to sign in and run `prose cli org list` once, then invite them again."
+            );
+            error
+        }
+        (ErrorCode::ServiceWriteConflict, Some("ambiguous_login")) => {
+            let mut error = error.with_detail(
+                "reason",
+                format!(
+                    "more than one GitHub identity has used the login {login} on the service (a renamed account?), so it names no one account"
+                ),
+            );
+            "Invite the account by its account id instead: --account ACCOUNT_ID in place of the login."
+                .clone_into(&mut error.action);
+            error
+        }
+        _ => error,
     }
 }
 
@@ -644,7 +783,15 @@ fn invitation_revoke(context: &mut Context<'_>) -> Result<Value, RunnerError> {
         segment(&id)
     );
     let target = [("Organization", org.clone()), ("Invitation", id.clone())];
-    match confirm_and_send(context, &org, &path, None, &target, Some(INVITATION_HINT))? {
+    match confirm_and_send(
+        context,
+        0,
+        &org,
+        &path,
+        None,
+        &target,
+        Some(INVITATION_HINT),
+    )? {
         Err(preview) => Ok(preview),
         Ok(body) => {
             let result = ok(&body)?;
@@ -658,44 +805,67 @@ fn invitation_revoke(context: &mut Context<'_>) -> Result<Value, RunnerError> {
     }
 }
 
+/// `invitation accept`: by `INVITATION_ID` (manifest request 1, no body) or
+/// with the token read from `--token-file` (request 0), never both.
 fn invitation_accept(context: &mut Context<'_>) -> Result<Value, RunnerError> {
-    let source = context
-        .option("--token-file")
-        .unwrap_or_default()
-        .to_owned();
-    let text = fs::read_text(
-        &context.system.current_dir,
-        &source,
-        MAX_TOKEN_FILE,
-        "--token-file",
-    )?;
-    let token = text
-        .strip_suffix("\r\n")
-        .or_else(|| text.strip_suffix('\n'))
-        .unwrap_or(&text);
-    if !valid_text(token, MAX_TOKEN) {
-        return Err(invalid(format!(
-            "--token-file must hold one invitation token (1-{MAX_TOKEN} characters, no control characters) on a single line"
-        )));
-    }
-    let body = json!({"token": token});
-    let sent = confirm_and_send(
-        context,
-        "",
-        "/organizations/invitations/accept",
-        Some(&body),
-        &[],
-        None,
-    )
-    .map_err(|error| {
-        let rejected = error.code == ErrorCode::ServiceRequestRejected
-            && matches!(service_code(&error), None | Some("invalid_invitation"));
-        if rejected {
-            error.with_detail("reason", ACCEPT_HINT)
-        } else {
-            error
+    let id = context.argument("INVITATION_ID").map(str::to_owned);
+    let source = context.option("--token-file").map(str::to_owned);
+    let sent = match (id, source) {
+        (Some(_), Some(_)) => {
+            let argv = without_token_file(&context.invocation.argv);
+            let mut error = invalid("give INVITATION_ID or --token-file, not both");
+            error.action = format!(
+                "Drop --token-file to accept by id: `{}`.",
+                render::argv_text(&argv)
+            );
+            return Err(error.with_detail("suggestedArgv", json!(argv)));
         }
-    })?;
+        (None, None) => {
+            let list = context.command("org invitation list");
+            let suggested = context.follow_up_argv(&["org", "invitation", "list"]);
+            let mut error = invalid(context.localize(
+                "missing the invitation: give INVITATION_ID (`prose cli org invitation list` shows yours) or --token-file FILE",
+            ));
+            error.action =
+                format!("List your invitations with `{list}` and pass one of their ids.");
+            return Err(error.with_detail("suggestedArgv", json!(suggested)));
+        }
+        (Some(id), None) => {
+            let path = format!("/organizations/invitations/{}/accept", segment(&id));
+            let target = [("Invitation", id)];
+            let hint = context.localize(ACCEPT_ID_HINT);
+            confirm_and_send(context, 1, "", &path, None, &target, None)
+                .map_err(|error| rejected_accept(error, &hint))?
+        }
+        (None, Some(source)) => {
+            let text = fs::read_text(
+                &context.system.current_dir,
+                &source,
+                MAX_TOKEN_FILE,
+                "--token-file",
+            )?;
+            let token = text
+                .strip_suffix("\r\n")
+                .or_else(|| text.strip_suffix('\n'))
+                .unwrap_or(&text);
+            if !valid_text(token, MAX_TOKEN) {
+                return Err(invalid(format!(
+                    "--token-file must hold one invitation token (1-{MAX_TOKEN} characters, no control characters) on a single line"
+                )));
+            }
+            let body = json!({"token": token});
+            confirm_and_send(
+                context,
+                0,
+                "",
+                "/organizations/invitations/accept",
+                Some(&body),
+                &[],
+                None,
+            )
+            .map_err(|error| rejected_accept(error, ACCEPT_HINT))?
+        }
+    };
     match sent {
         Err(preview) => Ok(preview),
         Ok(body) => {
@@ -707,6 +877,127 @@ fn invitation_accept(context: &mut Context<'_>) -> Result<Value, RunnerError> {
             Ok(result)
         }
     }
+}
+
+/// A rejected accept with no service code, or `invalid_invitation`, names
+/// its likely causes.
+fn rejected_accept(error: RunnerError, hint: &str) -> RunnerError {
+    let rejected = error.code == ErrorCode::ServiceRequestRejected
+        && matches!(service_code(&error), None | Some("invalid_invitation"));
+    if rejected {
+        error.with_detail("reason", hint)
+    } else {
+        error
+    }
+}
+
+/// The invocation argv without its `--token-file FILE` (or
+/// `--token-file=FILE`) after `cli`.
+fn without_token_file(argv: &[String]) -> Vec<String> {
+    let start = argv
+        .iter()
+        .position(|word| word == "cli")
+        .map_or(0, |at| at + 1);
+    let mut out = argv[..start].to_vec();
+    let mut words = argv[start..].iter();
+    while let Some(word) = words.next() {
+        if word == "--token-file" {
+            words.next();
+        } else if !word.starts_with("--token-file=") {
+            out.push(word.clone());
+        }
+    }
+    out
+}
+
+/// `invitation list`: without ORG the caller's pending invitations (request
+/// 0); with ORG that organization's (request 1, admins only).
+fn invitation_list(context: &mut Context<'_>) -> Result<Value, RunnerError> {
+    if context.argument("ORG").is_none() {
+        let request =
+            http::Request::from_manifest(context.operation, 0, "/organizations/invitations");
+        let body = context.send(&request)?.json_object()?;
+        let invitations = invitation_entries(&body)?
+            .iter()
+            .map(invitation_for_me)
+            .collect::<Result<Vec<_>, RunnerError>>()?;
+        let mut text = if invitations.is_empty() {
+            "No pending invitations.\n".to_owned()
+        } else {
+            format!("Pending invitations ({}):\n", invitations.len())
+        };
+        for entry in &invitations {
+            let organization = &entry["organization"];
+            let slug = organization["slug"].as_str().unwrap_or_default();
+            let name = organization["name"].as_str().unwrap_or_default();
+            let named = if name == slug {
+                String::new()
+            } else {
+                format!(" ({})", human_safe_scalar(name))
+            };
+            let _ = writeln!(
+                text,
+                "{}  {}{named}  {}{}  expires {}",
+                entry["id"].as_str().unwrap_or_default(),
+                human_safe_scalar(slug),
+                entry["role"].as_str().unwrap_or_default(),
+                from_login(entry),
+                entry["expires_at_iso"].as_str().unwrap_or_default(),
+            );
+        }
+        if let Some(first) = invitations.first().and_then(|entry| entry["id"].as_str()) {
+            text.push_str(&render::next_line(&[
+                "org",
+                "invitation",
+                "accept",
+                first,
+                "--yes",
+            ]));
+        }
+        context.human = Some(text);
+        return Ok(json!({"invitations": invitations}));
+    }
+    let org = segment_argument(context, "ORG", MAX_REF)?;
+    let path = format!("/organizations/{}/invitations", segment(&org));
+    let request = http::Request::from_manifest(context.operation, 1, path);
+    let body = send_for(context, &request, &org, None)?;
+    let invitations = invitation_entries(&body)?
+        .iter()
+        .map(pending_invitation)
+        .collect::<Result<Vec<_>, RunnerError>>()?;
+    let mut text = if invitations.is_empty() {
+        format!("No pending invitations in {}.\n", human_safe_scalar(&org))
+    } else {
+        format!(
+            "Pending invitations in {} ({}):\n",
+            human_safe_scalar(&org),
+            invitations.len()
+        )
+    };
+    for entry in &invitations {
+        let who = entry["github_login"].as_str().map_or_else(
+            || human_safe_scalar(entry["account_id"].as_str().unwrap_or_default()),
+            |login| format!("@{}", human_safe_scalar(login)),
+        );
+        let _ = writeln!(
+            text,
+            "{}  {who}  {}{}  expires {}",
+            human_safe_scalar(entry["id"].as_str().unwrap_or_default()),
+            entry["role"].as_str().unwrap_or_default(),
+            from_login(entry),
+            entry["expires_at_iso"].as_str().unwrap_or_default(),
+        );
+    }
+    context.human = Some(text);
+    Ok(json!({"invitations": invitations}))
+}
+
+/// `  from @LOGIN` when the invitation names who sent it.
+fn from_login(entry: &Value) -> String {
+    entry["created_by_login"]
+        .as_str()
+        .map(|login| format!("  from @{}", human_safe_scalar(login)))
+        .unwrap_or_default()
 }
 
 // ---- response projections (closed service/organizations.schema.json) ----
@@ -815,6 +1106,19 @@ fn nullable_epoch(
     }
 }
 
+/// A nullable text field: absent or null is null.
+fn nullable_text(
+    object: &Map<String, Value>,
+    prefix: &str,
+    key: &str,
+    max: usize,
+) -> Result<Value, RunnerError> {
+    match object.get(key) {
+        None | Some(Value::Null) => Ok(Value::Null),
+        Some(_) => text_field(object, prefix, key, max),
+    }
+}
+
 fn role_field(object: &Map<String, Value>, prefix: &str, key: &str) -> Result<Value, RunnerError> {
     let (value, name) = field(object, prefix, key);
     value
@@ -859,7 +1163,8 @@ fn organization_result(body: &Map<String, Value>) -> Result<Value, RunnerError> 
 
 /// One member's public fields; `name` is `member` or `members[]`. The
 /// account id is checked but never printed, and the organization id is
-/// the caller's own `ORG`; a `handle` is kept when the service sends one.
+/// the caller's own `ORG`; a `handle` is kept when the service sends one,
+/// and `github_login` (null when unknown) when the service sends the key.
 fn member(value: Option<&Value>, name: &str) -> Result<Value, RunnerError> {
     let object = object_at(value, name)?;
     let prefix = format!("{name}.");
@@ -868,6 +1173,9 @@ fn member(value: Option<&Value>, name: &str) -> Result<Value, RunnerError> {
         "created_at": epoch_field(object, &prefix, "created_at")?,
         "role": role_field(object, &prefix, "role")?,
     });
+    if object.contains_key("github_login") {
+        projected["github_login"] = nullable_text(object, &prefix, "github_login", 64)?;
+    }
     if let Some(handle) = object
         .get("handle")
         .and_then(Value::as_str)
@@ -893,6 +1201,9 @@ fn invitation(body: &Map<String, Value>) -> Result<Value, RunnerError> {
         "revoked_at": nullable_epoch(object, prefix, "revoked_at")?,
         "role": role_field(object, prefix, "role")?,
     });
+    if object.contains_key("github_login") {
+        projected["github_login"] = nullable_text(object, prefix, "github_login", 64)?;
+    }
     if let Value::Object(map) = &mut projected {
         super::render::add_iso(
             map,
@@ -901,6 +1212,60 @@ fn invitation(body: &Map<String, Value>) -> Result<Value, RunnerError> {
     }
     let token = text_field(body, "", "token", MAX_TOKEN)?;
     Ok(json!({"invitation": projected, "token": token}))
+}
+
+/// The `invitations` array of an invitation listing (at most 10000).
+fn invitation_entries(body: &Map<String, Value>) -> Result<&Vec<Value>, RunnerError> {
+    body.get("invitations")
+        .and_then(Value::as_array)
+        .filter(|entries| entries.len() <= 10_000)
+        .ok_or_else(|| invalid_field("invitations"))
+}
+
+/// One of the caller's pending invitations (`GET /organizations/invitations`):
+/// the invitee's own account id is dropped.
+fn invitation_for_me(value: &Value) -> Result<Value, RunnerError> {
+    let object = object_at(Some(value), "invitations[]")?;
+    let prefix = "invitations[].";
+    let organization = object_at(object.get("organization"), "invitations[].organization")?;
+    let organization_prefix = "invitations[].organization.";
+    let mut projected = json!({
+        "id": uuid_field(object, prefix, "id")?,
+        "organization": {
+            "id": uuid_field(organization, organization_prefix, "id")?,
+            "slug": slug_field(organization, organization_prefix, "slug")?,
+            "name": text_field(organization, organization_prefix, "name", MAX_REF)?,
+        },
+        "role": role_field(object, prefix, "role")?,
+        "created_by_login": nullable_text(object, prefix, "created_by_login", 64)?,
+        "created_at": epoch_field(object, prefix, "created_at")?,
+        "expires_at": epoch_field(object, prefix, "expires_at")?,
+    });
+    if let Value::Object(map) = &mut projected {
+        super::render::add_iso(map, &["created_at", "expires_at"]);
+    }
+    Ok(projected)
+}
+
+/// One pending invitation of an organization
+/// (`GET /organizations/{name}/invitations`); the organization id and the
+/// issuer's account id are dropped.
+fn pending_invitation(value: &Value) -> Result<Value, RunnerError> {
+    let object = object_at(Some(value), "invitations[]")?;
+    let prefix = "invitations[].";
+    let mut projected = json!({
+        "id": text_field(object, prefix, "id", MAX_ID)?,
+        "account_id": text_field(object, prefix, "account_id", MAX_ID)?,
+        "github_login": nullable_text(object, prefix, "github_login", 64)?,
+        "role": role_field(object, prefix, "role")?,
+        "created_by_login": nullable_text(object, prefix, "created_by_login", 64)?,
+        "created_at": epoch_field(object, prefix, "created_at")?,
+        "expires_at": epoch_field(object, prefix, "expires_at")?,
+    });
+    if let Value::Object(map) = &mut projected {
+        super::render::add_iso(map, &["created_at", "expires_at"]);
+    }
+    Ok(projected)
 }
 
 fn ok(body: &Map<String, Value>) -> Result<Value, RunnerError> {
@@ -957,6 +1322,136 @@ mod tests {
                 format!("the service response has a missing or invalid organization.{key}")
             );
         }
+    }
+
+    #[test]
+    fn github_login_shape() {
+        for good in ["octocat", "Octo-Cat", "a", "a1-b2-c3", &"a".repeat(39)] {
+            assert!(is_login(good), "{good}");
+        }
+        for bad in [
+            "",
+            "-octocat",
+            "octocat-",
+            "octo--cat",
+            "octo_cat",
+            "@octocat",
+            "cafe\u{e9}",
+            &"a".repeat(40),
+        ] {
+            assert!(!is_login(bad), "{bad}");
+        }
+    }
+
+    #[test]
+    fn token_file_is_dropped_from_the_suggestion() {
+        let words = |words: &[&str]| {
+            words
+                .iter()
+                .map(|word| (*word).to_owned())
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            without_token_file(&words(&[
+                "--output",
+                "json",
+                "cli",
+                "org",
+                "invitation",
+                "accept",
+                "ID",
+                "--token-file",
+                "t",
+                "--yes"
+            ])),
+            words(&[
+                "--output",
+                "json",
+                "cli",
+                "org",
+                "invitation",
+                "accept",
+                "ID",
+                "--yes"
+            ])
+        );
+        assert_eq!(
+            without_token_file(&words(&[
+                "cli",
+                "org",
+                "invitation",
+                "accept",
+                "--token-file=t",
+                "ID"
+            ])),
+            words(&["cli", "org", "invitation", "accept", "ID"])
+        );
+    }
+
+    #[test]
+    fn listed_invitations_keep_nullable_logins_and_name_bad_fields() {
+        let entry = json!({
+            "id": "inv-1",
+            "organization_id": "5b0e7c1a-3f2d-4e8b-9a61-2c4d8e0f1a23",
+            "account_id": "cus_invitee",
+            "role": "reader",
+            "created_by": "cus_admin",
+            "created_at": 1,
+            "expires_at": 2
+        });
+        let projected = pending_invitation(&entry).unwrap();
+        assert_eq!(projected["github_login"], Value::Null);
+        assert_eq!(projected["created_by_login"], Value::Null);
+        assert!(projected.get("created_by").is_none());
+        assert!(projected.get("organization_id").is_none());
+        let mut broken = entry.clone();
+        broken["github_login"] = json!("tab\there");
+        assert_eq!(
+            pending_invitation(&broken).unwrap_err().details.unwrap()["reason"],
+            "the service response has a missing or invalid invitations[].github_login"
+        );
+        let mine = json!({
+            "id": "7e6d5c4b-3a29-4817-8f6e-5d4c3b2a1908",
+            "organization": {"id": "5b0e7c1a-3f2d-4e8b-9a61-2c4d8e0f1a23", "slug": "acme", "name": "Acme"},
+            "role": "developer",
+            "created_at": 1,
+            "expires_at": 2,
+            "account_id": "cus_invitee"
+        });
+        let projected = invitation_for_me(&mine).unwrap();
+        assert_eq!(projected["created_by_login"], Value::Null);
+        assert!(projected.get("account_id").is_none());
+        let mut broken = mine.clone();
+        broken["organization"]["id"] = json!("not-a-uuid");
+        assert_eq!(
+            invitation_for_me(&broken).unwrap_err().details.unwrap()["reason"],
+            "the service response has a missing or invalid invitations[].organization.id"
+        );
+    }
+
+    #[test]
+    fn member_github_login_is_kept_only_when_sent() {
+        let base = json!({"account_id": "cus_x", "role": "admin", "created_at": 1});
+        assert!(
+            member(Some(&base), "member")
+                .unwrap()
+                .get("github_login")
+                .is_none()
+        );
+        let mut with_login = base.clone();
+        with_login["github_login"] = Value::Null;
+        assert_eq!(
+            member(Some(&with_login), "member").unwrap()["github_login"],
+            Value::Null
+        );
+        with_login["github_login"] = json!(7);
+        assert_eq!(
+            member(Some(&with_login), "members[]")
+                .unwrap_err()
+                .details
+                .unwrap()["reason"],
+            "the service response has a missing or invalid members[].github_login"
+        );
     }
 
     #[test]

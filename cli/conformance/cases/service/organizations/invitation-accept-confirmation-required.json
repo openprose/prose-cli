@@ -45,7 +45,7 @@
           "plannedRequest": {
             "bodyBytes": 84,
             "bodySha256": "b0de908de05eca0f6de6d54875769ce9ac9b696083b4e0c22bd8065fe3eec921",
-            "description": "Accept an invitation.",
+            "description": "Accept an invitation by its id, or with its token.",
             "effect": "write",
             "method": "POST",
             "operation": "org.invitation.accept"
@@ -61,7 +61,7 @@
             "invite.token",
             "--preview"
           ],
-          "reason": "--yes is required because it joins this account to the organization with the invitation's role and uses up the token"
+          "reason": "--yes is required because it joins this account to the organization with the invitation's role and uses up the invitation"
         },
         "exitCode": 2,
         "message": "This service operation requires explicit confirmation.",

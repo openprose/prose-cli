@@ -32,7 +32,7 @@
         "plannedRequest": {
           "bodyBytes": 84,
           "bodySha256": "b0de908de05eca0f6de6d54875769ce9ac9b696083b4e0c22bd8065fe3eec921",
-          "description": "Accept an invitation.",
+          "description": "Accept an invitation by its id, or with its token.",
           "effect": "write",
           "method": "POST",
           "operation": "org.invitation.accept"

@@ -1,0 +1,52 @@
+{
+  "id": "invite-ambiguous-login-human",
+  "feature": "organizations",
+  "operation": "org.invite",
+  "description": "Human ambiguous_login.",
+  "argv": [
+    "cli",
+    "org",
+    "invite",
+    "acme-research",
+    "octocat",
+    "--role",
+    "developer",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/organizations/acme-research/invitations",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          },
+          "Accept": "application/json",
+          "Content-Type": "application/json"
+        },
+        "status": 409,
+        "body": {
+          "error": "More than one GitHub identity has used that login here (a rename?). Invite by account ID instead.",
+          "code": "ambiguous_login"
+        },
+        "expectedBody": {
+          "githubLogin": "octocat",
+          "role": "developer"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "text": ""
+  },
+  "stderr": {
+    "text": "OpenProse: SERVICE_WRITE_CONFLICT: The OpenProse service reported a conflicting write.\nDetail: more than one GitHub identity has used the login octocat on the service (a renamed account?), so it names no one account\nService code: ambiguous_login\nService message: More than one GitHub identity has used that login here (a rename?). Invite by account ID instead.\nAction: Invite the account by its account id instead: --account ACCOUNT_ID in place of the login.\n"
+  }
+}

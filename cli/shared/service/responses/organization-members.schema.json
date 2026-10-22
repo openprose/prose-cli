@@ -30,6 +30,12 @@
           },
           "created_at": {
             "type": "integer"
+          },
+          "github_login": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       }

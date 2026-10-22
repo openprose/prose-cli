@@ -25,7 +25,7 @@
   },
   "exitCode": 0,
   "stdout": {
-    "text": "Preview: Invite an account.\nOrganization: acme-research\nAccount: cus_ExampleInvitee1\nExpires in: 1h\nSummary: role developer\nEffect: creates an invitation to the organization\nNothing was changed.\n"
+    "text": "Preview: Invite a GitHub login or an account.\nOrganization: acme-research\nExpires in: 1h\nSummary: account cus_ExampleInvitee1; role developer\nEffect: creates an invitation to the organization\nNothing was changed.\n"
   },
   "stderr": {
     "text": ""

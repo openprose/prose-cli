@@ -209,7 +209,7 @@
             "--json"
           ],
           "schema": "openprose.service-operations/1",
-          "sha256": "901444a098ac3be99d5d6e6be150b7b0df521d9458933b1267e44ac714d5a8a1"
+          "sha256": "3b61c22c5703c23c502b5a0ed59fad4228fa74d0b65552c9d14ccf4ac67e0a12"
         },
         "nouns": {
           "auth": [
@@ -241,6 +241,7 @@
             "create",
             "default",
             "invitation accept",
+            "invitation list",
             "invitation revoke",
             "invite",
             "list",
@@ -1043,7 +1044,7 @@
               "prose cli org member list --json"
             ],
             "id": "org.member.list",
-            "summary": "List an organization's members, numbered by when they joined; account ids are not shown."
+            "summary": "List an organization's members, numbered by when they joined, with their GitHub logins; account ids are not shown."
           },
           {
             "command": [
@@ -1084,10 +1085,27 @@
             "confirm": true,
             "effect": "write",
             "examples": [
-              "prose cli org invite acme-research ACCOUNT_ID --role developer --yes"
+              "prose cli org invite acme-research @octocat --role developer --yes",
+              "prose cli org invite acme-research --account ACCOUNT_ID --role reader --preview"
             ],
             "id": "org.invite",
-            "summary": "Invite an account. The invitation token appears only in this result."
+            "summary": "Invite a GitHub login or an account. The invitation token appears only in this result."
+          },
+          {
+            "id": "org.invitation.list",
+            "command": [
+              "cli",
+              "org",
+              "invitation",
+              "list"
+            ],
+            "summary": "List pending invitations: yours, or with ORG that organization's (admins only).",
+            "effect": "read",
+            "confirm": false,
+            "examples": [
+              "prose cli org invitation list --json",
+              "prose cli org invitation list acme-research --json"
+            ]
           },
           {
             "command": [
@@ -1114,10 +1132,11 @@
             "confirm": true,
             "effect": "write",
             "examples": [
+              "prose cli org invitation accept 7e6d5c4b-3a29-4817-8f6e-5d4c3b2a1908 --yes",
               "prose cli org invitation accept --token-file invite.token --yes"
             ],
             "id": "org.invitation.accept",
-            "summary": "Accept an invitation."
+            "summary": "Accept an invitation by its id, or with its token."
           },
           {
             "command": [

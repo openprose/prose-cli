@@ -466,7 +466,7 @@ class ServiceContractTest(unittest.TestCase):
                     "run.list": "runs", "program.list": "programs", "program.revisions": "revisions",
                     "result.list": "results", "job.list": "jobs", "job.deliveries": "deliveries",
                     "job.contract.list": "contracts", "wallet.events": "events", "wallet.usage": "daily",
-                    "org.member.list": "members", "org.list": "organizations", "service.operations": "operations"}
+                    "org.member.list": "members", "org.invitation.list": "invitations", "org.list": "organizations", "service.operations": "operations"}
         declared = {o["id"]: o["output"]["records"] for o in self.manifest["operations"] if "records" in o["output"]}
         self.assertEqual(expected, declared)
         for operation in self.manifest["operations"]:
@@ -881,10 +881,13 @@ class ServiceContractTest(unittest.TestCase):
             self.assertTrue(set(removal["operations"]) <= ids, f"option removal {name} names an unknown operation")
         for name in tables["secretFileOptions"]:
             owners = [operation["id"] for operation in self.manifest["operations"]
-                      if any(option["name"] == name and option["required"] for option in operation["options"])]
-            self.assertTrue(owners, f"secret file option {name} is no operation's required option")
+                      if any(option["name"] == name for option in operation["options"])]
+            self.assertTrue(owners, f"secret file option {name} is no operation's option")
+            # A positional of a secret-reading operation declares its shape, so a
+            # mistyped secret never fills it (and is never echoed).
             for owner in owners:
-                self.assertEqual([], self.operations[owner]["arguments"], f"{owner} takes positional arguments")
+                for argument in self.operations[owner]["arguments"]:
+                    self.assertIn("format", argument, f"{owner} takes a positional argument without a format")
         limits = tables["distance"]
         self.assertEqual(("optimal-string-alignment", 4, 1, 2),
                          (limits["metric"], limits["shortWordLength"], limits["shortWordMax"], limits["max"]))

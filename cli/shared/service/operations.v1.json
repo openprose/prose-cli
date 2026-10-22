@@ -3,7 +3,7 @@
   "contract": "service/1",
   "interactionsSource": {
     "file": "service-interactions.v1.json",
-    "sha256": "2a272f2afc0ef4c87431b947f71af6ce5a7fe8dc731f96e106c25e156a077a01"
+    "sha256": "42297442346a3afdd948e34db7e199356af9a7974f3ac45c98fcb5449843ab8c"
   },
   "grammar": {
     "usage": "prose [--output human|json|jsonl] cli <command> [ARGUMENTS] [OPTIONS]",
@@ -1160,6 +1160,16 @@
         "kind": "text"
       },
       {
+        "body": "githubLogin",
+        "field": "githubLogin",
+        "kind": "text"
+      },
+      {
+        "body": "accountId",
+        "field": "accountId",
+        "kind": "text"
+      },
+      {
         "body": "role",
         "field": "role",
         "kind": "text"
@@ -1185,7 +1195,9 @@
       "organization_deletion_unsupported": "SERVICE_WRITE_CONFLICT",
       "write_conflict": "SERVICE_WRITE_CONFLICT",
       "slug_taken": "SERVICE_WRITE_CONFLICT",
+      "ambiguous_login": "SERVICE_WRITE_CONFLICT",
       "organization_not_found": "SERVICE_RESOURCE_NOT_FOUND",
+      "account_not_found": "SERVICE_RESOURCE_NOT_FOUND",
       "rate_limited": "SERVICE_UNAVAILABLE",
       "model_entitlement_unavailable": "SERVICE_UNAVAILABLE",
       "provider_tier_unavailable": "SERVICE_UNAVAILABLE",
@@ -1206,6 +1218,7 @@
       "invalid_slug": "SERVICE_REQUEST_REJECTED",
       "invalid_name": "SERVICE_REQUEST_REJECTED",
       "invalid_account": "SERVICE_REQUEST_REJECTED",
+      "invalid_login": "SERVICE_REQUEST_REJECTED",
       "reserved_slug": "SERVICE_REQUEST_REJECTED",
       "immutable_organization_identity": "SERVICE_REQUEST_REJECTED",
       "organization_forbidden": "SERVICE_REQUEST_REJECTED",
@@ -6725,7 +6738,7 @@
       ],
       "contract": "service/1",
       "feature": "organizations",
-      "summary": "List an organization's members, numbered by when they joined; account ids are not shown.",
+      "summary": "List an organization's members, numbered by when they joined, with their GitHub logins; account ids are not shown.",
       "interaction": "organizations.manage",
       "interactions": [
         "organizations.manage"
@@ -7061,7 +7074,7 @@
       ],
       "contract": "service/1",
       "feature": "organizations",
-      "summary": "Invite an account. The invitation token appears only in this result.",
+      "summary": "Invite a GitHub login or an account. The invitation token appears only in this result.",
       "interaction": "organizations.manage",
       "interactions": [
         "organizations.manage"
@@ -7074,13 +7087,27 @@
           "variadic": false
         },
         {
-          "name": "ACCOUNT_ID",
-          "description": "Invited account id.",
-          "required": true,
+          "name": "INVITEE",
+          "description": "GitHub login (a leading @ is dropped) or account id. A value starting with cus_, or one that cannot be a GitHub login, is an account id; --login or --account forces one reading.",
+          "required": false,
           "variadic": false
         }
       ],
       "options": [
+        {
+          "name": "--login",
+          "value": "LOGIN",
+          "description": "Invite this GitHub login (a leading @ is dropped), instead of INVITEE. The invitee must have used organizations once (`cli org list`).",
+          "repeatable": false,
+          "required": false
+        },
+        {
+          "name": "--account",
+          "value": "ACCOUNT_ID",
+          "description": "Invite this account id exactly as given, instead of INVITEE.",
+          "repeatable": false,
+          "required": false
+        },
         {
           "name": "--role",
           "value": "ROLE",
@@ -7115,7 +7142,7 @@
       "effect": "write",
       "mutation": true,
       "confirm": true,
-      "confirmReason": "it mints an invitation token that lets that account join with this role",
+      "confirmReason": "it mints an invitation that lets that account join with this role",
       "preview": true,
       "transport": "control",
       "output": {
@@ -7129,7 +7156,13 @@
         "list": [
           "org",
           "list"
-        ]
+        ],
+        "serviceCodes": {
+          "account_not_found": {
+            "resource": "account",
+            "id": "{INVITEE}"
+          }
+        }
       },
       "exitCodes": [
         {
@@ -7153,7 +7186,107 @@
         }
       ],
       "examples": [
-        "prose cli org invite acme-research ACCOUNT_ID --role developer --yes"
+        "prose cli org invite acme-research @octocat --role developer --yes",
+        "prose cli org invite acme-research --account ACCOUNT_ID --role reader --preview"
+      ]
+    },
+    {
+      "id": "org.invitation.list",
+      "command": [
+        "cli",
+        "org",
+        "invitation",
+        "list"
+      ],
+      "contract": "service/1",
+      "feature": "organizations",
+      "summary": "List pending invitations: yours, or with ORG that organization's (admins only).",
+      "interaction": "organizations.manage",
+      "interactions": [
+        "organizations.manage"
+      ],
+      "arguments": [
+        {
+          "name": "ORG",
+          "description": "Organization slug or id; without it, the invitations sent to you.",
+          "required": false,
+          "variadic": false
+        }
+      ],
+      "options": [],
+      "requests": [
+        {
+          "interaction": "organizations.manage",
+          "method": "GET",
+          "path": "/organizations/invitations",
+          "auth": "bearer",
+          "body": null,
+          "when": "ORG omitted",
+          "catalogRoute": {
+            "method": "GET",
+            "path": "/organizations/invitations",
+            "auth": "api_key"
+          },
+          "response": "organization-invitations-mine"
+        },
+        {
+          "interaction": "organizations.manage",
+          "method": "GET",
+          "path": "/organizations/{name}/invitations",
+          "auth": "bearer",
+          "body": null,
+          "when": "ORG",
+          "catalogRoute": {
+            "method": "GET",
+            "path": "/organizations/{name}/invitations",
+            "auth": "api_key"
+          },
+          "response": "organization-invitations"
+        }
+      ],
+      "effect": "read",
+      "mutation": false,
+      "confirm": false,
+      "preview": false,
+      "transport": "control",
+      "output": {
+        "schema": "service/organizations.schema.json#/$defs/invitationList",
+        "stream": false,
+        "paged": false,
+        "records": "invitations"
+      },
+      "notFound": {
+        "resource": "organization",
+        "id": "{ORG}",
+        "list": [
+          "org",
+          "list"
+        ]
+      },
+      "exitCodes": [
+        {
+          "exit": 0,
+          "meaning": "success"
+        },
+        {
+          "exit": 2,
+          "meaning": "invalid invocation or configuration"
+        },
+        {
+          "exit": 10,
+          "meaning": "service or credential error"
+        },
+        {
+          "exit": 24,
+          "meaning": "interrupted",
+          "codes": [
+            "CANCELLED"
+          ]
+        }
+      ],
+      "examples": [
+        "prose cli org invitation list --json",
+        "prose cli org invitation list acme-research --json"
       ]
     },
     {
@@ -7262,19 +7395,27 @@
       ],
       "contract": "service/1",
       "feature": "organizations",
-      "summary": "Accept an invitation.",
+      "summary": "Accept an invitation by its id, or with its token.",
       "interaction": "organizations.manage",
       "interactions": [
         "organizations.manage"
       ],
-      "arguments": [],
+      "arguments": [
+        {
+          "name": "INVITATION_ID",
+          "description": "Invitation id as `cli org invitation list` prints it; or give --token-file instead.",
+          "required": false,
+          "variadic": false,
+          "format": "uuid"
+        }
+      ],
       "options": [
         {
           "name": "--token-file",
           "value": "FILE",
-          "description": "File containing the invitation token, or - for standard input.",
+          "description": "File containing the invitation token, or - for standard input; instead of INVITATION_ID.",
           "repeatable": false,
-          "required": true
+          "required": false
         }
       ],
       "requests": [
@@ -7284,19 +7425,33 @@
           "path": "/organizations/invitations/accept",
           "auth": "bearer",
           "body": "json",
-          "when": "always",
+          "when": "--token-file",
           "catalogRoute": {
             "method": "POST",
             "path": "/organizations/invitations/accept",
             "auth": "api_key"
           },
           "response": null
+        },
+        {
+          "interaction": "organizations.manage",
+          "method": "POST",
+          "path": "/organizations/invitations/{id}/accept",
+          "auth": "bearer",
+          "body": null,
+          "when": "INVITATION_ID",
+          "catalogRoute": {
+            "method": "POST",
+            "path": "/organizations/invitations/{id}/accept",
+            "auth": "api_key"
+          },
+          "response": "organization-invitation-accept"
         }
       ],
       "effect": "write",
       "mutation": true,
       "confirm": true,
-      "confirmReason": "it joins this account to the organization with the invitation's role and uses up the token",
+      "confirmReason": "it joins this account to the organization with the invitation's role and uses up the invitation",
       "preview": true,
       "transport": "control",
       "output": {
@@ -7326,8 +7481,18 @@
         }
       ],
       "examples": [
+        "prose cli org invitation accept 7e6d5c4b-3a29-4817-8f6e-5d4c3b2a1908 --yes",
         "prose cli org invitation accept --token-file invite.token --yes"
-      ]
+      ],
+      "notFound": {
+        "resource": "invitation",
+        "id": "{INVITATION_ID}",
+        "list": [
+          "org",
+          "invitation",
+          "list"
+        ]
+      }
     },
     {
       "id": "auth.login",

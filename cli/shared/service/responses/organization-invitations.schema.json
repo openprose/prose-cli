@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.openprose.org/cli/v1/service/responses/organization-invitations.schema.json",
+  "title": "service response acceptance: GET /organizations/{name}/invitations",
+  "x-probed": false,
+  "type": "object",
+  "required": [
+    "invitations"
+  ],
+  "properties": {
+    "invitations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "account_id",
+          "role",
+          "created_at",
+          "expires_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "organization_id": {
+            "type": "string"
+          },
+          "account_id": {
+            "type": "string"
+          },
+          "github_login": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "role": {
+            "type": "string"
+          },
+          "created_by_login": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "integer"
+          },
+          "expires_at": {
+            "type": "integer"
+          }
+        }
+      }
+    }
+  }
+}

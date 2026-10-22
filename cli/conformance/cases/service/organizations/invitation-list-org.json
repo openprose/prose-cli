@@ -1,0 +1,99 @@
+{
+  "id": "invitation-list-org",
+  "feature": "organizations",
+  "operation": "org.invitation.list",
+  "description": "With ORG: GET /organizations/{name}/invitations (admins); the organization id and issuer account id are dropped.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "org",
+    "invitation",
+    "list",
+    "acme-research"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/organizations/acme-research/invitations",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          },
+          "Accept": "application/json"
+        },
+        "status": 200,
+        "body": {
+          "invitations": [
+            {
+              "id": "7e6d5c4b-3a29-4817-8f6e-5d4c3b2a1908",
+              "organization_id": "5b0e7c1a-3f2d-4e8b-9a61-2c4d8e0f1a23",
+              "account_id": "cus_ExampleInvitee1",
+              "github_login": "octocat",
+              "role": "developer",
+              "created_by": "cus_ExampleAdmin01",
+              "created_by_login": "octo-admin",
+              "created_at": 1790100000000,
+              "expires_at": 1790704800000
+            },
+            {
+              "id": "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d",
+              "organization_id": "5b0e7c1a-3f2d-4e8b-9a61-2c4d8e0f1a23",
+              "account_id": "cus_ExampleInvitee2",
+              "github_login": null,
+              "role": "reader",
+              "created_by": "cus_ExampleAdmin01",
+              "created_by_login": null,
+              "created_at": 1790100001000,
+              "expires_at": 1790704801000
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "organizations.manage",
+      "operation": "org.invitation.list",
+      "problem": null,
+      "result": {
+        "invitations": [
+          {
+            "account_id": "cus_ExampleInvitee1",
+            "created_at": 1790100000000,
+            "created_at_iso": "2026-09-22T18:00:00.000Z",
+            "created_by_login": "octo-admin",
+            "expires_at": 1790704800000,
+            "expires_at_iso": "2026-09-29T18:00:00.000Z",
+            "github_login": "octocat",
+            "id": "7e6d5c4b-3a29-4817-8f6e-5d4c3b2a1908",
+            "role": "developer"
+          },
+          {
+            "account_id": "cus_ExampleInvitee2",
+            "created_at": 1790100001000,
+            "created_at_iso": "2026-09-22T18:00:01.000Z",
+            "created_by_login": null,
+            "expires_at": 1790704801000,
+            "expires_at_iso": "2026-09-29T18:00:01.000Z",
+            "github_login": null,
+            "id": "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d",
+            "role": "reader"
+          }
+        ]
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "cus_ExampleAdmin01"
+  ]
+}

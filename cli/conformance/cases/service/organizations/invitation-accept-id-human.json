@@ -1,0 +1,51 @@
+{
+  "id": "invitation-accept-id-human",
+  "feature": "organizations",
+  "operation": "org.invitation.accept",
+  "description": "Human accept by id prints the joined organization.",
+  "argv": [
+    "cli",
+    "org",
+    "invitation",
+    "accept",
+    "7e6d5c4b-3a29-4817-8f6e-5d4c3b2a1908",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/organizations/invitations/7e6d5c4b-3a29-4817-8f6e-5d4c3b2a1908/accept",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          },
+          "Accept": "application/json"
+        },
+        "status": 200,
+        "body": {
+          "organization": {
+            "id": "5b0e7c1a-3f2d-4e8b-9a61-2c4d8e0f1a23",
+            "slug": "acme-research",
+            "name": "Acme Research",
+            "created_by": "cus_ExampleAdmin01",
+            "created_at": 1790012915257,
+            "role": "developer"
+          }
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "Joined organization: acme-research\nName: Acme Research\nID: 5b0e7c1a-3f2d-4e8b-9a61-2c4d8e0f1a23\nYour role: developer\n"
+  },
+  "stderr": {
+    "text": ""
+  }
+}

@@ -39,7 +39,7 @@ More hosted OpenProse service commands:
   prose cli result list|show|publish|unpublish [--json]
   prose cli org show|create|rename|default|invite [--json]
   prose cli org member list|role|remove [--json]
-  prose cli org invitation revoke|accept [--json]
+  prose cli org invitation list|revoke|accept [--json]
   prose cli job contract list|attach|detach [--json]
 Run `prose cli --help` or `prose cli <COMMAND> --help` for usage, and
 `prose cli service operations --json` for every command as JSON. Commands that

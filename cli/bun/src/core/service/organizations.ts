@@ -1,5 +1,6 @@
 // Service organization management: `org show|create|rename|default`,
-// `org member list|role|remove`, `org invite` and `org invitation revoke|accept`.
+// `org member list|role|remove`, `org invite` (a GitHub login or an account id)
+// and `org invitation list|revoke|accept` (accept by id or with the token).
 // There is no `org delete` (the service always refuses it). `org list` stays
 // the frozen service operation. Every mutation is confirm-class: the exact
 // request is planned, gated, then sent. Responses are projected onto the closed
@@ -11,9 +12,9 @@ import { humanSafeScalar, quote } from "../output";
 import { RunnerFailure } from "../types";
 import { readText } from "./fs";
 import { encodeSegment, jsonObject, requestFor, withJsonBody, type Request } from "./http";
-import type { Context } from "./index";
+import { withAction, type Context } from "./index";
 import type { Json, JsonObject } from "./manifest";
-import { addIso, argvText, durationText, humanResult, isoMs, validText } from "./render";
+import { addIso, argvText, durationText, humanResult, isoMs, nextLine, validText } from "./render";
 
 const MAX_REF = 256;
 /** Account and invitation ids: the closed result schema caps both at 128, so a longer value is refused before anything is sent. */
@@ -50,6 +51,12 @@ const MEMBER_HINT = "ORG exists but has no such member; run `prose cli org membe
 const INVITATION_HINT = "ORG exists but has no invitation with this INVITATION_ID; `prose cli org invite` prints the invitation id";
 /** A rejected `invitation accept` (the invalid_invitation code is dropped). */
 const ACCEPT_HINT = "the invitation token is invalid, expired, revoked, already used, or was issued to a different account";
+/** A rejected accept by id: the same causes, and where the caller's own invitations are listed. */
+const ACCEPT_ID_HINT = "the invitation is invalid, expired, revoked, already used, or was issued to a different account; `prose cli org invitation list` shows the invitations you can accept";
+/** The service's GitHub login rule, in words. */
+const LOGIN_RULE = "a GitHub login is 1-39 letters, digits or single interior hyphens";
+/** GitHub logins the service last saw (member, invitee and issuer views): text of at most 64 characters, or null. */
+const MAX_LOGIN = 64;
 
 function serviceCode(caught: RunnerFailure): unknown {
   return (caught.details as Record<string, unknown> | undefined)?.serviceCode;
@@ -84,6 +91,7 @@ export async function execute(context: Context): Promise<Json> {
     case "org.member.role": return await memberRole(context);
     case "org.member.remove": return await memberRemove(context);
     case "org.invite": return await invite(context);
+    case "org.invitation.list": return await invitationList(context);
     case "org.invitation.revoke": return await invitationRevoke(context);
     case "org.invitation.accept": return await invitationAccept(context);
     default: return await context.notImplemented();
@@ -97,10 +105,10 @@ type Sent = { kind: "preview"; result: JsonObject } | { kind: "sent"; body: Json
  * request acts on that its Summary does not show (the JSON plan carries the path and the body digest); a secret body
  * field is never among them. `missing` is the not-found hint (mirrors Rust `confirm_and_send`).
  */
-async function confirmAndSend(context: Context, org: string, path: string, body: JsonObject | undefined, target: ReadonlyArray<readonly [string, string]>, missing?: string): Promise<Sent> {
-  let request = requestFor(context.operation, 0, path);
+async function confirmAndSend(context: Context, org: string, path: string, body: JsonObject | undefined, target: ReadonlyArray<readonly [string, string]>, missing?: string, index = 0): Promise<Sent> {
+  let request = requestFor(context.operation, index, path);
   if (body !== undefined) request = withJsonBody(request, body);
-  const gate = context.gate(context.planned(0, path, [], request.body));
+  const gate = context.gate(context.planned(index, path, [], request.body));
   if (gate.kind === "preview") {
     context.human = withTarget(humanResult(gate.result), target);
     return { kind: "preview", result: gate.result };
@@ -281,7 +289,8 @@ async function memberList(context: Context): Promise<Json> {
   const members = (await numberedMembers(context, org, 0)).map(([, entry]) => entry);
   let text = members.length === 0 ? `No members in ${humanSafeScalar(org)}.\n` : `Members of ${humanSafeScalar(org)} (${members.length}):\n`;
   for (const entry of members) {
-    const handle = typeof entry.handle === "string" ? ` (${humanSafeScalar(entry.handle)})` : "";
+    const handle = typeof entry.github_login === "string" ? ` (@${humanSafeScalar(entry.github_login)})`
+      : typeof entry.handle === "string" ? ` (${humanSafeScalar(entry.handle)})` : "";
     text += `${entry.member as string}${handle}  ${entry.role as string}\n`;
   }
   context.human = text;
@@ -320,26 +329,86 @@ export function expiresIn(value: string): number {
   throw invocationFailure(`--expires-in must be a whole number of seconds from 1 to ${MAX_EXPIRES_IN}`);
 }
 
+/** Whether `value` is a GitHub login: 1-39 ASCII letters, digits or single interior hyphens (mirrors Rust `github_login`). */
+export function githubLogin(value: string): boolean {
+  return /^[A-Za-z0-9-]{1,39}$/u.test(value) && !value.startsWith("-") && !value.endsWith("-") && !value.includes("--");
+}
+
+type Invitee = { kind: "login"; value: string } | { kind: "account"; value: string };
+
+/**
+ * The invitee of `org invite`: exactly one of INVITEE, --login or --account
+ * (mirrors Rust `invitee`). A positional starting with @ is a login; one
+ * starting with `cus_`, or one that cannot be a login, is an account id; any
+ * other is a login. --login and --account force a reading.
+ */
+function invitee(context: Context): Invitee {
+  const positional = context.argument("INVITEE");
+  const login = context.option("--login");
+  const account = context.option("--account");
+  const given = [positional, login, account].filter((value) => value !== undefined).length;
+  if (given > 1) throw invocationFailure("give the invitee once: INVITEE, --login LOGIN or --account ACCOUNT_ID");
+  if (given === 0) throw invocationFailure("missing the invitee: give a GitHub login or an account id as INVITEE, or --login LOGIN or --account ACCOUNT_ID");
+  if (account !== undefined) {
+    if (!validText(account, MAX_ID)) throw invocationFailure(`--account must be 1-${MAX_ID} characters with no control characters`);
+    return { kind: "account", value: account };
+  }
+  if (login !== undefined) {
+    if (!validText(login, MAX_ID)) throw invocationFailure(`--login must be 1-${MAX_ID} characters with no control characters`);
+    const bare = login.startsWith("@") ? login.slice(1) : login;
+    if (!githubLogin(bare)) throw invocationFailure(`--login ${quote(login)} is not a GitHub login; ${LOGIN_RULE}; pass an account id with --account`);
+    return { kind: "login", value: bare };
+  }
+  const value = textArgument(context, "INVITEE", MAX_ID);
+  if (value.startsWith("@")) {
+    const bare = value.slice(1);
+    if (!githubLogin(bare)) throw invocationFailure(`<INVITEE> ${quote(value)} starts with @ but is not a GitHub login; ${LOGIN_RULE}; pass an account id with --account`);
+    return { kind: "login", value: bare };
+  }
+  return !value.startsWith("cus_") && githubLogin(value) ? { kind: "login", value } : { kind: "account", value };
+}
+
 async function invite(context: Context): Promise<Json> {
   const org = segmentArgument(context, "ORG", MAX_REF);
-  const account = textArgument(context, "ACCOUNT_ID", MAX_ID);
+  const who = invitee(context);
   const role = roleValue(context.option("--role") ?? "", "--role");
-  const body: JsonObject = { accountId: account };
+  const body: JsonObject = who.kind === "login" ? { githubLogin: who.value } : { accountId: who.value };
   const expires = context.option("--expires-in");
-  const target: Array<readonly [string, string]> = [["Organization", org], ["Account", account]];
+  const target: Array<readonly [string, string]> = [["Organization", org]];
   if (expires !== undefined) {
     const seconds = expiresIn(expires);
     body.expiresInSeconds = seconds;
     target.push(["Expires in", durationText(seconds)]);
   }
   body.role = role;
-  const sent = await confirmAndSend(context, org, `/organizations/${encodeSegment(org)}/invitations`, body, target);
+  let sent: Sent;
+  try { sent = await confirmAndSend(context, org, `/organizations/${encodeSegment(org)}/invitations`, body, target); }
+  catch (caught) {
+    if (caught instanceof RunnerFailure && who.kind === "login") {
+      const code = serviceCode(caught);
+      if (caught.code === "SERVICE_RESOURCE_NOT_FOUND" && code === "account_not_found") {
+        // The invitee runs this on their own machine, so it is the plain public command, not a follow-up of this invocation.
+        throw withAction(caught, `Ask @${who.value} to sign in and run \`prose cli org list\` once, then invite them again.`, {
+          resource: { kind: "account", id: who.value },
+          reason: `no account with GitHub login ${who.value} has used organizations on the service yet`,
+        });
+      }
+      if (caught.code === "SERVICE_WRITE_CONFLICT" && code === "ambiguous_login") {
+        throw withAction(caught, "Invite the account by its account id instead: --account ACCOUNT_ID in place of the login.", {
+          reason: `more than one GitHub identity has used the login ${who.value} on the service (a renamed account?), so it names no one account`,
+        });
+      }
+    }
+    throw caught;
+  }
   if (sent.kind === "preview") return sent.result;
   const result = invitation(sent.body);
   const entry = result.invitation as JsonObject;
-  context.human = context.localize(`Invitation ${humanSafeScalar(entry.id as string)} for ${humanSafeScalar(entry.account_id as string)} as ${entry.role as string} (expires ${isoMs(entry.expires_at) ?? String(entry.expires_at)}).\n`
+  const id = humanSafeScalar(entry.id as string);
+  const name = typeof entry.github_login === "string" ? `@${humanSafeScalar(entry.github_login)}` : humanSafeScalar(entry.account_id as string);
+  context.human = context.localize(`Invitation ${id} for ${name} as ${entry.role as string} (expires ${isoMs(entry.expires_at) ?? String(entry.expires_at)}).\n`
     + `Token: ${humanSafeScalar(result.token as string)}\n`
-    + "The token appears only here. The invitee accepts with `prose cli org invitation accept --token-file FILE`.\n");
+    + `The token appears only here. The invitee accepts with \`prose cli org invitation accept ${id} --yes\` (their \`prose cli org invitation list\` shows it) or with the token: \`prose cli org invitation accept --token-file FILE --yes\`.\n`);
   return result;
 }
 
@@ -353,25 +422,95 @@ async function invitationRevoke(context: Context): Promise<Json> {
   return result;
 }
 
+/** This invocation's argv without `option` and its value (separate or `=`). */
+function argvWithout(context: Context, option: string): string[] {
+  const argv: string[] = [];
+  const given = context.invocation.argv;
+  for (let index = 0; index < given.length; index += 1) {
+    if (given[index] === "--") { argv.push(...given.slice(index)); break; }
+    if (given[index] === option) { index += 1; continue; }
+    if (given[index]!.startsWith(`${option}=`)) continue;
+    argv.push(given[index]!);
+  }
+  return argv;
+}
+
 async function invitationAccept(context: Context): Promise<Json> {
-  const source = context.option("--token-file") ?? "";
-  const text = await readText(context.cwd, source, MAX_TOKEN_FILE, "--token-file");
-  const token = text.endsWith("\r\n") ? text.slice(0, -2) : text.endsWith("\n") ? text.slice(0, -1) : text;
-  if (!validText(token, MAX_TOKEN)) {
-    throw invocationFailure(`--token-file must hold one invitation token (1-${MAX_TOKEN} characters, no control characters) on a single line`);
+  const id = context.argument("INVITATION_ID");
+  const source = context.option("--token-file");
+  if (id !== undefined && source !== undefined) {
+    throw context.corrected(invocationFailure("give INVITATION_ID or --token-file, not both"), "Drop --token-file to accept by id: `{command}`", argvWithout(context, "--token-file"));
+  }
+  if (id === undefined && source === undefined) {
+    const list = context.followUpArgv(["org", "invitation", "list"]);
+    throw withAction(invocationFailure(context.localize("missing the invitation: give INVITATION_ID (`prose cli org invitation list` shows yours) or --token-file FILE")),
+      `List your invitations with \`${argvText(list)}\` and pass one of their ids.`, { suggestedArgv: list });
   }
   let sent: Sent;
-  try { sent = await confirmAndSend(context, "", "/organizations/invitations/accept", { token }, []); }
-  catch (caught) {
-    if (caught instanceof RunnerFailure && caught.code === "SERVICE_REQUEST_REJECTED" && [undefined, "invalid_invitation"].includes(serviceCode(caught) as string | undefined)) {
-      throw failure("SERVICE_REQUEST_REJECTED", { ...(caught.details ?? {}), reason: ACCEPT_HINT });
+  if (id !== undefined) {
+    try { sent = await confirmAndSend(context, "", `/organizations/invitations/${encodeSegment(id)}/accept`, undefined, [["Invitation", id]], undefined, 1); }
+    catch (caught) {
+      if (caught instanceof RunnerFailure && caught.code === "SERVICE_REQUEST_REJECTED" && [undefined, "invalid_invitation"].includes(serviceCode(caught) as string | undefined)) {
+        throw failure("SERVICE_REQUEST_REJECTED", { ...(caught.details ?? {}), reason: context.localize(ACCEPT_ID_HINT) });
+      }
+      throw caught;
     }
-    throw caught;
+  } else {
+    const text = await readText(context.cwd, source ?? "", MAX_TOKEN_FILE, "--token-file");
+    const token = text.endsWith("\r\n") ? text.slice(0, -2) : text.endsWith("\n") ? text.slice(0, -1) : text;
+    if (!validText(token, MAX_TOKEN)) {
+      throw invocationFailure(`--token-file must hold one invitation token (1-${MAX_TOKEN} characters, no control characters) on a single line`);
+    }
+    try { sent = await confirmAndSend(context, "", "/organizations/invitations/accept", { token }, []); }
+    catch (caught) {
+      if (caught instanceof RunnerFailure && caught.code === "SERVICE_REQUEST_REJECTED" && [undefined, "invalid_invitation"].includes(serviceCode(caught) as string | undefined)) {
+        throw failure("SERVICE_REQUEST_REJECTED", { ...(caught.details ?? {}), reason: ACCEPT_HINT });
+      }
+      throw caught;
+    }
   }
   if (sent.kind === "preview") return sent.result;
   const result = organizationResult(sent.body);
   context.human = humanOrganization("Joined organization", result.organization as JsonObject);
   return result;
+}
+
+/**
+ * `org invitation list`: without ORG the caller's own pending invitations
+ * (request 0), with ORG that organization's (request 1, admins). Mirrors
+ * Rust `invitation_list`.
+ */
+async function invitationList(context: Context): Promise<Json> {
+  if (context.argument("ORG") === undefined) {
+    const body = jsonObject(await context.send(requestFor(context.operation, 0, "/organizations/invitations")));
+    const invitations = entries(body).map((entry) => invitationForMe(entry));
+    let text = invitations.length === 0 ? "No pending invitations.\n" : `Pending invitations (${invitations.length}):\n`;
+    for (const entry of invitations) {
+      const organization = entry.organization as JsonObject;
+      const slug = organization.slug as string;
+      const name = organization.name as string;
+      text += `${entry.id as string}  ${humanSafeScalar(slug)}${name === slug ? "" : ` (${humanSafeScalar(name)})`}  ${entry.role as string}${issuer(entry)}  expires ${entry.expires_at_iso as string}\n`;
+    }
+    const first = invitations[0];
+    if (first !== undefined) text += nextLine(context.environment, ["org", "invitation", "accept", first.id as string, "--yes"]);
+    context.human = text;
+    return { invitations };
+  }
+  const org = segmentArgument(context, "ORG", MAX_REF);
+  const body = await sendFor(context, requestFor(context.operation, 1, `/organizations/${encodeSegment(org)}/invitations`), org);
+  const invitations = entries(body).map((entry) => pendingInvitation(entry));
+  let text = invitations.length === 0 ? `No pending invitations in ${humanSafeScalar(org)}.\n` : `Pending invitations in ${humanSafeScalar(org)} (${invitations.length}):\n`;
+  for (const entry of invitations) {
+    const who = typeof entry.github_login === "string" ? `@${humanSafeScalar(entry.github_login)}` : humanSafeScalar(entry.account_id as string);
+    text += `${humanSafeScalar(entry.id as string)}  ${who}  ${entry.role as string}${issuer(entry)}  expires ${entry.expires_at_iso as string}\n`;
+  }
+  context.human = text;
+  return { invitations };
+}
+
+/** `  from @LOGIN` when the invitation names its issuer's login. */
+function issuer(entry: JsonObject): string {
+  return typeof entry.created_by_login === "string" ? `  from @${humanSafeScalar(entry.created_by_login)}` : "";
 }
 
 // ---- response projections (closed service/organizations.schema.json) ----
@@ -412,6 +551,14 @@ function epochField(source: JsonObject, prefix: string, key: string): number {
   const value = own(source, key);
   // `-0` passes as 0, as the Rust product reads it.
   if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) return value === 0 ? 0 : value;
+  throw invalidField(`${prefix}${key}`);
+}
+
+/** A GitHub login the service last saw: null when absent or null, else text of at most 64 characters. */
+function nullableLogin(source: JsonObject, prefix: string, key: string): string | null {
+  const value = own(source, key);
+  if (value === undefined || value === null) return null;
+  if (typeof value === "string" && validText(value, MAX_LOGIN)) return value;
   throw invalidField(`${prefix}${key}`);
 }
 
@@ -458,6 +605,7 @@ function member(value: Json | undefined, name: string): JsonObject {
   };
   const handle = source.handle;
   if (typeof handle === "string" && validText(handle, 64)) projected.handle = handle;
+  if (Object.hasOwn(source, "github_login")) projected.github_login = nullableLogin(source, prefix, "github_login");
   addIso(projected, ["created_at"]);
   return projected;
 }
@@ -474,8 +622,52 @@ export function invitation(body: JsonObject): JsonObject {
     revoked_at: nullableEpoch(source, prefix, "revoked_at"),
     role: roleField(source, prefix, "role"),
   };
+  if (Object.hasOwn(source, "github_login")) projected.github_login = nullableLogin(source, prefix, "github_login");
   addIso(projected, ["consumed_at", "created_at", "expires_at", "revoked_at"]);
   return { invitation: projected, token: textField(body, "", "token", MAX_TOKEN) };
+}
+
+/** The `invitations` array of a listing: at most 10000 entries. */
+function entries(body: JsonObject): Json[] {
+  const value = own(body, "invitations");
+  if (!Array.isArray(value) || value.length > 10_000) throw invalidField("invitations");
+  return value;
+}
+
+/** One of the caller's own pending invitations (`invitationForMe`; mirrors Rust `invitation_for_me`). */
+function invitationForMe(value: Json): JsonObject {
+  const prefix = "invitations[].";
+  const source = objectAt(value, "invitations[]");
+  const id = uuidField(source, prefix, "id");
+  const organization = objectAt(own(source, "organization"), "invitations[].organization");
+  const inner = "invitations[].organization.";
+  const projected: JsonObject = {
+    created_at: epochField(source, prefix, "created_at"),
+    created_by_login: nullableLogin(source, prefix, "created_by_login"),
+    expires_at: epochField(source, prefix, "expires_at"),
+    id,
+    organization: { id: uuidField(organization, inner, "id"), name: textField(organization, inner, "name", MAX_REF), slug: slugField(organization, inner, "slug") },
+    role: roleField(source, prefix, "role"),
+  };
+  addIso(projected, ["created_at", "expires_at"]);
+  return projected;
+}
+
+/** One pending invitation of an organization, as its admins see it (`pendingInvitation`; mirrors Rust `pending_invitation`). */
+function pendingInvitation(value: Json): JsonObject {
+  const prefix = "invitations[].";
+  const source = objectAt(value, "invitations[]");
+  const projected: JsonObject = {
+    account_id: textField(source, prefix, "account_id", MAX_ID),
+    created_at: epochField(source, prefix, "created_at"),
+    created_by_login: nullableLogin(source, prefix, "created_by_login"),
+    expires_at: epochField(source, prefix, "expires_at"),
+    github_login: nullableLogin(source, prefix, "github_login"),
+    id: textField(source, prefix, "id", MAX_ID),
+    role: roleField(source, prefix, "role"),
+  };
+  addIso(projected, ["created_at", "expires_at"]);
+  return projected;
 }
 
 function ok(body: JsonObject): JsonObject {

@@ -297,6 +297,27 @@
       "schema": "organization-invitation.schema.json"
     },
     {
+      "name": "organization-invitations",
+      "method": "GET",
+      "path": "/organizations/{name}/invitations",
+      "probed": false,
+      "schema": "organization-invitations.schema.json"
+    },
+    {
+      "name": "organization-invitations-mine",
+      "method": "GET",
+      "path": "/organizations/invitations",
+      "probed": false,
+      "schema": "organization-invitations-mine.schema.json"
+    },
+    {
+      "name": "organization-invitation-accept",
+      "method": "POST",
+      "path": "/organizations/invitations/{id}/accept",
+      "probed": false,
+      "schema": "organization.schema.json"
+    },
+    {
       "name": "organization-ok",
       "method": "DELETE",
       "path": "/organizations/{name}/members/{id}",

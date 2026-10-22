@@ -452,7 +452,7 @@
             "properties": {
               "body": {
                 "type": "string",
-                "pattern": "^[a-z_]+$"
+                "pattern": "^[a-z][A-Za-z_]*$"
               },
               "field": {
                 "type": "string",
@@ -593,6 +593,12 @@
                 },
                 "variadic": {
                   "type": "boolean"
+                },
+                "format": {
+                  "description": "The value's shape. `uuid`: a lowercase 8-4-4-4-12 hex UUID. On an operation with a secretFileOptions option, a positional that does not fit is presumed to be the secret: it never fills this argument and is never echoed.",
+                  "enum": [
+                    "uuid"
+                  ]
                 }
               }
             }

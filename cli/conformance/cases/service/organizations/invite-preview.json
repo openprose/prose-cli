@@ -35,11 +35,12 @@
         "plannedRequest": {
           "bodyBytes": 78,
           "bodySha256": "6783cacb42e903b23aa02a32dc8b11f1b83c0009d2167605ebde3c81d32b0ff1",
-          "description": "Invite an account.",
+          "description": "Invite a GitHub login or an account.",
           "effect": "write",
           "method": "POST",
           "operation": "org.invite",
           "summary": {
+            "accountId": "cus_ExampleInvitee1",
             "role": "developer"
           }
         },

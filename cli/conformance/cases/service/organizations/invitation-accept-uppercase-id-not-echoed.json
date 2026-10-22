@@ -1,0 +1,59 @@
+{
+  "id": "invitation-accept-uppercase-id-not-echoed",
+  "feature": "organizations",
+  "operation": "org.invitation.accept",
+  "description": "A positional that is not a lowercase UUID never fills INVITATION_ID: it is presumed to be the token and never echoed.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "org",
+    "invitation",
+    "accept",
+    "7E6D5C4B-3A29-4817-8F6E-5D4C3B2A1908",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "organizations.manage",
+      "operation": "org.invitation.accept",
+      "problem": {
+        "action": "Pipe the token in on standard input: `printf '%s\\n' \"$TOKEN\" | prose --output json cli org invitation accept --token-file - --yes`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "`cli org invitation accept` never takes the token as an argument, so the argument was not echoed; it reads --token-file, a file or - for standard input, or takes <INVITATION_ID>, a lowercase UUID",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "org",
+            "invitation",
+            "accept",
+            "--token-file",
+            "-",
+            "--yes"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  },
+  "forbid": [
+    "7E6D5C4B-3A29-4817-8F6E-5D4C3B2A1908"
+  ]
+}

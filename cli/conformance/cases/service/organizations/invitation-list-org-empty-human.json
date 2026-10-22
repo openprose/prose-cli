@@ -1,0 +1,43 @@
+{
+  "id": "invitation-list-org-empty-human",
+  "feature": "organizations",
+  "operation": "org.invitation.list",
+  "description": "An empty human organization listing.",
+  "argv": [
+    "cli",
+    "org",
+    "invitation",
+    "list",
+    "acme-research"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/organizations/acme-research/invitations",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          },
+          "Accept": "application/json"
+        },
+        "status": 200,
+        "body": {
+          "invitations": []
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "No pending invitations in acme-research.\n"
+  },
+  "stderr": {
+    "text": ""
+  }
+}

@@ -2,7 +2,7 @@
 
 Shared black-box cases for the organization commands (`org show`,
 `create`, `rename`, `default`, `member list|role|remove`, `invite`,
-`invitation revoke|accept`). `org list` is covered by the account cases.
+`invitation list|revoke|accept`). `org list` is covered by the account cases.
 
 Expected documents were written from the frozen contract (the manifest,
 `shared/schemas/service/organizations.schema.json`, `shared/errors/taxonomy.v1.json`
