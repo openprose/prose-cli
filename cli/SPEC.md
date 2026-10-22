@@ -2075,9 +2075,18 @@ error text prints mapped words (`shared/fixtures/service/run-errors.v1.json`)
 with a generic fallback, never the service's stage names; `PROSE_DEBUG=1`
 prints the service's text instead. An example that `example show` cannot
 fetch is `viewOnWeb` with its `webUrl` when the service names one. Organization
-members are numbered (`member N`, by when they joined, with a `handle` when
-the service sends one); account and organization ids are not printed, and
-`org member role|remove` take `N`, `member N` or an account id. Cursors
+members are numbered (`member N`, by when they joined, with a `handle` and a
+`github_login` when the service sends them); account and organization ids are
+not printed, and `org member role|remove` take `N`, `member N` or an account
+id. `org invite ORG INVITEE` sends `{githubLogin}` for a GitHub login (a
+leading `@` dropped) and `{accountId}` for a value that starts with `cus_` or
+cannot be a login; `--login` and `--account` force a reading, and exactly one
+of the three is required. A login no account has used organizations with
+(`account_not_found`) names what the invitee must run first; an
+`ambiguous_login` says to invite by account id. `org invitation list` lists the
+caller's pending invitations, or with `ORG` that organization's (admins).
+`org invitation accept` takes an `INVITATION_ID` or `--token-file`, not both;
+accepting by id sends a bodyless POST. Cursors
 (`nextBefore`) are opaque.
 
 **Errors and exits.** A service response is classified in this order:
@@ -2278,7 +2287,9 @@ products read them:
   → `--spec-file spec.json` when the file exists; an `N` option takes only
   digits). The argument of an operation with a `secretFileOptions` option
   (`cli wallet redeem CODE`, `cli org invitation accept TOKEN`) is presumed
-  to be the secret: the reason and Action never echo it, and the suggestion
+  to be the secret, unless it fits an argument's manifest `format`
+  (`org invitation accept` takes a lowercase-UUID `INVITATION_ID`; any other
+  positional there never fills it and is never echoed): the reason and Action never echo it, and the suggestion
   reads the option from standard input (`--code-file -`) with a
   ``printf '%s\n' "$CODE" | ...`` example. An unknown option of a
   `--spec-file` operation that names a text, interval or enum key of its

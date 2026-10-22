@@ -22,7 +22,7 @@
   },
   "exitCode": 0,
   "stdout": {
-    "text": "Preview: Accept an invitation.\nEffect: joins you to the organization\nNothing was changed.\n"
+    "text": "Preview: Accept an invitation by its id, or with its token.\nEffect: joins you to the organization\nNothing was changed.\n"
   },
   "stderr": {
     "text": ""

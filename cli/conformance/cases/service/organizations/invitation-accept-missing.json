@@ -1,0 +1,52 @@
+{
+  "id": "invitation-accept-missing",
+  "feature": "organizations",
+  "operation": "org.invitation.accept",
+  "description": "Neither INVITATION_ID nor --token-file: the suggestion lists the caller's invitations.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "org",
+    "invitation",
+    "accept",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "organizations.manage",
+      "operation": "org.invitation.accept",
+      "problem": {
+        "action": "List your invitations with `prose --output json cli org invitation list` and pass one of their ids.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "missing the invitation: give INVITATION_ID (`prose --output json cli org invitation list` shows yours) or --token-file FILE",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "org",
+            "invitation",
+            "list"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

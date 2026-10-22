@@ -167,13 +167,16 @@
         "serviceCode": {
           "description": "Allowlisted service body code; other codes are dropped.",
           "enum": [
+            "account_not_found",
             "account_suspended",
+            "ambiguous_login",
             "credit_grants_misconfigured",
             "feature_disabled",
             "immutable_organization_identity",
             "invalid_account",
             "invalid_cursor",
             "invalid_environment",
+            "invalid_login",
             "invalid_name",
             "invalid_or_unavailable_code",
             "invalid_reasoning_effort",
@@ -915,7 +918,7 @@
             "const": "The requested OpenProse service resource was not found."
           },
           "action": {
-            "description": "The taxonomy Action, or one that quotes details.suggestedArgv, the listing command of the missing resource, or names the resource kind when no command lists it. Or, for a name with a close match among your own, the command with that name.",
+            "description": "The taxonomy Action, or one that quotes details.suggestedArgv, the listing command of the missing resource, or names the resource kind when no command lists it. Or, for a name with a close match among your own, the command with that name. Or, for a GitHub login no account has used organizations with (account_not_found), what the invitee must run first.",
             "anyOf": [
               {
                 "const": "Check the identifier, then retry."
@@ -931,6 +934,9 @@
               },
               {
                 "pattern": "^Use the listed path [^`]*: `prose [^`]*`\\.$"
+              },
+              {
+                "pattern": "^Ask @[A-Za-z0-9-]{1,39} to sign in and run `prose [^`]*` once, then invite them again\\.$"
               }
             ]
           }
@@ -1095,13 +1101,16 @@
             "const": "The OpenProse service reported a conflicting write."
           },
           "action": {
-            "description": "The taxonomy Action, or the ended-run Action of `cli run input`: the run takes no more instructions, so it names `cli run show RUN_ID` (also details.suggestedArgv) instead of a retry.",
+            "description": "The taxonomy Action, or the ended-run Action of `cli run input`: the run takes no more instructions, so it names `cli run show RUN_ID` (also details.suggestedArgv) instead of a retry. Or, for a GitHub login that names no one account (ambiguous_login), invite by account id.",
             "anyOf": [
               {
                 "const": "Read the current state of the resource, reconcile the change, then retry."
               },
               {
                 "pattern": "^Do not retry; the run takes no more instructions\\. Read its outcome with `prose [^`]* cli run show run_[A-Za-z0-9_-]{1,128}`\\.$"
+              },
+              {
+                "const": "Invite the account by its account id instead: --account ACCOUNT_ID in place of the login."
               }
             ]
           }

@@ -33,7 +33,7 @@
         "boundary": "invocation",
         "code": "INVOCATION_INVALID",
         "details": {
-          "reason": "<ACCOUNT_ID> must be 1-128 characters with no control characters",
+          "reason": "<INVITEE> must be 1-128 characters with no control characters",
           "suggestedArgv": [
             "--output",
             "json",

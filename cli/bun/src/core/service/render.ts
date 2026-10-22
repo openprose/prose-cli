@@ -162,6 +162,7 @@ export function bodySummary(body?: Uint8Array): JsonObject | undefined {
 /** The human label of a summary field (mirrors Rust `summary_label`); JSON keeps the field names. */
 const SUMMARY_LABELS: Record<string, string> = {
   programRef: "program", reasoning_effort: "reasoning effort", inputKeys: "inputs", interval_seconds: "every", delivery_mode: "delivery mode", amount_cents: "amount",
+  githubLogin: "GitHub login", accountId: "account",
 };
 
 /** A whole number of seconds as a short duration (`24h`, `90m`, `45s`). */

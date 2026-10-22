@@ -27,7 +27,12 @@ export type Json = null | boolean | number | string | Json[] | { [key: string]: 
 export type JsonObject = { [key: string]: Json };
 
 export interface ManifestOption { name: string; value: string | null; description: string; repeatable: boolean; required: boolean; default?: string; choices?: string[] }
-export interface ManifestArgument { name: string; description: string; required: boolean; variadic: boolean }
+export interface ManifestArgument { name: string; description: string; required: boolean; variadic: boolean; format?: "uuid" }
+
+/** Whether `value` fits an argument's manifest `format` (`uuid`: lowercase 8-4-4-4-12 hex; mirrors Rust `fits_format`). */
+export function fitsFormat(format: ManifestArgument["format"], value: string): boolean {
+  return format === undefined || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u.test(value);
+}
 export interface ManifestRequest {
   interaction: string; method: string; path: string; auth: string; body: string | null; when: string;
   query?: Record<string, string>; headers?: Record<string, string>; response: string | null;
@@ -541,6 +546,10 @@ function lister(command: readonly string[], argument: string, invocation: Servic
     case "ACCOUNT_ID": {
       const org = invocation.arguments.get("ORG")?.[0];
       return org === undefined ? undefined : ["members", ["org", "member", "list", org]];
+    }
+    case "INVITATION_ID": {
+      const org = invocation.arguments.get("ORG")?.[0];
+      return ["invitations", org === undefined ? ["org", "invitation", "list"] : ["org", "invitation", "list", org]];
     }
     default: return undefined;
   }
@@ -1680,7 +1689,9 @@ function parseOperationArguments(candidate: ManifestOperation, rest: readonly st
       continue;
     }
     const entry = positionals[position];
-    if (entry === undefined) {
+    // A positional that does not fit the argument's format never fills it: it
+    // stays an extra argument (on a secret-reading operation, the presumed secret).
+    if (entry === undefined || !fitsFormat(item.format, entry[1])) {
       if (item.required) throw missing(item.name);
       continue;
     }
@@ -1970,8 +1981,9 @@ function extraArgumentRejection(candidate: ManifestOperation, invocation: Servic
   const secret = candidate.options.map((item) => [item.name, secretPlaceholder(item.name)] as const).find(([, placeholder]) => placeholder !== undefined);
   if (secret !== undefined) {
     const [name, placeholder] = secret as readonly [string, string];
-    const reason = `\`${command}\` never takes the ${placeholder.toLowerCase()} as an argument, so the argument was not echoed; it reads ${name}, a file or - for standard input`;
-    return invocation.options.has(name)
+    const formatted = candidate.arguments.filter((item) => item.format !== undefined).map((item) => `, or takes <${item.name}>, a lowercase UUID`).join("");
+    const reason = `\`${command}\` never takes the ${placeholder.toLowerCase()} as an argument, so the argument was not echoed; it reads ${name}, a file or - for standard input${formatted}`;
+    return invocation.options.has(name) || invocation.arguments.size > 0
       ? reject(reason, argvOrHelp("Remove the extra argument: `{command}`", positions.splice(at, 1, []), words, "Remove the extra argument; `{command}` shows the arguments"))
       : reject(reason, argvOrHelp(`Pipe the ${placeholder.toLowerCase()} in on standard input: \`printf '%s\\n' "$${placeholder}" | {command}\``, positions.splice(at, 1, [name, "-"]), words, "Pass the secret with its file option; `{command}` shows it"));
   }

@@ -296,6 +296,18 @@
               "maxLength": 200,
               "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
             },
+            "githubLogin": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+            },
+            "accountId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+            },
             "role": {
               "type": "string",
               "minLength": 1,

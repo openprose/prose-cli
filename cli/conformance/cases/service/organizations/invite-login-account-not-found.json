@@ -1,0 +1,74 @@
+{
+  "id": "invite-login-account-not-found",
+  "feature": "organizations",
+  "operation": "org.invite",
+  "description": "404 account_not_found: the login has not used organizations on the service; the Action says what the invitee must do.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "org",
+    "invite",
+    "acme-research",
+    "octocat",
+    "--role",
+    "developer",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/organizations/acme-research/invitations",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          },
+          "Accept": "application/json",
+          "Content-Type": "application/json"
+        },
+        "status": 404,
+        "body": {
+          "error": "No account with that GitHub login has used organizations on this deployment yet.",
+          "code": "account_not_found"
+        },
+        "expectedBody": {
+          "githubLogin": "octocat",
+          "role": "developer"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "organizations.manage",
+      "operation": "org.invite",
+      "problem": {
+        "action": "Ask @octocat to sign in and run `prose cli org list` once, then invite them again.",
+        "boundary": "hosted-service",
+        "code": "SERVICE_RESOURCE_NOT_FOUND",
+        "details": {
+          "reason": "no account with GitHub login octocat has used organizations on the service yet",
+          "resource": {
+            "id": "octocat",
+            "kind": "account"
+          },
+          "serviceCode": "account_not_found",
+          "serviceStatus": 404
+        },
+        "exitCode": 10,
+        "message": "The requested OpenProse service resource was not found.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

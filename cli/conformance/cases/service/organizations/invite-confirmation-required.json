@@ -51,11 +51,12 @@
           "plannedRequest": {
             "bodyBytes": 78,
             "bodySha256": "6783cacb42e903b23aa02a32dc8b11f1b83c0009d2167605ebde3c81d32b0ff1",
-            "description": "Invite an account.",
+            "description": "Invite a GitHub login or an account.",
             "effect": "write",
             "method": "POST",
             "operation": "org.invite",
             "summary": {
+              "accountId": "cus_ExampleInvitee1",
               "role": "developer"
             }
           },
@@ -73,7 +74,7 @@
             "3600",
             "--preview"
           ],
-          "reason": "--yes is required because it mints an invitation token that lets that account join with this role"
+          "reason": "--yes is required because it mints an invitation that lets that account join with this role"
         },
         "exitCode": 2,
         "message": "This service operation requires explicit confirmation.",

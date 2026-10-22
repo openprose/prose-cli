@@ -1,0 +1,63 @@
+{
+  "id": "invitation-accept-id-invalid",
+  "feature": "organizations",
+  "operation": "org.invitation.accept",
+  "description": "400 on accept by id (unknown, expired, used, revoked or someone else's) names the cause and the inbox listing.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "org",
+    "invitation",
+    "accept",
+    "7e6d5c4b-3a29-4817-8f6e-5d4c3b2a1908",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/organizations/invitations/7e6d5c4b-3a29-4817-8f6e-5d4c3b2a1908/accept",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          },
+          "Accept": "application/json"
+        },
+        "status": 400,
+        "body": {
+          "error": "Invitation is invalid, expired, or already used",
+          "code": "invalid_invitation"
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "organizations.manage",
+      "operation": "org.invitation.accept",
+      "problem": {
+        "action": "Correct the request as details.reason and details.serviceMessage describe, then retry.",
+        "boundary": "hosted-service",
+        "code": "SERVICE_REQUEST_REJECTED",
+        "details": {
+          "reason": "the invitation is invalid, expired, revoked, already used, or was issued to a different account; `prose --output json cli org invitation list` shows the invitations you can accept",
+          "serviceMessage": "Invitation is invalid, expired, or already used",
+          "serviceStatus": 400
+        },
+        "exitCode": 10,
+        "message": "The OpenProse service rejected the request.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

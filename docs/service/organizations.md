@@ -15,8 +15,10 @@ accounts only. An account that is not admitted gets `SERVICE_FEATURE_DISABLED` (
 | `cli org member list ORG` | `GET /organizations/{ORG}/members` | `{members: [member]}` | |
 | `cli org member role ORG ACCOUNT_ID ROLE` | `PATCH …/members/{ACCOUNT_ID}` `{role}` | `{member}` | yes |
 | `cli org member remove ORG ACCOUNT_ID` | `DELETE …/members/{ACCOUNT_ID}` | `{ok: true}` | yes |
-| `cli org invite ORG ACCOUNT_ID --role ROLE [--expires-in SECONDS]` | `POST …/invitations` `{accountId, role, expiresInSeconds?}` | `{invitation, token}` | yes |
+| `cli org invite ORG INVITEE --role ROLE [--expires-in SECONDS]` (or `--login LOGIN` / `--account ACCOUNT_ID` instead of `INVITEE`) | `POST …/invitations` `{githubLogin \| accountId, role, expiresInSeconds?}` | `{invitation, token}` | yes |
+| `cli org invitation list [ORG]` | `GET /organizations/invitations` (yours), or `GET …/{ORG}/invitations` (admins) | `{invitations: [...]}` | |
 | `cli org invitation revoke ORG INVITATION_ID` | `DELETE …/invitations/{INVITATION_ID}` | `{ok: true}` | yes |
+| `cli org invitation accept INVITATION_ID` | `POST /organizations/invitations/{INVITATION_ID}/accept` (no body) | `{organization}` | yes |
 | `cli org invitation accept --token-file FILE\|-` | `POST /organizations/invitations/accept` `{token}` | `{organization}` | yes |
 
 There is no `org delete`: the service refuses every organization deletion
@@ -42,7 +44,16 @@ have help too: `cli org member --help` and `cli org invitation --help`.
   prose cli org member list "$slug" --json
   ```
 
-- `ORG` and `SLUG`: 1 to 256 characters. `ACCOUNT_ID` and `INVITATION_ID`:
+- `INVITEE` (`org invite`) is a GitHub login or an account id. A value that
+  starts with `@` is a login (the `@` is dropped); one that starts with
+  `cus_`, or that cannot be a GitHub login (1 to 39 letters, digits or single
+  interior hyphens), is an account id; any other value is a login.
+  `--login LOGIN` and `--account ACCOUNT_ID` force a reading. Give exactly one
+  of the three. The plan's `summary` names the reading (`githubLogin` or
+  `accountId`). A login works only after its owner has used organizations
+  once (for example `prose cli org list`); otherwise the service answers
+  `account_not_found` (below).
+- `ORG` and `SLUG`: 1 to 256 characters. `INVITEE`, `--account` and `INVITATION_ID`:
   1 to 128 characters, the result schema's cap. The service would accept a
   longer account id and create the invitation, and then the CLI could not
   project the echo. `NAME` and `--name`: 1 to 200 characters. None may
@@ -67,6 +78,9 @@ have help too: `cli org member --help` and `cli org invitation --help`.
 - `ROLE` and `--role`: `admin`, `developer` or `reader`.
 - `--expires-in`: whole seconds from 1 to 2592000 (30 days). Without it the
   service uses 7 days.
+- `org invitation accept` takes an `INVITATION_ID` (a lowercase UUID, as
+  `org invitation list` prints it) or `--token-file`, not both. Any other
+  positional is presumed to be a token: it is refused and never echoed.
 - The invitation token is never taken from argv. `--token-file` reads it from
   a file, or from standard input with `-`, at most 4096 bytes, as one line
   (one trailing LF or CRLF is dropped). It is never printed, and a plan shows
@@ -97,10 +111,12 @@ Projections are closed ([`service/organizations.schema.json`](../../cli/shared/s
   `created_by` is dropped.
 - `member`: `member` (`member N`, numbered by when members joined; in `org
   member role`, the account id when the caller named one), `role`,
-  `created_at`, and `handle` when the service sends one. Account ids and the
-  organization id are not printed; human `org member list` prints
-  `member N [(handle)]  role`.
-- `invitation`: `id`, `account_id` (the invitee the caller named), `role`, `created_at`,
+  `created_at`, and `handle` and `github_login` (null when the service has
+  seen none) when the service sends them. Account ids and the organization id
+  are not printed; human `org member list` prints `member N [(@login)]  role`
+  (or the handle when there is no login).
+- `invitation`: `id`, `account_id` (the invitee), `github_login` (when the
+  service sends it), `role`, `created_at`,
   `expires_at`, `consumed_at`, `revoked_at` (the last two are `null` until
   used). The one-time `token` sits next to it and appears only in the `org
   invite` result.
@@ -110,6 +126,14 @@ Projections are closed ([`service/organizations.schema.json`](../../cli/shared/s
   list` says `No members in ORG.`. Give it to the invitee through a private channel; the invitee
   runs `prose cli org invitation accept --token-file FILE --yes` with their own
   key.
+
+- `org invitation list`: `invitations`, each `{id, organization: {id, slug,
+  name}, role, created_by_login, created_at, expires_at}` for your own, or
+  `{id, account_id, github_login, role, created_by_login, created_at,
+  expires_at}` for an organization's (the organization id and the issuer's
+  account id are dropped). Human output prints one line per invitation; your
+  own list ends with the `org invitation accept ID --yes` command for the
+  first. `--output jsonl` prints one record per invitation.
 
 A success body that does not fit these shapes, for example a name containing
 a control character or an unknown role, is `SERVICE_PROTOCOL_INVALID`.
@@ -124,6 +148,8 @@ the value is never printed.
 | 404 `organization_not_found`, `member_not_found`, `invitation_not_found` | `SERVICE_RESOURCE_NOT_FOUND` | 10 |
 | 403 `organization_forbidden` (admin role required) | `SERVICE_REQUEST_REJECTED` | 10 |
 | 403 without a code | `SERVICE_AUTH_REQUIRED` | 10 |
+| 404 `account_not_found` (`org invite` by login: the login has not used organizations yet) | `SERVICE_RESOURCE_NOT_FOUND` (`resource` `{kind: account, id: LOGIN}`; the Action asks the invitee to run `prose cli org list` once) | 10 |
+| 409 `ambiguous_login` (two GitHub identities used that login) | `SERVICE_WRITE_CONFLICT` (the Action says to invite with `--account`) | 10 |
 | 409 `slug_taken`, `last_admin`, `already_member` | `SERVICE_WRITE_CONFLICT` (with `serviceMessage`) | 10 |
 | 400 `invalid_slug`, `invalid_name`, `invalid_role`, `invalid_invitation`, `invalid_expiry`, … | `SERVICE_REQUEST_REJECTED` (with `serviceMessage`) | 10 |
 
@@ -138,7 +164,8 @@ the cases distinct anyway, the org commands add `details.reason`:
 - The same on `invitation revoke` says there is no invitation with that
   INVITATION_ID.
 - A rejected `invitation accept` says the token is invalid, expired, revoked,
-  already used, or was issued to a different account.
+  already used, or was issued to a different account; accepting by id says the
+  same of the invitation and names `prose cli org invitation list`.
 
 An `organization_not_found` keeps its `serviceCode` and gets no hint, because
 the ORG is what is wrong there.
@@ -148,8 +175,11 @@ the ORG is what is wrong there.
 ```sh
 prose cli org show default --json
 prose cli org member list acme-research --output json
-prose cli org invite acme-research ACCOUNT_ID --role reader --expires-in 86400 --preview
-prose cli org invite acme-research ACCOUNT_ID --role reader --expires-in 86400 --yes --json
+prose cli org invite acme-research @octocat --role reader --expires-in 86400 --preview
+prose cli org invite acme-research --account ACCOUNT_ID --role reader --yes --json
+prose cli org invitation list acme-research --json
+prose cli org invitation list
+prose cli org invitation accept 7e6d5c4b-3a29-4817-8f6e-5d4c3b2a1908 --yes
 prose cli org invitation revoke acme-research 7e6d5c4b-3a29-4817-8f6e-5d4c3b2a1908 --yes
 prose cli org invitation accept --token-file ./invite.token --yes
 ```

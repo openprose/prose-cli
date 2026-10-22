@@ -1,0 +1,57 @@
+{
+  "id": "invitation-accept-id-and-token-file-refused",
+  "feature": "organizations",
+  "operation": "org.invitation.accept",
+  "description": "INVITATION_ID and --token-file together are refused before the token file is read; the suggestion keeps the id.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "org",
+    "invitation",
+    "accept",
+    "7e6d5c4b-3a29-4817-8f6e-5d4c3b2a1908",
+    "--token-file",
+    "invite.token",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 2,
+  "stdout": {
+    "json": {
+      "interaction": "organizations.manage",
+      "operation": "org.invitation.accept",
+      "problem": {
+        "action": "Drop --token-file to accept by id: `prose --output json cli org invitation accept 7e6d5c4b-3a29-4817-8f6e-5d4c3b2a1908 --yes`.",
+        "boundary": "invocation",
+        "code": "INVOCATION_INVALID",
+        "details": {
+          "reason": "give INVITATION_ID or --token-file, not both",
+          "suggestedArgv": [
+            "--output",
+            "json",
+            "cli",
+            "org",
+            "invitation",
+            "accept",
+            "7e6d5c4b-3a29-4817-8f6e-5d4c3b2a1908",
+            "--yes"
+          ]
+        },
+        "exitCode": 2,
+        "message": "That command isn't quite right.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

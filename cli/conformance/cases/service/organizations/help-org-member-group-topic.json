@@ -19,7 +19,7 @@
   },
   "exitCode": 0,
   "stdout": {
-    "text": "Usage: prose [GLOBAL OPTIONS] cli org member <COMMAND> [ARGUMENTS] [OPTIONS]\n\nCommands:\n  list                        List an organization's members, numbered by when they joined; account ids are not shown.\n  remove                      Remove a member.\n  role                        Change a member's role.\n\nExamples:\n  prose cli org member list acme-research --json\n  prose cli org member remove acme-research MEMBER --yes\n  prose cli org member role acme-research MEMBER developer --yes\n\nGlobal options:\n  --output human|json|jsonl   Output mode; the same as the PROSE_OUTPUT setting.\n\nRun `prose cli org member <COMMAND> --help` for details. `prose cli service operations --json` prints every command as JSON.\n"
+    "text": "Usage: prose [GLOBAL OPTIONS] cli org member <COMMAND> [ARGUMENTS] [OPTIONS]\n\nCommands:\n  list                        List an organization's members, numbered by when they joined, with their GitHub logins; account ids are not shown.\n  remove                      Remove a member.\n  role                        Change a member's role.\n\nExamples:\n  prose cli org member list acme-research --json\n  prose cli org member remove acme-research MEMBER --yes\n  prose cli org member role acme-research MEMBER developer --yes\n\nGlobal options:\n  --output human|json|jsonl   Output mode; the same as the PROSE_OUTPUT setting.\n\nRun `prose cli org member <COMMAND> --help` for details. `prose cli service operations --json` prints every command as JSON.\n"
   },
   "stderr": {
     "text": ""

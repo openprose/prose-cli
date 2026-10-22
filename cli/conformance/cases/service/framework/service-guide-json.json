@@ -53,7 +53,7 @@
           {
             "id": "sharing",
             "title": "Sharing",
-            "body": "`prose cli run share RUN_ID --yes` creates a public link to a run's outputs.\nAnyone with the link can open it for 24 hours, and it cannot be revoked. To\ngive specific people access, invite them to your organization instead:\n`prose cli org invite --help`."
+            "body": "`prose cli run share RUN_ID --yes` creates a public link to a run's outputs.\nAnyone with the link can open it for 24 hours, and it cannot be revoked. To\ngive specific people access, invite them to your organization instead, by\nGitHub login: `prose cli org invite ORG @LOGIN --role reader --yes`. The\ninvitee must have run `prose cli org list` once. They see the invitation with\n`prose cli org invitation list` and accept it with\n`prose cli org invitation accept INVITATION_ID --yes`."
           },
           {
             "id": "grammar",

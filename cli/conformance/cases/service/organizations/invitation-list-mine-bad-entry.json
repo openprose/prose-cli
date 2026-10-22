@@ -1,0 +1,71 @@
+{
+  "id": "invitation-list-mine-bad-entry",
+  "feature": "organizations",
+  "operation": "org.invitation.list",
+  "description": "An entry outside the closed shape is SERVICE_PROTOCOL_INVALID naming the field.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "org",
+    "invitation",
+    "list"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/organizations/invitations",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          },
+          "Accept": "application/json"
+        },
+        "status": 200,
+        "body": {
+          "invitations": [
+            {
+              "id": "7e6d5c4b-3a29-4817-8f6e-5d4c3b2a1908",
+              "organization": {
+                "id": "5b0e7c1a-3f2d-4e8b-9a61-2c4d8e0f1a23",
+                "slug": "Not A Slug",
+                "name": "Acme Research"
+              },
+              "role": "developer",
+              "created_by_login": "octo-admin",
+              "created_at": 1790100000000,
+              "expires_at": 1790704800000
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "exitCode": 10,
+  "stdout": {
+    "json": {
+      "interaction": "organizations.manage",
+      "operation": "org.invitation.list",
+      "problem": {
+        "action": "Retry later and report the sanitized error code if it persists.",
+        "boundary": "protocol",
+        "code": "SERVICE_PROTOCOL_INVALID",
+        "details": {
+          "reason": "the service response has a missing or invalid invitations[].organization.slug"
+        },
+        "exitCode": 10,
+        "message": "The OpenProse service returned an invalid response.",
+        "retryable": false,
+        "schema": "openprose.runner-error/1"
+      },
+      "result": null,
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

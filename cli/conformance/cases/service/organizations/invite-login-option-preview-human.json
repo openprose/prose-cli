@@ -1,0 +1,34 @@
+{
+  "id": "invite-login-option-preview-human",
+  "feature": "organizations",
+  "operation": "org.invite",
+  "description": "--login forces the login reading and drops a leading @; the human plan prints it in its Summary.",
+  "argv": [
+    "cli",
+    "org",
+    "invite",
+    "acme-research",
+    "--login",
+    "@Octo-Cat",
+    "--role",
+    "reader",
+    "--expires-in",
+    "86400",
+    "--preview"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "Preview: Invite a GitHub login or an account.\nOrganization: acme-research\nExpires in: 24h\nSummary: GitHub login Octo-Cat; role reader\nEffect: creates an invitation to the organization\nNothing was changed.\n"
+  },
+  "stderr": {
+    "text": ""
+  }
+}

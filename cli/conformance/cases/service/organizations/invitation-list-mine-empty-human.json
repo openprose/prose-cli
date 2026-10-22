@@ -1,0 +1,42 @@
+{
+  "id": "invitation-list-mine-empty-human",
+  "feature": "organizations",
+  "operation": "org.invitation.list",
+  "description": "An empty human inbox.",
+  "argv": [
+    "cli",
+    "org",
+    "invitation",
+    "list"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/organizations/invitations",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          },
+          "Accept": "application/json"
+        },
+        "status": 200,
+        "body": {
+          "invitations": []
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "No pending invitations.\n"
+  },
+  "stderr": {
+    "text": ""
+  }
+}

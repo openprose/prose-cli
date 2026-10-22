@@ -80,6 +80,20 @@
           "maxLength": 64,
           "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
         },
+        "github_login": {
+          "description": "A GitHub login as the service last saw it, or null when it has seen none.",
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+            }
+          ]
+        },
         "role": {
           "enum": [
             "admin",
@@ -102,7 +116,7 @@
           ]
         }
       },
-      "description": "A member's public fields. `member` is `member N`, the number `cli org member list` gives it (members sorted by when they joined), or, in `org member role`, the account id the caller named; the account id is otherwise never shown. `handle` appears when the service provides one."
+      "description": "A member's public fields. `member` is `member N`, the number `cli org member list` gives it (members sorted by when they joined), or, in `org member role`, the account id the caller named; the account id is otherwise never shown. `handle` appears when the service provides one. `github_login` appears when the service sends it."
     },
     "memberList": {
       "type": "object",
@@ -175,6 +189,20 @@
               "type": "string",
               "maxLength": 128,
               "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+            },
+            "github_login": {
+              "description": "A GitHub login as the service last saw it, or null when it has seen none.",
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64,
+                  "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+                }
+              ]
             },
             "role": {
               "enum": [
@@ -253,12 +281,223 @@
                 }
               ]
             }
-          }
+          },
+          "description": "`account_id` is the invitee; `github_login` (when the service sends it) is that account's GitHub login."
         },
         "token": {
           "type": "string",
           "maxLength": 512,
           "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+        }
+      }
+    },
+    "invitationList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "invitations"
+      ],
+      "description": "`cli org invitation list`: without ORG, the pending invitations sent to the caller; with ORG, that organization's pending invitations.",
+      "properties": {
+        "invitations": {
+          "type": "array",
+          "maxItems": 10000,
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/invitationForMe"
+              }
+            },
+            {
+              "items": {
+                "$ref": "#/$defs/pendingInvitation"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "invitationForMe": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "organization",
+        "role",
+        "created_by_login",
+        "created_at",
+        "created_at_iso",
+        "expires_at",
+        "expires_at_iso"
+      ],
+      "description": "An invitation sent to the caller: accept it with `cli org invitation accept ID`.",
+      "properties": {
+        "id": {
+          "$ref": "common.schema.json#/$defs/uuid"
+        },
+        "organization": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "slug",
+            "name"
+          ],
+          "properties": {
+            "id": {
+              "$ref": "common.schema.json#/$defs/uuid"
+            },
+            "slug": {
+              "$ref": "common.schema.json#/$defs/slug"
+            },
+            "name": {
+              "type": "string",
+              "maxLength": 256,
+              "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+            }
+          }
+        },
+        "role": {
+          "enum": [
+            "admin",
+            "developer",
+            "reader"
+          ]
+        },
+        "created_by_login": {
+          "description": "A GitHub login as the service last saw it, or null when it has seen none.",
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+            }
+          ]
+        },
+        "created_at": {
+          "$ref": "common.schema.json#/$defs/epochMs"
+        },
+        "created_at_iso": {
+          "description": "`created_at` as an RFC 3339 UTC time (null when `created_at` is null).",
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "common.schema.json#/$defs/timestamp"
+            }
+          ]
+        },
+        "expires_at": {
+          "$ref": "common.schema.json#/$defs/epochMs"
+        },
+        "expires_at_iso": {
+          "description": "`expires_at` as an RFC 3339 UTC time (null when `expires_at` is null).",
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "common.schema.json#/$defs/timestamp"
+            }
+          ]
+        }
+      }
+    },
+    "pendingInvitation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "account_id",
+        "github_login",
+        "role",
+        "created_by_login",
+        "created_at",
+        "created_at_iso",
+        "expires_at",
+        "expires_at_iso"
+      ],
+      "description": "A pending invitation of one organization, as its admins see it. The organization id and the issuer's account id are not shown.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+        },
+        "account_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+        },
+        "github_login": {
+          "description": "A GitHub login as the service last saw it, or null when it has seen none.",
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+            }
+          ]
+        },
+        "role": {
+          "enum": [
+            "admin",
+            "developer",
+            "reader"
+          ]
+        },
+        "created_by_login": {
+          "description": "A GitHub login as the service last saw it, or null when it has seen none.",
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+            }
+          ]
+        },
+        "created_at": {
+          "$ref": "common.schema.json#/$defs/epochMs"
+        },
+        "created_at_iso": {
+          "description": "`created_at` as an RFC 3339 UTC time (null when `created_at` is null).",
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "common.schema.json#/$defs/timestamp"
+            }
+          ]
+        },
+        "expires_at": {
+          "$ref": "common.schema.json#/$defs/epochMs"
+        },
+        "expires_at_iso": {
+          "description": "`expires_at` as an RFC 3339 UTC time (null when `expires_at` is null).",
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "common.schema.json#/$defs/timestamp"
+            }
+          ]
         }
       }
     }

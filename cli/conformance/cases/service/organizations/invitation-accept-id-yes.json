@@ -1,0 +1,65 @@
+{
+  "id": "invitation-accept-id-yes",
+  "feature": "organizations",
+  "operation": "org.invitation.accept",
+  "description": "INVITATION_ID accepts by id: POST /organizations/invitations/{id}/accept with no body.",
+  "argv": [
+    "--output",
+    "json",
+    "cli",
+    "org",
+    "invitation",
+    "accept",
+    "7e6d5c4b-3a29-4817-8f6e-5d4c3b2a1908",
+    "--yes"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "POST",
+        "path": "/organizations/invitations/7e6d5c4b-3a29-4817-8f6e-5d4c3b2a1908/accept",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          },
+          "Accept": "application/json"
+        },
+        "status": 200,
+        "body": {
+          "organization": {
+            "id": "5b0e7c1a-3f2d-4e8b-9a61-2c4d8e0f1a23",
+            "slug": "acme-research",
+            "name": "Acme Research",
+            "created_by": "cus_ExampleAdmin01",
+            "created_at": 1790012915257,
+            "role": "developer"
+          }
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "json": {
+      "interaction": "organizations.manage",
+      "operation": "org.invitation.accept",
+      "problem": null,
+      "result": {
+        "organization": {
+          "created_at": 1790012915257,
+          "created_at_iso": "2026-09-21T17:48:35.257Z",
+          "id": "5b0e7c1a-3f2d-4e8b-9a61-2c4d8e0f1a23",
+          "name": "Acme Research",
+          "role": "developer",
+          "slug": "acme-research"
+        }
+      },
+      "schema": "openprose.service-operation/1"
+    }
+  }
+}

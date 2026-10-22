@@ -1,0 +1,69 @@
+{
+  "id": "invitation-list-mine-human",
+  "feature": "organizations",
+  "operation": "org.invitation.list",
+  "description": "Human inbox: one line per invitation and the command that accepts the first.",
+  "argv": [
+    "cli",
+    "org",
+    "invitation",
+    "list"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": [
+      {
+        "method": "GET",
+        "path": "/organizations/invitations",
+        "requestHeaders": {
+          "Authorization": {
+            "present": true
+          },
+          "Accept": "application/json"
+        },
+        "status": 200,
+        "body": {
+          "invitations": [
+            {
+              "id": "7e6d5c4b-3a29-4817-8f6e-5d4c3b2a1908",
+              "organization": {
+                "id": "5b0e7c1a-3f2d-4e8b-9a61-2c4d8e0f1a23",
+                "slug": "acme-research",
+                "name": "Acme Research"
+              },
+              "role": "developer",
+              "created_by_login": "octo-admin",
+              "created_at": 1790100000000,
+              "expires_at": 1790704800000,
+              "account_id": "cus_ExampleInvitee1"
+            },
+            {
+              "id": "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d",
+              "organization": {
+                "id": "6c1f8d2b-4a3e-4f9c-8b72-3d5e9f1a2b34",
+                "slug": "octo-admin",
+                "name": "octo-admin"
+              },
+              "role": "reader",
+              "created_by_login": null,
+              "created_at": 1790100001000,
+              "expires_at": 1790704801000,
+              "account_id": "cus_ExampleInvitee1"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "Pending invitations (2):\n7e6d5c4b-3a29-4817-8f6e-5d4c3b2a1908  acme-research (Acme Research)  developer  from @octo-admin  expires 2026-09-29T18:00:00.000Z\n9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d  octo-admin  reader  expires 2026-09-29T18:00:01.000Z\nNext: prose cli org invitation accept 7e6d5c4b-3a29-4817-8f6e-5d4c3b2a1908 --yes\n"
+  },
+  "stderr": {
+    "text": ""
+  }
+}

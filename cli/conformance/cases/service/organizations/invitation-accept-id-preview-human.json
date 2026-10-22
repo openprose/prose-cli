@@ -1,0 +1,29 @@
+{
+  "id": "invitation-accept-id-preview-human",
+  "feature": "organizations",
+  "operation": "org.invitation.accept",
+  "description": "The human plan of an accept by id names the invitation.",
+  "argv": [
+    "cli",
+    "org",
+    "invitation",
+    "accept",
+    "7e6d5c4b-3a29-4817-8f6e-5d4c3b2a1908",
+    "--preview"
+  ],
+  "fixture": {
+    "environment": "production",
+    "credentials": {
+      "production": "rr_test_0123456789abcdef0123456789abcdef"
+    },
+    "storeAvailable": true,
+    "exchanges": []
+  },
+  "exitCode": 0,
+  "stdout": {
+    "text": "Preview: Accept an invitation by its id, or with its token.\nInvitation: 7e6d5c4b-3a29-4817-8f6e-5d4c3b2a1908\nEffect: joins you to the organization\nNothing was changed.\n"
+  },
+  "stderr": {
+    "text": ""
+  }
+}

@@ -13,6 +13,28 @@ a candidate do not establish public availability or authorize publication.
 
 ### Hosted service
 
+- Organization invitations by GitHub login. `org invite ORG INVITEE` sends
+  `{githubLogin}` for a login (a leading `@` dropped) and `{accountId}` for a
+  value that starts with `cus_` or cannot be a GitHub login, so existing
+  account-id invites are unchanged; `--login LOGIN` and `--account
+  ACCOUNT_ID` force a reading. The plan's summary names the reading
+  (`githubLogin` or `accountId`), and the human preview prints it on its
+  Summary line instead of a separate `Account:` line. A login that has not
+  used organizations (`account_not_found`) asks the invitee to run
+  `prose cli org list` once; an `ambiguous_login` says to invite by account
+  id. The receipt carries the invitee's `github_login`.
+- `org invitation list` lists your pending invitations, or with `ORG` that
+  organization's pending invitations (admins). `org invitation accept
+  INVITATION_ID` accepts by id; `--token-file` still accepts with the token,
+  and the two are mutually exclusive. A positional that is not a lowercase
+  UUID is still presumed to be a token and never echoed (manifest argument
+  `format`).
+- `org member list` and `org member role` carry each member's `github_login`,
+  and the human member list prints `member N (@login)`.
+- `account_not_found`, `ambiguous_login` and `invalid_login` join the
+  allowlisted service codes. The vendored service interaction catalog adds
+  the three new organization routes.
+
 - Hold quotes follow the service's per-run holds. `run quote` and the
   `run submit` plan send the given `--model`, `--reasoning-effort` and
   `--environment`, plus `repositories=1` for any `--repo` or

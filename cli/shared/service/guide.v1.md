@@ -129,8 +129,11 @@ set `OPENPROSE_API_KEY` in the job instead. Check a key with
 
 `prose cli run share RUN_ID --yes` creates a public link to a run's outputs.
 Anyone with the link can open it for 24 hours, and it cannot be revoked. To
-give specific people access, invite them to your organization instead:
-`prose cli org invite --help`.
+give specific people access, invite them to your organization instead, by
+GitHub login: `prose cli org invite ORG @LOGIN --role reader --yes`. The
+invitee must have run `prose cli org list` once. They see the invitation with
+`prose cli org invitation list` and accept it with
+`prose cli org invitation accept INVITATION_ID --yes`.
 
 ## Grammar
 
